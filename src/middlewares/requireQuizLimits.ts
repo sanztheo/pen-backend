@@ -6,7 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { QuizLimitsService } from '../services/credits/quizLimitsService.js';
 import { AuthUser } from '../services/auth.js';
-import SecureLogger from './secureLogging';
+import SecureLogger from './secureLogging.js';
 import { z } from 'zod';
 
 // Interface pour les requêtes authentifiées
