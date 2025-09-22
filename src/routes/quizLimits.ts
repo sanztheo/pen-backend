@@ -4,7 +4,7 @@
  */
 
 import express from 'express';
-import { authenticateToken } from '../middlewares/auth';
+import { authenticateToken } from '../middlewares/auth.js';
 import { Request } from 'express';
 import { AuthUser } from '../services/auth';
 import { QuizLimitsService } from '../services/credits/quizLimitsService';
