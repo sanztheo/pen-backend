@@ -1,5 +1,5 @@
 // 🚀 RAG System - Service Principal
-import { prisma } from '../../lib/prisma';
+import { prisma } from '../../lib/prisma.js';
 import type { RAGSourceType } from '@prisma/client';
 
 // Type pour la réponse de l'API OpenAI

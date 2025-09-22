@@ -6,8 +6,8 @@
 import express from 'express';
 import { authenticateToken } from '../middlewares/auth.js';
 import { Request } from 'express';
-import { AuthUser } from '../services/auth';
-import { AICreditsService } from '../services/credits/aiCreditsService';
+import { AuthUser } from '../services/auth.js';
+import { AICreditsService } from '../services/credits/aiCreditsService.js';
 
 const router = express.Router();
 

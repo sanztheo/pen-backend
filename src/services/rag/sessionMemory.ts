@@ -1,5 +1,5 @@
 // 🧠 RAG Session Memory - Mémoire persistante entre sessions
-import { prisma } from '../../lib/prisma';
+import { prisma } from '../../lib/prisma.js';
 import type { RAGSearchResult } from './index';
 
 export interface SessionContext {

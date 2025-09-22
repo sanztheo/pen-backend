@@ -4,8 +4,8 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { QuizLimitsService } from '../services/credits/quizLimitsService';
-import { AuthUser } from '../services/auth';
+import { QuizLimitsService } from '../services/credits/quizLimitsService.js';
+import { AuthUser } from '../services/auth.js';
 import SecureLogger from './secureLogging';
 import { z } from 'zod';
 
