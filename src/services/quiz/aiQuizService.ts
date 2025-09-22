@@ -489,7 +489,7 @@ export class AIQuizService {
                 id: q.id,
                 question: q.question,
                 type: q.type,
-                options: q.options
+                options: 'options' in q ? q.options : undefined
               }))
             }
           ),
@@ -519,7 +519,7 @@ export class AIQuizService {
                   id: q.id,
                   question: q.question,
                   type: q.type,
-                  options: q.options
+                  options: 'options' in q ? q.options : undefined
                 }))
               }
             ),
@@ -548,7 +548,7 @@ export class AIQuizService {
                   id: q.id,
                   question: q.question,
                   type: q.type,
-                  options: q.options
+                  options: 'options' in q ? q.options : undefined
                 }))
               }
             ),
@@ -578,7 +578,7 @@ export class AIQuizService {
                 id: q.id,
                 question: q.question,
                 type: q.type,
-                options: q.options
+                options: 'options' in q ? q.options : undefined
               }))
             }
           ),
