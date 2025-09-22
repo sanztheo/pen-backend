@@ -1,0 +1,655 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  email                 String               @unique @db.VarChar(255)
+  avatarUrl             String?              @map("avatar_url")
+  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  firstName             String               @map("first_name") @db.VarChar(100)
+  isActive              Boolean              @default(true) @map("is_active")
+  lastLoginAt           DateTime?            @map("last_login_at") @db.Timestamptz(6)
+  lastName              String               @map("last_name") @db.VarChar(100)
+  updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                    String               @id @db.VarChar(255)
+  autocompletionEnabled Boolean              @default(true) @map("autocompletion_enabled")
+  activityLogs          ActivityLog[]
+  pages                 Page[]               @relation("PageAuthor")
+  projects              Project[]            @relation("ProjectOwner")
+  quizSequences         QuizSequence[]
+  quizTemplates         QuizTemplate[]
+  quizzes               Quiz[]
+  usageRecords          UsageRecord[]
+  userLimits            UserLimits?
+  quizPreferences       UserQuizPreferences?
+  subscription          UserSubscription?
+  invitedMembers        WorkspaceMember[]    @relation("InvitedBy")
+  workspaceMembers      WorkspaceMember[]
+  ownedWorkspaces       Workspace[]          @relation("WorkspaceOwner")
+  // 🚀 RAG Relations
+  ragSources            RAGSource[]
+  ragSessions           RAGSession[]
+  // 💬 AI Conversations
+  aiConversations       AIConversation[]
+
+  @@map("users")
+}
+
+model Workspace {
+  name           String            @db.VarChar(255)
+  description    String?
+  color          String?           @default("#3B82F6") @db.VarChar(7)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  isArchived     Boolean           @default(false) @map("is_archived")
+  lastActivityAt DateTime          @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  ownerId        String            @map("owner_id") @db.VarChar(255)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  activityLogs   ActivityLog[]
+  pages          Page[]
+  projects       Project[]
+  members        WorkspaceMember[]
+  owner          User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  // 🚀 RAG Relations
+  ragSources     RAGSource[]
+  ragSessions    RAGSession[]
+  // 💬 AI Conversations
+  aiConversations AIConversation[]
+
+  @@unique([ownerId, name])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String    @map("workspace_id") @db.Uuid
+  userId      String    @map("user_id") @db.VarChar(255)
+  role        String    @default("member") @db.VarChar(20)
+  permissions Json      @default("{}")
+  invitedBy   String?   @map("invited_by") @db.VarChar(255)
+  invitedAt   DateTime  @default(now()) @map("invited_at") @db.Timestamptz(6)
+  joinedAt    DateTime? @map("joined_at") @db.Timestamptz(6)
+  isActive    Boolean   @default(true) @map("is_active")
+  inviter     User?     @relation("InvitedBy", fields: [invitedBy], references: [id])
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model Project {
+  name           String        @db.VarChar(255)
+  description    String?
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy      String        @map("created_by") @db.VarChar(255)
+  isArchived     Boolean       @default(false) @map("is_archived")
+  lastActivityAt DateTime      @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  settings       Json          @default("{}")
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  workspaceId    String        @map("workspace_id") @db.Uuid
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  position       Int           @default(0)
+  isPinned       Boolean       @default(false) @map("is_pinned")
+  activityLogs   ActivityLog[]
+  pages          Page[]
+  owner          User          @relation("ProjectOwner", fields: [createdBy], references: [id])
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("projects")
+}
+
+model Page {
+  title            String        @db.VarChar(255)
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy        String        @map("created_by") @db.VarChar(255)
+  isArchived       Boolean       @default(false) @map("is_archived")
+  parentId         String?       @map("parent_id") @db.Uuid
+  position         Int           @default(0)
+  projectId        String?       @map("project_id") @db.Uuid
+  slug             String?       @db.VarChar(255)
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  blockNoteContent Json?         @map("block_note_content")
+  workspaceId      String        @map("workspace_id") @db.Uuid
+  isPinned         Boolean       @default(false) @map("is_pinned")
+  icon             String?       @db.VarChar(50)
+  iconColor        String?       @map("icon_color") @db.VarChar(7)
+  activityLogs     ActivityLog[]
+  author           User          @relation("PageAuthor", fields: [createdBy], references: [id])
+  parent           Page?         @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children         Page[]        @relation("PageHierarchy")
+  project          Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  yjsDocument      YjsDocument?
+
+  @@map("pages")
+}
+
+model ActivityLog {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String     @map("user_id") @db.VarChar(255)
+  workspaceId String?    @map("workspace_id") @db.Uuid
+  projectId   String?    @map("project_id") @db.Uuid
+  pageId      String?    @map("page_id") @db.Uuid
+  action      String     @db.VarChar(100)
+  entityType  String     @map("entity_type") @db.VarChar(50)
+  entityId    String     @map("entity_id") @db.Uuid
+  details     Json       @default("{}")
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  page        Page?      @relation(fields: [pageId], references: [id])
+  project     Project?   @relation(fields: [projectId], references: [id])
+  user        User       @relation(fields: [userId], references: [id])
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+
+  @@map("activity_logs")
+}
+
+model YjsDocument {
+  id        String      @id @default(cuid())
+  pageId    String      @unique @map("page_id") @db.Uuid
+  data      Bytes
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  page      Page        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  updates   YjsUpdate[]
+
+  @@map("yjs_documents")
+}
+
+model YjsUpdate {
+  id         String      @id @default(cuid())
+  documentId String      @map("document_id")
+  data       Bytes
+  createdAt  DateTime    @default(now()) @map("created_at")
+  document   YjsDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("yjs_updates")
+}
+
+model UserQuizPreferences {
+  id                   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String           @unique @map("user_id") @db.VarChar(255)
+  schoolLevel          SchoolLevel      @map("school_level")
+  lyceeSpecialties     LyceeSpecialty[] @map("lycee_specialties")
+  higherEdField        String?          @map("higher_ed_field") @db.VarChar(255)
+  preferredWorkspace   String?          @map("preferred_workspace") @db.Uuid
+  targetGrade          Float?           @map("target_grade")
+  questionTypes        QuestionType[]   @default([MULTIPLE_CHOICE, TRUE_FALSE]) @map("question_types")
+  defaultQuestionCount Int              @default(20) @map("default_question_count")
+  createdAt            DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  collegeGrade         CollegeGrade?    @map("college_grade")
+  user                 User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_quiz_preferences")
+}
+
+model QuizTemplate {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String           @map("user_id") @db.VarChar(255)
+  title            String           @db.VarChar(255)
+  description      String?
+  schoolLevel      SchoolLevel      @map("school_level")
+  lyceeSpecialties LyceeSpecialty[] @map("lycee_specialties")
+  higherEdField    String?          @map("higher_ed_field") @db.VarChar(255)
+  workspaceIds     String[]         @map("workspace_ids") @db.Uuid
+  questionTypes    QuestionType[]   @map("question_types")
+  questionCount    Int              @default(20) @map("question_count")
+  targetGrade      Float?           @map("target_grade")
+  parameters       Json             @default("{}")
+  isPublic         Boolean          @default(false) @map("is_public")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  collegeGrade     CollegeGrade?    @map("college_grade")
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quizzes          Quiz[]
+
+  @@map("quiz_templates")
+}
+
+model Quiz {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  templateId          String?          @map("template_id") @db.Uuid
+  userId              String           @map("user_id") @db.VarChar(255)
+  title               String           @db.VarChar(255)
+  schoolLevel         SchoolLevel      @map("school_level")
+  questions           Json
+  userAnswers         Json?            @map("user_answers")
+  isCompleted         Boolean          @default(false) @map("is_completed")
+  timeSpent           Int?             @map("time_spent")
+  startedAt           DateTime?        @map("started_at") @db.Timestamptz(6)
+  completedAt         DateTime?        @map("completed_at") @db.Timestamptz(6)
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  aiGeneratedTitle    String?          @map("ai_generated_title") @db.VarChar(255)
+  collegeGrade        CollegeGrade?    @map("college_grade")
+  examSubject         ExamSubject?     @map("exam_subject")
+  higherEdField       String?          @map("higher_ed_field") @db.VarChar(255)
+  isSequential        Boolean          @default(false) @map("is_sequential")
+  preset              QuizPreset       @default(NONE)
+  selectedSpecialties LyceeSpecialty[] @map("selected_specialties")
+  sequenceId          String?          @map("sequence_id")
+  sequenceOrder       Int?             @map("sequence_order")
+  currentSubjectIndex Int?             @default(0) @map("current_subject_index")
+  subjectBased        Boolean          @default(false) @map("subject_based")
+  subjects            Json?
+  hasDocuments        Boolean          @default(false) @map("has_documents")
+  sourceDocuments     Json?            @map("source_documents")
+  status              String?          @default("ready") @db.VarChar(20)
+  result              QuizResult?
+  template            QuizTemplate?    @relation(fields: [templateId], references: [id])
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("quizzes")
+}
+
+model QuizResult {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quizId             String   @unique @map("quiz_id") @db.Uuid
+  totalScore         Float    @map("total_score")
+  maxScore           Float    @map("max_score")
+  percentage         Float
+  adaptedGrade       Float    @map("adapted_grade")
+  gradeScale         String   @map("grade_scale") @db.VarChar(20)
+  detailedScoring    Json     @map("detailed_scoring")
+  aiCorrection       Json     @map("ai_correction")
+  recommendations    Json     @default("[]")
+  strengths          Json     @default("[]")
+  weaknesses         Json     @default("[]")
+  timeAnalysis       Json?    @map("time_analysis")
+  difficultyAnalysis Json?    @map("difficulty_analysis")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  quiz               Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@map("quiz_results")
+}
+
+model QuizSequence {
+  id                  String           @id @default(cuid())
+  userId              String           @map("user_id") @db.VarChar(255)
+  preset              QuizPreset
+  isCompleted         Boolean          @default(false) @map("is_completed")
+  currentSubjectIndex Int              @default(0) @map("current_subject_index")
+  totalSubjects       Int              @map("total_subjects")
+  subjects            Json
+  subjectResults      Json
+  globalScore         Float?           @map("global_score")
+  globalMaxScore      Float?           @map("global_max_score")
+  specialties         LyceeSpecialty[] @default([])
+  higherEdField       String?          @map("higher_ed_field") @db.VarChar(255)
+  workspaceIds        String[]         @map("workspace_ids") @db.Uuid
+  metadata            Json
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("quiz_sequences")
+}
+
+model UserSubscription {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String             @unique @map("user_id") @db.VarChar(255)
+  plan                SubscriptionPlan   @default(free_user)
+  status              SubscriptionStatus @default(active)
+  clerkSubscriptionId String?            @map("clerk_subscription_id") @db.VarChar(255)
+  currentPeriodStart  DateTime?          @map("current_period_start") @db.Timestamptz(6)
+  currentPeriodEnd    DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  cancelAtPeriodEnd   Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt          DateTime?          @map("canceled_at") @db.Timestamptz(6)
+  trialStart          DateTime?          @map("trial_start") @db.Timestamptz(6)
+  trialEnd            DateTime?          @map("trial_end") @db.Timestamptz(6)
+  metadata            Json?              @default("{}")
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([clerkSubscriptionId])
+  @@map("user_subscriptions")
+}
+
+model UsageRecord {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.VarChar(255)
+  resourceType String   @map("resource_type") @db.VarChar(50)
+  action       String   @db.VarChar(50)
+  quantity     Int      @default(1)
+  metadata     Json?    @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, resourceType])
+  @@index([createdAt])
+  @@map("usage_records")
+}
+
+model UserLimits {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String   @unique @map("user_id") @db.VarChar(255)
+  aiCreditsUsed        Float    @default(0) @map("ai_credits_used")
+  aiCreditsLimit       Float    @default(50) @map("ai_credits_limit")
+  workspacesUsed       Int      @default(0) @map("workspaces_used")
+  workspacesLimit      Int      @default(2) @map("workspaces_limit")
+  projectsUsed         Int      @default(0) @map("projects_used")
+  projectsLimit        Int      @default(4) @map("projects_limit")
+  customQuizzesUsed    Int      @default(0) @map("custom_quizzes_used")
+  customQuizzesLimit   Int      @default(5) @map("custom_quizzes_limit")
+  presetSequencesUsed  Int      @default(0) @map("preset_sequences_used")
+  presetSequencesLimit Int      @default(1) @map("preset_sequences_limit")
+  lastResetAt          DateTime @default(now()) @map("last_reset_at") @db.Timestamptz(6)
+  resetType            String   @default("monthly") @map("reset_type") @db.VarChar(20)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  pagesLimit           Int      @default(-1) @map("pages_limit")
+  pagesUsed            Int      @default(0) @map("pages_used")
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_limits")
+}
+
+enum SchoolLevel {
+  COLLEGE
+  LYCEE_SECONDE
+  LYCEE_PREMIERE
+  LYCEE_TERMINALE
+  ETUDES_SUPERIEURES
+}
+
+enum CollegeGrade {
+  SIXIEME
+  CINQUIEME
+  QUATRIEME
+  TROISIEME
+}
+
+enum LyceeSpecialty {
+  MATHEMATIQUES
+  PHYSIQUE_CHIMIE
+  SVT
+  HISTOIRE_GEO
+  SES
+  LANGUES_LITTERATURE
+  LLCER_ANGLAIS
+  LLCER_ESPAGNOL
+  LLCER_ALLEMAND
+  LLCER_ITALIEN
+  ARTS_PLASTIQUES
+  MUSIQUE
+  THEATRE
+  CINEMA_AUDIOVISUEL
+  DANSE
+  HISTOIRE_DES_ARTS
+  NSI
+  SI
+  SCIENCES_INGENIEUR
+  BIOLOGIE_ECOLOGIE
+  SPORT
+}
+
+enum QuestionType {
+  OPEN_QUESTION
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  MATCHING
+}
+
+enum QuizPreset {
+  NONE
+  BREVET
+  BAC
+  PARTIELS
+}
+
+enum ExamSubject {
+  FRANCAIS
+  MATHEMATIQUES
+  HISTOIRE_GEOGRAPHIE_EMC
+  SCIENCES
+  PHILOSOPHIE
+  GRAND_ORAL
+  MATHEMATIQUES_SPE
+  PHYSIQUE_CHIMIE_SPE
+  SVT_SPE
+  SES_SPE
+  HGGSP_SPE
+  NSI_SPE
+  SI_SPE
+  LLCER_ANGLAIS_SPE
+  LLCER_ESPAGNOL_SPE
+  LLCER_ALLEMAND_SPE
+  LLCER_ITALIEN_SPE
+  ARTS_PLASTIQUES_SPE
+  MUSIQUE_SPE
+  THEATRE_SPE
+  CINEMA_AUDIOVISUEL_SPE
+  DANSE_SPE
+  HISTOIRE_DES_ARTS_SPE
+  BIOLOGIE_ECOLOGIE_SPE
+  SPORT_SPE
+}
+
+enum SubscriptionPlan {
+  free_user
+  premium
+}
+
+enum SubscriptionStatus {
+  active
+  canceled
+  incomplete
+  incomplete_expired
+  past_due
+  trialing
+  unpaid
+  ended
+}
+
+model Update {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String   @db.VarChar(255)
+  date        DateTime @db.Timestamptz(6)
+  imageUrl    String   @map("image_url") @db.VarChar(500)
+  content     String   @db.Text
+  isPublished Boolean  @default(true) @map("is_published")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("updates")
+}
+
+model OpenaiUsageLog {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotaKey         String   @default("global") @map("quota_key") @db.VarChar(100)
+  model            String   @db.VarChar(100)
+  promptTokens     Int      @map("prompt_tokens")
+  completionTokens Int      @map("completion_tokens")
+  estimatedCost    Float    @map("estimated_cost")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([quotaKey, createdAt])
+  @@index([createdAt])
+  @@map("openai_usage_log")
+}
+
+// 🚀 RAG SYSTEM - Sources et Chunks intelligents
+model RAGSource {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String?          @map("user_id") @db.VarChar(255)  // 🔥 OPTIONNEL pour sources globales
+  workspaceId  String?          @map("workspace_id") @db.Uuid
+  sourceType   RAGSourceType    @map("source_type")
+  title        String           @db.VarChar(500)
+  originalUrl  String?          @map("original_url") @db.Text
+  fileName     String?          @map("file_name") @db.VarChar(255)
+  fileSize     Int?             @map("file_size")
+  mimeType     String?          @map("mime_type") @db.VarChar(100)
+  totalPages   Int?             @map("total_pages")
+  totalChunks  Int              @default(0) @map("total_chunks")
+  metadata     Json             @default("{}")
+  status       RAGSourceStatus  @default(PROCESSING)
+  errorMessage String?          @map("error_message") @db.Text
+  isGlobal     Boolean          @default(false) @map("is_global")  // 🔥 NOUVEAU: source globale partagée
+  lastUsedAt   DateTime?        @map("last_used_at") @db.Timestamptz(6)  // 🔥 NOUVEAU: dernière utilisation
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  user      User?          @relation(fields: [userId], references: [id], onDelete: Cascade)  // 🔥 OPTIONNEL
+  workspace Workspace?     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  chunks    RAGChunk[]
+  sessions  RAGSession[]   @relation("SessionSources")
+
+  @@index([userId, sourceType])
+  @@index([workspaceId])
+  @@index([status])
+  @@index([isGlobal, sourceType, title])  // 🔥 NOUVEAU: Index pour sources globales
+  @@index([title, sourceType])            // 🔥 NOUVEAU: Recherche rapide par titre
+  @@map("rag_sources")
+}
+
+model RAGChunk {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceId      String    @map("source_id") @db.Uuid
+  chunkIndex    Int       @map("chunk_index")
+  content       String    @db.Text
+  cleanContent  String    @map("clean_content") @db.Text
+  // Stockage des embeddings (pgvector requis)
+  embedding     String?   @db.Text // Format JSON temporaire, sera migré vers vector
+  tokenCount    Int       @map("token_count")
+  
+  // Métadonnées contextuelles
+  pageNumber    Int?      @map("page_number")
+  sectionTitle  String?   @map("section_title") @db.VarChar(255)
+  startOffset   Int?      @map("start_offset")
+  endOffset     Int?      @map("end_offset")
+  
+  // Qualité du chunk
+  quality       Float     @default(1.0) // Score de qualité (0-1)
+  language      String    @default("fr") @db.VarChar(5)
+  
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  source        RAGSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  
+  @@unique([sourceId, chunkIndex])
+  @@index([sourceId])
+  @@index([quality])
+  @@map("rag_chunks")
+}
+
+// 💬 Conversations avec l'IA
+model AIConversation {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String      @map("user_id") @db.VarChar(255)
+  workspaceId String?     @map("workspace_id") @db.Uuid
+  title       String      @db.VarChar(255)
+  
+  // État de la conversation
+  isActive    Boolean     @default(true) @map("is_active")
+  messageCount Int        @default(0) @map("message_count")
+  lastMessageAt DateTime? @map("last_message_at") @db.Timestamptz(6)
+  
+  // Métadonnées
+  metadata    Json        @default("{}")
+  
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages    AIMessage[]
+  
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([isActive, lastMessageAt])
+  @@index([userId, isActive, updatedAt])
+  @@map("ai_conversations")
+}
+
+// 📝 Messages de conversation
+model AIMessage {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String         @map("conversation_id") @db.Uuid
+  role           AIMessageRole
+  content        String         @db.Text
+  
+  // Métadonnées contextuelles
+  mentions       Json?          @default("[]") // Pages mentionnées
+  files          Json?          @default("[]") // Fichiers joints
+  wikipediaSources Json?        @default("[]") @map("wikipedia_sources") // Sources Wikipedia
+  mode           String?        @db.VarChar(50) // ask, search, create
+  
+  // Timing
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  
+  // Relations
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  @@index([conversationId])
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+// 🧠 Mémoire de session persistante
+model RAGSession {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String      @map("user_id") @db.VarChar(255)
+  workspaceId String?     @map("workspace_id") @db.Uuid
+  sessionKey  String      @unique @map("session_key") @db.VarChar(100) // identifiant unique
+  title       String?     @db.VarChar(255)
+  
+  // Conversation et contexte
+  queries     Json        @default("[]") // Historique des questions
+  responses   Json        @default("[]") // Historique des réponses
+  context     Json        @default("{}") // Context accumulé
+  
+  // Sources utilisées dans cette session
+  sourcesUsed RAGSource[] @relation("SessionSources")
+  
+  // Métadonnées de session
+  totalQueries     Int      @default(0) @map("total_queries")
+  lastQueryAt      DateTime? @map("last_query_at") @db.Timestamptz(6)
+  isActive         Boolean  @default(true) @map("is_active")
+  
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  
+  // Relations
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([sessionKey])
+  @@index([isActive, lastQueryAt])
+  @@map("rag_sessions")
+}
+
+// Enums pour le système RAG
+enum RAGSourceType {
+  PDF
+  WIKIPEDIA
+  WEB_PAGE
+  WORKSPACE_PAGE
+  TEXT_FILE
+}
+
+enum RAGSourceStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+  INDEXING
+}
+
+enum AIMessageRole {
+  USER
+  ASSISTANT
+}

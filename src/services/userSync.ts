@@ -1,0 +1,175 @@
+import { AuthUser } from './auth.js';
+import { prisma } from '../lib/prisma.js';
+import { DefaultWorkspaceService } from './defaultWorkspace.js';
+import { withRetry } from '../lib/retry.js';
+
+export class UserSyncService {
+  // Synchroniser un utilisateur Clerk avec PostgreSQL
+  static async syncUser(clerkUser: AuthUser) {
+    return withRetry(async () => {
+      
+      try {
+        // 1. D'abord, vérifier si un utilisateur avec cet email existe déjà
+        const existingUserByEmail = await prisma.user.findUnique({
+          where: { email: clerkUser.email }
+        });
+
+        let user;
+        let isNewUser = false;
+
+        if (existingUserByEmail) {
+          // Si un utilisateur avec cet email existe déjà
+          if (existingUserByEmail.id !== clerkUser.id) {
+            // 🚨 CONFLIT DÉTECTÉ : Même email avec ID différent
+            console.error(`🚨 [USER-SYNC] CONFLIT CRITIQUE détecté:
+              Email: ${clerkUser.email}
+              ID existant DB: ${existingUserByEmail.id}
+              ID Clerk entrant: ${clerkUser.id}
+              Créé le: ${existingUserByEmail.createdAt}
+              Dernière MAJ: ${existingUserByEmail.updatedAt}
+            `);
+            
+            // 🛡️ SÉCURITÉ : On refuse la synchronisation pour éviter la perte de données.
+            throw new Error(`CONFLIT_ID_EMAIL: Email ${clerkUser.email} existe déjà avec un ID différent. Intervention manuelle requise.`);
+
+          } else {
+            // Même ID, simple mise à jour
+            user = await prisma.user.update({
+              where: { id: clerkUser.id },
+              data: {
+                email: clerkUser.email,
+                firstName: clerkUser.user_metadata?.firstName || '',
+                lastName: clerkUser.user_metadata?.lastName || '',
+                avatarUrl: clerkUser.user_metadata?.avatar,
+                autocompletionEnabled: clerkUser.user_metadata?.autocompletionEnabled ?? true,
+                updatedAt: new Date()
+              }
+            });
+          }
+        } else {
+          // Aucun utilisateur avec cet email, vérifier si c'est vraiment nouveau
+          const existingById = await prisma.user.findUnique({
+            where: { id: clerkUser.id }
+          });
+          
+          if (!existingById) {
+            isNewUser = true;
+          }
+          
+          // Utiliser upsert classique
+          user = await prisma.user.upsert({
+            where: { id: clerkUser.id },
+            update: {
+              email: clerkUser.email,
+              firstName: clerkUser.user_metadata?.firstName || '',
+              lastName: clerkUser.user_metadata?.lastName || '',
+              avatarUrl: clerkUser.user_metadata?.avatar,
+              autocompletionEnabled: clerkUser.user_metadata?.autocompletionEnabled ?? true,
+              updatedAt: new Date()
+            },
+            create: {
+              id: clerkUser.id,
+              email: clerkUser.email,
+              firstName: clerkUser.user_metadata?.firstName || '',
+              lastName: clerkUser.user_metadata?.lastName || '',
+              avatarUrl: clerkUser.user_metadata?.avatar,
+              autocompletionEnabled: clerkUser.user_metadata?.autocompletionEnabled ?? true
+            }
+          });
+        }
+
+        // 🏠 Créer automatiquement le workspace par défaut SEULEMENT lors de la création d'un nouvel utilisateur
+        if (isNewUser) {
+          try {
+            await DefaultWorkspaceService.getOrCreateDefaultWorkspace(user.id);
+            console.log(`🏠 [USER-SYNC] Workspace par défaut créé pour le nouvel utilisateur ${user.firstName} ${user.lastName}`);
+          } catch (error) {
+            console.error('❌ [USER-SYNC] Erreur création workspace par défaut:', error);
+          }
+        }
+
+        return user;
+
+      } catch (error: any) {
+        console.error(`❌ [USER-SYNC] Erreur lors de la synchronisation de l'utilisateur ${clerkUser.email}:`, error);
+        throw error;
+      }
+    }, 1, 1000); // Réduire les tentatives car on gère l'erreur manuellement
+  }
+
+  // Récupérer un utilisateur depuis PostgreSQL
+  static async getUser(userId: string) {
+    return withRetry(async () => {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          avatarUrl: true,
+          autocompletionEnabled: true, // 🚀 NOUVEAU : Inclure le paramètre d'autocomplétion
+          createdAt: true,
+          updatedAt: true,
+          ownedWorkspaces: true,
+          workspaceMembers: {
+            include: {
+              workspace: true
+            }
+          },
+          projects: true
+        }
+      });
+      
+
+      
+      return user;
+    }, 2, 500);
+  }
+
+  // Supprimer un utilisateur de PostgreSQL
+  static async deleteUser(userId: string) {
+    return withRetry(async () => {
+      await prisma.user.delete({
+        where: { id: userId }
+      });
+      console.log(`🗑️ [USER-SYNC] Utilisateur supprimé: ${userId}`);
+      return true;
+    }, 2, 500);
+  }
+
+  // Mettre à jour les métadonnées utilisateur
+  static async updateUserMetadata(userId: string, metadata: { 
+    firstName?: string, 
+    lastName?: string, 
+    avatarUrl?: string,
+    displayName?: string,
+    timezone?: string,
+    language?: string,
+    theme?: string,
+    autocompletionEnabled?: boolean
+  }) {
+    return withRetry(async () => {
+      // Mettre à jour les champs disponibles dans Prisma
+      const updateData: any = {};
+      
+      if (metadata.firstName !== undefined) updateData.firstName = metadata.firstName;
+      if (metadata.lastName !== undefined) updateData.lastName = metadata.lastName;
+      if (metadata.avatarUrl !== undefined) updateData.avatarUrl = metadata.avatarUrl;
+      // Support front qui enverrait 'avatar' (URL) côté updateProfile
+      if ((metadata as any).avatar !== undefined) updateData.avatarUrl = (metadata as any).avatar;
+      
+      // 🚀 NOUVEAU : Gérer le paramètre d'autocomplétion
+      if (metadata.autocompletionEnabled !== undefined) updateData.autocompletionEnabled = metadata.autocompletionEnabled;
+
+      // Les autres métadonnées (displayName, timezone, language, theme) sont gérées uniquement dans Supabase
+      // car elles ne sont pas encore dans le schéma Prisma
+
+
+      return await prisma.user.update({
+        where: { id: userId },
+        data: updateData
+      });
+    }, 2, 500);
+  }
+} 
