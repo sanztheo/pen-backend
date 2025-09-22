@@ -6,8 +6,8 @@
 import express from 'express';
 import { authenticateToken } from '../middlewares/auth.js';
 import { Request } from 'express';
-import { AuthUser } from '../services/auth';
-import { QuizLimitsService } from '../services/credits/quizLimitsService';
+import { AuthUser } from '../services/auth.js';
+import { QuizLimitsService } from '../services/credits/quizLimitsService.js';
 
 const router = express.Router();
 
