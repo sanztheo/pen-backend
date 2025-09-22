@@ -1,0 +1,51 @@
+
+================================================================================
+🚀 SERVEUR PEN-SAAS DÉMARRÉ
+================================================================================
+Timestamp: 2025-09-22T10:03:52.163Z
+PID: 85152
+Node.js: v22.17.1
+Environnement: development
+Port: 3001
+================================================================================
+
+[2025-09-22T10:03:52.164Z] [LOG  ] [logger.ts:114][MEM:39MB] STRING: 📝 Système de logging initialisé: STRING: /Users/sanz/Desktop/APP/pen-saas/backend/logs/server-2025-09-22T10-03-52.log
+[2025-09-22T10:03:52.166Z] [LOG  ] [logger.ts:295][MEM:39MB] STRING: 🗑️ Log supprimé: server-2025-09-22T07-47-53.log
+[2025-09-22T10:03:52.166Z] [LOG  ] [logger.ts:299][MEM:39MB] STRING: 📁 Logs disponibles: 11 fichiers dans /Users/sanz/Desktop/APP/pen-saas/backend/logs
+[2025-09-22T10:03:52.176Z] [LOG  ] [index.ts:453][MEM:39MB] STRING: 🚀 Serveur Pen SaaS démarré sur le port 3001 en mode development
+[2025-09-22T10:03:52.177Z] [LOG  ] [index.ts:446][MEM:39MB] STRING: 🚀 Serveur WebSocket configuré :
+[2025-09-22T10:03:52.177Z] [LOG  ] [index.ts:447][MEM:39MB] STRING:    - /ws/collaboration/ (Yjs)
+[2025-09-22T10:03:52.177Z] [LOG  ] [index.ts:448][MEM:39MB] STRING:    - /ws/save/ (Sauvegarde)
+[2025-09-22T10:03:52.177Z] [LOG  ] [index.ts:449][MEM:39MB] STRING:    - /ws/quiz-progress/ (Progression quiz)
+[2025-09-22T10:03:52.177Z] [LOG  ] [dbHealthCheck.ts:128][MEM:39MB] STRING: 
+🩺 ===== DIAGNOSTIC BASE DE DONNÉES =====
+[2025-09-22T10:03:52.178Z] [LOG  ] [dbHealthCheck.ts:42][MEM:39MB] STRING: 🩺 [DB-HEALTH] Test de connexion...
+[2025-09-22T10:03:54.329Z] [LOG  ] [dbHealthCheck.ts:66][MEM:34MB] STRING: ✅ [DB-HEALTH] Connexion OK - Latence: 1766ms
+[2025-09-22T10:03:54.331Z] [LOG  ] [dbHealthCheck.ts:132][MEM:34MB] STRING: 📋 Statut: WARNING
+[2025-09-22T10:03:54.331Z] [LOG  ] [dbHealthCheck.ts:133][MEM:34MB] STRING: 🔗 Connexion: ✅ OK
+[2025-09-22T10:03:54.331Z] [LOG  ] [dbHealthCheck.ts:138][MEM:34MB] STRING: ⏱️  Latence: 🟡 1766ms
+[2025-09-22T10:03:54.332Z] [LOG  ] [dbHealthCheck.ts:142][MEM:34MB] STRING: 🖥️  Serveur: [{"version":"PostgreSQL 16.9 (63f4182) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit","database":"neondb","user":"neondb_owner"}]
+[2025-09-22T10:03:54.332Z] [LOG  ] [dbHealthCheck.ts:146][MEM:34MB] STRING: 
+💡 Recommandations:
+[2025-09-22T10:03:54.332Z] [LOG  ] [dbHealthCheck.ts:147][MEM:34MB] STRING:    - Latence élevée détectée (>1s), vérifiez votre connexion réseau
+[2025-09-22T10:03:54.333Z] [LOG  ] [dbHealthCheck.ts:150][MEM:34MB] STRING: ==========================================
+
+[2025-09-22T10:03:54.333Z] [LOG  ] [dbHealthCheck.ts:103][MEM:34MB] STRING: 🔄 [DB-HEALTH] Tentative 1/3...
+[2025-09-22T10:03:54.334Z] [LOG  ] [dbHealthCheck.ts:42][MEM:34MB] STRING: 🩺 [DB-HEALTH] Test de connexion...
+[2025-09-22T10:03:54.703Z] [LOG  ] [dbHealthCheck.ts:66][MEM:34MB] STRING: ✅ [DB-HEALTH] Connexion OK - Latence: 183ms
+[2025-09-22T10:03:54.704Z] [LOG  ] [dbHealthCheck.ts:107][MEM:34MB] STRING: ✅ [DB-HEALTH] Connexion établie en 1 tentative(s)
+[2025-09-22T10:03:54.704Z] [LOG  ] [index.ts:460][MEM:34MB] STRING: 🎯 Démarrage des tâches automatiques...
+[2025-09-22T10:03:54.705Z] [LOG  ] [cronJobs.ts:14][MEM:35MB] STRING: 🕐 Démarrage des tâches CRON...
+[2025-09-22T10:03:54.734Z] [LOG  ] [cronJobs.ts:37][MEM:35MB] STRING: ✅ Tâche de vérification de santé programmée: 0 */6 * * * (Europe/Paris)
+[2025-09-22T10:03:54.736Z] [LOG  ] [cronJobs.ts:71][MEM:35MB] STRING: ✅ Tâche de nettoyage RAG programmée: 0 3 * * * (Europe/Paris)
+[2025-09-22T10:03:56.411Z] [LOG  ] [prisma.ts:59][MEM:35MB] STRING: 🔄 SIGTERM reçu, fermeture propre des connexions Prisma...
+[2025-09-22T10:03:56.413Z] [LOG  ] [cronJobs.ts:103][MEM:35MB] STRING: 🛑 Arrêt des tâches CRON...
+[2025-09-22T10:03:56.414Z] [LOG  ] [cronJobs.ts:105][MEM:35MB] STRING: ✅ Tâches CRON arrêtées
+
+================================================================================
+🛑 ARRÊT DU SERVEUR (SIGTERM)
+================================================================================
+Timestamp: 2025-09-22T10:03:56.414Z
+Durée de fonctionnement: 0h 0m 4s
+================================================================================
+

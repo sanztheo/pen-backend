@@ -1,0 +1,1219 @@
+
+================================================================================
+🚀 SERVEUR PEN-SAAS DÉMARRÉ
+================================================================================
+Timestamp: 2025-09-22T09:49:18.942Z
+PID: 82675
+Node.js: v22.17.1
+Environnement: development
+Port: 3001
+================================================================================
+
+[2025-09-22T09:49:18.943Z] [LOG  ] [logger.ts:114][MEM:43MB] STRING: 📝 Système de logging initialisé: STRING: /Users/sanz/Desktop/APP/pen-saas/backend/logs/server-2025-09-22T09-49-18.log
+[2025-09-22T09:49:18.945Z] [LOG  ] [logger.ts:295][MEM:44MB] STRING: 🗑️ Log supprimé: server-2025-09-22T07-27-03.log
+[2025-09-22T09:49:18.945Z] [LOG  ] [logger.ts:299][MEM:44MB] STRING: 📁 Logs disponibles: 11 fichiers dans /Users/sanz/Desktop/APP/pen-saas/backend/logs
+[2025-09-22T09:49:18.960Z] [LOG  ] [index.ts:453][MEM:44MB] STRING: 🚀 Serveur Pen SaaS démarré sur le port 3001 en mode development
+[2025-09-22T09:49:18.961Z] [LOG  ] [index.ts:446][MEM:44MB] STRING: 🚀 Serveur WebSocket configuré :
+[2025-09-22T09:49:18.961Z] [LOG  ] [index.ts:447][MEM:44MB] STRING:    - /ws/collaboration/ (Yjs)
+[2025-09-22T09:49:18.961Z] [LOG  ] [index.ts:448][MEM:44MB] STRING:    - /ws/save/ (Sauvegarde)
+[2025-09-22T09:49:18.961Z] [LOG  ] [index.ts:449][MEM:44MB] STRING:    - /ws/quiz-progress/ (Progression quiz)
+[2025-09-22T09:49:18.961Z] [LOG  ] [dbHealthCheck.ts:128][MEM:44MB] STRING: 
+🩺 ===== DIAGNOSTIC BASE DE DONNÉES =====
+[2025-09-22T09:49:18.961Z] [LOG  ] [dbHealthCheck.ts:42][MEM:44MB] STRING: 🩺 [DB-HEALTH] Test de connexion...
+[2025-09-22T09:49:21.169Z] [LOG  ] [dbHealthCheck.ts:66][MEM:37MB] STRING: ✅ [DB-HEALTH] Connexion OK - Latence: 1827ms
+[2025-09-22T09:49:21.170Z] [LOG  ] [dbHealthCheck.ts:132][MEM:37MB] STRING: 📋 Statut: WARNING
+[2025-09-22T09:49:21.170Z] [LOG  ] [dbHealthCheck.ts:133][MEM:37MB] STRING: 🔗 Connexion: ✅ OK
+[2025-09-22T09:49:21.171Z] [LOG  ] [dbHealthCheck.ts:138][MEM:37MB] STRING: ⏱️  Latence: 🟡 1827ms
+[2025-09-22T09:49:21.171Z] [LOG  ] [dbHealthCheck.ts:142][MEM:37MB] STRING: 🖥️  Serveur: [{"version":"PostgreSQL 16.9 (63f4182) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit","database":"neondb","user":"neondb_owner"}]
+[2025-09-22T09:49:21.171Z] [LOG  ] [dbHealthCheck.ts:146][MEM:37MB] STRING: 
+💡 Recommandations:
+[2025-09-22T09:49:21.171Z] [LOG  ] [dbHealthCheck.ts:147][MEM:37MB] STRING:    - Latence élevée détectée (>1s), vérifiez votre connexion réseau
+[2025-09-22T09:49:21.172Z] [LOG  ] [dbHealthCheck.ts:150][MEM:37MB] STRING: ==========================================
+
+[2025-09-22T09:49:21.173Z] [LOG  ] [dbHealthCheck.ts:103][MEM:37MB] STRING: 🔄 [DB-HEALTH] Tentative 1/3...
+[2025-09-22T09:49:21.174Z] [LOG  ] [dbHealthCheck.ts:42][MEM:37MB] STRING: 🩺 [DB-HEALTH] Test de connexion...
+[2025-09-22T09:49:21.566Z] [LOG  ] [dbHealthCheck.ts:66][MEM:37MB] STRING: ✅ [DB-HEALTH] Connexion OK - Latence: 191ms
+[2025-09-22T09:49:21.567Z] [LOG  ] [dbHealthCheck.ts:107][MEM:37MB] STRING: ✅ [DB-HEALTH] Connexion établie en 1 tentative(s)
+[2025-09-22T09:49:21.568Z] [LOG  ] [index.ts:460][MEM:37MB] STRING: 🎯 Démarrage des tâches automatiques...
+[2025-09-22T09:49:21.568Z] [LOG  ] [cronJobs.ts:14][MEM:37MB] STRING: 🕐 Démarrage des tâches CRON...
+[2025-09-22T09:49:21.597Z] [LOG  ] [cronJobs.ts:37][MEM:38MB] STRING: ✅ Tâche de vérification de santé programmée: 0 */6 * * * (Europe/Paris)
+[2025-09-22T09:49:21.599Z] [LOG  ] [cronJobs.ts:71][MEM:38MB] STRING: ✅ Tâche de nettoyage RAG programmée: 0 3 * * * (Europe/Paris)
+[2025-09-22T09:50:13.309Z] [LOG  ] [clerkBilling.ts:28][MEM:37MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:50:13.949Z] [LOG  ] [clerkBilling.ts:28][MEM:37MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:50:14.363Z] [LOG  ] [clerkBilling.ts:28][MEM:37MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:50:14.793Z] [LOG  ] [clerkBilling.ts:28][MEM:37MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:50:26.231Z] [LOG  ] [secureLogging.ts:55][MEM:38MB] STRING: 🐛 [DEBUG] 🚀 [SERVER-CREDITS] Déduction ultra-optimisée OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "action": "ai-stream",
+  "amount": 0.5
+}
+[2025-09-22T09:50:26.621Z] [LOG  ] [secureLogging.ts:55][MEM:38MB] STRING: 🐛 [DEBUG] ⚡ [SERVER-CREDITS] UPSERT atomique exécuté OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 0.5,
+  "affected": 1
+}
+[2025-09-22T09:50:27.007Z] [LOG  ] [secureLogging.ts:55][MEM:39MB] STRING: 🐛 [DEBUG] ✅ [SERVER-CREDITS] Déduction ultra-rapide réussie OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 0.5,
+  "newUsage": 0,
+  "remainingCredits": -1,
+  "operationType": "INSERT"
+}
+[2025-09-22T09:50:27.988Z] [LOG  ] [secureLogging.ts:55][MEM:39MB] STRING: 🐛 [DEBUG] 🚀 [SERVER-CREDITS] Déduction ultra-optimisée OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "action": "openai_proxy",
+  "amount": 1
+}
+[2025-09-22T09:50:28.387Z] [LOG  ] [secureLogging.ts:55][MEM:39MB] STRING: 🐛 [DEBUG] ⚡ [SERVER-CREDITS] UPSERT atomique exécuté OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 1,
+  "affected": 1
+}
+[2025-09-22T09:50:28.794Z] [LOG  ] [secureLogging.ts:55][MEM:39MB] STRING: 🐛 [DEBUG] ✅ [SERVER-CREDITS] Déduction ultra-rapide réussie OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 1,
+  "newUsage": 0,
+  "remainingCredits": -1,
+  "operationType": "INSERT"
+}
+[2025-09-22T09:50:28.797Z] [LOG  ] [secureLogging.ts:82][MEM:39MB] STRING: debug: ✅ [AI-CREDITS] Crédits déduits STRING: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "path": "/proxy/chat/completions",
+  "action": "openai_proxy",
+  "cost": 1,
+  "remainingCredits": -1
+}
+[2025-09-22T09:50:35.455Z] [LOG  ] [ai.ts:122][MEM:40MB] STRING: 🔒 [AUDIT] Proxy OpenAI utilisé: userId=user_32xySw3HWDj1x8nN41Suei5mep1, cost=1, status=200
+[2025-09-22T09:52:23.697Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:52:24.463Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:52:24.889Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:52:28.353Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:52:28.763Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:53:45.348Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:53:45.916Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:53:46.504Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:53:46.887Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:53:47.293Z] [LOG  ] [clerkBilling.ts:28][MEM:39MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:53:47.707Z] [LOG  ] [clerkBilling.ts:28][MEM:39MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:53:49.395Z] [LOG  ] [index.ts:348][MEM:39MB] STRING: [WS] Tentative de connexion: /ws/save/3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:53:49.396Z] [LOG  ] [index.ts:349][MEM:39MB] STRING: [WS] Token présent: true
+[2025-09-22T09:53:49.601Z] [LOG  ] [index.ts:360][MEM:39MB] STRING: [WS] ✅ Sauvegarde WebSocket - user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:53:49.605Z] [LOG  ] [index.ts:143][MEM:39MB] STRING: [WS] 💾 Connexion sauvegarde pour page: 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 - User défini: true (user_32xySw3HWDj1x8nN41Suei5mep1)
+[2025-09-22T09:53:49.712Z] [LOG  ] [page.ts:208][MEM:39MB] STRING: 📖 [API] Chargement contenu BlockNote: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "pageIdType": "string",
+  "pageIdLength": 36,
+  "isValidUUID": true
+}
+[2025-09-22T09:53:50.264Z] [LOG  ] [index.ts:348][MEM:39MB] STRING: [WS] Tentative de connexion: /ws/save/3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:53:50.265Z] [LOG  ] [index.ts:349][MEM:39MB] STRING: [WS] Token présent: true
+[2025-09-22T09:53:50.489Z] [LOG  ] [index.ts:360][MEM:39MB] STRING: [WS] ✅ Sauvegarde WebSocket - user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:53:50.491Z] [LOG  ] [index.ts:143][MEM:40MB] STRING: [WS] 💾 Connexion sauvegarde pour page: 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 - User défini: true (user_32xySw3HWDj1x8nN41Suei5mep1)
+[2025-09-22T09:53:51.455Z] [LOG  ] [page.ts:239][MEM:39MB] STRING: ✅ [API] Contenu BlockNote chargé: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "blocksCount": 4,
+  "hasNestedBlocks": false
+}
+[2025-09-22T09:53:51.676Z] [LOG  ] [page.ts:208][MEM:40MB] STRING: 📖 [API] Chargement contenu BlockNote: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "pageIdType": "string",
+  "pageIdLength": 36,
+  "isValidUUID": true
+}
+[2025-09-22T09:53:51.869Z] [LOG  ] [page.ts:239][MEM:40MB] STRING: ✅ [API] Contenu BlockNote chargé: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "blocksCount": 4,
+  "hasNestedBlocks": false
+}
+[2025-09-22T09:53:52.570Z] [LOG  ] [index.ts:149][MEM:40MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:53:52.971Z] [LOG  ] [index.ts:191][MEM:40MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:53:53.374Z] [LOG  ] [index.ts:202][MEM:40MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:09.502Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:10.358Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:10.970Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:11.233Z] [LOG  ] [index.ts:348][MEM:40MB] STRING: [WS] Tentative de connexion: /ws/save/3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:54:11.234Z] [LOG  ] [index.ts:349][MEM:40MB] STRING: [WS] Token présent: true
+[2025-09-22T09:54:11.391Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:11.439Z] [LOG  ] [index.ts:360][MEM:41MB] STRING: [WS] ✅ Sauvegarde WebSocket - user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:11.441Z] [LOG  ] [index.ts:143][MEM:41MB] STRING: [WS] 💾 Connexion sauvegarde pour page: 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 - User défini: true (user_32xySw3HWDj1x8nN41Suei5mep1)
+[2025-09-22T09:54:11.818Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:12.033Z] [LOG  ] [index.ts:348][MEM:41MB] STRING: [WS] Tentative de connexion: /ws/save/3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:54:12.035Z] [LOG  ] [index.ts:349][MEM:41MB] STRING: [WS] Token présent: true
+[2025-09-22T09:54:12.231Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:12.237Z] [LOG  ] [index.ts:360][MEM:41MB] STRING: [WS] ✅ Sauvegarde WebSocket - user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:12.238Z] [LOG  ] [index.ts:143][MEM:41MB] STRING: [WS] 💾 Connexion sauvegarde pour page: 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 - User défini: true (user_32xySw3HWDj1x8nN41Suei5mep1)
+[2025-09-22T09:54:12.435Z] [LOG  ] [page.ts:208][MEM:41MB] STRING: 📖 [API] Chargement contenu BlockNote: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "pageIdType": "string",
+  "pageIdLength": 36,
+  "isValidUUID": true
+}
+[2025-09-22T09:54:12.812Z] [LOG  ] [page.ts:239][MEM:41MB] STRING: ✅ [API] Contenu BlockNote chargé: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "blocksCount": 4,
+  "hasNestedBlocks": false
+}
+[2025-09-22T09:54:13.045Z] [LOG  ] [page.ts:208][MEM:41MB] STRING: 📖 [API] Chargement contenu BlockNote: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "pageIdType": "string",
+  "pageIdLength": 36,
+  "isValidUUID": true
+}
+[2025-09-22T09:54:13.229Z] [LOG  ] [page.ts:239][MEM:41MB] STRING: ✅ [API] Contenu BlockNote chargé: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "blocksCount": 4,
+  "hasNestedBlocks": false
+}
+[2025-09-22T09:54:13.926Z] [LOG  ] [index.ts:149][MEM:41MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:14.109Z] [LOG  ] [index.ts:191][MEM:41MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:54:14.299Z] [LOG  ] [index.ts:202][MEM:41MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:21.009Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:22.944Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:23.338Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:23.747Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:24.169Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:54:24.581Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:26.776Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:27.381Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:27.762Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:28.149Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:28.544Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:28.965Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:42.616Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:44.398Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:44.788Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:45.569Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:45.975Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:46.377Z] [LOG  ] [clerkBilling.ts:28][MEM:39MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:46.795Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:47.841Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:48.242Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:48.637Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:56.260Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:56.667Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:57.069Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:57.485Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:57.879Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:55:58.297Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:07.669Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:08.265Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:10.167Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:10.568Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:11.074Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:11.480Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:11.897Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:12.313Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:14.069Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:14.489Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:21.188Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] 🎯 [QUIZ-MIDDLEWARE] Vérification limites quiz personnalisés OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "autoDeduct": true
+}
+[2025-09-22T09:56:21.194Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] 🎯 [QUIZ-LIMITS] Vérification limite quiz personnalisés OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1"
+}
+[2025-09-22T09:56:21.389Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] 🚀 [QUIZ-LIMITS] Déduction quiz ultra-optimisée OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1"
+}
+[2025-09-22T09:56:21.874Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] ⚡ [QUIZ-LIMITS] UPSERT atomique exécuté OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "affected": 1
+}
+[2025-09-22T09:56:22.273Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] ✅ [QUIZ-LIMITS] Déduction ultra-rapide réussie OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "newUsage": 1,
+  "remainingQuizzes": -1,
+  "operationType": "INSERT"
+}
+[2025-09-22T09:56:22.273Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] ✅ [QUIZ-MIDDLEWARE] Quiz personnalisé déduit OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "remainingQuizzes": -1
+}
+[2025-09-22T09:56:22.275Z] [LOG  ] [quizStreaming.ts:379][MEM:44MB] STRING: 🧠 [SESSION-DEBUG] Données reçues pour session 1a673830-24dd-4094-9fd2-2c9909298dc1:
+[2025-09-22T09:56:22.276Z] [LOG  ] [quizStreaming.ts:380][MEM:44MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:22.277Z] [LOG  ] [quizStreaming.ts:381][MEM:44MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:22.277Z] [LOG  ] [quizStreaming.ts:382][MEM:44MB] STRING:   - pageProjectIds: 0
+[2025-09-22T09:56:22.277Z] [LOG  ] [quizStreaming.ts:383][MEM:44MB] STRING:   - Body keys: schoolLevel, pageProjectIds, questionTypes, questionCount, preset, coursesOnly, ragContext
+[2025-09-22T09:56:22.277Z] [LOG  ] [quizStreaming.ts:392][MEM:44MB] STRING: 📝 [STREAMING] Session créée: 1a673830-24dd-4094-9fd2-2c9909298dc1 pour user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:56:22.286Z] [LOG  ] [quizStreaming.ts:427][MEM:45MB] STRING: 📤 [STREAMING] Envoi SSE - Event: connected
+[2025-09-22T09:56:22.286Z] [LOG  ] [quizStreaming.ts:428][MEM:45MB] STRING: 📤 [STREAMING] Envoi SSE - Data: {"message":"Connexion SSE établie"}
+[2025-09-22T09:56:22.287Z] [LOG  ] [quizStreaming.ts:429][MEM:45MB] STRING: 📤 [STREAMING] Format SSE complet:
+event: connected
+data: {"message":"Connexion SSE établie"}
+
+
+[2025-09-22T09:56:22.499Z] [LOG  ] [quizStreaming.ts:466][MEM:39MB] STRING: 🔗 [STREAMING] ✅ JWT validé pour user user_32xySw3HWDj1x8nN41Suei5mep1, session: 1a673830-24dd-4094-9fd2-2c9909298dc1
+[2025-09-22T09:56:22.500Z] [LOG  ] [quizStreaming.ts:476][MEM:39MB] STRING: 🛡️ [STREAMING] Session 1a673830-24dd-4094-9fd2-2c9909298dc1 invalidée pour prévenir les attaques replay
+[2025-09-22T09:56:22.501Z] [LOG  ] [quizStreaming.ts:501][MEM:39MB] STRING: 🧠 [SESSION-RECOVERY-DEBUG] Session 1a673830-24dd-4094-9fd2-2c9909298dc1 récupérée:
+[2025-09-22T09:56:22.501Z] [LOG  ] [quizStreaming.ts:502][MEM:39MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:22.501Z] [LOG  ] [quizStreaming.ts:503][MEM:39MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:22.501Z] [LOG  ] [quizStreaming.ts:504][MEM:39MB] STRING:   - pageProjectIds: 0
+[2025-09-22T09:56:22.501Z] [LOG  ] [quizStreaming.ts:508][MEM:39MB] STRING: 🚀 [STREAMING] Début génération streaming pour 5 questions
+[2025-09-22T09:56:23.045Z] [LOG  ] [quizStreaming.ts:427][MEM:39MB] STRING: 📤 [STREAMING] Envoi SSE - Event: quiz-created
+[2025-09-22T09:56:23.046Z] [LOG  ] [quizStreaming.ts:428][MEM:39MB] STRING: 📤 [STREAMING] Envoi SSE - Data: {"quizId":"3743f961-ffd7-4329-aa7d-3f981d85b4c9","message":"Quiz créé avec succès. Génération de 5 questions..."}
+[2025-09-22T09:56:23.047Z] [LOG  ] [quizStreaming.ts:429][MEM:39MB] STRING: 📤 [STREAMING] Format SSE complet:
+event: quiz-created
+data: {"quizId":"3743f961-ffd7-4329-aa7d-3f981d85b4c9","message":"Quiz créé avec succès. Génération de 5 questions..."}
+
+
+[2025-09-22T09:56:23.048Z] [LOG  ] [quizStreaming.ts:534][MEM:39MB] STRING: ✅ [STREAMING] Quiz 3743f961-ffd7-4329-aa7d-3f981d85b4c9 créé, génération des questions...
+[2025-09-22T09:56:23.049Z] [LOG  ] [quizStreaming.ts:563][MEM:39MB] STRING: 📊 [STREAMING] Répartition calculée pour 5 questions: ARRAY[2]: [
+  {
+    "type": "MULTIPLE_CHOICE",
+    "count": 3
+  },
+  {
+    "type": "OPEN_QUESTION",
+    "count": 2
+  }
+]
+[2025-09-22T09:56:23.050Z] [LOG  ] [quizStreaming.ts:574][MEM:39MB] STRING: 🚀 [STREAMING] Utilisation du mode Chat Completion + JSON strict (gpt-4o-mini) pour 5 questions
+[2025-09-22T09:56:23.050Z] [LOG  ] [quizStreaming.ts:427][MEM:39MB] STRING: 📤 [STREAMING] Envoi SSE - Event: question-generating
+[2025-09-22T09:56:23.050Z] [LOG  ] [quizStreaming.ts:428][MEM:39MB] STRING: 📤 [STREAMING] Envoi SSE - Data: {"questionNumber":1,"totalQuestions":5,"message":"Génération de la question 1 (OPEN_QUESTION)..."}
+[2025-09-22T09:56:23.050Z] [LOG  ] [quizStreaming.ts:429][MEM:39MB] STRING: 📤 [STREAMING] Format SSE complet:
+event: question-generating
+data: {"questionNumber":1,"totalQuestions":5,"message":"Génération de la question 1 (OPEN_QUESTION)..."}
+
+
+[2025-09-22T09:56:23.051Z] [LOG  ] [quizStreaming.ts:616][MEM:39MB] STRING: 🎯 [STREAMING] Question 1: Type assigné = OPEN_QUESTION
+[2025-09-22T09:56:23.051Z] [LOG  ] [quizStreaming.ts:617][MEM:39MB] STRING: 🧠 [STREAMING-DEBUG] Envoi au Chat Completion (gpt-4o-mini) pour question 1:
+[2025-09-22T09:56:23.051Z] [LOG  ] [quizStreaming.ts:618][MEM:39MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:23.051Z] [LOG  ] [quizStreaming.ts:619][MEM:39MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:23.051Z] [LOG  ] [quizStreaming.ts:620][MEM:39MB] STRING:   - pageProjectIds: 0
+[2025-09-22T09:56:23.051Z] [LOG  ] [quizStreaming.ts:621][MEM:39MB] STRING:   - questionType: OPEN_QUESTION
+[2025-09-22T09:56:23.051Z] [LOG  ] [quizStreaming.ts:622][MEM:39MB] STRING:   - model: gpt-4o-mini + JSON strict
+[2025-09-22T09:56:23.052Z] [LOG  ] [service.ts:446][MEM:39MB] STRING: 🚀 [STREAMING] Génération via Chat Completion + JSON strict (gpt-4o-mini)
+[2025-09-22T09:56:23.054Z] [LOG  ] [service.ts:447][MEM:39MB] STRING: 🧠 [STREAMING-DEBUG] ragContext dans request: VIDE ou undefined
+[2025-09-22T09:56:23.055Z] [LOG  ] [service.ts:549][MEM:39MB] STRING: 🔍 [CHAT-COMPLETION-DEBUG] Propriétés reçues:
+[2025-09-22T09:56:23.055Z] [LOG  ] [service.ts:550][MEM:39MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:23.055Z] [LOG  ] [service.ts:551][MEM:39MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:23.055Z] [LOG  ] [service.ts:552][MEM:40MB] STRING:   - specificSubject: undefined
+[2025-09-22T09:56:23.055Z] [LOG  ] [service.ts:553][MEM:40MB] STRING:   - questionType: OPEN_QUESTION
+[2025-09-22T09:56:23.055Z] [LOG  ] [service.ts:453][MEM:40MB] STRING: 📤 [STREAMING] Envoi à gpt-4o-mini avec JSON strict
+[2025-09-22T09:56:28.977Z] [LOG  ] [service.ts:489][MEM:39MB] STRING: ✅ [STREAMING] Question générée avec succès via chat completion
+[2025-09-22T09:56:29.547Z] [LOG  ] [quizStreaming.ts:427][MEM:39MB] STRING: 📤 [STREAMING] Envoi SSE - Event: question-generated
+[2025-09-22T09:56:29.548Z] [LOG  ] [quizStreaming.ts:428][MEM:39MB] STRING[1529]: 📤 [STREAMING] Envoi SSE - Data: {"questionNumber":1,"totalQuestions":5,"question":{"id":"q_1758534983055_afj0lpx1r","question":"Expliquez l'importance de la biodiversité pour les écosystèmes et les êtres humains.","type":"OPEN_QUESTION","difficulty":"moyen","options":[],"expectedAnswer":"La biodiversité est essentielle pour le bon fonctionnement des écosystèmes, car elle favorise la résilience face aux changements environnementaux. Elle permet également le maintien des services écosystémiques, tels que la pollinisation des cultures, la purification de l'eau et la régulation du climat. Pour les êtres humains, la biodiversité est une source de ressources alimentaires, médicinales et économiques. De plus, elle contribue à notre bien-être psychologique et culturel en offrant des espaces naturels et des paysages variés.","explanation":"La réponse attendue doit aborder plusieurs aspects de la biodiversité, en expliquant comment elle soutient les écosystèmes et en soulignant son impact direc...[TRUNCATED]
+[2025-09-22T09:56:29.549Z] [LOG  ] [quizStreaming.ts:429][MEM:39MB] STRING[1565]: 📤 [STREAMING] Format SSE complet:
+event: question-generated
+data: {"questionNumber":1,"totalQuestions":5,"question":{"id":"q_1758534983055_afj0lpx1r","question":"Expliquez l'importance de la biodiversité pour les écosystèmes et les êtres humains.","type":"OPEN_QUESTION","difficulty":"moyen","options":[],"expectedAnswer":"La biodiversité est essentielle pour le bon fonctionnement des écosystèmes, car elle favorise la résilience face aux changements environnementaux. Elle permet également le maintien des services écosystémiques, tels que la pollinisation des cultures, la purification de l'eau et la régulation du climat. Pour les êtres humains, la biodiversité est une source de ressources alimentaires, médicinales et économiques. De plus, elle contribue à notre bien-être psychologique et culturel en offrant des espaces naturels et des paysages variés.","explanation":"La réponse attendue doit aborder plusieurs aspects de la biodiversité, en expliquant comment elle soutient les écosystèmes...[TRUNCATED]
+[2025-09-22T09:56:29.549Z] [LOG  ] [quizStreaming.ts:648][MEM:39MB] STRING: ✅ [STREAMING] Question 1 générée avec Chat Completion + JSON strict et envoyée
+[2025-09-22T09:56:29.550Z] [LOG  ] [quizStreaming.ts:427][MEM:39MB] STRING: 📤 [STREAMING] Envoi SSE - Event: question-generating
+[2025-09-22T09:56:29.550Z] [LOG  ] [quizStreaming.ts:428][MEM:39MB] STRING: 📤 [STREAMING] Envoi SSE - Data: {"questionNumber":2,"totalQuestions":5,"message":"Génération de la question 2 (MULTIPLE_CHOICE)..."}
+[2025-09-22T09:56:29.551Z] [LOG  ] [quizStreaming.ts:429][MEM:39MB] STRING: 📤 [STREAMING] Format SSE complet:
+event: question-generating
+data: {"questionNumber":2,"totalQuestions":5,"message":"Génération de la question 2 (MULTIPLE_CHOICE)..."}
+
+
+[2025-09-22T09:56:29.551Z] [LOG  ] [quizStreaming.ts:616][MEM:39MB] STRING: 🎯 [STREAMING] Question 2: Type assigné = MULTIPLE_CHOICE
+[2025-09-22T09:56:29.551Z] [LOG  ] [quizStreaming.ts:617][MEM:39MB] STRING: 🧠 [STREAMING-DEBUG] Envoi au Chat Completion (gpt-4o-mini) pour question 2:
+[2025-09-22T09:56:29.552Z] [LOG  ] [quizStreaming.ts:618][MEM:39MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:29.552Z] [LOG  ] [quizStreaming.ts:619][MEM:39MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:29.552Z] [LOG  ] [quizStreaming.ts:620][MEM:39MB] STRING:   - pageProjectIds: 0
+[2025-09-22T09:56:29.553Z] [LOG  ] [quizStreaming.ts:621][MEM:39MB] STRING:   - questionType: MULTIPLE_CHOICE
+[2025-09-22T09:56:29.553Z] [LOG  ] [quizStreaming.ts:622][MEM:39MB] STRING:   - model: gpt-4o-mini + JSON strict
+[2025-09-22T09:56:29.553Z] [LOG  ] [service.ts:446][MEM:40MB] STRING: 🚀 [STREAMING] Génération via Chat Completion + JSON strict (gpt-4o-mini)
+[2025-09-22T09:56:29.553Z] [LOG  ] [service.ts:447][MEM:40MB] STRING: 🧠 [STREAMING-DEBUG] ragContext dans request: VIDE ou undefined
+[2025-09-22T09:56:29.554Z] [LOG  ] [service.ts:549][MEM:40MB] STRING: 🔍 [CHAT-COMPLETION-DEBUG] Propriétés reçues:
+[2025-09-22T09:56:29.554Z] [LOG  ] [service.ts:550][MEM:40MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:29.555Z] [LOG  ] [service.ts:551][MEM:40MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:29.555Z] [LOG  ] [service.ts:552][MEM:40MB] STRING:   - specificSubject: undefined
+[2025-09-22T09:56:29.555Z] [LOG  ] [service.ts:553][MEM:40MB] STRING:   - questionType: MULTIPLE_CHOICE
+[2025-09-22T09:56:29.556Z] [LOG  ] [service.ts:453][MEM:40MB] STRING: 📤 [STREAMING] Envoi à gpt-4o-mini avec JSON strict
+[2025-09-22T09:56:34.194Z] [LOG  ] [service.ts:489][MEM:39MB] STRING: ✅ [STREAMING] Question générée avec succès via chat completion
+[2025-09-22T09:56:34.398Z] [LOG  ] [quizStreaming.ts:427][MEM:39MB] STRING: 📤 [STREAMING] Envoi SSE - Event: question-generated
+[2025-09-22T09:56:34.399Z] [LOG  ] [quizStreaming.ts:428][MEM:39MB] STRING[1079]: 📤 [STREAMING] Envoi SSE - Data: {"questionNumber":2,"totalQuestions":5,"question":{"id":"q_1758534989556_r44bv2nkx","question":"Quel est le principal gaz à effet de serre émis par les activités humaines ?","type":"MULTIPLE_CHOICE","difficulty":"moyen","options":[{"id":"A","text":"Dioxyde de carbone (CO₂)","isCorrect":true},{"id":"B","text":"Méthane (CH₄)","isCorrect":false},{"id":"C","text":"Oxygène (O₂)","isCorrect":false},{"id":"D","text":"Azote (N₂)","isCorrect":false}],"expectedAnswer":"","explanation":"Le dioxyde de carbone (CO₂) est le principal gaz à effet de serre émis par les activités humaines, principalement en raison de la combustion de combustibles fossiles et de la déforestation. Il contribue significativement au réchauffement climatique en piégeant la chaleur dans l'atmosphère.","points":3,"subject":"Général","schoolLevel":"COLLEGE","hasGraphic":false,"graphicId":"","graphicLibrary":"apexcharts","graphicType":"2d","basedOnDocument":false,"documentReference":""},"canStar...[TRUNCATED]
+[2025-09-22T09:56:34.399Z] [LOG  ] [quizStreaming.ts:429][MEM:39MB] STRING[1115]: 📤 [STREAMING] Format SSE complet:
+event: question-generated
+data: {"questionNumber":2,"totalQuestions":5,"question":{"id":"q_1758534989556_r44bv2nkx","question":"Quel est le principal gaz à effet de serre émis par les activités humaines ?","type":"MULTIPLE_CHOICE","difficulty":"moyen","options":[{"id":"A","text":"Dioxyde de carbone (CO₂)","isCorrect":true},{"id":"B","text":"Méthane (CH₄)","isCorrect":false},{"id":"C","text":"Oxygène (O₂)","isCorrect":false},{"id":"D","text":"Azote (N₂)","isCorrect":false}],"expectedAnswer":"","explanation":"Le dioxyde de carbone (CO₂) est le principal gaz à effet de serre émis par les activités humaines, principalement en raison de la combustion de combustibles fossiles et de la déforestation. Il contribue significativement au réchauffement climatique en piégeant la chaleur dans l'atmosphère.","points":3,"subject":"Général","schoolLevel":"COLLEGE","hasGraphic":false,"graphicId":"","graphicLibrary":"apexcharts","graphicType":"2d","basedOnDocument":fals...[TRUNCATED]
+[2025-09-22T09:56:34.400Z] [LOG  ] [quizStreaming.ts:648][MEM:39MB] STRING: ✅ [STREAMING] Question 2 générée avec Chat Completion + JSON strict et envoyée
+[2025-09-22T09:56:34.401Z] [LOG  ] [quizStreaming.ts:427][MEM:39MB] STRING: 📤 [STREAMING] Envoi SSE - Event: question-generating
+[2025-09-22T09:56:34.401Z] [LOG  ] [quizStreaming.ts:428][MEM:39MB] STRING: 📤 [STREAMING] Envoi SSE - Data: {"questionNumber":3,"totalQuestions":5,"message":"Génération de la question 3 (OPEN_QUESTION)..."}
+[2025-09-22T09:56:34.401Z] [LOG  ] [quizStreaming.ts:429][MEM:39MB] STRING: 📤 [STREAMING] Format SSE complet:
+event: question-generating
+data: {"questionNumber":3,"totalQuestions":5,"message":"Génération de la question 3 (OPEN_QUESTION)..."}
+
+
+[2025-09-22T09:56:34.401Z] [LOG  ] [quizStreaming.ts:616][MEM:39MB] STRING: 🎯 [STREAMING] Question 3: Type assigné = OPEN_QUESTION
+[2025-09-22T09:56:34.402Z] [LOG  ] [quizStreaming.ts:617][MEM:39MB] STRING: 🧠 [STREAMING-DEBUG] Envoi au Chat Completion (gpt-4o-mini) pour question 3:
+[2025-09-22T09:56:34.402Z] [LOG  ] [quizStreaming.ts:618][MEM:39MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:34.402Z] [LOG  ] [quizStreaming.ts:619][MEM:39MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:34.402Z] [LOG  ] [quizStreaming.ts:620][MEM:39MB] STRING:   - pageProjectIds: 0
+[2025-09-22T09:56:34.403Z] [LOG  ] [quizStreaming.ts:621][MEM:40MB] STRING:   - questionType: OPEN_QUESTION
+[2025-09-22T09:56:34.403Z] [LOG  ] [quizStreaming.ts:622][MEM:40MB] STRING:   - model: gpt-4o-mini + JSON strict
+[2025-09-22T09:56:34.403Z] [LOG  ] [service.ts:446][MEM:40MB] STRING: 🚀 [STREAMING] Génération via Chat Completion + JSON strict (gpt-4o-mini)
+[2025-09-22T09:56:34.403Z] [LOG  ] [service.ts:447][MEM:40MB] STRING: 🧠 [STREAMING-DEBUG] ragContext dans request: VIDE ou undefined
+[2025-09-22T09:56:34.403Z] [LOG  ] [service.ts:549][MEM:40MB] STRING: 🔍 [CHAT-COMPLETION-DEBUG] Propriétés reçues:
+[2025-09-22T09:56:34.404Z] [LOG  ] [service.ts:550][MEM:40MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:34.404Z] [LOG  ] [service.ts:551][MEM:40MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:34.404Z] [LOG  ] [service.ts:552][MEM:40MB] STRING:   - specificSubject: undefined
+[2025-09-22T09:56:34.404Z] [LOG  ] [service.ts:553][MEM:40MB] STRING:   - questionType: OPEN_QUESTION
+[2025-09-22T09:56:34.404Z] [LOG  ] [service.ts:453][MEM:40MB] STRING: 📤 [STREAMING] Envoi à gpt-4o-mini avec JSON strict
+[2025-09-22T09:56:42.703Z] [LOG  ] [service.ts:489][MEM:40MB] STRING: ✅ [STREAMING] Question générée avec succès via chat completion
+[2025-09-22T09:56:42.897Z] [LOG  ] [quizStreaming.ts:427][MEM:40MB] STRING: 📤 [STREAMING] Envoi SSE - Event: question-generated
+[2025-09-22T09:56:42.898Z] [LOG  ] [quizStreaming.ts:428][MEM:40MB] STRING[1899]: 📤 [STREAMING] Envoi SSE - Data: {"questionNumber":3,"totalQuestions":5,"question":{"id":"q_1758534994404_h0j5c6pni","question":"Décrivez les différentes formes d'énergie renouvelable et expliquez leurs avantages par rapport aux énergies fossiles.","type":"OPEN_QUESTION","difficulty":"moyen","options":[],"expectedAnswer":"Les différentes formes d'énergie renouvelable comprennent l'énergie solaire, éolienne, hydraulique, géothermique et biomasse. L'énergie solaire est captée par des panneaux photovoltaïques et convertie en électricité, tandis que l'énergie éolienne utilise des turbines pour transformer l'énergie cinétique du vent en électricité. L'énergie hydraulique exploite la force de l'eau en mouvement, comme dans les barrages, pour produire de l'électricité. L'énergie géothermique utilise la chaleur provenant de l'intérieur de la Terre, et la biomasse est dérivée de matières organiques. Les avantages des énergies renouvelables par rapport aux énergies fossiles incluent leur capacit...[TRUNCATED]
+[2025-09-22T09:56:42.898Z] [LOG  ] [quizStreaming.ts:429][MEM:40MB] STRING[1935]: 📤 [STREAMING] Format SSE complet:
+event: question-generated
+data: {"questionNumber":3,"totalQuestions":5,"question":{"id":"q_1758534994404_h0j5c6pni","question":"Décrivez les différentes formes d'énergie renouvelable et expliquez leurs avantages par rapport aux énergies fossiles.","type":"OPEN_QUESTION","difficulty":"moyen","options":[],"expectedAnswer":"Les différentes formes d'énergie renouvelable comprennent l'énergie solaire, éolienne, hydraulique, géothermique et biomasse. L'énergie solaire est captée par des panneaux photovoltaïques et convertie en électricité, tandis que l'énergie éolienne utilise des turbines pour transformer l'énergie cinétique du vent en électricité. L'énergie hydraulique exploite la force de l'eau en mouvement, comme dans les barrages, pour produire de l'électricité. L'énergie géothermique utilise la chaleur provenant de l'intérieur de la Terre, et la biomasse est dérivée de matières organiques. Les avantages des énergies renouvelables par rapport aux énerg...[TRUNCATED]
+[2025-09-22T09:56:42.899Z] [LOG  ] [quizStreaming.ts:648][MEM:40MB] STRING: ✅ [STREAMING] Question 3 générée avec Chat Completion + JSON strict et envoyée
+[2025-09-22T09:56:42.899Z] [LOG  ] [quizStreaming.ts:427][MEM:40MB] STRING: 📤 [STREAMING] Envoi SSE - Event: question-generating
+[2025-09-22T09:56:42.899Z] [LOG  ] [quizStreaming.ts:428][MEM:40MB] STRING: 📤 [STREAMING] Envoi SSE - Data: {"questionNumber":4,"totalQuestions":5,"message":"Génération de la question 4 (MULTIPLE_CHOICE)..."}
+[2025-09-22T09:56:42.899Z] [LOG  ] [quizStreaming.ts:429][MEM:40MB] STRING: 📤 [STREAMING] Format SSE complet:
+event: question-generating
+data: {"questionNumber":4,"totalQuestions":5,"message":"Génération de la question 4 (MULTIPLE_CHOICE)..."}
+
+
+[2025-09-22T09:56:42.900Z] [LOG  ] [quizStreaming.ts:616][MEM:40MB] STRING: 🎯 [STREAMING] Question 4: Type assigné = MULTIPLE_CHOICE
+[2025-09-22T09:56:42.900Z] [LOG  ] [quizStreaming.ts:617][MEM:40MB] STRING: 🧠 [STREAMING-DEBUG] Envoi au Chat Completion (gpt-4o-mini) pour question 4:
+[2025-09-22T09:56:42.900Z] [LOG  ] [quizStreaming.ts:618][MEM:40MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:42.900Z] [LOG  ] [quizStreaming.ts:619][MEM:40MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:42.900Z] [LOG  ] [quizStreaming.ts:620][MEM:40MB] STRING:   - pageProjectIds: 0
+[2025-09-22T09:56:42.900Z] [LOG  ] [quizStreaming.ts:621][MEM:40MB] STRING:   - questionType: MULTIPLE_CHOICE
+[2025-09-22T09:56:42.901Z] [LOG  ] [quizStreaming.ts:622][MEM:40MB] STRING:   - model: gpt-4o-mini + JSON strict
+[2025-09-22T09:56:42.901Z] [LOG  ] [service.ts:446][MEM:40MB] STRING: 🚀 [STREAMING] Génération via Chat Completion + JSON strict (gpt-4o-mini)
+[2025-09-22T09:56:42.901Z] [LOG  ] [service.ts:447][MEM:40MB] STRING: 🧠 [STREAMING-DEBUG] ragContext dans request: VIDE ou undefined
+[2025-09-22T09:56:42.902Z] [LOG  ] [service.ts:549][MEM:40MB] STRING: 🔍 [CHAT-COMPLETION-DEBUG] Propriétés reçues:
+[2025-09-22T09:56:42.902Z] [LOG  ] [service.ts:550][MEM:40MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:42.902Z] [LOG  ] [service.ts:551][MEM:40MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:42.902Z] [LOG  ] [service.ts:552][MEM:40MB] STRING:   - specificSubject: undefined
+[2025-09-22T09:56:42.902Z] [LOG  ] [service.ts:553][MEM:40MB] STRING:   - questionType: MULTIPLE_CHOICE
+[2025-09-22T09:56:42.902Z] [LOG  ] [service.ts:453][MEM:40MB] STRING: 📤 [STREAMING] Envoi à gpt-4o-mini avec JSON strict
+[2025-09-22T09:56:49.278Z] [LOG  ] [service.ts:489][MEM:40MB] STRING: ✅ [STREAMING] Question générée avec succès via chat completion
+[2025-09-22T09:56:49.659Z] [LOG  ] [quizStreaming.ts:427][MEM:40MB] STRING: 📤 [STREAMING] Envoi SSE - Event: question-generated
+[2025-09-22T09:56:49.660Z] [LOG  ] [quizStreaming.ts:428][MEM:40MB] STRING: 📤 [STREAMING] Envoi SSE - Data: {"questionNumber":4,"totalQuestions":5,"question":{"id":"q_1758535002902_s3zzvuiqq","question":"Quel est le principal continent où se trouve la majorité des déserts chauds du monde ?","type":"MULTIPLE_CHOICE","difficulty":"moyen","options":[{"id":"A","text":"Amérique du Sud","isCorrect":false},{"id":"B","text":"Afrique","isCorrect":true},{"id":"C","text":"Asie","isCorrect":false},{"id":"D","text":"Europe","isCorrect":false}],"expectedAnswer":"","explanation":"L'Afrique est le continent où se trouvent de nombreux déserts chauds tels que le Sahara, le Kalahari et le Namib. Ces déserts sont caractérisés par des températures élevées et peu de précipitations annuelles.","points":3,"subject":"Général","schoolLevel":"COLLEGE","hasGraphic":false,"graphicId":"","graphicLibrary":"apexcharts","graphicType":"2d","basedOnDocument":false,"documentReference":""},"canStartAnswering":false,"message":"Question 4 générée avec succès (Chat Completion)"}
+[2025-09-22T09:56:49.661Z] [LOG  ] [quizStreaming.ts:429][MEM:40MB] STRING[1016]: 📤 [STREAMING] Format SSE complet:
+event: question-generated
+data: {"questionNumber":4,"totalQuestions":5,"question":{"id":"q_1758535002902_s3zzvuiqq","question":"Quel est le principal continent où se trouve la majorité des déserts chauds du monde ?","type":"MULTIPLE_CHOICE","difficulty":"moyen","options":[{"id":"A","text":"Amérique du Sud","isCorrect":false},{"id":"B","text":"Afrique","isCorrect":true},{"id":"C","text":"Asie","isCorrect":false},{"id":"D","text":"Europe","isCorrect":false}],"expectedAnswer":"","explanation":"L'Afrique est le continent où se trouvent de nombreux déserts chauds tels que le Sahara, le Kalahari et le Namib. Ces déserts sont caractérisés par des températures élevées et peu de précipitations annuelles.","points":3,"subject":"Général","schoolLevel":"COLLEGE","hasGraphic":false,"graphicId":"","graphicLibrary":"apexcharts","graphicType":"2d","basedOnDocument":false,"documentReference":""},"canStartAnswering":false,"message":"Question 4 générée avec succès (Chat...[TRUNCATED]
+[2025-09-22T09:56:49.662Z] [LOG  ] [quizStreaming.ts:648][MEM:40MB] STRING: ✅ [STREAMING] Question 4 générée avec Chat Completion + JSON strict et envoyée
+[2025-09-22T09:56:49.662Z] [LOG  ] [quizStreaming.ts:427][MEM:40MB] STRING: 📤 [STREAMING] Envoi SSE - Event: question-generating
+[2025-09-22T09:56:49.662Z] [LOG  ] [quizStreaming.ts:428][MEM:40MB] STRING: 📤 [STREAMING] Envoi SSE - Data: {"questionNumber":5,"totalQuestions":5,"message":"Génération de la question 5 (MULTIPLE_CHOICE)..."}
+[2025-09-22T09:56:49.662Z] [LOG  ] [quizStreaming.ts:429][MEM:40MB] STRING: 📤 [STREAMING] Format SSE complet:
+event: question-generating
+data: {"questionNumber":5,"totalQuestions":5,"message":"Génération de la question 5 (MULTIPLE_CHOICE)..."}
+
+
+[2025-09-22T09:56:49.662Z] [LOG  ] [quizStreaming.ts:616][MEM:40MB] STRING: 🎯 [STREAMING] Question 5: Type assigné = MULTIPLE_CHOICE
+[2025-09-22T09:56:49.663Z] [LOG  ] [quizStreaming.ts:617][MEM:40MB] STRING: 🧠 [STREAMING-DEBUG] Envoi au Chat Completion (gpt-4o-mini) pour question 5:
+[2025-09-22T09:56:49.663Z] [LOG  ] [quizStreaming.ts:618][MEM:40MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:49.663Z] [LOG  ] [quizStreaming.ts:619][MEM:40MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:49.663Z] [LOG  ] [quizStreaming.ts:620][MEM:40MB] STRING:   - pageProjectIds: 0
+[2025-09-22T09:56:49.663Z] [LOG  ] [quizStreaming.ts:621][MEM:40MB] STRING:   - questionType: MULTIPLE_CHOICE
+[2025-09-22T09:56:49.663Z] [LOG  ] [quizStreaming.ts:622][MEM:40MB] STRING:   - model: gpt-4o-mini + JSON strict
+[2025-09-22T09:56:49.663Z] [LOG  ] [service.ts:446][MEM:40MB] STRING: 🚀 [STREAMING] Génération via Chat Completion + JSON strict (gpt-4o-mini)
+[2025-09-22T09:56:49.663Z] [LOG  ] [service.ts:447][MEM:40MB] STRING: 🧠 [STREAMING-DEBUG] ragContext dans request: VIDE ou undefined
+[2025-09-22T09:56:49.664Z] [LOG  ] [service.ts:549][MEM:40MB] STRING: 🔍 [CHAT-COMPLETION-DEBUG] Propriétés reçues:
+[2025-09-22T09:56:49.664Z] [LOG  ] [service.ts:550][MEM:40MB] STRING:   - ragContext: undefined/null
+[2025-09-22T09:56:49.664Z] [LOG  ] [service.ts:551][MEM:40MB] STRING:   - coursesOnly: false
+[2025-09-22T09:56:49.664Z] [LOG  ] [service.ts:552][MEM:40MB] STRING:   - specificSubject: undefined
+[2025-09-22T09:56:49.665Z] [LOG  ] [service.ts:553][MEM:40MB] STRING:   - questionType: MULTIPLE_CHOICE
+[2025-09-22T09:56:49.665Z] [LOG  ] [service.ts:453][MEM:40MB] STRING: 📤 [STREAMING] Envoi à gpt-4o-mini avec JSON strict
+[2025-09-22T09:56:55.278Z] [LOG  ] [service.ts:489][MEM:40MB] STRING: ✅ [STREAMING] Question générée avec succès via chat completion
+[2025-09-22T09:56:55.480Z] [LOG  ] [quizStreaming.ts:427][MEM:40MB] STRING: 📤 [STREAMING] Envoi SSE - Event: question-generated
+[2025-09-22T09:56:55.481Z] [LOG  ] [quizStreaming.ts:428][MEM:40MB] STRING[1109]: 📤 [STREAMING] Envoi SSE - Data: {"questionNumber":5,"totalQuestions":5,"question":{"id":"q_1758535009665_cfa9pdjb4","question":"Quel est l'organe principal du système circulatoire chez l'homme ?","type":"MULTIPLE_CHOICE","difficulty":"moyen","options":[{"id":"A","text":"Le cerveau","isCorrect":false},{"id":"B","text":"Le cœur","isCorrect":true},{"id":"C","text":"Le foie","isCorrect":false},{"id":"D","text":"Les poumons","isCorrect":false}],"expectedAnswer":"","explanation":"Le cœur est l'organe principal du système circulatoire chez l'homme, car il pompe le sang à travers tout le corps, permettant ainsi la circulation des nutriments et de l'oxygène vers les cellules et l'élimination des déchets. Les autres organes mentionnés jouent des rôles importants, mais ne sont pas directement responsables de la circulation sanguine.","points":3,"subject":"Général","schoolLevel":"COLLEGE","hasGraphic":false,"graphicId":"","graphicLibrary":"apexcharts","graphicType":"2d","basedOnDocument":false,"d...[TRUNCATED]
+[2025-09-22T09:56:55.481Z] [LOG  ] [quizStreaming.ts:429][MEM:40MB] STRING[1145]: 📤 [STREAMING] Format SSE complet:
+event: question-generated
+data: {"questionNumber":5,"totalQuestions":5,"question":{"id":"q_1758535009665_cfa9pdjb4","question":"Quel est l'organe principal du système circulatoire chez l'homme ?","type":"MULTIPLE_CHOICE","difficulty":"moyen","options":[{"id":"A","text":"Le cerveau","isCorrect":false},{"id":"B","text":"Le cœur","isCorrect":true},{"id":"C","text":"Le foie","isCorrect":false},{"id":"D","text":"Les poumons","isCorrect":false}],"expectedAnswer":"","explanation":"Le cœur est l'organe principal du système circulatoire chez l'homme, car il pompe le sang à travers tout le corps, permettant ainsi la circulation des nutriments et de l'oxygène vers les cellules et l'élimination des déchets. Les autres organes mentionnés jouent des rôles importants, mais ne sont pas directement responsables de la circulation sanguine.","points":3,"subject":"Général","schoolLevel":"COLLEGE","hasGraphic":false,"graphicId":"","graphicLibrary":"apexcharts","graphicTyp...[TRUNCATED]
+[2025-09-22T09:56:55.482Z] [LOG  ] [quizStreaming.ts:648][MEM:40MB] STRING: ✅ [STREAMING] Question 5 générée avec Chat Completion + JSON strict et envoyée
+[2025-09-22T09:56:55.880Z] [LOG  ] [quizStreaming.ts:427][MEM:40MB] STRING: 📤 [STREAMING] Envoi SSE - Event: quiz-completed
+[2025-09-22T09:56:55.881Z] [LOG  ] [quizStreaming.ts:428][MEM:40MB] STRING[6596]: 📤 [STREAMING] Envoi SSE - Data: {"quizId":"3743f961-ffd7-4329-aa7d-3f981d85b4c9","totalQuestionsGenerated":5,"totalQuestionsRequested":5,"message":"Quiz généré avec succès via Chat Completion !","quiz":{"id":"3743f961-ffd7-4329-aa7d-3f981d85b4c9","templateId":null,"userId":"user_32xySw3HWDj1x8nN41Suei5mep1","title":"Quiz COLLEGE","schoolLevel":"COLLEGE","questions":[{"id":"q_1758534983055_afj0lpx1r","type":"OPEN_QUESTION","points":3,"options":[],"subject":"Général","question":"Expliquez l'importance de la biodiversité pour les écosystèmes et les êtres humains.","graphicId":"","difficulty":"moyen","hasGraphic":false,"explanation":"La réponse attendue doit aborder plusieurs aspects de la biodiversité, en expliquant comment elle soutient les écosystèmes et en soulignant son impact direct sur la qualité de vie humaine. Il est important d'inclure des exemples spécifiques des services rendus par la biodiversité et d'expliquer pourquoi sa préservation est cruciale dans un contexte de changem...[TRUNCATED]
+[2025-09-22T09:56:55.882Z] [LOG  ] [quizStreaming.ts:429][MEM:40MB] STRING[6628]: 📤 [STREAMING] Format SSE complet:
+event: quiz-completed
+data: {"quizId":"3743f961-ffd7-4329-aa7d-3f981d85b4c9","totalQuestionsGenerated":5,"totalQuestionsRequested":5,"message":"Quiz généré avec succès via Chat Completion !","quiz":{"id":"3743f961-ffd7-4329-aa7d-3f981d85b4c9","templateId":null,"userId":"user_32xySw3HWDj1x8nN41Suei5mep1","title":"Quiz COLLEGE","schoolLevel":"COLLEGE","questions":[{"id":"q_1758534983055_afj0lpx1r","type":"OPEN_QUESTION","points":3,"options":[],"subject":"Général","question":"Expliquez l'importance de la biodiversité pour les écosystèmes et les êtres humains.","graphicId":"","difficulty":"moyen","hasGraphic":false,"explanation":"La réponse attendue doit aborder plusieurs aspects de la biodiversité, en expliquant comment elle soutient les écosystèmes et en soulignant son impact direct sur la qualité de vie humaine. Il est important d'inclure des exemples spécifiques des services rendus par la biodiversité et d'expliquer pourquoi sa préservation est crucia...[TRUNCATED]
+[2025-09-22T09:56:55.883Z] [LOG  ] [quizStreaming.ts:683][MEM:40MB] STRING: 🎉 [STREAMING] Quiz 3743f961-ffd7-4329-aa7d-3f981d85b4c9 complété avec 5 questions via Chat Completion + JSON strict (gpt-4o-mini)
+[2025-09-22T09:56:55.883Z] [LOG  ] [quizStreaming.ts:427][MEM:40MB] STRING: 📤 [STREAMING] Envoi SSE - Event: end
+[2025-09-22T09:56:55.883Z] [LOG  ] [quizStreaming.ts:428][MEM:40MB] STRING: 📤 [STREAMING] Envoi SSE - Data: {"message":"Génération terminée"}
+[2025-09-22T09:56:55.884Z] [LOG  ] [quizStreaming.ts:429][MEM:40MB] STRING: 📤 [STREAMING] Format SSE complet:
+event: end
+data: {"message":"Génération terminée"}
+
+
+[2025-09-22T09:58:27.415Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:58:28.008Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:58:28.402Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:58:28.803Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:58:29.229Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:58:29.619Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:58:30.238Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:58:30.628Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:58:33.876Z] [LOG  ] [secureLogging.ts:55][MEM:42MB] STRING: 🐛 [DEBUG] 🚀 [SERVER-CREDITS] Déduction ultra-optimisée OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "action": "openai_proxy",
+  "amount": 1
+}
+[2025-09-22T09:58:34.270Z] [LOG  ] [secureLogging.ts:55][MEM:42MB] STRING: 🐛 [DEBUG] ⚡ [SERVER-CREDITS] UPSERT atomique exécuté OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 1,
+  "affected": 1
+}
+[2025-09-22T09:58:34.675Z] [LOG  ] [secureLogging.ts:55][MEM:42MB] STRING: 🐛 [DEBUG] ✅ [SERVER-CREDITS] Déduction ultra-rapide réussie OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 1,
+  "newUsage": 0,
+  "remainingCredits": -1,
+  "operationType": "INSERT"
+}
+[2025-09-22T09:58:34.677Z] [LOG  ] [secureLogging.ts:82][MEM:42MB] STRING: debug: ✅ [AI-CREDITS] Crédits déduits STRING: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "path": "/proxy/chat/completions",
+  "action": "openai_proxy",
+  "cost": 1,
+  "remainingCredits": -1
+}
+[2025-09-22T09:58:36.964Z] [LOG  ] [ai.ts:122][MEM:43MB] STRING: 🔒 [AUDIT] Proxy OpenAI utilisé: userId=user_32xySw3HWDj1x8nN41Suei5mep1, cost=1, status=200
+[2025-09-22T09:58:43.924Z] [LOG  ] [wikipediaSearch.ts:36][MEM:43MB] STRING: 🔍 [WikipediaSearch] Recherche: "P" (lang: fr)
+[2025-09-22T09:58:43.928Z] [LOG  ] [wikipediaSearch.ts:49][MEM:43MB] STRING: 📡 [WikipediaSearch] URL de recherche: https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=P&format=json&srlimit=10&srprop=snippet%7Ctitlesnippet%7Csize%7Cwordcount%7Ctimestamp&origin=*
+[2025-09-22T09:58:44.479Z] [LOG  ] [wikipediaSearch.ts:70][MEM:43MB] STRING: 📊 [WikipediaSearch] 10 résultats trouvés
+[2025-09-22T09:58:44.480Z] [LOG  ] [wikipediaSearch.ts:88][MEM:43MB] STRING: 📖 [WikipediaSearch] URL des extraits: https://fr.wikipedia.org/w/api.php?action=query&prop=extracts%7Cinfo&pageids=50882%7C9239%7C8730869%7C6228592%7C16400608%7C1891441%7C16408412%7C13179061%7C1146577%7C3207515&format=json&exintro=1&explaintext=1&exsectionformat=plain&exchars=500&inprop=url&origin=*
+[2025-09-22T09:58:44.745Z] [LOG  ] [wikipediaSearch.ts:36][MEM:43MB] STRING: 🔍 [WikipediaSearch] Recherche: "Pythagore" (lang: fr)
+[2025-09-22T09:58:44.746Z] [LOG  ] [wikipediaSearch.ts:49][MEM:43MB] STRING: 📡 [WikipediaSearch] URL de recherche: https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=Pythagore&format=json&srlimit=10&srprop=snippet%7Ctitlesnippet%7Csize%7Cwordcount%7Ctimestamp&origin=*
+[2025-09-22T09:58:45.155Z] [LOG  ] [wikipediaSearch.ts:70][MEM:43MB] STRING: 📊 [WikipediaSearch] 10 résultats trouvés
+[2025-09-22T09:58:45.156Z] [LOG  ] [wikipediaSearch.ts:88][MEM:43MB] STRING: 📖 [WikipediaSearch] URL des extraits: https://fr.wikipedia.org/w/api.php?action=query&prop=extracts%7Cinfo&pageids=7260%7C7266%7C86133%7C5613693%7C176217%7C4037399%7C7201%7C43005%7C12856859%7C143417&format=json&exintro=1&explaintext=1&exsectionformat=plain&exchars=500&inprop=url&origin=*
+[2025-09-22T09:58:45.586Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Pythagore" (403 chars)
+[2025-09-22T09:58:45.588Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Théorème de Pythagore" (403 chars)
+[2025-09-22T09:58:45.588Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Loi des cosinus" (402 chars)
+[2025-09-22T09:58:45.589Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Coupe de Pythagore" (386 chars)
+[2025-09-22T09:58:45.589Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "École pythagoricienne" (403 chars)
+[2025-09-22T09:58:45.590Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Pythagore, je t'adore" (377 chars)
+[2025-09-22T09:58:45.592Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Platon" (403 chars)
+[2025-09-22T09:58:45.592Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Triplet pythagoricien" (202 chars)
+[2025-09-22T09:58:45.593Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Escargot de Pythagore" (148 chars)
+[2025-09-22T09:58:45.593Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Triangle rectangle" (403 chars)
+[2025-09-22T09:58:45.594Z] [LOG  ] [wikipediaSearch.ts:137][MEM:43MB] STRING: 🎯 [WikipediaSearch] Retour de 10 articles pour "Pythagore"
+[2025-09-22T09:58:46.737Z] [LOG  ] [wikipediaSearch.ts:128][MEM:44MB] STRING: ✅ [WikipediaSearch] Article ajouté: "P" (59 chars)
+[2025-09-22T09:58:46.738Z] [LOG  ] [wikipediaSearch.ts:128][MEM:44MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Nombre premier" (403 chars)
+[2025-09-22T09:58:46.739Z] [LOG  ] [wikipediaSearch.ts:128][MEM:44MB] STRING: ✅ [WikipediaSearch] Article ajouté: "P. P. Arnold" (403 chars)
+[2025-09-22T09:58:46.739Z] [LOG  ] [wikipediaSearch.ts:128][MEM:44MB] STRING: ✅ [WikipediaSearch] Article ajouté: "P&L" (403 chars)
+[2025-09-22T09:58:46.739Z] [LOG  ] [wikipediaSearch.ts:128][MEM:44MB] STRING: ✅ [WikipediaSearch] Article ajouté: "ᴾ" (241 chars)
+[2025-09-22T09:58:46.740Z] [LOG  ] [wikipediaSearch.ts:128][MEM:44MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Ferrari P" (403 chars)
+[2025-09-22T09:58:46.740Z] [LOG  ] [wikipediaSearch.ts:128][MEM:44MB] STRING: ✅ [WikipediaSearch] Article ajouté: "ᵖ" (187 chars)
+[2025-09-22T09:58:46.741Z] [LOG  ] [wikipediaSearch.ts:128][MEM:44MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Grand P" (325 chars)
+[2025-09-22T09:58:46.742Z] [LOG  ] [wikipediaSearch.ts:128][MEM:44MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Gras de tableau noir" (377 chars)
+[2025-09-22T09:58:46.742Z] [LOG  ] [wikipediaSearch.ts:128][MEM:44MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Valeur p" (403 chars)
+[2025-09-22T09:58:46.743Z] [LOG  ] [wikipediaSearch.ts:137][MEM:44MB] STRING: 🎯 [WikipediaSearch] Retour de 10 articles pour "P"
+[2025-09-22T09:58:57.670Z] [LOG  ] [wikipediaSearch.ts:36][MEM:43MB] STRING: 🔍 [WikipediaSearch] Recherche: "Pythagore" (lang: fr)
+[2025-09-22T09:58:57.672Z] [LOG  ] [wikipediaSearch.ts:49][MEM:43MB] STRING: 📡 [WikipediaSearch] URL de recherche: https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=Pythagore&format=json&srlimit=10&srprop=snippet%7Ctitlesnippet%7Csize%7Cwordcount%7Ctimestamp&origin=*
+[2025-09-22T09:58:58.158Z] [LOG  ] [wikipediaSearch.ts:70][MEM:44MB] STRING: 📊 [WikipediaSearch] 10 résultats trouvés
+[2025-09-22T09:58:58.159Z] [LOG  ] [wikipediaSearch.ts:88][MEM:44MB] STRING: 📖 [WikipediaSearch] URL des extraits: https://fr.wikipedia.org/w/api.php?action=query&prop=extracts%7Cinfo&pageids=7260%7C7266%7C86133%7C5613693%7C176217%7C4037399%7C7201%7C43005%7C12856859%7C143417&format=json&exintro=1&explaintext=1&exsectionformat=plain&exchars=500&inprop=url&origin=*
+[2025-09-22T09:58:58.371Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Pythagore" (403 chars)
+[2025-09-22T09:58:58.372Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Théorème de Pythagore" (403 chars)
+[2025-09-22T09:58:58.373Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Loi des cosinus" (402 chars)
+[2025-09-22T09:58:58.374Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Coupe de Pythagore" (386 chars)
+[2025-09-22T09:58:58.375Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "École pythagoricienne" (403 chars)
+[2025-09-22T09:58:58.376Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Pythagore, je t'adore" (377 chars)
+[2025-09-22T09:58:58.377Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Platon" (403 chars)
+[2025-09-22T09:58:58.377Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Triplet pythagoricien" (202 chars)
+[2025-09-22T09:58:58.377Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Escargot de Pythagore" (148 chars)
+[2025-09-22T09:58:58.377Z] [LOG  ] [wikipediaSearch.ts:128][MEM:43MB] STRING: ✅ [WikipediaSearch] Article ajouté: "Triangle rectangle" (403 chars)
+[2025-09-22T09:58:58.378Z] [LOG  ] [wikipediaSearch.ts:137][MEM:43MB] STRING: 🎯 [WikipediaSearch] Retour de 10 articles pour "Pythagore"
+[2025-09-22T09:59:06.188Z] [LOG  ] [wikipedia.ts:41][MEM:45MB] STRING: 🔄 [DEDUP] Vérification de 2 articles Wikipedia
+[2025-09-22T09:59:07.378Z] [LOG  ] [wikipedia.ts:101][MEM:40MB] STRING: 🌍 [WIKIPEDIA-GLOBAL] Source globale créée: "Pythagore" (ID: 77ba3968-2425-473e-a213-3090c0b272ef)
+[2025-09-22T09:59:07.398Z] [LOG  ] [index.ts:704][MEM:40MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Aucun écrit authentique de Pythagore ne nous est p..."
+[2025-09-22T09:59:07.399Z] [LOG  ] [documentSearchService.ts:87][MEM:41MB] STRING: 🤖 Chargement du modèle Xenova/all-MiniLM-L6-v2...
+[2025-09-22T09:59:09.160Z] [LOG  ] [documentSearchService.ts:92][MEM:43MB] STRING: ✅ Modèle d'embedding chargé
+[2025-09-22T09:59:09.238Z] [LOG  ] [documentSearchService.ts:401][MEM:46MB] STRING[2416]: 🧠 Embedding généré pour "Aucun écrit authentique de Pythagore ne nous est parvenu, et on ne sait presque rien de certain sur sa vie. Les premières sources sont brèves, ambigües et souvent satiriques. La plus ancienne concernant les enseignements de Pythagore est un poème satirique probablement écrit après sa mort par Joost-Gaugier|2006|p=12}}. Dans ce poème, Pythagore aide un [[chien qui est battu, affirmant reconnaître dans ses cris la voix d'un ami disparu. Joost-Gaugier|2006|p=12-13}}. Le philosophe [[Héraclite|Héraclite d'Éphèse, qui naît à quelques kilomètres de Samos et qui vit peut-être au même moment que Pythagore, voit en lui une sorte de charlatan, mais intelligent, remarquant que }}.
+Au , les poètes grecs Joost-Gaugier|2006|p=14-15}}. La première description concise de Pythagore provient de l'historien [[Hérodote, qui le décrit comme  des sages grecs et affirme que Pythagore a enseigné à ses disciples comment atteindre l'Joost-Gaugier|2006|p=16}}. L'exactitude des travaux d...[TRUNCATED]
+[2025-09-22T09:59:09.238Z] [LOG  ] [index.ts:713][MEM:46MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:09.814Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Pythagore a vécu ses quarante premières années à S..."
+[2025-09-22T09:59:09.837Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING: 🧠 Embedding généré pour "Pythagore a vécu ses quarante premières années à Samos, après quoi il s'est établi (probablement vers 530 av. J.-C.) à Crotone, dans le sud de l'Italie, et il serait mort à Métaponte vers 490 avant J.-C.
+" (384 dimensions)
+[2025-09-22T09:59:09.838Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:10.050Z] [LOG  ] [index.ts:704][MEM:48MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|Buste de Pythagore (Parc [[Pincio, Rome.)..."
+[2025-09-22T09:59:10.122Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING[1138]: 🧠 Embedding généré pour "vignette|Buste de Pythagore (Parc [[Pincio, Rome.)]]
+Pythagore naît donc sur l'île de Asie Mineure, vers 580. On trouve les dates de 569 av. J.-C. ou 606 av. J.-C. chez PorphyreSur l'incertitude de la date de naissance de Pythagore : [https://books.google.fr/books?id=dP9_SKSiThMC&printsec=frontcover&dq=eduard+zeller&hl=fr&sa=X&ved=0ahUKEwjE95-K-4HgAhUtQxUIHSaRD78Q6AEIKTAA#v=onepage&q=eduard%20zeller&f=false Édouard Zeller, La philosophie des Grecs considérée dans son développement historique, 1877, vol. I], . Sur l'incertitude du lieu de naissance, Samos, mer Tyrrhénienne, Syrie, Tyr : Clément d'Alexandrie, Strômates, I, 62..
+Son père, MnésarqueAncée, fils de Poséidon, qui avait fondé la ville de Samos. Ce Mnésarque de Samos interroge la Pythie de Delphes sur un voyage et obtient une réponse selon laquelle :
+Plus tard, Pythagore disait être la Euphorbe (héros de la guerre de Troie), d'Hermotime de Clazomènes (iatromante apollinien) et de Pyrrhos (un pêcheur de...[TRUNCATED]
+[2025-09-22T09:59:10.122Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:10.447Z] [LOG  ] [index.ts:704][MEM:48MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Selon une tradition, Pythagore aurait participé au..."
+[2025-09-22T09:59:10.527Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING[1382]: 🧠 Embedding généré pour "Selon une tradition, Pythagore aurait participé aux Jeux olympiques à l'âge de 17 ans, et il s'agirait, selon Ératosthène, de la  (-552) ou de la  (-588). Il aurait remporté toutes les compétitions de p.234. Mais il pourrait s'agir d'un homonymeDiogène Laërce, Vies, doctrines et sentences des philosophes illustres, traduit par J. H. Schneider, 17558, tome II, p.234 note 11. Néanmoins cette réputation d'athlète a perduré Par exemple, Augustin d'Hippone écrit dans ses Lettres ( série, lettre CXXXVII. "Augustin à Volusien", [https://fr.wikisource.org/w/index.php?title=Page:Augustin_-_%C5%92uvres_compl%C3%A8tes,_%C3%A9d._Raulx,_tome_II.djvu/293&action=edit&redlink=1 chap. 12]) :  {{citation|Un des fruits de l’enseignement du Christ , c’est qu’aujourd’hui le
+dernier ignorant et la dernière des femmes croient à l’immortalité de l’âme et à la vie future après la mort. C’est ce que Phérécyde de Syros fut le premier à expliquer aux Grecs, et ses paroles frappèrent si f...[TRUNCATED]
+[2025-09-22T09:59:10.528Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:10.738Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Pythagore connaît plusieurs initiations, qui const..."
+[2025-09-22T09:59:10.753Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING: 🧠 Embedding généré pour "Pythagore connaît plusieurs initiations, qui constitueront sa formation.vignette|Pythagore, détail de ''[[l'École d'Athènes'' de Raphaël, 1509.]]
+" (384 dimensions)
+[2025-09-22T09:59:10.753Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:10.948Z] [LOG  ] [index.ts:704][MEM:43MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "En 551 av. J.-C., âgé de 18 ans, il quitte Samos p..."
+[2025-09-22T09:59:11.009Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING: 🧠 Embedding généré pour "En 551 av. J.-C., âgé de 18 ans, il quitte Samos pour aller étudier à Lesbos auprès de 940}}. Porphyre, Vie de Pythagore, § 55., un sage, le premier à avoir dit que « les âmes des hommes sont éternelles »[[Cicéron, Tusculanes, I, 16, 3., le premier à enseigner que l'homme a deux âmes, l'une d'origine terrestre, l'autre d'origine divine ; un magicien, aussi, qui fait des prédictions et reçoit des révélations en songeQue les deux philosophies se ressemblent, c'est sûr ; que les hommes se soient rencontrés, c'est incertain, mais la théorie de l'âme immortelle et individuelle de Phérécyde autorise la théorie pythagoricienne de la transmigration|date=4 novembre 2023}} (en [[grec ancien, ) des âmes.
+Les biographes lui attribuent ensuite nombre d'initiations auprès de ses contemporains, ainsi que dans les Mystères. Il aurait rencontré « les descendants du prophète et naturaliste mont Ida, les orphiques de Thrace, les prêtresses de Delphes.
+" (384 dimensions)
+[2025-09-22T09:59:11.009Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:11.202Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Elle a lieu en « Syrie » (ou « Môchos de 940-941}}..."
+[2025-09-22T09:59:11.223Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING: 🧠 Embedding généré pour "Elle a lieu en « Syrie » (ou « Môchos de 940-941}}.[[Porphyre de Tyr|Porphyre, Vie de Pythagore, § 1..
+" (384 dimensions)
+[2025-09-22T09:59:11.224Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:11.440Z] [LOG  ] [index.ts:704][MEM:43MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "À la suite d'Memphis et Diospolis — pour plusieurs..."
+[2025-09-22T09:59:11.504Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING: 🧠 Embedding généré pour "À la suite d'Memphis et Diospolis — pour plusieurs annéesPythagore en Égypte : Plutarque, Propos de table, VIII, 8, 2.Porphyre, Vie de Pythagore, § 7-8 et 11-12. Diogène Laërce, VIII, 3. Isocrate, Busiris, 28.. Dans cette dernière ville se trouve un sanctuaire de Zeus Ammon. Il est reçu par les prêtres, sous Amasis, pharaon de 568 à 526 av. J.-C. et connu de Polycrate de SamosIsocrate, Busiris, § 28.. Il apprend la langue à Memphis dans un centre d'interprétariat fondé par Psammétique  (pharaon en 663 av. J.-C.). Il étudie la géométrie, l'astronomie des Égyptiens. Il est initié aux Mystères de Diospolis et à la doctrine de la résurrection d'Osiris ; selon Plutarque, les prêtres lui auraient appliqué sur la cuisse le disque ailé d'Atoum-Râ, en feuille d'or, ce qui lui valut le surnom de Pythagore « chrysomère, à la cuisse d'or »J.-F. Mattéi, Pythagore et les pythagoriciens, PUF, Que sais-je ?, 1993, ..
+" (384 dimensions)
+[2025-09-22T09:59:11.504Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:11.706Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Certaines traditions ajoutent que, lors de sa conq..."
+[2025-09-22T09:59:11.770Z] [LOG  ] [documentSearchService.ts:401][MEM:47MB] STRING: 🧠 Embedding généré pour "Certaines traditions ajoutent que, lors de sa conquête de l'Égypte en 525 av. J.-C., le roi de Perse 35-40}} (textes).. Il se serait ainsi retrouvé « chez les [[Chaldéens (Antiquité)|Chaldéens et les Mages ». Cet épisode est cependant beaucoup moins attesté que le voyage en Égypte, et les dates posent un problème, surtout quand Antiphon prétend que Pythagore est resté vingt-deux ans en Égypte (de 547 à 525 av. J.-C. ?) et douze à Babylone (de 525 à 513 av. J.-C. ?)Antiphon, cité par Porphyre, Vie de Pythagore, § 7.. Il est impossible qu'il ait rencontré comme le voudrait Porphyre de Tyr}} car le prophète iranien enseignait vers 594 av. J.-C. environ. [[Plutarque dans son explication Sur la création du monde selon le Timée de Platon lui donne également pour maître Zaratas d'Assyrie, en qui certains auteurs voient une déformation du prénom de Zoroastre.
+" (384 dimensions)
+[2025-09-22T09:59:11.770Z] [LOG  ] [index.ts:713][MEM:47MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:11.996Z] [LOG  ] [index.ts:704][MEM:47MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Pythagore se rend en mont Ida, haut lieu de l'ésot..."
+[2025-09-22T09:59:12.038Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING: 🧠 Embedding généré pour "Pythagore se rend en mont Ida, haut lieu de l'ésotérisme, sous la conduite, dit-on, d'942}}.Porphyre, Vie de Pythagore, § 16-17.. Son initiation suivante, la sixième a lieu en [[Thrace, où il s'est rendu pour rencontrer des orphiques.
+Enfin, lors de sa septième et dernière initiation, il rencontre « Thémistocléa, la prêtresse de Delphes »Diogène Laërce, VIII, 8 et 21.Porphyre, Vie de Pythagore, § 41..
+" (384 dimensions)
+[2025-09-22T09:59:12.038Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:12.245Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Après cela, il revient à Samos  commence à enseign..."
+[2025-09-22T09:59:12.258Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING: 🧠 Embedding généré pour "Après cela, il revient à Samos  commence à enseigner dans un amphithéâtre à ciel ouvert, l'Hémicycle, sans grand succès.
+" (384 dimensions)
+[2025-09-22T09:59:12.259Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:12.461Z] [LOG  ] [index.ts:704][MEM:43MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|Grande-Grèce en 280 av. J.-C.
+Banni par P..."
+[2025-09-22T09:59:12.555Z] [LOG  ] [documentSearchService.ts:401][MEM:44MB] STRING[1518]: 🧠 Embedding généré pour "vignette|Grande-Grèce en 280 av. J.-C.
+Banni par Polycrate, tyran de Samos de –535 à –522, ou bien fuyant, selon Aristoxène, « la tyrannie de Polycrate »Pseudo-Jamblique, Théologoumènes arithmétiques ( S.), 6., il quitte Samos vers –535, en compagnie de son vieux maître Hermodamas, et se rend en Grande-Grèce, à Sybaris (dans le golfe de Tarente) ville opulente, célèbre pour son luxe et ses plaisirs.
+Mais il préfère s'installer à aristocratique. Antidémocrate, il pense que « c'est une chose insensée de tenir compte de l'opinion du grand nombre »Jamblique, Vie de Pythagore, § 200.. De fait, ses  administrent la cité. Ses conférences publiques attirent plusieurs centaines de personnes. Les Crotoniates l'identifient à Apollon HyperboréenAristote, fragment 191 édi. Rose.. L'aura dont il jouit dans la population de Crotone est bien marquée par Porphyre de TyrPorphyre, Vie de Pythagore, § 18. :
+Il fonde une école à Crotone en –532Jamblique, Vie de Pythagore, § 35. ma...[TRUNCATED]
+[2025-09-22T09:59:12.556Z] [LOG  ] [index.ts:713][MEM:44MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:12.760Z] [LOG  ] [index.ts:704][MEM:44MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Pythagore s'inquiète du progrès du parti démocrati..."
+[2025-09-22T09:59:12.848Z] [LOG  ] [documentSearchService.ts:401][MEM:45MB] STRING[1823]: 🧠 Embedding généré pour "Pythagore s'inquiète du progrès du parti démocratique. Apollonios, Histoires merveilleuses, 6 : Les présocratiques, « Pléiade », ., et les invite à partir  pour Métaponte, port de la Lucanie, toujours sur le golfe de Tarente. Sans doute y trouva-t-il une communauté pythagoricienne déjà installée. Certains de ses disciples deviennent célèbres, parmi lesquels le médecin Alcméon de Crotone et le mathématicien Hippase de MétaponteDiogène Laërce, VIII, 83.Jamblique, Vie de Pythagore, § 104..
+En –510, une révolution populaire à Sybaris, sous la conduite d'un orateur démocrate, Télys, massacre des pythagoriciens, et 500 aristocrates se réfugient à Crotone. Une guerre s'ensuit entre Sybaris et Crotone, soutenue  par Pythagore. L'aristocratie de Crotone, sous la conduite de Milon de Crotone, l'emporte avec  }} : elle massacre à son tour la population de Sybaris et rase la villeDiodore de Sicile, Bibliothèque historique, XI, 9-10. Geneviève Tabouis, Sybaris. Les Grecs e...[TRUNCATED]
+[2025-09-22T09:59:12.848Z] [LOG  ] [index.ts:713][MEM:45MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:13.042Z] [LOG  ] [index.ts:704][MEM:45MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Entre –440 ou –454, vers –450, se produit une émeu..."
+[2025-09-22T09:59:13.098Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING: 🧠 Embedding généré pour "Entre –440 ou –454, vers –450, se produit une émeute anti-pythagoricienne, amalgamée par certains historiens à la guerre pro-pythagoricienne de –510. Un noble de Crotone, I|er}}), X, 11. Diogène Laërce (vers 200), VIII, 39, .Porphyre, Vie de Pythagore, § 54-56.Jamblique, Vie de Pythagore, § 248-251.. Ces persécutions conduisent à la dispersion des membres de l'[[école pythagoricienne, qui fondent des centres ailleurs, surtout à Rhegium, Phlionte et Thèbes de Lucanie , A History of Greek Philosophy, Cambridge, 1962-1981, t. I, .. Le déclin de l'influence pythagoricienne en Italie commence. Le dernier bastion fut Tarente, avec Archytas de Tarente, stratège, philosophe, mathématicien, inventeur, mais aussi ami Platon (qu'il sauva de la mort) .
+" (384 dimensions)
+[2025-09-22T09:59:13.098Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:13.302Z] [LOG  ] [index.ts:704][MEM:50MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "La légende (surtout chez Porphyre et Jamblique) at..."
+[2025-09-22T09:59:13.361Z] [LOG  ] [documentSearchService.ts:401][MEM:47MB] STRING: 🧠 Embedding généré pour "La légende (surtout chez Porphyre et Jamblique) attribue à Pythagore des pouvoirs merveilleux : il apprivoise une ourse, fait descendre, à lang=fi|Holger Thesleff}}, The Pythagorean Texts of the Hellenistic Period, Abo (Finlande), 1965, .. À l'[[époque hellénistique, l'adjectif « pythagoricien » (πυθαγόρειος) finit par signifier « occultiste, ésotériste, magicien » 232-235}}.. Même le sobre Aristote l'admet : « Pythagore avant tout œuvra durement dans les sciences mathématiques et autour des nombres, mais plus tard il lui arriva de ne pas savoir renoncer à la pratique miraculeuse de [[Phérécyde de Syros »Aristote, Sur les Pythagoriciens, fragment 1 de l'éd. David Ross : G. Colli, La sagesse grecque (1977-1978), trad., Éditions de l'Éclat, t. 2, 1991,  (fragment A 6 de Phérécyde de Syros)..
+" (384 dimensions)
+[2025-09-22T09:59:13.362Z] [LOG  ] [index.ts:713][MEM:47MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:13.565Z] [LOG  ] [index.ts:704][MEM:47MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "L'école pythagoricienne de Crotone devint par la s..."
+[2025-09-22T09:59:13.634Z] [LOG  ] [documentSearchService.ts:401][MEM:46MB] STRING[1064]: 🧠 Embedding généré pour "L'école pythagoricienne de Crotone devint par la suite une hétairie (en grec ancien,  = confrérie)Jamblique, Vie de Pythagore, § 30. politique de tendance aristocratiqueVoir [http://www.larousse.fr/encyclopedie/personnage/Pythagore/139908 Encyclopédie Larousse].. Il s'agit d'une fraternité philosophique, religieuse et scientifique, proche de l'orphisme (ce dernier rapprochement fait toutefois l'objet de critiques)Corentin Voisin, La limite entre orphisme et pythagorisme en Italie préromaine et le problème du terme orphico-pythagoricien, Frontière·s. Revue d’archéologie, histoire & histoire de l’art, Supplément 1, 2022, p. 173-180..
+La communauté s'échelonne sur quatre degrés initiatiques et hiérarchiquesJamblique, Vie de Pythagore, § 72. 452}}. [[Ivan Gobry, Pythagore, Seghers, 1973, ., comme dans de nombreuses organisations initiatiques. Les femmes et les étrangers sont admis. Les profanes (en grec ancien , bébêloi) sont « les gens du dehors » (hoï exô, ), le...[TRUNCATED]
+[2025-09-22T09:59:13.635Z] [LOG  ] [index.ts:713][MEM:46MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:13.929Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Pythagore observe, chez ceux qui se présentent com..."
+[2025-09-22T09:59:13.967Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING: 🧠 Embedding généré pour "Pythagore observe, chez ceux qui se présentent comme candidats, les traits du visage (physiognomonie) et les gestes (kinésique)Porphyre, Vie de Pythagore, § 54 ; Vie de Plotin, § 11. Voir E. Evans, Physiognomonics in the Ancient World, in Transactions of the American Philosophical Society, Philadelphie, vol. 59, fasc. 5, 1969, ., mais aussi les relations avec les parents, le rire, les désirs, les fréquentations. On est admis ou pasJamblique, Vie de Pythagore, § 71..
+" (384 dimensions)
+[2025-09-22T09:59:13.967Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:14.229Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "La période de probation des candidats dure trois a..."
+[2025-09-22T09:59:14.262Z] [LOG  ] [documentSearchService.ts:401][MEM:51MB] STRING: 🧠 Embedding généré pour "La période de probation des candidats dure trois ans, pendant lesquels Pythagore scrute leur persévérance et leur désir d'apprendre. Au terme de cette période, ils sont refusés ou acceptés, et dans ce deuxième cas, prononcent le serment de silence''Vers d'or. Χρυσά Έπη, 47-48. Porphyre, Vie de Pythagore, § 20. Jamblique, Vie de Pythagore'', § 150 et 162. :
+" (384 dimensions)
+[2025-09-22T09:59:14.262Z] [LOG  ] [index.ts:713][MEM:51MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:14.466Z] [LOG  ] [index.ts:704][MEM:44MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Les acousmaticiens - ou acousmatiques - ( : « audi..."
+[2025-09-22T09:59:14.516Z] [LOG  ] [documentSearchService.ts:401][MEM:47MB] STRING: 🧠 Embedding généré pour "Les acousmaticiens - ou acousmatiques - ( : « auditeurs »). Ils reçoivent un enseignement de cinq ans, donné sous forme de préceptes oraux (), sans démonstration, destinés à être gardés en mémoire ; par exemple : « Ne pas avoir sur les dieux des opinions ou des paroles hâtives. » Ces cinq ans sont cinq ans de silence. Les auditeurs sont devant le rideau derrière lequel Pythagore se dissimule. Ils mettent leurs biens en communDiodore de Sicile, X, 3, 5. Jamblique, Vie de Pythagore, § 32, 72, 74, 81, 92, 168, 257..
+Les postulants, les néophytes et les auditeurs forment le grade des « exotériques » (έξωτερικοί) ou novices.
+" (384 dimensions)
+[2025-09-22T09:59:14.517Z] [LOG  ] [index.ts:713][MEM:47MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:14.756Z] [LOG  ] [index.ts:704][MEM:48MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Les mathématiciens (, « savants ») ou « ésotérique..."
+[2025-09-22T09:59:14.856Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING[2898]: 🧠 Embedding généré pour "Les mathématiciens (, « savants ») ou « ésotériques » ou sindonites (habillés de lin). « Ils devenaient des ésotériques () »Jamblique, Vie de Pythagore, § 72., dans la mesure où ils accèdent à la connaissance intérieure, cachée. Ils sont admis à voir Pythagore derrière son rideau. Lui-même enseigne sous forme de « symboles » (), au sens de formules codées, qui sont démontrées ; par exemple : « Ne pas toucher un coq blanc. » D'après PhotiusPhotius, Bibliothèque, codex 249 : trad., Les Belles Lettres, t. VII,  éd. 2003. on voit une division des « ésotériques » en « vénérables » (, sebastikoi), « politiques » (, politikoi), « contemplatifs ». Les vénérables ou pieux s'occupent de religion. Les politiques s'intéressent aux lois, aux affaires humaines, tant dans la communauté pythagoricienne que dans la cité. Les « contemplatifs » étudient arithmétique, musique, géométrie, astronomie : les quatre sciences selon Archytas, qui formeront le quadrivium du Moyen Âge. Il...[TRUNCATED]
+[2025-09-22T09:59:14.857Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:15.102Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Dès Hippase (vers 450 ?), il semble qu'il y ait eu..."
+[2025-09-22T09:59:15.181Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING[1314]: 🧠 Embedding généré pour "Dès Hippase (vers 450 ?), il semble qu'il y ait eu rivalité entre deux tendances idéologiques (et non plus degrés initiatiques) chez les pythagoriciens : les « acousmaticiens » et les « mathématiciens »Jamblique, Collection des dogmes pythagoriciens, III : Sur les principes généraux des mathématiques, 25, édi. par U. Klein, 1975. Autre version de Jamblique dans Vie de Pythagore, § 81 et 87. W. Burkert, Lore and Science in Ancient Pythagoreanism (1962 en all.), Cambridge (Mass.), 1972, .. Il ne s'agit plus de la hiérarchie novice/initié, mais de la polarité moraliste/scientifique. D'un côté, les acousmaticiens insistent sur les paroles (« acousmates ») léguées par Pythagore et privilégient la morale, les prescriptions rituelles, le « mode de vie pythagoricien » ; entre 420 et 350, les auteurs de comédies (Cratinos, Mnésimaque, etc.) décrivent des « pythagoristes », dès Diodore d'Aspendos (vers –380) et Lycon d'Iasos, végétariens et buveurs d'eau, chevelus et ba...[TRUNCATED]
+[2025-09-22T09:59:15.181Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:15.388Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "De même que le personnage historique de Pythagore ..."
+[2025-09-22T09:59:15.466Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING[1402]: 🧠 Embedding généré pour "De même que le personnage historique de Pythagore est mal connu, sa pensée s'assimile à l'école pythagoricienne. La pensée de Pythagore lui-même est ainsi recouverte par les apports successifs de ses disciples. Celle de l'école pythagoricienne couvre tous les domaines : « la science relative aux intelligibles et aux dieux ; ensuite la physique ; la philosophie éthique et la logique ; toutes sortes de connaissances en mathématiques et les sciences »Jamblique, Vie de Pythagore, § 157-158.. Archytas, le premier, conçoit ce que sera le quadrivium : arithmétique, musique (arithmétique sensible), géométrie, enfin astronomie (géométrie sensible)Porphyre, Histoire de la philosophie, fragment 20, in Vie de Pythagore. Lettre à Marcella, Les Belles Lettres, . H.-I. Marrou, Patristique et Humanisme, 1976,  : « Les arts libéraux dans l'Antiquité classique. » Ilsetraut Hadot, Arts libéraux et philosophie dans la pensée antique, 1984.. Pythagore voyait leurs liens : il ramen...[TRUNCATED]
+[2025-09-22T09:59:15.466Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:15.694Z] [LOG  ] [index.ts:704][MEM:48MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "« Tout est nombre. » Le grand apport de Pythagore,..."
+[2025-09-22T09:59:15.786Z] [LOG  ] [documentSearchService.ts:401][MEM:51MB] STRING[6292]: 🧠 Embedding généré pour "« Tout est nombre. » Le grand apport de Pythagore, c'est l'importance de la notion de nombre et le développement d'une mathématique démonstrative (mais aussi religieuse)[http://villemin.gerard.free.fr/Esprit/Pythagor.htm Pythagore] sur le site personnel de G. Villemin.. Pour un Grec de l'Antiquité, le nombre désigne toujours un nombre entier et signifie « système arrangé numériquement »., « pluralité ordonnée », « chose structurée » ; d'autre part, « un » n'est pas considéré comme un nombre avant ArchytasLes présocratiques, coll. « Pléiade », , 1369.. Chez les pythagoriciens, les choses sont des nombres, ou les choses consistent en nombres, ou les choses imitent les nombres (qui seraient des principes), ou les choses ont des nombres : un certain flou demeure.
+Selon Aristote, pour les pythagoriciens, les choses sont des nombres ; par exemple, un et esprit sont identiques, en musique les intervalles des tons sont des rapports de nombresAristote, Métaphysique, A,...[TRUNCATED]
+[2025-09-22T09:59:15.787Z] [LOG  ] [index.ts:713][MEM:51MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:16.024Z] [LOG  ] [index.ts:704][MEM:44MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|Diagramme [[Comma pythagoricien|pythagori..."
+[2025-09-22T09:59:16.120Z] [LOG  ] [documentSearchService.ts:401][MEM:46MB] STRING[4093]: 🧠 Embedding généré pour "vignette|Diagramme [[Comma pythagoricien|pythagoricien montrant les relations entre diatessaron, diapente, et diapason.]]
+Tout commence avec la découverte qu'il existe une relation entre la longueur d'une corde vibrante et la hauteur du son émis. Soit quatre cordes tendues, la première vaut 1, la deuxième a une longueur représentant les 3/4 de la première, la troisième les 2/3 et la dernière la 1/2. Quand on pince successivement ces cordes, on entend le Do, puis la quarte du Do = le Fa, puis la quinte de Do = le Sol, enfin le Do à l'octave. Le son est mathématique.
+« Les pythagoriciens affirment que la musique est une combinaison harmonique des contraires, une unification des multiples et un accord des opposés. » (Théon de Smyrne)
+Pythagore a découvert les lois de l'harmoniqueAristoxène de Tarente, Éléments harmoniques (vers -350) ; Jamblique, Vie de Pythagore, 114-121. F. Lasserre, in Plutarque, ''De la musique. Texte, traduction, commentaire, précédés d'une ...[TRUNCATED]
+[2025-09-22T09:59:16.121Z] [LOG  ] [index.ts:713][MEM:46MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:16.335Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|gauche|Une démonstration élémentaire d'un..."
+[2025-09-22T09:59:16.424Z] [LOG  ] [documentSearchService.ts:401][MEM:47MB] STRING[3219]: 🧠 Embedding généré pour "vignette|gauche|Une démonstration élémentaire d'un cas particulier du [[théorème de Pythagore : l’aire d’un seul triangle est égale à 6, et 4×6+1=25.]]
+L'école de Pythagore hérite d'une double culture mathématique. La mathématique Thalès de Milet, lui apporte une orientation géométrique, ainsi qu'une volonté de démonstrationVoir le premier chapitre La percée des Ioniens : 978-2-85939-494-3}}, .. L'héritage mésopotamien offre des procédures de calcul permettant la résolution des [[équation du second degré|équations du second degré, ou encore l'évaluation approximative des racines carrées par des fractions Otto Neugebauer, The Exact Sciences in Antiquity, Dover Publications, 1969 , ..
+Ce double héritage s'associe sur une idée fausse, celle selon laquelle toute longueur peut s'exprimer comme une fraction : ..}} Cette erreur est néanmoins fructueuse. Si toute longueur est une fraction et à condition de bien choisir l'unité de la figure, il devient possible de ne t...[TRUNCATED]
+[2025-09-22T09:59:16.424Z] [LOG  ] [index.ts:713][MEM:47MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:16.629Z] [LOG  ] [index.ts:704][MEM:47MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Pythagore apporte une connaissance qui émerveille ..."
+[2025-09-22T09:59:16.701Z] [LOG  ] [documentSearchService.ts:401][MEM:46MB] STRING[1196]: 🧠 Embedding généré pour "Pythagore apporte une connaissance qui émerveille encore le logicien VénusDiogène Laërce, IX, 23.. Cette identité était connue à Babylone depuis –685.
+Pythagore « fut le premier à appeler le ciel cosmos (ordre) et à dire que la Terre est ronde »Diogène Laërce, VIII, 48, . ; mais on attribue plus souvent la théorie de la sphéricité de la Terre à B. L. van der Waerden, Die Astronomie der Pythagoreer, Amsterdam, 1951 ; Die Astronomie der Greichen, Darmstadt, 1988..
+vignette|Pythagore et Philolaos.
+Copernic, la mobilité de la Terre.
+Philolaos dit : « C'est le Feu qui occupe le milieu. »Philolaos (fragment A 16) : Les présocratiques, ., . En revanche, la découverte de la rotation de la Terre sur elle-même revient à un autre pythagoricien, la Terre tourne et pivote sur son axe à très grande vitesse}}[[Cicéron, Premiers Académiques, II, 39, § 123.. allemand August Böckh, dit aussi que . Copernic cite les pythagoriciens :
+(Copernic : Lettre au pape Paul III, préface à...[TRUNCATED]
+[2025-09-22T09:59:16.701Z] [LOG  ] [index.ts:713][MEM:46MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:16.901Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Pour Pythagore, le corps (sôma) est un tombeau (sê..."
+[2025-09-22T09:59:16.988Z] [LOG  ] [documentSearchService.ts:401][MEM:47MB] STRING[2559]: 🧠 Embedding généré pour "Pour Pythagore, le corps (sôma) est un tombeau (sêma), à la fois prison et « signe » ou « protection » de l'âmePlaton, Cratyle, 400b ; Gorgias, 493a. : cela est bien une thèse pythagoricienne, pas orphique , The Arts of Orpheus,  sq. Luc Brisson, Platon, Phédon, , 185.. Philolaos : « Les anciens théologiens et devins témoignent eux aussi que c'est en punition de certaines fautes que l'âme a été attelée au corps et ensevelie en lui comme un tombeau. »
+L'âme est un nombre, en ce sens qu'elle est harmonie, bonne proportion, combinaison des propriétés composant le corps (c'est la théorie du pythagoricien Simmias dans le Phédon, 86 d, de Platon). Elle est vie, car elle est en mouvement.
+Pythagore pensait « que l'âme est immortelle ; ensuite, qu'elle passe dans d'autres espèces animales ; en outre, qu'à des périodes déterminées ce qui a été renaît, que rien n'est absolument nouveau, qu'il faut reconnaître la même espèce à tous les êtres qui reçoivent la vie. […] À b...[TRUNCATED]
+[2025-09-22T09:59:16.989Z] [LOG  ] [index.ts:713][MEM:47MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:17.184Z] [LOG  ] [index.ts:704][MEM:47MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|''L'Âge d'Or.'' [[Lucas Cranach l'Ancien,..."
+[2025-09-22T09:59:17.268Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING[1537]: 🧠 Embedding généré pour "vignette|''L'Âge d'Or.'' [[Lucas Cranach l'Ancien, vers 1530.]]
+Durant l'Antiquité, Pythagore est présenté comme la plus grande figure du dieux afin de les remercier de l'avoir inspiré et lui avoir ainsi permis de trouver le théorème qui porte son nom. On rapporte également qu'il le fut le premier entraîneur recommandant à ses athlètes de se nourrir presque uniquement de viandeRenan Larue, Le végétarisme et ses ennemis. Vingt-cinq siècles de débats, Paris, PUF, 2014, 307 p.  p. 24-34 (« Le régime de Pythagore et des pythagoriciens »).
+. En cela, Pythagore s'inscrit bien dans le « courant » des [[Présocratiques, qui sont soucieux du bien-être animalÉlisabeth de Fontenay, ''Le silence des bêtes. La philosophie à l'épreuve de l'animalité, Paris, Flammarion, 1999.. Et on trouve chez OvideMétamorphoses,'' XV, v. 74-95  l'affirmation de la primauté de Pythagore dans la défense du végétarisme :
+Ce végétarisme étant lié à la réincarnation que défend Pythagore dans sa ...[TRUNCATED]
+[2025-09-22T09:59:17.268Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:17.489Z] [LOG  ] [index.ts:704][MEM:48MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Le grand principe biologique n'est ni l'harmonie d..."
+[2025-09-22T09:59:17.579Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING[2070]: 🧠 Embedding généré pour "Le grand principe biologique n'est ni l'harmonie du semblable par le semblable ni la lutte du contraire par le contraire, mais  l'harmonie des contraires, l'équilibre des puissances dans le corps. De même que l'âme (confondue avec la vie) se définit comme une bonne proportion des propriétés du corps, la santé est la restauration des bonnes proportions entre les propriétés opposées du corps, à savoir l'humide et le sec, le fluide et le visqueux, l'amer et le doux, le pair et l'impairAlcméon de Crotone, cité par Aétius, Opinions, V, 30, 1. Simmias selon le Phédon de Platon, 86b)..
+En médecine, les pythagoriciens ont leurs techniques : régime, cataplasmes, médicaments, refus des incisions et cautérisations, « incantations pour certaines maladies », musique, « vers choisis d'Homère et d'Hésiode ». On trouve la tripartition indo-européenne :
+# Médecine par les herbes relevant des producteurs ;
+# Médecine par incisions et cautérisations relevant des guerriers ;
+# Mé...[TRUNCATED]
+[2025-09-22T09:59:17.579Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:17.782Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Selon JambliqueJamblique, Vie de Pythagore, § 130,..."
+[2025-09-22T09:59:17.873Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING[2823]: 🧠 Embedding généré pour "Selon JambliqueJamblique, Vie de Pythagore, § 130, Pythagore était connu des néoplatoniciens comme le fondateur de la science politiquePour de nombreux historiens comme Ernst Cassirer (''Mythe de l'Etat''), il faut plutôt placer la fondation d'une théorie de l'Etat à Platon et sa République. Une tradition presque unanime qualifie sa vision politique de conservatrice et aristocratique. En effet, il est favorable à ce que le pouvoir soit confié à des gens instruits, puissants et humains qui soient redevables de ce dépôt devant le peuple et qui le transmettent à leur enfant. La politique, comme la musique, doit conduire à l'harmonie et pour exposer ses idées sur la justice, il utilise des parallèles mathématiques. Il est favorable à la proportionnalité du droit politique (à chacun selon son valeur) plutôt qu'à l'égalité prônée par les démocrates.
+Le fonctionnement de la cité doit s'appuyer sur des lois d'origine divine auxquelles tous sont soumis, sénateurs compr...[TRUNCATED]
+[2025-09-22T09:59:17.873Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:18.079Z] [LOG  ] [index.ts:704][MEM:44MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Pythagore dispense des principes exotériques, conn..."
+[2025-09-22T09:59:18.170Z] [LOG  ] [documentSearchService.ts:401][MEM:45MB] STRING[3027]: 🧠 Embedding généré pour "Pythagore dispense des principes exotériques, connus de tous, par exemple : « Il est interdit de prier pour soi-même », « Entre amis, tout est commun »Diogène Laërce, VIII, 10, .. Mais d'autres enseignements sont ésotériques, c'est-à-dire réservés aux initiés et d'expression symbolique ; et ils portent sur les secrets de la nature et des dieux. Ces enseignements secrets sont appelés Mémoires (hypomnêmata, Ύπομνήματα), car il faut s'en souvenir, sans les écrire. Ce sont, d'une part, les « acousmates » (άκούσματα), des dits (prononcés en grec dorien, la langue des pythagoriciens), des préceptes oraux ; ce sont, d'autre part, les « symboles » (σύμβολα), des formules codées, des sommaires (kephalaia, κεφάλαια)« Acousmates » et « symboles » : Diogène Laërce, VIII, 17-18, . Porphyre, Vie de Pythagore, § 41-42 ; Protreptique, § 21.Jamblique, Vie de Pythagore, § 82-86.. Car « tout ne peut pas être dit à tout le monde. »Diogène Laërce, VIII, 15, . « Il y avait chez eux...[TRUNCATED]
+[2025-09-22T09:59:18.171Z] [LOG  ] [index.ts:713][MEM:45MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:18.388Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|droite|Pièce à l'effigie d'Apollonios de ..."
+[2025-09-22T09:59:18.479Z] [LOG  ] [documentSearchService.ts:401][MEM:46MB] STRING[1411]: 🧠 Embedding généré pour "vignette|droite|Pièce à l'effigie d'Apollonios de Tyane.
+Les successeurs (diadoques) de Pythagore à la tête de la communauté pythagoricienne furent : Aristée de Crotone (en –494), son fils Mnésarque ou son fils Théagès ; Boulagoras (-380), Gartydas de Crotone, Arésas de Lucanie, Diodore d'Aspendos (-380). Le courant pythagoricien se divise en diverses écoles :
+*  : Théanô, épouse de Pythagore ; Alcméon de Crotone, actif vers –500 ; Épicharme, actif vers –480 ; Hippase de Métaponte, actif vers –460. Les pythagoriciens semblent avoir contrôlé politiquement un territoire allant de Métaponte à Locres jusqu'en –450.
+* . .
+*  : déjà [[Platon  dans son Timée (53-56), davantage dans son enseignement oral, où il disait les Nombres antérieurs aux Idées, et dans Métaphysique, N, 3. (et il tient l'âme pour . Entre les nombres et les choses sensibles (connues par les sens), un pythagoricien ne met pas de coupure, alors qu'un platonicien le fait, il sépare Nombres et choses...[TRUNCATED]
+[2025-09-22T09:59:18.479Z] [LOG  ] [index.ts:713][MEM:46MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:18.710Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "On l'a dit, Pythagore n'a rien écrit. Durant l'Ant..."
+[2025-09-22T09:59:18.763Z] [LOG  ] [documentSearchService.ts:401][MEM:51MB] STRING: 🧠 Embedding généré pour "On l'a dit, Pythagore n'a rien écrit. Durant l'Antiquité, son biographe, Car de Pythagore lui-même il n'y avait aucun écrit.}}Porphyre, Vie de Pythagore, § 57.. Cependant, parmi les auteurs antiques, tout le monde ne partage cet avis, notamment [[Héraclite qui attribue à Pythagore les trois traités suivants : ''De l'éducation, De la politique et De la nature. Selon Alexandre Polyhistor (), Pythagore aurait laissé uniquement un ouvrage intitulé Mémoires pythagoriques''.
+Ces attributions sont fort incertaines, et, dès l'Antiquité, on pensait que ces livres avaient été écrits par des disciples de Pythagore. Et puis, on peut aussi considérer qu'en raison de la coutume persistante de l'ésotérisme chez Pythagore, il n'aurait jamais engagé le moindre écrit de ses pensées.
+" (384 dimensions)
+[2025-09-22T09:59:18.764Z] [LOG  ] [index.ts:713][MEM:51MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:18.974Z] [LOG  ] [index.ts:704][MEM:44MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Manifestement, le pythagorisme a été influencé par..."
+[2025-09-22T09:59:18.995Z] [LOG  ] [documentSearchService.ts:401][MEM:46MB] STRING: 🧠 Embedding généré pour "Manifestement, le pythagorisme a été influencé par l'orphisme, mais aussi par le chamanisme apollinien des Hyperboréens (Aristée de Proconnèse, etc.), certainement par la pensée égyptienne, peut-être par les mathématiques et l'astronomie de Babylone.
+" (384 dimensions)
+[2025-09-22T09:59:18.997Z] [LOG  ] [index.ts:713][MEM:46MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:19.190Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "La richesse des travaux de l'école pythagoricienne..."
+[2025-09-22T09:59:19.253Z] [LOG  ] [documentSearchService.ts:401][MEM:52MB] STRING[1173]: 🧠 Embedding généré pour "La richesse des travaux de l'école pythagoricienne a été telle que ses idées et découvertes ont inspiré nombre de courants de pensée. Pythagore a influencé toutes les époques et toutes les cultures d'Occident et d'Orient, toutes les disciplines : mathématiques, musique, philosophie, astronomie, etc. Son encyclopédisme en fait une pensée totale, avec interpénétrations et ramifications.
+En art, Pythagore inspire l'architecte romain Vitruve au , puis les théoriciens du nombre d'or comme Luca Pacioli, théorie illustrée par Léonard de Vinci en 1509.
+Les écoliers qui étudient le théorème de Pythagore ou apprennent la table de multiplication  s'inscrivent dans sa lignée.
+Pythagore a fondé une véritable religion, et un grand nombre de légendes se sont développées autour de lui. Dans le domaine ésotérique et initiatique, son œuvre continue. Dès 1410, le manuscrit Cooke (ligne 216), un document de base de la franc-maçonniques se réclament de la pensée pythagoricienne, c...[TRUNCATED]
+[2025-09-22T09:59:19.253Z] [LOG  ] [index.ts:713][MEM:52MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:19.456Z] [LOG  ] [index.ts:704][MEM:44MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "* Daniel Delattre, « Les Pythagoriciens anciens »;..."
+[2025-09-22T09:59:19.537Z] [LOG  ] [documentSearchService.ts:401][MEM:45MB] STRING[2197]: 🧠 Embedding généré pour "* Daniel Delattre, « Les Pythagoriciens anciens »; « Les Pythagoriciens moyens »; « Les Pythagoriciens récenst » in Les Présocratiques, édition J.-P. Dumont, Paris, Gallimard, coll. Bibliothèque de la Pléiade, 1988, 53-87, 217-230, 443-612. (Rééd. coll. Folio)
+* titre=Œuvres d'Orphée : fragments |url=http://remacle.org/bloodwolf/poetes/falc/orphee/fragment.htm |site=remacle.org |consulté le=2023-11-04}}''. Instructions pour le voyage d'outre-tombe des initiés grecs'', trad. de l'italien, Paris, Les Belles Lettres, 2003, 153 p.  et Franz Cumont, bacchiques (Mystères de Dionysos) selon [[Marcel Detienne, éleusiniennes (Mystères de Déméter à Éleusis) selon Pierre Boyancé et Charles Picard. G. Pour Giovanni Pugliese Carratelli (2003), seules sont orphico-pythagoriciennes'' les lamelle d'Hippanion, Pétélia, Pharsale, Entella, Éleutherna, Mylopotamos.}}
+* Photius, Bibliothèque, trad. R. Henry, Paris, Les Belles Lettres, 1959 ; Introduction arithmétique, éd. J. Berth...[TRUNCATED]
+[2025-09-22T09:59:19.537Z] [LOG  ] [index.ts:713][MEM:45MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:19.745Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "* Aristote, Des Pythagoriciens (Περί των Πυθαγορεί..."
+[2025-09-22T09:59:19.791Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING: 🧠 Embedding généré pour "* Aristote, Des Pythagoriciens (Περί των Πυθαγορείων) (vers 360 av. J.-C. ?), trad.  The Complete Works of Aristotle. The Revised Oxford Translation, Jonathan Barnes Ed., Princeton, Princeton University Press, 1984, coll. « Bollingen Series » n° LXXI-2,  (vol II).
+* Speusippe, Sur les nombres pythagoriciens (vers 350 av. J.-C. ?), trad. Paul Tannery (v. ci-dessous)
+* Paul Tannery, ''Pour l'histoire de la science hellène de Thalès à Empédocle'', Paris, 1887. Rééd. avec présentation de Denis Savoie; édition revue et amendée par Alexandre Marcinkowski, Paris, Les Belles Lettres, 2022, XXXVIII + 666 p.
+* Théon de Smyrne, Exposition des connaissances mathématiques utiles pour la lecture de Platon (vers 130 ?), trad. J. Dupuis, Paris, Hachette, 1892.
+" (384 dimensions)
+[2025-09-22T09:59:19.792Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:19.999Z] [LOG  ] [index.ts:704][MEM:50MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "*Jean-François Mattéi, Pythagore et les Pythagorie..."
+[2025-09-22T09:59:20.034Z] [LOG  ] [documentSearchService.ts:401][MEM:45MB] STRING: 🧠 Embedding généré pour "*Jean-François Mattéi, Pythagore et les Pythagoriens, PUF, 1993, coll. « Que sais-je ? »
+* Pierre Brémaud, Le Dossier Pythagore. Du chamanisme à la mécanique quantique, Paris, Ellipses, coll. « Biographies et mythes historiques », 2010
+* Mauricio Garay, Mathématiques pédestres : le monde pythagorique, Calvage et Mounet, coll. « La perle et le harnais », 2012
+* Henriette Chardak, ''L'Énigme Pythagore. La vie et l'œuvre de Pythagore et de sa femme Théano'', Paris, Presses de la Renaissance, 2007
+" (384 dimensions)
+[2025-09-22T09:59:20.034Z] [LOG  ] [index.ts:713][MEM:45MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:20.253Z] [LOG  ] [index.ts:704][MEM:45MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "*
+*
+*
+*
+* Pierre Boyancé, « Les Muses et l'harmoni..."
+[2025-09-22T09:59:20.343Z] [LOG  ] [documentSearchService.ts:401][MEM:47MB] STRING[2814]: 🧠 Embedding généré pour "*
+*
+*
+*
+* Pierre Boyancé, « Les Muses et l'harmonie des sphères », in Mélanges dédiés à la mémoire de Félix Grat, t. I, Paris, 1946, p. 3-16
+*
+*
+* .
+* Maurice Caveing, La figure et le nombre. Recherches sur les premières mathématiques des Grecs, Lille, Presses Universitaires du Septentrion, 1997.
+*
+* Anthelme Édouard Chaignet, Pythagore et la philosophie pythagoricienne, 2 vol., Paris, Didier, 1874  (vol.1)  Rééd. Kessinger Publishing, 2010, 790 p.
+*
+* Armand Delatte, Études sur la littérature pythagoricienne, Paris, Champion, 1915, 314 p.
+*
+* Armand Delatte, La vie de Pythagore de Diogène Laërce, Bruxelles, 1922[https://books.google.fr/books?id=9Npdawtr2uMC&pg=PA242&lpg=PA242&dq=incendie+pythagore&source=web&ots=YKCIweORHO&sig=MFmAiT1AMWiUg9nt4TDdFC1ffPA&hl=fr&sa=X&oi=book_result&resnum=9&ct=result La vie de Pythagore de Diogène Laërce - Google Livres]..
+*  Carlos Dorce, Història de la matemàtica. Des de Mesopotàmia al Renaixement, Publicacions de la Universi...[TRUNCATED]
+[2025-09-22T09:59:20.343Z] [LOG  ] [index.ts:713][MEM:47MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:20.751Z] [LOG  ] [index.ts:704][MEM:47MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "* [http://bcs.fltr.ucl.ac.be/ Bibliotheca Classica..."
+[2025-09-22T09:59:20.772Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING: 🧠 Embedding généré pour "* [http://bcs.fltr.ucl.ac.be/ Bibliotheca Classica Selecta]
+* [http://rspa.vjf.cnrs.fr/ Cnrs]
+* [http://remacle.org/ Remacle]
+* [http://pedagogie.ac-toulouse.fr/philosophie/textesdephilosophes.htm#Liste%20des%20auteurs%20par%20ordre%20alphab%E9tique/ Site Académique Toulouse]
+" (384 dimensions)
+[2025-09-22T09:59:20.772Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:20.979Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "* [http://www.bibmath.net/bios/index.php3?action=a..."
+[2025-09-22T09:59:21.016Z] [LOG  ] [documentSearchService.ts:401][MEM:52MB] STRING: 🧠 Embedding généré pour "* [http://www.bibmath.net/bios/index.php3?action=affiche&quoi=pythagore Pythagore sur bibmath.net]
+* [http://www.math93.com/pythagore.htm Pythagore sur math93.com]
+* [https://www.franceculture.fr/emissions/la-methode-scientifique/la-methode-scientifique-emission-du-jeudi-29-avril-2021 « Pythagore, j'adore ! »], La Méthode scientifique, France Culture, 29 avril 2021.
+" (384 dimensions)
+[2025-09-22T09:59:21.017Z] [LOG  ] [index.ts:713][MEM:52MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:21.219Z] [LOG  ] [index.ts:704][MEM:44MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Catégorie:Date de naissance incertaine (VIe siècle..."
+[2025-09-22T09:59:21.269Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING: 🧠 Embedding généré pour "Catégorie:Date de naissance incertaine (VIe siècle av. J.-C.)
+Catégorie:Date de décès incertaine (Ve siècle av. J.-C.)
+Catégorie:Naissance à Samos
+Catégorie:Mathématicien de la Grèce antique
+Catégorie:Philosophe présocratique
+Catégorie:Philosophe du VIe siècle av. J.-C.
+Catégorie:Ésotériste
+Catégorie:Personnalité liée à Crotone
+Catégorie:Personnalité végétarienne
+Catégorie:Philosophe prédémocrite
+Catégorie:Pythagorisme
+Catégorie:Mononyme antique
+Catégorie:Personnage cité dans les Métamorphoses (Ovide)
+Catégorie:Éponyme d'un objet céleste
+Catégorie:Personnalité religieuse du VIe siècle av. J.-C.
+Catégorie:Personnalité religieuse du Ve siècle av. J.-C.
+Catégorie:Mathématicien du VIe siècle av. J.-C.
+Catégorie:Mathématicien du Ve siècle av. J.-C.
+" (384 dimensions)
+[2025-09-22T09:59:21.270Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:22.931Z] [LOG  ] [wikipedia.ts:101][MEM:51MB] STRING: 🌍 [WIKIPEDIA-GLOBAL] Source globale créée: "Théorème de Pythagore" (ID: f82940c9-cecc-4163-bf4a-e8de25176ae3)
+[2025-09-22T09:59:22.933Z] [LOG  ] [index.ts:704][MEM:51MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|alt=Triangle rectangle muni de carrés for..."
+[2025-09-22T09:59:23.012Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING[1328]: 🧠 Embedding généré pour "vignette|alt=Triangle rectangle muni de carrés formés sur chacun de ses côtés.|Une représentation géométrique du théorème : l’aire du grand carré bleu ciel est la somme des aires des deux autres carrés.
+La forme la plus connue du théorème de Pythagore est la suivante :
+{|
+|
+|}
+En particulier, la longueur de l’hypoténuse est donc toujours supérieure à celle de chaque autre côté.
+Le terme « longueur » est parfois omis, chaque côté étant assimilé à sa longueur. Toutefois l’élévation au carré (algébrique), qui n’a de sens que pour une grandeur numérique comme la longueur, correspond à la construction d’un aires entre le carré construit sur l’hypoténuse et la réunion des carrés construits sur les deux autres côtés.
+En nommant les sommets du triangle, le théorème peut se reformuler dans l’implication suivante :
+{|
+| est rectangle en , alors   AC + BC}}.}}
+Avec les notations usuelles  c}},  b}} et  a}} (cf. figure ci-dessous), la formule s’écrit encore :  + b  c}}, o...[TRUNCATED]
+[2025-09-22T09:59:23.012Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:23.219Z] [LOG  ] [index.ts:704][MEM:50MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "L’implication réciproque est également vraie :
+AC ..."
+[2025-09-22T09:59:23.284Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING[1078]: 🧠 Embedding généré pour "L’implication réciproque est également vraie :
+AC + BC}} alors le triangle  est rectangle en .
+|style=display:table}}
+Pour une formulation sans notations des sommets, le terme « hypoténuse » n'est utilisable qu'une fois acquis que le triangle est rectangle :
+{{Théorème|Réciproque du théorème de Pythagore|Si dans un triangle, le carré de la longueur d'un côté est égal à la somme des carrés des longueurs des deux autres côtés, alors ce triangle est rectangle et son hypoténuse est le plus grand côté.
+|style=display:table}}
+Par contraposée de la réciproque :
+n’est pas rectangle en , alors }} n’est pas égal à  + BC}}.
+|style=display:table}}
+La réciproque se déduit du théorème lui-même et d'un cas d'« égalité » des triangles : si l'on construit un triangle rectangle en  de sommets ,  et , avec   CB}}, on a  AB''}} par le théorème de Pythagore, donc un triangle isométrique au triangle initial (les trois côtés sont deux à deux de même longueur). L'angle en  du triangl...[TRUNCATED]
+[2025-09-22T09:59:23.284Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:23.482Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Comme la réciproque est vraie, on dit que l'on a u..."
+[2025-09-22T09:59:23.512Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING: 🧠 Embedding généré pour "Comme la réciproque est vraie, on dit que l'on a une équivalence : la propriété sur les carrés des longueurs des côtés du triangle est une condition nécessaire et suffisante pour qu'il soit dit rectangle en  :
+est rectangle en  si et seulement si   AC + BC}}.
+|style=display:table}}
+" (384 dimensions)
+[2025-09-22T09:59:23.512Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:23.715Z] [LOG  ] [index.ts:704][MEM:50MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Quand trois nombres entiers vérifient la même rela..."
+[2025-09-22T09:59:23.747Z] [LOG  ] [documentSearchService.ts:401][MEM:53MB] STRING: 🧠 Embedding généré pour "Quand trois nombres entiers vérifient la même relation que celle donnée par le théorème de Pythagore pour les côtés d'un triangle rectangle, c'est-à-dire que le carré du plus grand est la somme des carrés des deux autres, on les nomme « triplets pythagoriciens ». Le plus simple et le plus connu est le triplet (3,4,5) : 32 + 42 = 52. D'après la réciproque du théorème de Pythagore, un triangle dont les longueurs des côtés sont 3, 4 et 5 est rectangle.
+" (384 dimensions)
+[2025-09-22T09:59:23.747Z] [LOG  ] [index.ts:713][MEM:53MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:23.958Z] [LOG  ] [index.ts:704][MEM:45MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|alt=Triangle de dimensions 3-4-5 avec les..."
+[2025-09-22T09:59:24.000Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING: 🧠 Embedding généré pour "vignette|alt=Triangle de dimensions 3-4-5 avec les côtés gradués par des points symbolisant les nœuds d’une corde.|[[Corde à treize nœuds (le dernier superposé au premier) disposée en triangle rectangle.]]
+D’après la réciproque du théorème de Pythagore, si un triangle a des côtés de longueurs 3, 4 et 5 (par rapport à une unité quelconque) alors il est rectangle.
+Ce cas particulier de triplet pythagoricien justifie l’usage de la corde à treize nœuds, qui permettait de mesurer des distances mais aussi d’obtenir un angle droit sans équerre rigide en répartissant les douze intervalles qui séparent les nœuds sur les trois côtés d’un triangle de dimensions 3 – 4 – 5.
+" (384 dimensions)
+[2025-09-22T09:59:24.000Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:24.196Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Le théorème (ou plutôt sa contraposée) et sa récip..."
+[2025-09-22T09:59:24.228Z] [LOG  ] [documentSearchService.ts:401][MEM:52MB] STRING: 🧠 Embedding généré pour "Le théorème (ou plutôt sa contraposée) et sa réciproque montrent que la relation donnée entre les longueurs des côtés est une propriété caractéristique des triangles rectangles, ce qui permet de l’utiliser comme test dans la détermination de la nature d’un triangle :
+* si   AC + BC}} alors le triangle est rectangle en  ;
+* si }} n’est pas égal à  + BC}} alors le triangle n’est pas rectangle en .
+En effectuant le test pour le sommet opposé au plus grand côté du triangle (seul sommet susceptible d'abriter l'angle droit), on peut déterminer si le triangle est rectangle ou non à partir des longueurs de ses côtés.
+" (384 dimensions)
+[2025-09-22T09:59:24.229Z] [LOG  ] [index.ts:713][MEM:52MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:24.418Z] [LOG  ] [index.ts:704][MEM:45MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "thumb|L'égalité  α + sin α = 1}} comme cas particu..."
+[2025-09-22T09:59:24.457Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING: 🧠 Embedding généré pour "thumb|L'égalité  α + sin α = 1}} comme cas particulier du théorème de Pythagore.|class=skin-invert-image
+Dans le plan muni d’un repère orthonormé, la distance entre deux points s’exprime en fonction de leurs coordonnées cartésiennes à l’aide du théorème de Pythagore par :
+\sqrt{(x_B-x_A)^2+(y_B-y_A)^2}.}}
+Cette formule est analogue à celle qui donne la norme d’un (x ; y)}} dans une [[base orthonormée :
+{{retrait|\lVert\vec u\rVert =\sqrt{x^2+y^2}.}}
+Ces formules se généralisent en dimension plus grande.
+" (384 dimensions)
+[2025-09-22T09:59:24.457Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:24.660Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "En considérant le cosinus et le sinus d’un angle α..."
+[2025-09-22T09:59:24.692Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING: 🧠 Embedding généré pour "En considérant le cosinus et le sinus d’un angle α comme l'abscisse et l'ordonnée d’un point du cercle trigonométrique repéré par cet angle, et le rayon du cercle trigonométrique de longueur 1 comme l'hypoténuse, le théorème de Pythagore permet d’écrire :
+\cos^2\alpha + \sin^2\alpha=1.
+" (384 dimensions)
+[2025-09-22T09:59:24.693Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:24.898Z] [LOG  ] [index.ts:704][MEM:51MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "thumb|alt=Tablette munies d’inscriptions cunéiform..."
+[2025-09-22T09:59:24.974Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING[1282]: 🧠 Embedding généré pour "thumb|alt=Tablette munies d’inscriptions cunéiformes disposées en lignes.|La [[Plimpton 322|tablette Plimpton 322, datant d'environ 1800 , donne une liste de nombres disposés en colonnes avec des en-têtes ; deux des colonnes correspondent à l'hypoténuse et au plus petit côté d'un triangle rectangle, ainsi que l'annoncent les entêtes.]]
+VI}}, mais l'histoire du théorème de Pythagore commence plus d'un millénaire auparavant, comme en témoignent plusieurs tablettes d'argile de la [[période paléo-babylonienne.. Il n'y a aucune preuve archéologique qui permette de remonter plus avant, même si quelques hypothèses existent.
+Ainsi, les travaux d'sites mégalithiques datant du  en triplets pythagoriciens, sont fortement contestésVoir  ; voir également |page=56}}, qui critique l'utilisation des travaux de Thom par [[Bartel Leendert van der Waerden dans .. L'hypothèse parfois avancée que le théorème aurait été connu de l'Égypte ancienne dès le XIX}} est parfois évoqué, ma...[TRUNCATED]
+[2025-09-22T09:59:24.974Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:25.185Z] [LOG  ] [index.ts:704][MEM:50MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|Tablette Si427.
+vignette|Illustration d'u..."
+[2025-09-22T09:59:25.275Z] [LOG  ] [documentSearchService.ts:401][MEM:51MB] STRING[3732]: 🧠 Embedding généré pour "vignette|Tablette Si427.
+vignette|Illustration d'un problème posé (sans cette illustration) à l'époque paléo-babylonienne sur la tablette d'argile BM 85196 (entre 2000 et ), et que l'on peut formuler ainsi : une perche de longueur  est posée verticalement contre un mur, l'extrémité haute glisse verticalement vers le bas de , de combien l'extrémité basse glisse-t-elle horizontalement ? La « règle de Pythagore » donne la solution, à savoir  – (30 – 6)}} = 18 unitésVoir , la solution est décrite de façon procédurale, voir ..}} On retrouve plus tard ce problème de la perche ou du roseau posé contre un mur sur les papyrus égyptiens de l'[[Dynastie lagide|époque ptolémaïque, les tablettes Melville|2004}}.. Il devient un classique des [[mathématiques arabes., et on le pose encore de nos jours.|class=skin-invert-image]]
+Les historiens des mathématiques et assyriologuesAutour d'lang=en|auteur=Jens Høyrup|titre=Changing Trends in the Historiography of Mesopotamian Mathe...[TRUNCATED]
+[2025-09-22T09:59:25.276Z] [LOG  ] [index.ts:713][MEM:51MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:25.512Z] [LOG  ] [index.ts:704][MEM:45MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "En Apastamba}}, l'un des [[Śulba-Sūtras, ces trait..."
+[2025-09-22T09:59:25.548Z] [LOG  ] [documentSearchService.ts:401][MEM:47MB] STRING: 🧠 Embedding généré pour "En Apastamba}}, l'un des [[Śulba-Sūtras, ces traités du cordeau qui codifient les règles des constructions destinées aux rituels védiques. Ceux-ci ont été rédigés entre le  et le  avant notre ère (par ailleurs certains triplets pythagoriciens sont mentionnés dans des textes bien antérieurs). Les Sulbasutras parlent du rectangle et de sa diagonale, plutôt que de triangle..
+" (384 dimensions)
+[2025-09-22T09:59:25.548Z] [LOG  ] [index.ts:713][MEM:47MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:25.760Z] [LOG  ] [index.ts:704][MEM:47MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Le théorème apparaît également en Martzloff|2006|p..."
+[2025-09-22T09:59:25.813Z] [LOG  ] [documentSearchService.ts:401][MEM:51MB] STRING: 🧠 Embedding généré pour "Le théorème apparaît également en Martzloff|2006|p=13}}.. Ce dernier, écrit probablement durant la [[dynastie Han (206 à ), regroupe des techniques de calcul datant de la dynastie Zhou ( à ). Le théorème ou procédure s’énonce de la manière suivante :
+Mais la question se pose de savoir si ce théorème — ou cette procédure — était muni ou non d’une démonstration. Sur ce point, les avis sont partagés.. Le théorème, sous le nom de Gougu (à partir des mots « base » et « altitude »), est repris dans le Jiuzhang suanshu (''Les Neuf Chapitres sur l'art mathématique'', 100 à ), avec une démonstration, utilisant un découpage et une reconstitution, qui ne ressemble pas à celle d’Euclide et qui illustre l'originalité du système démonstratif chinois..
+" (384 dimensions)
+[2025-09-22T09:59:25.814Z] [LOG  ] [index.ts:713][MEM:51MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:26.022Z] [LOG  ] [index.ts:704][MEM:45MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Aucun texte connu de l'papyrus en démotique, génér..."
+[2025-09-22T09:59:26.110Z] [LOG  ] [documentSearchService.ts:401][MEM:46MB] STRING[3098]: 🧠 Embedding généré pour "Aucun texte connu de l'papyrus en démotique, généralement daté vers Rossi|2007|p=64}}.. Ceci peut tenir à la fragilité du support employé : peu de textes mathématiques de l'[[Égypte antique nous sont parvenus. Mais le plus notable d'entre eux, le papyrus Rhind, une copie effectuée vers 1650 av. J.-C. d'un document datant de 1800 av. J.-C., apparaît comme une somme des connaissances mathématiques de l'époque. Or ni triplets pythagoriciens, ni rien en rapport avec le théorème n'y apparaît, ce qui laisse penser qu'il est ignoré à ces dates..
+Il n'est cependant pas impossible que le triangle rectangle 3-4-5, celui dont les côtés correspondent au triplet pythagoricien le plus simple, soit connu en Égypte dès une époque assez ancienne. I}} de notre ère) une interprétation symbolique religieuse du triangleIl s'agit du traité sur [[Isis et langue=fr|auteur1=Plutarque|titre=Oeuvres morales|éditeur=chez Jean-Baptiste Cussac|date=1785|lire en ligne=https://books.google.f...[TRUNCATED]
+[2025-09-22T09:59:26.110Z] [LOG  ] [index.ts:713][MEM:46MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:26.326Z] [LOG  ] [index.ts:704][MEM:47MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Le théorème et sa conclusion, accompagnés de démon..."
+[2025-09-22T09:59:26.415Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING[2350]: 🧠 Embedding généré pour "Le théorème et sa conclusion, accompagnés de démonstrations, concluent le livre I des Éléments d'III}}Caveing, « Introduction générale », , dans .. Le théorème lui-même est donné à la proposition  sous la forme suivanteÉléments d'Euclide, traduction Henrion. [[Référence:Éléments (Euclide)|Référence, [https://gallica.bnf.fr/ark:/12148/bpt6k68013g document en ligne sur le site de la BNF (Ressources Gallica)]. Livre I (cisaillement [https://gallica.bnf.fr/ark:/12148/bpt6k68013g.image.f67.pagination proposition XXXV ], parallélogramme et triangle de même base [https://gallica.bnf.fr/ark:/12148/bpt6k68013g.image.f74.pagination proposition XLI ], le théorème [https://gallica.bnf.fr/ark:/12148/bpt6k68013g.image.f81.pagination proposition XLVII ], réciproque [https://gallica.bnf.fr/ark:/12148/bpt6k68013g.image.f83.pagination proposition XLVIII ]) et Livre VI (généralisation aux figures semblables [https://gallica.bnf.fr/ark:/12148/bpt6k68013g.image.f246.pagination pro...[TRUNCATED]
+[2025-09-22T09:59:26.416Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:26.639Z] [LOG  ] [index.ts:704][MEM:48MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Le théorème de Pythagore joue un rôle dans la déco..."
+[2025-09-22T09:59:26.704Z] [LOG  ] [documentSearchService.ts:401][MEM:46MB] STRING[1096]: 🧠 Embedding généré pour "Le théorème de Pythagore joue un rôle dans la découverte par les mathématiciens grecs, probablement au , de grandeurs incommensurables (qui ne peuvent pas être mesurées avec une même unité), irrationnels, en particulier à travers le cas particulier du triangle rectangle isocèle, pour lequel on dispose d'une démonstration particulièrement simple par duplication du carré. : un carré dont le côté sert d’unité a une diagonale dont le carré de la longueur vaut 2.
+L'incommensurabilité a pu être mise en évidence géométriquement, sans qu'il soit question de racine carrée donc sans recourir au théorème de Pythagore}}., mais le théorème de Pythagore autorise une preuve arithmétique, dans le cas de la diagonale du carré en montrant qu'aucune [[Fraction (mathématiques)|fraction d’entiers n’a de carré égal à 2, soit l'irrationalité de \sqrt{2}.
+Une thèse très répandue chez les historiens jusqu'au milieu du , mais discutée ensuite, est que l'incommensurabilité joue un rôle ...[TRUNCATED]
+[2025-09-22T09:59:26.704Z] [LOG  ] [index.ts:713][MEM:46MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:26.894Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Plusieurs centaines de démonstrations différentes'..."
+[2025-09-22T09:59:26.949Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING: 🧠 Embedding généré pour "Plusieurs centaines de démonstrations différentes'' (par Elisha Scott Loomis, au début du ) qui en rassemble 367. ont été répertoriées pour le théorème de Pythagore. La plupart sont construites sur des égalités d’aires obtenues par découpage et recollement, voire en utilisant des rapports d’aires de triangles semblables. La définition du produit scalaire en géométrie repérée fournit aussi une démonstration purement algébrique. De nombreuses autres démonstrations ont été recensées, utilisant des outils mathématiques variés. [[Léonard de Vinci, proof 16. et le président américain James Garfield, proof 5. en ont proposé. En 2022, deux lycéennes de Louisiane, Ne’kiya Jackson et Calcea Johnson, ont apporté une nouvelle approche par la trigonométrie (en distinguant trigonométrie et cyclotopie pour éviter toute démonstration circulaire), ce qui était auparavant considéré comme impossible..
+" (384 dimensions)
+[2025-09-22T09:59:26.949Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:27.140Z] [LOG  ] [index.ts:704][MEM:50MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "left|alt=Carré de côté c inscrit dans un carré de ..."
+[2025-09-22T09:59:27.226Z] [LOG  ] [documentSearchService.ts:401][MEM:51MB] STRING[1544]: 🧠 Embedding généré pour "left|alt=Carré de côté c inscrit dans un carré de côté a + b, tel que les quatre triangles constituant le complémentaire ont pour longueurs de côté a, b et c.
+thumb|left|Animation prouvant le théorème par réarrangement de quatre triangles rectangles identiques.
+thumb|alt=Juxtaposition de deux figures représentant un même carré dans lequel s’inscrivent quatre copies d’un même triangle rectangle, agencées à gauche pour laisser deux carrés formés sur leurs cathètes, et à droite pour laisser un carré formé sur leurs hypoténuses.|Démonstration du théorème par soustraction d’aires égales d’un même carré.
+Pour un triangle rectangle donné, il est possible de l’inscrire en quatre exemplaires dans les coins d’un carré dont le côté a pour longueur la somme des longueurs des côtés de l'angle droit. Les quatre hypoténuses forment alors un carré, par égalité de longueur et sachant que chacun de ses angles est supplémentaire des deux angles aigus du triangle.
+Avec les notati...[TRUNCATED]
+[2025-09-22T09:59:27.226Z] [LOG  ] [index.ts:713][MEM:51MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:27.439Z] [LOG  ] [index.ts:704][MEM:51MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "thumb|left|Le triangle ACB rectangle en C est déco..."
+[2025-09-22T09:59:27.492Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING[1043]: 🧠 Embedding généré pour "thumb|left|Le triangle ACB rectangle en C est découpé par la hauteur issue de C en deux triangles rectangles HAC et HCB semblables au triangle initial.|class=skin-invert-image
+Il n’y a pas trace de la démonstration qu’aurait conçue Pythagore et les historiens envisagent deux types de démonstrations : ou bien une démonstration fondée sur un découpage comme celui de la section précédente ou le puzzle de Gougu, ou bien une démonstration utilisant les proportionnalités des triangles découpés par la hauteur issue de l’angle droit .. Une telle démonstration est donnée par Euclide à la proposition 31 du Livre VI des Éléments (pour une généralisation du théorème).
+En effet, soit H le pied de la hauteur issue de C dans le triangle ACB rectangle en C. Alors les deux triangles rectangles AHC et CHB sont semblables au triangle initial, par égalités des angles, puisqu'ils partagent à chaque fois un des angles non droitsC'est la proposition VI. 8 d'Euclide ..
+Ensuite deux v...[TRUNCATED]
+[2025-09-22T09:59:27.493Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:27.703Z] [LOG  ] [index.ts:704][MEM:48MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Cette démonstrationUne telle démonstration est don..."
+[2025-09-22T09:59:27.756Z] [LOG  ] [documentSearchService.ts:401][MEM:52MB] STRING: 🧠 Embedding généré pour "Cette démonstrationUne telle démonstration est donnée par exemple dans . s'appuie sur l'égalité des aires :
+: Aire(AHC) + Aire(CHB) = Aire(ACB)
+Les aires des trois triangles semblables AHC, CHB et ACB, portées par les côtés AC, CB et AB, sont proportionnelles aux carrés de ces côtésC'est, pour des triangles semblables quelconques, la proposition 19 du livre VI . De façon plus moderne : les hauteurs des triangles semblables étant dans le même rapport que les côtés, le calcul de l'aire du triangle donne immédiatement le résultat.. L'égalité précédente donne donc le théorème de Pythagore, en simplifiant par le coefficient de proportionnalité :
+:AC2 + BC2 = AB2.
+Cette démonstration n'est cependant pas exactement celle du livre VI des Éléments, même si elle n'utilise que des résultats de l'exposé euclidien disponibles à la ..
+" (384 dimensions)
+[2025-09-22T09:59:27.756Z] [LOG  ] [index.ts:713][MEM:52MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:27.976Z] [LOG  ] [index.ts:704][MEM:45MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Dans sa démonstration de la proposition 31, Euclid..."
+[2025-09-22T09:59:28.044Z] [LOG  ] [documentSearchService.ts:401][MEM:51MB] STRING[1071]: 🧠 Embedding généré pour "Dans sa démonstration de la proposition 31, Euclide utilise directement :
+:
+en montrant que  est, relativement à , comme le carré de  relativement à celui de , de même que  est, relativement à , comme le carré de  relativement à celui de  d'où le résultat ; Euclide parle de [segments de] droites, et non de longueurs, et de figures semblables sur les côtés, et non de carré d'une longueur.. En détaillant, et modernisantVoir  pour une présentation similaire de cette démonstration., les triangles HAC et CAB sont semblables donc :
+:  = , soit . (1)
+De même, les triangles  et  étant semblables :
+:  = , soit . (2)
+Comme , en additionnant (1) et (2), on obtient :.}}On pourrait se demander si cette démonstration n'est pas trigonométrique en ne parlant que des projections orthogonales donc du cosinus des angles α et β et en voyant qu'il existe deux expressions pour chacun d'eux : cosα=m/b=b/c et cosβ=n/a=a/c, d'où c=m+n=bcosα+acosβ=b2/c+a2/c=(a2+b2)/c, ce qui revient à ...[TRUNCATED]
+[2025-09-22T09:59:28.044Z] [LOG  ] [index.ts:713][MEM:51MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:28.272Z] [LOG  ] [index.ts:704][MEM:51MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "[[Fichier:PythagoreEuclide0.svg|thumb|left|upright..."
+[2025-09-22T09:59:28.359Z] [LOG  ] [documentSearchService.ts:401][MEM:52MB] STRING[1995]: 🧠 Embedding généré pour "[[Fichier:PythagoreEuclide0.svg|thumb|left|upright=1.4|alt=Figure dite du moulin à vent, avec un triangle ABC sur les côtés duquel sont formés trois carrés BCED, ABFG et ACIH. La hauteur de ABC issue de A coupe [BC] en J et [DE] en K.|Figure pour la démonstration d’Euclide, dite parfois « du moulin à vent ».]]
+thumb|alt=Transport de deux domaines d’aire constante sur la figure précédente, du triangle ACI au triangle CEJ puis du triangle ABF au triangle BJD.|Présentation animée de la démonstration d’Euclide.
+La démonstration présentée par Éléments'' s’appuie sur les précédentes propositions, en particulier la proposition 4  et la proposition 41 du livre  sur aire d'un triangle :
+Sur les côtés d’un triangle ABC rectangle en A, sont construits extérieurement des carrés BCED, ABFG et ACIH. La hauteur de ABC issue de A coupe le côté opposé [BC] en J et le segment [DE] en K.
+Il s’agit de démontrer que l’aire du carré BCED est égale à la somme des aires des carrés AB...[TRUNCATED]
+[2025-09-22T09:59:28.359Z] [LOG  ] [index.ts:713][MEM:52MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:28.571Z] [LOG  ] [index.ts:704][MEM:45MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Animation du puzzle de Gougu.|vignette
+Le théorème..."
+[2025-09-22T09:59:28.667Z] [LOG  ] [documentSearchService.ts:401][MEM:47MB] STRING[3372]: 🧠 Embedding généré pour "Animation du puzzle de Gougu.|vignette
+Le théorème de Gougu.., de gou (base) et gu (hauteur)., est reconstitué d’après les commentaires du mathématicien chinois III}}) sur le Jiuzhang suanzhu (), « [[Les Neuf Chapitres sur l'art mathématique » (206 av.–220 apr. J.-C.), et le zh|周髀算經}}), « Le Classique mathématique du Gnomon des Zhou » (un livre d’[[astronomie). Le neuvième chapitre du livre Les neuf chapitres'', classique mathématique de la Chine ancienne, s’ouvre sur un énoncé du théorème de Pythagore avec le commentaire laconique : . Cette preuve utilise le principe du puzzle : deux surfaces égales après découpage fini et recomposition ont même aire. Euclide, dans sa propriété de cisaillement, utilise le même principe.
+L’absence d’illustration associée à ce commentaire réduit les historiens à émettre des conjectures pour sa reconstitution. Le dessin ci-contre est proposé par Jean-Claude Martzloff. d’après une édition de 1892 des Neuf chapitres. Le triangle r...[TRUNCATED]
+[2025-09-22T09:59:28.667Z] [LOG  ] [index.ts:713][MEM:47MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:28.890Z] [LOG  ] [index.ts:704][MEM:47MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Cette preuve s'inscrit dans un contexte tout à fai..."
+[2025-09-22T09:59:28.982Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING[1317]: 🧠 Embedding généré pour "Cette preuve s'inscrit dans un contexte tout à fait différent. Dans un norme, du ci-dessus).
+Par bilinéarité du produit scalaire, pour deux vecteurs quelconques \vec u et \vec v :
+:\|\vec u+\vec v\|^2 =(\vec u+\vec v)\cdot(\vec u + \vec v)=\|\vec u\|^2+\|\vec v\|^2 + 2 \vec u\cdot\vec v,
+soit :
+:\|\vec u+\vec v\|^2 =\|\vec u\|^2+\|\vec v\|^2\Longleftrightarrow \vec u\cdot\vec v = 0,
+ce qui, en définissant l'orthogonalité de deux vecteurs par la nullité de leur produit scalaire, fournit une version vectorielle du théorème de Pythagore (et de sa réciproque).
+Dans un espace affine euclidien la longueur  d'un segment  est la norme du vecteur \overrightarrow{AB}. Les vecteurs portés par les côtés d’un triangle  vérifient la relation de Chasles :
+:\overrightarrow{AB}=\overrightarrow{AC}+\overrightarrow{CB}
+et le résultat précédent donne :
+:AB^2 = AC^2 + CB^2 + 2 \overrightarrow{AC} \cdot \overrightarrow{CB} = AC^2 + CB^2 - 2 \overrightarrow{CA} \cdot \overrightarrow...[TRUNCATED]
+[2025-09-22T09:59:28.983Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:29.188Z] [LOG  ] [index.ts:704][MEM:48MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|Preuve d'Arioni
+Une preuve due à John Ari..."
+[2025-09-22T09:59:29.277Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING[1908]: 🧠 Embedding généré pour "vignette|Preuve d'Arioni
+Une preuve due à John Arioni utilise la formule de la somme d'une suite géométrique convergente.. On visualise à l'intérieur du triangle rectangle une série illimitée de triangles semblables. En appliquant la loi d'égalité des rapports, on calcule la hauteur  ab/c}}, puis la longueur du premier segment b1 sur le grand côté adjacent noté b :  ha/c  ba2/c2}}. Pour aller au segment suivant b2, il faut faire deux transformations de triangles avec un rapport de côtés égal à b/c donc le coefficient est :  b/c}}. C'est toujours le même rapport pour les segments suivants. Comme ce nombre est inférieur à 1, rn tend vers zéro quand n tend vers l'infini. La suite géométrique est donc convergente de raison r et de premier terme /c}}, d'où la formule pour la somme  et la limite de cette somme :  (ba/c)/(1 – b/c)  ba/(c – b)}}, ce qui donne :  – b  a}}.
+vignette|Preuve des deux lycéennes
+Cette idée est employée aussi par les deux étudiantes américai...[TRUNCATED]
+[2025-09-22T09:59:29.277Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:29.487Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|Leur deuxième preuve
+Il existe plusieurs ..."
+[2025-09-22T09:59:29.580Z] [LOG  ] [documentSearchService.ts:401][MEM:49MB] STRING[1208]: 🧠 Embedding généré pour "vignette|Leur deuxième preuve
+Il existe plusieurs démonstrations qui utilisent les formules trigonométriques de soustraction ou d'addition d'angles dont celle de Jason Zimba. Toute preuve trigonométrique était pourtant considérée comme impossible. Dans leur deuxième preuve les deux étudiantes construisent un triangle ACD en prolongeant non-pas la ligne du côté c mais celle du côté a. Elles proposent d'abord de calculer le côté CD noté x en utilisant la loi des sinus et les formules trigonométriques, puis le côté BD noté y pour ensuite appliquer une nouvelle fois la loi des sinus et les formules trigonométriques dans le triangle ABD : \frac{\sin(\beta-\alpha)}{b}=\frac{\sin(2\alpha) }{x}\Rightarrow\frac{\sin\beta\cos\alpha-\cos\beta\sin\alpha}{b}=\frac{2\cos\alpha\sin\alpha}{x} \Rightarrow\frac{(b^2-a^2)/c^2}{b}=\frac{2ab/c^2}{x}\Rightarrow x=\frac{2ab^2}{b^2-a^2}\Rightarrow y= x-a =\frac{2ab^2-ab^2+a\times a^2}{b^2-a^2}=\frac{a(a^2+b^2)}{b^2-a^2}\frac{\sin(\be...[TRUNCATED]
+[2025-09-22T09:59:29.580Z] [LOG  ] [index.ts:713][MEM:49MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:29.788Z] [LOG  ] [index.ts:704][MEM:49MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|Illustration du théorème de Pythagore ave..."
+[2025-09-22T09:59:29.831Z] [LOG  ] [documentSearchService.ts:401][MEM:52MB] STRING: 🧠 Embedding généré pour "vignette|Illustration du théorème de Pythagore avec des réservoirs de liquides.
+Le théorème de Pythagore étant un théorème portant sur des aires, celles des carrés dont les bases sont les côtés du triangle, on peut le visualiser grâce à des réservoirs de liquide de volume proportionnel aux différentes aires. On peut alors constater que le volume du plus grand réservoir est égal à la somme des volumes des deux autres réservoirs plus petits. Il ne s'agit cependant pas d'une démonstration. On peut également citer d'autres méthodes non mathématiques, comme la méthode mécanique qui utilise un équilibre de forces...
+" (384 dimensions)
+[2025-09-22T09:59:29.831Z] [LOG  ] [index.ts:713][MEM:52MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:30.044Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|alt=Triangle ABC avec les notations AB=c,..."
+[2025-09-22T09:59:30.101Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING: 🧠 Embedding généré pour "vignette|alt=Triangle ABC avec les notations AB=c, AC=b, BC=a, d’angle α en A, β en B et γ en C|Notations usuelles dans un triangle quelconque.|class=skin-invert-image
+La loi des cosinus ou théorème d'Al-Kashi donne une formule faisant intervenir les longueurs des côtés et le cosinus de l'un des angles d'un triangle quelconque. L’angle de mesure , le côté opposé de longueur c et les deux autres côtés de longueurs respectives a et b sont reliés par la relation :
+Si l’angle γ est droit, son cosinus est nul et la formule se réduit à la relation du théorème de Pythagore. S'il n'est pas droit, le cosinus de l'angle γ est non nul, ce qui donne la réciproque. Cette généralisation permet de traiter des problèmes de calcul d’angles et de distances dans un triangle quelconque.
+vignette|gauche|alt=Triangle rectangle avec les lunules formées sur les cathètes.|Propriété des lunules.
+" (384 dimensions)
+[2025-09-22T09:59:30.102Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:30.319Z] [LOG  ] [index.ts:704][MEM:51MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Euclide mentionne dans les Éléments (proposition 3..."
+[2025-09-22T09:59:30.336Z] [LOG  ] [documentSearchService.ts:401][MEM:52MB] STRING: 🧠 Embedding généré pour "Euclide mentionne dans les Éléments (proposition 31 du livre ) :
+En appliquant cette généralisation à des demi-disques formés sur chaque côté d’un triangle rectangle, il en découle le lunules dessinées sur chaque côté de l’angle droit.
+vignette|Le théorème de « Clairaut », dû à Pappus.|class=skin-invert-image
+" (384 dimensions)
+[2025-09-22T09:59:30.337Z] [LOG  ] [index.ts:713][MEM:52MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:30.532Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Vitrac|1990|p=285-286}}., donne une autre générali..."
+[2025-09-22T09:59:30.562Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING: 🧠 Embedding généré pour "Vitrac|1990|p=285-286}}., donne une autre généralisation — nommée souvent en France [[théorème de Clairaut (géométrie)|théorème de Clairaut — valable sur un triangle quelconque, sur les côtés duquel sont construits des parallélogrammes : sur le dessin ci-contre, la somme des aires des deux parallélogrammes en gris foncé égale celle du parallélogramme en gris clair. Pappus prenait le parallélogramme BUVC, plutôt que LBCM dont il est le translaté.
+" (384 dimensions)
+[2025-09-22T09:59:30.562Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:30.764Z] [LOG  ] [index.ts:704][MEM:48MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "L’hypoténuse d’un triangle rectangle pouvant se co..."
+[2025-09-22T09:59:30.817Z] [LOG  ] [documentSearchService.ts:401][MEM:53MB] STRING: 🧠 Embedding généré pour "L’hypoténuse d’un triangle rectangle pouvant se concevoir comme la diagonale d’un rectangle, une généralisation du théorème en dimension supérieure peut s’énoncer comme suit :
+Ce résultat est équivalent au calcul de la longueur d’un segment à partir des coordonnées cartésiennes de ses extrémités dans un repère orthonormé :
+\sqrt{(x_B-x_A)^2+(y_B-y_A)^2+(z_B-z_A)^2}}}
+ou, en dimension supérieure, si  est de coordonnées )}} et  de coordonnées '')}} :
+\sqrt{\sum_i(x'_i-x_i)^2}.}}
+Cette dernière formule est encore valable dans un formule de Parseval.
+Le théorème de Gua donne une autre généralisation du théorème de Pythagore dans un espace euclidien : si un tétraèdre a toutes ses arêtes orthogonales en un sommet alors le carré de l’aire de la face opposée au coin est la somme des carrés des aires des trois autres faces.
+" (384 dimensions)
+[2025-09-22T09:59:30.817Z] [LOG  ] [index.ts:713][MEM:53MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:31.016Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "vignette|redresse|alt=Portrait de Pierre de Fermat..."
+[2025-09-22T09:59:31.043Z] [LOG  ] [documentSearchService.ts:401][MEM:48MB] STRING: 🧠 Embedding généré pour "vignette|redresse|alt=Portrait de Pierre de Fermat, peint au .|Pierre de Fermat, inspiré par le problème des triplets pythagoriciens.
+La recherche exhaustive des triplets pythagoriciens est un problème 1=a + b = c,}} où l’exposant n est un entier supérieur à 2. L’absence de solution lorsque l’exposant est supérieur ou égal à 3 est la [[conjecture de Fermat, qui n’a été définitivement démontrée que plus de trois siècles plus tard par Andrew Wiles.
+" (384 dimensions)
+[2025-09-22T09:59:31.043Z] [LOG  ] [index.ts:713][MEM:48MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:31.236Z] [LOG  ] [index.ts:704][MEM:48MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Le théorème de Pythagore est équivalent (en admett..."
+[2025-09-22T09:59:31.326Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING[3188]: 🧠 Embedding généré pour "Le théorème de Pythagore est équivalent (en admettant les autres axiomes de la géométrie) à l'axiome des parallèles., qui peut être rédigé ainsi :
+{{Théorème|Axiome des parallèles|Par un point, il passe une et une seule droite parallèle à une droite donnée.
+|style=display:table}}
+Cela signifie que, dans les axiomes de la géométrie euclidienne, on peut remplacer l'« axiome » des parallèles par le « théorème » de Pythagore sans que les autres résultats de la géométrie soient modifiés. Les statuts d'axiome et de théorème de ces deux résultats sont alors inversés : le « théorème » de Pythagore devient un axiome (une vérité de base, indémontrable, sur laquelle s'appuie la théorie) et l'« axiome » des parallèles devient un théorème, qui peut être démontré à l'aide de Pythagore.
+Dans d'autres géométries, l'axiome des parallèles est remplacé par un autre qui le contredit, et le théorème de Pythagore n'est donc plus vrai.
+vignette|droite|alt=Triangle formé par trois gr...[TRUNCATED]
+[2025-09-22T09:59:31.326Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:31.549Z] [LOG  ] [index.ts:704][MEM:50MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "En dépassement ou de Moler-Morrisson, dérivé de la..."
+[2025-09-22T09:59:31.565Z] [LOG  ] [documentSearchService.ts:401][MEM:51MB] STRING: 🧠 Embedding généré pour "En dépassement ou de Moler-Morrisson, dérivé de la méthode de Halley, est une méthode itérative efficace qui évite ce problème..
+" (384 dimensions)
+[2025-09-22T09:59:31.566Z] [LOG  ] [index.ts:713][MEM:51MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:31.779Z] [LOG  ] [index.ts:704][MEM:51MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Le théorème de Pythagore est mentionné dans La Pla..."
+[2025-09-22T09:59:31.824Z] [LOG  ] [documentSearchService.ts:401][MEM:53MB] STRING: 🧠 Embedding généré pour "Le théorème de Pythagore est mentionné dans La Planète des singes, de Pierre Boulle. Le narrateur, considéré comme un animal dépourvu d’intelligence, détrompe en effet son interlocuteur en traçant une figure géométrique qui illustre le théorème.
+Le chansonnier Franc-Nohain a composé un quatrain qui cite le théorèmeEntrée « Pythagore (théorème de) » dans . :
+{{vers|texte=Le carré de l’hypoténuse
+Est égal, si je ne m’abuse
+À la somme des carrés
+Construits sur les autres côtés.}}
+" (384 dimensions)
+[2025-09-22T09:59:31.824Z] [LOG  ] [index.ts:713][MEM:53MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:32.028Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "{{Autres projets
+| commons = Category:Pythagorean ..."
+[2025-09-22T09:59:32.056Z] [LOG  ] [documentSearchService.ts:401][MEM:47MB] STRING: 🧠 Embedding généré pour "{{Autres projets
+| commons = Category:Pythagorean theorem
+| wikiversity = Triangle rectangle
+| wikiversity titre = Triangle rectangle
+| wikibooks = Théorème de Pythagore (E-M)
+| wikibooks titre = Exercices sur le théorème de Pythagore
+| wiktionary = théorème de Pythagore
+}}
+" (384 dimensions)
+[2025-09-22T09:59:32.057Z] [LOG  ] [index.ts:713][MEM:47MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:32.266Z] [LOG  ] [index.ts:704][MEM:48MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "*
+*
+* |titre=Astronomy and Mathematics in Ancient ..."
+[2025-09-22T09:59:32.307Z] [LOG  ] [documentSearchService.ts:401][MEM:50MB] STRING: 🧠 Embedding généré pour "*
+*
+* |titre=Astronomy and Mathematics in Ancient China|sous-titre=The ‘Zhou Bi Suan Jing’|éditeur=CUP|année=2007|pages totales=241|isbn=978-0-521-03537-8|lire en ligne=https://books.google.fr/books?id=aLNH6p719q4C}}
+*
+*
+*
+*
+* .
+*
+* , en particulier notices du Livre I, Sur Pythagore et le « théorème de Pythagore », .
+* , en particulier le livre VI, avec une généralisation et une démonstration (indépendante de celle du livre I) proposition 31, .
+" (384 dimensions)
+[2025-09-22T09:59:32.307Z] [LOG  ] [index.ts:713][MEM:50MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:32.520Z] [LOG  ] [index.ts:704][MEM:50MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "*Contexte
+**Livre I des Éléments d'Euclide
+**Formu..."
+[2025-09-22T09:59:32.561Z] [LOG  ] [documentSearchService.ts:401][MEM:53MB] STRING: 🧠 Embedding généré pour "*Contexte
+**Livre I des Éléments d'Euclide
+**Formulaire de géométrie classique
+*Problèmes reliés
+**Racine carrée de deux
+**Triplet pythagoricien
+**Dernier théorème de Fermat
+**Pavage de Pythagore
+**Théorème de Pythagore inversé
+*Généralisations
+**Théorème de Clairaut (géométrie), un cas plus général, avec des parallélogrammes autour d’un triangle quelconque
+**Loi des cosinus (Le théorème de Pythagore généralisé) avec un peu de trigonométrie
+*Ouverture
+**Courbure spatiale
+" (384 dimensions)
+[2025-09-22T09:59:32.561Z] [LOG  ] [index.ts:713][MEM:53MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:32.758Z] [LOG  ] [index.ts:704][MEM:46MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Pythagore
+Catégorie:Géométrie du triangle
+Catégori..."
+[2025-09-22T09:59:32.777Z] [LOG  ] [documentSearchService.ts:401][MEM:47MB] STRING: 🧠 Embedding généré pour "Pythagore
+Catégorie:Géométrie du triangle
+Catégorie:Histoire des mathématiques
+Catégorie:Mathématiques élémentaires
+Catégorie:Article contenant une démonstration
+" (384 dimensions)
+[2025-09-22T09:59:32.778Z] [LOG  ] [index.ts:713][MEM:47MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:46.497Z] [LOG  ] [assistant.ts:84][MEM:48MB] STRING: 🔍 [RAG-DEBUG] Analyse de la query: "Fait moi un long cours sur les deux sources"
+[2025-09-22T09:59:47.621Z] [LOG  ] [index.ts:151][MEM:43MB] STRING: 🧠 [RAG-DETECTION] Query: "Fait moi un long cours sur les deux sources
+Sources Wikipedia sélectionnées: Pythagore, Théorème de Pythagore
+Portée des sources: sources sélectionnées uniquement" → Decision: OUI
+[2025-09-22T09:59:47.621Z] [LOG  ] [assistant.ts:103][MEM:43MB] STRING: 🔍 [RAG-DEBUG] Doit utiliser RAG: true
+[2025-09-22T09:59:48.392Z] [LOG  ] [assistant.ts:127][MEM:43MB] STRING: 🔍 [RAG-DEBUG] Recherche RAG pour userId: user_32xySw3HWDj1x8nN41Suei5mep1, workspaceId: 6e3fdf3c-7639-4a33-8696-f663c73aa8e3, query: "Fait moi un long cours sur les deux sources"
+[2025-09-22T09:59:49.037Z] [LOG  ] [index.ts:165][MEM:43MB] STRING: 🔍 [RAG-NOTEBOOKLM] Type de question détecté: EXPLICATION
+[2025-09-22T09:59:49.038Z] [LOG  ] [index.ts:173][MEM:43MB] STRING: 🔍 [RAG-NOTEBOOKLM] Question d'explication → recherche vectorielle optimisée
+[2025-09-22T09:59:49.040Z] [LOG  ] [index.ts:393][MEM:43MB] STRING: 🔍 [RAG-SEARCH] Début recherche: query="Fait moi un long cours sur les deux sources", userId="user_32xySw3HWDj1x8nN41Suei5mep1", workspaceId="6e3fdf3c-7639-4a33-8696-f663c73aa8e3"
+[2025-09-22T09:59:49.040Z] [LOG  ] [index.ts:704][MEM:43MB] STRING: 🔍 [EMBEDDING] Génération embedding pour: "Fait moi un long cours sur les deux sources..."
+[2025-09-22T09:59:49.049Z] [LOG  ] [documentSearchService.ts:401][MEM:43MB] STRING: 🧠 Embedding généré pour "Fait moi un long cours sur les deux sources" (384 dimensions)
+[2025-09-22T09:59:49.050Z] [LOG  ] [index.ts:713][MEM:43MB] STRING: ✅ [EMBEDDING] Embedding généré: 384 dimensions
+[2025-09-22T09:59:49.050Z] [LOG  ] [index.ts:397][MEM:43MB] STRING: 🔍 [RAG-SEARCH] Embedding généré: 8056 chars
+[2025-09-22T09:59:49.050Z] [LOG  ] [index.ts:449][MEM:43MB] STRING: 🔍 [RAG-SEARCH] WhereClause: STRING: {
+  "source": {
+    "status": "COMPLETED",
+    "OR": [
+      {
+        "isGlobal": true
+      },
+      {
+        "AND": [
+          {
+            "userId": "user_32xySw3HWDj1x8nN41Suei5mep1"
+          },
+          {
+            "workspaceId": "6e3fdf3c-7639-4a33-8696-f663c73aa8e3"
+          },
+          {
+            "isGlobal": false
+          }
+        ]
+      }
+    ]
+  }
+}
+[2025-09-22T09:59:50.432Z] [LOG  ] [index.ts:468][MEM:43MB] STRING: 🔍 [RAG-SEARCH] Chunks trouvés avant filtrage: 16
+[2025-09-22T09:59:50.439Z] [LOG  ] [index.ts:483][MEM:44MB] STRING: 🔍 [RAG-SEARCH] Similarités calculées (top 3): ARRAY[3]: [
+  {
+    "similarity": 0.10246418829912944,
+    "threshold": 0.15
+  },
+  {
+    "similarity": 0.24367205831257333,
+    "threshold": 0.15
+  },
+  {
+    "similarity": 0.29772598078434714,
+    "threshold": 0.15
+  }
+]
+[2025-09-22T09:59:50.440Z] [LOG  ] [index.ts:492][MEM:44MB] STRING: 🔍 [RAG-SEARCH] Résultats finaux après filtrage par threshold 0.15: 8
+[2025-09-22T09:59:51.230Z] [LOG  ] [cleanup.ts:187][MEM:43MB] STRING: 📊 [CLEANUP] LastUsedAt mis à jour pour 1 sources
+[2025-09-22T09:59:51.250Z] [LOG  ] [assistant.ts:133][MEM:44MB] STRING: 🔍 [RAG-DEBUG] Résultats trouvés: 8
+[2025-09-22T09:59:55.475Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] 🚀 [SERVER-CREDITS] Déduction ultra-optimisée OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "action": "assistant-search",
+  "amount": 1.75
+}
+[2025-09-22T09:59:55.876Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] ⚡ [SERVER-CREDITS] UPSERT atomique exécuté OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 1.75,
+  "affected": 1
+}
+[2025-09-22T09:59:56.273Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] ✅ [SERVER-CREDITS] Déduction ultra-rapide réussie OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 1.75,
+  "newUsage": 0,
+  "remainingCredits": -1,
+  "operationType": "INSERT"
+}
+[2025-09-22T09:59:58.673Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] 🚀 [SERVER-CREDITS] Déduction ultra-optimisée OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "action": "assistant_search_stream",
+  "amount": 0.3
+}
+[2025-09-22T09:59:59.076Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] ⚡ [SERVER-CREDITS] UPSERT atomique exécuté OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 0.3,
+  "affected": 1
+}
+[2025-09-22T09:59:59.466Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] ✅ [SERVER-CREDITS] Déduction ultra-rapide réussie OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 0.3,
+  "newUsage": 0,
+  "remainingCredits": -1,
+  "operationType": "INSERT"
+}
+[2025-09-22T09:59:59.467Z] [LOG  ] [secureLogging.ts:82][MEM:44MB] STRING: debug: ✅ [AI-CREDITS] Crédits déduits STRING: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "path": "/search/stream",
+  "action": "assistant_search_stream",
+  "cost": 0.3,
+  "remainingCredits": -1
+}
+[2025-09-22T09:59:59.468Z] [LOG  ] [searchStream.ts:25][MEM:44MB] STRING: 🔥 [SEARCH-STREAM] ENTRÉE - workspaceId: 6e3fdf3c-7639-4a33-8696-f663c73aa8e3, pageIds: [], pageIds.length: 0, ragSources.length: 8
+[2025-09-22T09:59:59.471Z] [LOG  ] [searchStream.ts:34][MEM:44MB] STRING: [AssistantSearchStream] Utilisation des sources RAG: ARRAY[8]: [
+  "Théorème de Pythagore",
+  "Théorème de Pythagore",
+  "Théorème de Pythagore",
+  "Théorème de Pythagore",
+  "Théorème de Pythagore",
+  "Théorème de Pythagore",
+  "Théorème de Pythagore",
+  "Théorème de Pythagore"
+]
+[2025-09-22T09:59:59.854Z] [LOG  ] [searchStream.ts:48][MEM:44MB] STRING: [AssistantSearchStream] Pages RAG trouvées: ARRAY[0]: []
+[2025-09-22T10:00:00.018Z] [LOG  ] [cronJobs.ts:18][MEM:44MB] STRING: 
+🩺 [CRON] Vérification de santé de la base de données...
+[2025-09-22T10:00:00.234Z] [LOG  ] [searchStream.ts:186][MEM:44MB] STRING: [AssistantSearchStream] workspaceId= STRING: 6e3fdf3c-7639-4a33-8696-f663c73aa8e3 STRING: pageIds= ARRAY[0]: [] STRING: ctx.len= NUMBER: 0 STRING: useWeb= BOOLEAN: false STRING: web.len= NUMBER: 0 STRING: web.refs= NUMBER: 0
+[2025-09-22T10:00:01.235Z] [LOG  ] [cronJobs.ts:29][MEM:45MB] STRING: ✅ [CRON] Base de données saine - Pages: 5, Workspaces: 2
+[2025-09-22T10:00:01.490Z] [LOG  ] [searchStream.ts:239][MEM:43MB] STRING: [AssistantSearchStream] start streaming to client
+[2025-09-22T10:00:01.492Z] [LOG  ] [contentGeneration.ts:25][MEM:44MB] STRING: 🤖 [OpenAI] Génération de contenu... OBJECT: {
+  "prompt": "Question: Fait moi un long cours sur les deux sources\nSources pertinentes:\n## Source 1: Théorème de ...",
+  "maxTokens": 30000,
+  "temperature": 0.3,
+  "hasSignal": false,
+  "streaming": true
+}
+[2025-09-22T10:00:01.868Z] [LOG  ] [quotaManager.ts:95][MEM:44MB] STRING: 📊 [QUOTA] Usage depuis DB: 0 requêtes, 0 tokens, $0.0000
+[2025-09-22T10:00:01.869Z] [LOG  ] [contentGeneration.ts:51][MEM:44MB] STRING: ✅ [QUOTA] Requête autorisée - OBJECT: {
+  "usage": "0/1000 requêtes",
+  "tokens": "0/500000 tokens",
+  "cost": "$0.0000/$10"
+}
+[2025-09-22T10:00:14.076Z] [LOG  ] [contentGeneration.ts:156][MEM:44MB] STRING: ✅ [OpenAI] Streaming terminé en 12584ms OBJECT: {
+  "contentLength": 2745,
+  "finishReason": "stop"
+}
+[2025-09-22T10:00:14.078Z] [LOG  ] [quotaManager.ts:169][MEM:44MB] STRING: 📝 [QUOTA] recordUsage() appelée: OBJECT: {
+  "model": "gpt-4o-mini",
+  "promptTokens": 1453,
+  "completionTokens": 687,
+  "quotaKey": "global"
+}
+[2025-09-22T10:00:14.449Z] [LOG  ] [quotaManager.ts:95][MEM:44MB] STRING: 📊 [QUOTA] Usage depuis DB: 0 requêtes, 0 tokens, $0.0000
+[2025-09-22T10:00:14.450Z] [LOG  ] [quotaManager.ts:188][MEM:44MB] STRING: 💾 [QUOTA] Tentative d'enregistrement en DB: OBJECT: {
+  "quotaKey": "global",
+  "model": "gpt-4o-mini",
+  "promptTokens": 1453,
+  "completionTokens": 687,
+  "estimatedCost": 0.00063015
+}
+[2025-09-22T10:00:14.879Z] [LOG  ] [quotaManager.ts:211][MEM:44MB] STRING: ✅ [QUOTA] Usage enregistré en DB: gpt-4o-mini - 2140 tokens - $0.0006
+[2025-09-22T10:00:14.880Z] [LOG  ] [searchStream.ts:251][MEM:44MB] STRING: [AssistantSearchStream] stream completed, full.len= NUMBER: 2745
+[2025-09-22T10:00:15.279Z] [LOG  ] [searchStream.ts:271][MEM:44MB] STRING: [AssistantSearchStream] done event sent
+[2025-09-22T10:00:24.432Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] 🚀 [SERVER-CREDITS] Déduction ultra-optimisée OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "action": "assistant_clear_memory",
+  "amount": 0.1
+}
+[2025-09-22T10:00:24.622Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] ⚡ [SERVER-CREDITS] UPSERT atomique exécuté OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 0.1,
+  "affected": 1
+}
+[2025-09-22T10:00:24.808Z] [LOG  ] [secureLogging.ts:55][MEM:44MB] STRING: 🐛 [DEBUG] ✅ [SERVER-CREDITS] Déduction ultra-rapide réussie OBJECT: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "amount": 0.1,
+  "newUsage": 0,
+  "remainingCredits": -1,
+  "operationType": "INSERT"
+}
+[2025-09-22T10:00:24.810Z] [LOG  ] [secureLogging.ts:82][MEM:44MB] STRING: debug: ✅ [AI-CREDITS] Crédits déduits STRING: {
+  "userId": "user_32xySw3HWDj1x8nN41Suei5mep1",
+  "path": "/clear-memory",
+  "action": "assistant_clear_memory",
+  "cost": 0.1,
+  "remainingCredits": -1
+}
+[2025-09-22T10:02:02.955Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T10:02:03.739Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T10:02:04.171Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T10:02:04.598Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T10:02:15.170Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T10:02:15.594Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T10:02:15.992Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T10:02:16.384Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T10:03:37.013Z] [LOG  ] [prisma.ts:59][MEM:45MB] STRING: 🔄 SIGTERM reçu, fermeture propre des connexions Prisma...
+[2025-09-22T10:03:37.018Z] [LOG  ] [cronJobs.ts:103][MEM:45MB] STRING: 🛑 Arrêt des tâches CRON...
+[2025-09-22T10:03:37.019Z] [LOG  ] [cronJobs.ts:105][MEM:45MB] STRING: ✅ Tâches CRON arrêtées
+
+================================================================================
+🛑 ARRÊT DU SERVEUR (SIGTERM)
+================================================================================
+Timestamp: 2025-09-22T10:03:37.019Z
+Durée de fonctionnement: 0h 14m 18s
+================================================================================
+

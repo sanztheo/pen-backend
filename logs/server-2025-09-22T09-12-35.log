@@ -1,0 +1,264 @@
+
+================================================================================
+🚀 SERVEUR PEN-SAAS DÉMARRÉ
+================================================================================
+Timestamp: 2025-09-22T09:12:35.704Z
+PID: 30
+Node.js: v20.19.5
+Environnement: development
+Port: 3001
+================================================================================
+
+[2025-09-22T09:12:35.705Z] [LOG  ] [logger.ts:114][MEM:42MB] STRING: 📝 Système de logging initialisé: STRING: /app/logs/server-2025-09-22T09-12-35.log
+[2025-09-22T09:12:35.709Z] [LOG  ] [logger.ts:295][MEM:42MB] STRING: 🗑️ Log supprimé: server-2025-09-21T14-12-12.log
+[2025-09-22T09:12:35.711Z] [LOG  ] [logger.ts:299][MEM:42MB] STRING: 📁 Logs disponibles: 11 fichiers dans /app/logs
+[2025-09-22T09:12:35.713Z] [LOG  ] [index.ts:453][MEM:43MB] STRING: 🚀 Serveur Pen SaaS démarré sur le port 3001 en mode development
+[2025-09-22T09:12:35.714Z] [LOG  ] [index.ts:446][MEM:43MB] STRING: 🚀 Serveur WebSocket configuré :
+[2025-09-22T09:12:35.714Z] [LOG  ] [index.ts:447][MEM:43MB] STRING:    - /ws/collaboration/ (Yjs)
+[2025-09-22T09:12:35.715Z] [LOG  ] [index.ts:448][MEM:43MB] STRING:    - /ws/save/ (Sauvegarde)
+[2025-09-22T09:12:35.715Z] [LOG  ] [index.ts:449][MEM:43MB] STRING:    - /ws/quiz-progress/ (Progression quiz)
+[2025-09-22T09:12:35.716Z] [LOG  ] [dbHealthCheck.ts:128][MEM:43MB] STRING: 
+🩺 ===== DIAGNOSTIC BASE DE DONNÉES =====
+[2025-09-22T09:12:35.716Z] [LOG  ] [dbHealthCheck.ts:42][MEM:43MB] STRING: 🩺 [DB-HEALTH] Test de connexion...
+[2025-09-22T09:12:37.862Z] [LOG  ] [dbHealthCheck.ts:66][MEM:32MB] STRING: ✅ [DB-HEALTH] Connexion OK - Latence: 1744ms
+[2025-09-22T09:12:37.870Z] [LOG  ] [dbHealthCheck.ts:132][MEM:32MB] STRING: 📋 Statut: WARNING
+[2025-09-22T09:12:37.876Z] [LOG  ] [dbHealthCheck.ts:133][MEM:32MB] STRING: 🔗 Connexion: ✅ OK
+[2025-09-22T09:12:37.879Z] [LOG  ] [dbHealthCheck.ts:138][MEM:32MB] STRING: ⏱️  Latence: 🟡 1744ms
+[2025-09-22T09:12:37.881Z] [LOG  ] [dbHealthCheck.ts:142][MEM:32MB] STRING: 🖥️  Serveur: [{"version":"PostgreSQL 16.9 (63f4182) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit","database":"neondb","user":"neondb_owner"}]
+[2025-09-22T09:12:37.884Z] [LOG  ] [dbHealthCheck.ts:146][MEM:32MB] STRING: 
+💡 Recommandations:
+[2025-09-22T09:12:37.885Z] [LOG  ] [dbHealthCheck.ts:147][MEM:32MB] STRING:    - Latence élevée détectée (>1s), vérifiez votre connexion réseau
+[2025-09-22T09:12:37.885Z] [LOG  ] [dbHealthCheck.ts:150][MEM:32MB] STRING: ==========================================
+
+[2025-09-22T09:12:37.888Z] [LOG  ] [dbHealthCheck.ts:103][MEM:32MB] STRING: 🔄 [DB-HEALTH] Tentative 1/3...
+[2025-09-22T09:12:37.889Z] [LOG  ] [dbHealthCheck.ts:42][MEM:32MB] STRING: 🩺 [DB-HEALTH] Test de connexion...
+[2025-09-22T09:12:38.274Z] [LOG  ] [dbHealthCheck.ts:66][MEM:32MB] STRING: ✅ [DB-HEALTH] Connexion OK - Latence: 184ms
+[2025-09-22T09:12:38.279Z] [LOG  ] [dbHealthCheck.ts:107][MEM:32MB] STRING: ✅ [DB-HEALTH] Connexion établie en 1 tentative(s)
+[2025-09-22T09:12:38.281Z] [LOG  ] [index.ts:460][MEM:32MB] STRING: 🎯 Démarrage des tâches automatiques...
+[2025-09-22T09:12:38.284Z] [LOG  ] [cronJobs.ts:14][MEM:32MB] STRING: 🕐 Démarrage des tâches CRON...
+[2025-09-22T09:12:38.320Z] [LOG  ] [cronJobs.ts:37][MEM:33MB] STRING: ✅ Tâche de vérification de santé programmée: 0 */6 * * * (Europe/Paris)
+[2025-09-22T09:12:38.323Z] [LOG  ] [cronJobs.ts:71][MEM:33MB] STRING: ✅ Tâche de nettoyage RAG programmée: 0 3 * * * (Europe/Paris)
+[2025-09-22T09:14:19.192Z] [LOG  ] [logger.ts:13][MEM:37MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:14:49.664Z] [LOG  ] [clerkBilling.ts:28][MEM:39MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:14:50.279Z] [LOG  ] [clerkBilling.ts:28][MEM:39MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:14:50.678Z] [LOG  ] [clerkBilling.ts:28][MEM:39MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:14:51.084Z] [LOG  ] [clerkBilling.ts:28][MEM:39MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:14:51.493Z] [LOG  ] [clerkBilling.ts:28][MEM:39MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:14:52.087Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:14.477Z] [LOG  ] [page.ts:208][MEM:40MB] STRING: 📖 [API] Chargement contenu BlockNote: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "pageIdType": "string",
+  "pageIdLength": 36,
+  "isValidUUID": true
+}
+[2025-09-22T09:16:14.485Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:14.974Z] [LOG  ] [index.ts:348][MEM:41MB] STRING: [WS] Tentative de connexion: /ws/save/3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:16:14.975Z] [LOG  ] [index.ts:349][MEM:41MB] STRING: [WS] Token présent: true
+[2025-09-22T09:16:15.108Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:15.174Z] [LOG  ] [index.ts:360][MEM:41MB] STRING: [WS] ✅ Sauvegarde WebSocket - user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:15.178Z] [LOG  ] [index.ts:143][MEM:41MB] STRING: [WS] 💾 Connexion sauvegarde pour page: 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 - User défini: true (user_32xySw3HWDj1x8nN41Suei5mep1)
+[2025-09-22T09:16:15.455Z] [LOG  ] [index.ts:348][MEM:41MB] STRING: [WS] Tentative de connexion: /ws/save/3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:16:15.456Z] [LOG  ] [index.ts:349][MEM:41MB] STRING: [WS] Token présent: true
+[2025-09-22T09:16:15.520Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:15.750Z] [LOG  ] [index.ts:360][MEM:41MB] STRING: [WS] ✅ Sauvegarde WebSocket - user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:15.752Z] [LOG  ] [index.ts:143][MEM:41MB] STRING: [WS] 💾 Connexion sauvegarde pour page: 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 - User défini: true (user_32xySw3HWDj1x8nN41Suei5mep1)
+[2025-09-22T09:16:16.022Z] [LOG  ] [page.ts:239][MEM:41MB] STRING: ✅ [API] Contenu BlockNote chargé: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "blocksCount": 0,
+  "hasNestedBlocks": false
+}
+[2025-09-22T09:16:16.089Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:16.229Z] [LOG  ] [page.ts:208][MEM:41MB] STRING: 📖 [API] Chargement contenu BlockNote: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "pageIdType": "string",
+  "pageIdLength": 36,
+  "isValidUUID": true
+}
+[2025-09-22T09:16:16.421Z] [LOG  ] [page.ts:239][MEM:41MB] STRING: ✅ [API] Contenu BlockNote chargé: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "blocksCount": 0,
+  "hasNestedBlocks": false
+}
+[2025-09-22T09:16:16.470Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:16.872Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:19.494Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:19.891Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:33.550Z] [LOG  ] [index.ts:348][MEM:43MB] STRING: [WS] Tentative de connexion: /ws/save/3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:16:33.554Z] [LOG  ] [index.ts:349][MEM:43MB] STRING: [WS] Token présent: true
+[2025-09-22T09:16:33.961Z] [LOG  ] [index.ts:360][MEM:43MB] STRING: [WS] ✅ Sauvegarde WebSocket - user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:33.964Z] [LOG  ] [index.ts:143][MEM:43MB] STRING: [WS] 💾 Connexion sauvegarde pour page: 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 - User défini: true (user_32xySw3HWDj1x8nN41Suei5mep1)
+[2025-09-22T09:16:34.243Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:34.915Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:35.514Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:35.913Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:39.375Z] [LOG  ] [index.ts:149][MEM:42MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:39.378Z] [LOG  ] [index.ts:149][MEM:42MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:39.381Z] [LOG  ] [index.ts:149][MEM:42MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:39.770Z] [LOG  ] [index.ts:191][MEM:42MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:16:39.774Z] [LOG  ] [index.ts:191][MEM:43MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:16:39.968Z] [LOG  ] [index.ts:191][MEM:43MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:16:40.169Z] [LOG  ] [index.ts:202][MEM:43MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:40.196Z] [LOG  ] [index.ts:202][MEM:43MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:40.364Z] [LOG  ] [index.ts:202][MEM:43MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:45.775Z] [LOG  ] [index.ts:149][MEM:43MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:45.779Z] [LOG  ] [index.ts:149][MEM:43MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:45.784Z] [LOG  ] [index.ts:149][MEM:43MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:46.031Z] [LOG  ] [index.ts:191][MEM:43MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:16:46.035Z] [LOG  ] [index.ts:191][MEM:43MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:16:46.037Z] [LOG  ] [index.ts:191][MEM:43MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:16:46.231Z] [LOG  ] [index.ts:202][MEM:42MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:46.236Z] [LOG  ] [index.ts:202][MEM:42MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:16:46.238Z] [LOG  ] [index.ts:202][MEM:42MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:18:03.448Z] [LOG  ] [logger.ts:13][MEM:42MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:18:03.452Z] [LOG  ] [logger.ts:13][MEM:42MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:18:03.453Z] [LOG  ] [logger.ts:13][MEM:42MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:18:03.453Z] [LOG  ] [logger.ts:13][MEM:42MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:18:03.453Z] [LOG  ] [logger.ts:13][MEM:42MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:18:03.454Z] [LOG  ] [logger.ts:13][MEM:42MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:19:26.568Z] [LOG  ] [index.ts:149][MEM:43MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:19:26.577Z] [LOG  ] [index.ts:149][MEM:43MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:19:26.579Z] [LOG  ] [index.ts:149][MEM:43MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:19:28.243Z] [LOG  ] [index.ts:191][MEM:42MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:19:28.245Z] [LOG  ] [index.ts:191][MEM:42MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:19:28.527Z] [LOG  ] [index.ts:191][MEM:43MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:19:28.615Z] [LOG  ] [index.ts:202][MEM:43MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:19:28.617Z] [LOG  ] [index.ts:202][MEM:43MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:19:28.908Z] [LOG  ] [index.ts:202][MEM:43MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:19:58.951Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:19:59.580Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:00.160Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:00.574Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:01.063Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:01.471Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:04.796Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:05.451Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:05.845Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:06.258Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:06.678Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:07.091Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:45.295Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:45.915Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:46.297Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:46.704Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:47.120Z] [LOG  ] [clerkBilling.ts:28][MEM:39MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:20:47.505Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:26.584Z] [LOG  ] [page.ts:208][MEM:40MB] STRING: 📖 [API] Chargement contenu BlockNote: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "pageIdType": "string",
+  "pageIdLength": 36,
+  "isValidUUID": true
+}
+[2025-09-22T09:21:26.801Z] [LOG  ] [page.ts:208][MEM:41MB] STRING: 📖 [API] Chargement contenu BlockNote: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "pageIdType": "string",
+  "pageIdLength": 36,
+  "isValidUUID": true
+}
+[2025-09-22T09:21:28.152Z] [LOG  ] [page.ts:239][MEM:40MB] STRING: ✅ [API] Contenu BlockNote chargé: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "blocksCount": 2,
+  "hasNestedBlocks": false
+}
+[2025-09-22T09:21:28.328Z] [LOG  ] [page.ts:239][MEM:40MB] STRING: ✅ [API] Contenu BlockNote chargé: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "blocksCount": 2,
+  "hasNestedBlocks": false
+}
+[2025-09-22T09:21:28.622Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:29.729Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:30.132Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:30.537Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:30.669Z] [LOG  ] [index.ts:348][MEM:41MB] STRING: [WS] Tentative de connexion: /ws/save/3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:21:30.676Z] [LOG  ] [index.ts:349][MEM:41MB] STRING: [WS] Token présent: true
+[2025-09-22T09:21:30.920Z] [LOG  ] [index.ts:360][MEM:41MB] STRING: [WS] ✅ Sauvegarde WebSocket - user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:30.923Z] [LOG  ] [index.ts:143][MEM:41MB] STRING: [WS] 💾 Connexion sauvegarde pour page: 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 - User défini: true (user_32xySw3HWDj1x8nN41Suei5mep1)
+[2025-09-22T09:21:30.937Z] [LOG  ] [index.ts:348][MEM:41MB] STRING: [WS] Tentative de connexion: /ws/save/3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:21:30.939Z] [LOG  ] [index.ts:349][MEM:41MB] STRING: [WS] Token présent: true
+[2025-09-22T09:21:30.953Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:31.149Z] [LOG  ] [index.ts:360][MEM:41MB] STRING: [WS] ✅ Sauvegarde WebSocket - user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:31.152Z] [LOG  ] [index.ts:143][MEM:41MB] STRING: [WS] 💾 Connexion sauvegarde pour page: 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 - User défini: true (user_32xySw3HWDj1x8nN41Suei5mep1)
+[2025-09-22T09:21:31.235Z] [LOG  ] [page.ts:208][MEM:41MB] STRING: 📖 [API] Chargement contenu BlockNote: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "pageIdType": "string",
+  "pageIdLength": 36,
+  "isValidUUID": true
+}
+[2025-09-22T09:21:31.349Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:31.428Z] [LOG  ] [page.ts:239][MEM:41MB] STRING: ✅ [API] Contenu BlockNote chargé: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "blocksCount": 2,
+  "hasNestedBlocks": false
+}
+[2025-09-22T09:21:31.633Z] [LOG  ] [page.ts:208][MEM:41MB] STRING: 📖 [API] Chargement contenu BlockNote: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "pageIdType": "string",
+  "pageIdLength": 36,
+  "isValidUUID": true
+}
+[2025-09-22T09:21:31.830Z] [LOG  ] [page.ts:239][MEM:41MB] STRING: ✅ [API] Contenu BlockNote chargé: OBJECT: {
+  "pageId": "3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788",
+  "blocksCount": 2,
+  "hasNestedBlocks": false
+}
+[2025-09-22T09:21:32.541Z] [LOG  ] [index.ts:149][MEM:41MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:32.934Z] [LOG  ] [index.ts:191][MEM:41MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:21:33.336Z] [LOG  ] [index.ts:202][MEM:41MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:33.412Z] [LOG  ] [clerkBilling.ts:28][MEM:41MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:33.811Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:35.291Z] [LOG  ] [index.ts:149][MEM:41MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:35.701Z] [LOG  ] [index.ts:191][MEM:42MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:21:36.096Z] [LOG  ] [index.ts:202][MEM:42MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:43.447Z] [LOG  ] [index.ts:149][MEM:42MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:21:43.657Z] [LOG  ] [index.ts:191][MEM:42MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:21:43.856Z] [LOG  ] [index.ts:202][MEM:42MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:23:07.548Z] [LOG  ] [logger.ts:13][MEM:42MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:23:07.565Z] [LOG  ] [logger.ts:13][MEM:42MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:23:07.565Z] [LOG  ] [logger.ts:13][MEM:42MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:23:07.566Z] [LOG  ] [logger.ts:13][MEM:42MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:23:07.566Z] [LOG  ] [logger.ts:13][MEM:42MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:23:57.502Z] [LOG  ] [index.ts:348][MEM:42MB] STRING: [WS] Tentative de connexion: /ws/save/3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:23:57.510Z] [LOG  ] [index.ts:349][MEM:42MB] STRING: [WS] Token présent: true
+[2025-09-22T09:23:58.057Z] [LOG  ] [index.ts:360][MEM:42MB] STRING: [WS] ✅ Sauvegarde WebSocket - user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:23:58.061Z] [LOG  ] [index.ts:143][MEM:42MB] STRING: [WS] 💾 Connexion sauvegarde pour page: 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 - User défini: true (user_32xySw3HWDj1x8nN41Suei5mep1)
+[2025-09-22T09:24:24.144Z] [LOG  ] [index.ts:149][MEM:42MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:24:24.151Z] [LOG  ] [index.ts:149][MEM:42MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:24:24.156Z] [LOG  ] [index.ts:149][MEM:43MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:24:24.160Z] [LOG  ] [index.ts:149][MEM:43MB] STRING: [WS] 💾 Sauvegarde reçue pour 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 par user: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:24:26.486Z] [LOG  ] [index.ts:191][MEM:42MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:24:26.995Z] [LOG  ] [index.ts:202][MEM:42MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:24:27.001Z] [LOG  ] [index.ts:191][MEM:42MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:24:27.056Z] [LOG  ] [index.ts:191][MEM:42MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:24:27.101Z] [LOG  ] [index.ts:191][MEM:42MB] STRING: [WS] ✅ SÉCURITÉ: Accès autorisé pour user user_32xySw3HWDj1x8nN41Suei5mep1 sur page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788
+[2025-09-22T09:24:27.191Z] [LOG  ] [index.ts:202][MEM:42MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:24:27.483Z] [LOG  ] [index.ts:202][MEM:42MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:24:27.543Z] [LOG  ] [index.ts:202][MEM:42MB] STRING: [WS] ✅ Page 3b7be1e2-6b4c-4c2c-8de1-9edd18f5f788 sauvegardée avec succès par user user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:25:07.119Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:25:07.730Z] [LOG  ] [clerkBilling.ts:28][MEM:42MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:25:08.368Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:25:08.786Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:25:09.384Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:25:09.803Z] [LOG  ] [clerkBilling.ts:28][MEM:43MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:26:15.275Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:26:15.950Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:26:16.645Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:26:17.130Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:26:17.603Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:26:18.057Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:09.245Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:09.855Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:10.306Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:10.747Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:11.148Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:11.540Z] [LOG  ] [clerkBilling.ts:28][MEM:44MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:34.320Z] [LOG  ] [clerkBilling.ts:28][MEM:45MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:34.972Z] [LOG  ] [clerkBilling.ts:28][MEM:39MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:35.380Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:35.801Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:36.217Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:27:36.654Z] [LOG  ] [clerkBilling.ts:28][MEM:40MB] STRING: 🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: user_32xySw3HWDj1x8nN41Suei5mep1
+[2025-09-22T09:28:59.529Z] [LOG  ] [logger.ts:13][MEM:40MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:28:59.537Z] [LOG  ] [logger.ts:13][MEM:40MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:28:59.538Z] [LOG  ] [logger.ts:13][MEM:40MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:28:59.542Z] [LOG  ] [logger.ts:13][MEM:40MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:28:59.543Z] [LOG  ] [logger.ts:13][MEM:40MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-22T09:28:59.544Z] [LOG  ] [logger.ts:13][MEM:40MB] STRING: prisma:error STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }

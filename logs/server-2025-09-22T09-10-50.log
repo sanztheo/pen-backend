@@ -1,0 +1,40 @@
+
+================================================================================
+🚀 SERVEUR PEN-SAAS DÉMARRÉ
+================================================================================
+Timestamp: 2025-09-22T09:10:50.673Z
+PID: 30
+Node.js: v20.19.5
+Environnement: development
+Port: 3001
+================================================================================
+
+[2025-09-22T09:10:50.678Z] [LOG  ] [logger.ts:114][MEM:42MB] STRING: 📝 Système de logging initialisé: STRING: /app/logs/server-2025-09-22T09-10-50.log
+[2025-09-22T09:10:50.710Z] [LOG  ] [logger.ts:295][MEM:42MB] STRING: 🗑️ Log supprimé: server-2025-09-21T13-56-28.log
+[2025-09-22T09:10:50.720Z] [LOG  ] [logger.ts:299][MEM:42MB] STRING: 📁 Logs disponibles: 11 fichiers dans /app/logs
+[2025-09-22T09:10:50.728Z] [LOG  ] [index.ts:453][MEM:42MB] STRING: 🚀 Serveur Pen SaaS démarré sur le port 3001 en mode development
+[2025-09-22T09:10:50.734Z] [LOG  ] [index.ts:446][MEM:42MB] STRING: 🚀 Serveur WebSocket configuré :
+[2025-09-22T09:10:50.742Z] [LOG  ] [index.ts:447][MEM:42MB] STRING:    - /ws/collaboration/ (Yjs)
+[2025-09-22T09:10:50.751Z] [LOG  ] [index.ts:448][MEM:42MB] STRING:    - /ws/save/ (Sauvegarde)
+[2025-09-22T09:10:50.753Z] [LOG  ] [index.ts:449][MEM:42MB] STRING:    - /ws/quiz-progress/ (Progression quiz)
+[2025-09-22T09:10:50.762Z] [LOG  ] [dbHealthCheck.ts:128][MEM:42MB] STRING: 
+🩺 ===== DIAGNOSTIC BASE DE DONNÉES =====
+[2025-09-22T09:10:50.764Z] [LOG  ] [dbHealthCheck.ts:42][MEM:42MB] STRING: 🩺 [DB-HEALTH] Test de connexion...
+[2025-09-22T09:10:53.378Z] [LOG  ] [dbHealthCheck.ts:66][MEM:32MB] STRING: ✅ [DB-HEALTH] Connexion OK - Latence: 2232ms
+[2025-09-22T09:10:53.383Z] [LOG  ] [dbHealthCheck.ts:132][MEM:32MB] STRING: 📋 Statut: WARNING
+[2025-09-22T09:10:53.385Z] [LOG  ] [dbHealthCheck.ts:133][MEM:32MB] STRING: 🔗 Connexion: ✅ OK
+[2025-09-22T09:10:53.387Z] [LOG  ] [dbHealthCheck.ts:138][MEM:32MB] STRING: ⏱️  Latence: 🟡 2232ms
+[2025-09-22T09:10:53.391Z] [LOG  ] [dbHealthCheck.ts:142][MEM:32MB] STRING: 🖥️  Serveur: [{"version":"PostgreSQL 16.9 (63f4182) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit","database":"neondb","user":"neondb_owner"}]
+[2025-09-22T09:10:53.393Z] [LOG  ] [dbHealthCheck.ts:146][MEM:32MB] STRING: 
+💡 Recommandations:
+[2025-09-22T09:10:53.395Z] [LOG  ] [dbHealthCheck.ts:147][MEM:32MB] STRING:    - Latence élevée détectée (>1s), vérifiez votre connexion réseau
+[2025-09-22T09:10:53.397Z] [LOG  ] [dbHealthCheck.ts:150][MEM:32MB] STRING: ==========================================
+
+[2025-09-22T09:10:53.402Z] [LOG  ] [dbHealthCheck.ts:103][MEM:32MB] STRING: 🔄 [DB-HEALTH] Tentative 1/3...
+[2025-09-22T09:10:53.403Z] [LOG  ] [dbHealthCheck.ts:42][MEM:32MB] STRING: 🩺 [DB-HEALTH] Test de connexion...
+[2025-09-22T09:10:53.797Z] [LOG  ] [dbHealthCheck.ts:66][MEM:32MB] STRING: ✅ [DB-HEALTH] Connexion OK - Latence: 194ms
+[2025-09-22T09:10:53.802Z] [LOG  ] [dbHealthCheck.ts:107][MEM:32MB] STRING: ✅ [DB-HEALTH] Connexion établie en 1 tentative(s)
+[2025-09-22T09:10:53.804Z] [LOG  ] [index.ts:460][MEM:32MB] STRING: 🎯 Démarrage des tâches automatiques...
+[2025-09-22T09:10:53.807Z] [LOG  ] [cronJobs.ts:14][MEM:32MB] STRING: 🕐 Démarrage des tâches CRON...
+[2025-09-22T09:10:53.837Z] [LOG  ] [cronJobs.ts:37][MEM:32MB] STRING: ✅ Tâche de vérification de santé programmée: 0 */6 * * * (Europe/Paris)
+[2025-09-22T09:10:53.847Z] [LOG  ] [cronJobs.ts:71][MEM:33MB] STRING: ✅ Tâche de nettoyage RAG programmée: 0 3 * * * (Europe/Paris)
