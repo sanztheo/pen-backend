@@ -30,8 +30,9 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     ]);
     const history = ConversationMemory.recentAsText(req.user.id, { maxChars: 1200, maxMessages: 8 });
 
-    // 🏗️ STRUCTURE: Construction du prompt optimisé
-    const optimizedPrompt = buildOptimizedPrompt('ask', sanitizedQuery, ctx + '\n\n' + web + '\n\nHISTORIQUE DE CONVERSATION:\n' + history, '', analysis);
+    // 🏗️ STRUCTURE: Construction du prompt optimisé avec RAG + Web dans context
+    const contextWithWeb = [ctx, web].filter(Boolean).join('\n\n');
+    const optimizedPrompt = buildOptimizedPrompt('ask', sanitizedQuery, contextWithWeb, history, analysis);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

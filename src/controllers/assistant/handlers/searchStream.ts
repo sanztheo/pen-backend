@@ -192,8 +192,9 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     const web = webWithRefs.text;
     console.log('[AssistantSearchStream] workspaceId=', workspaceId, 'pageIds=', pageIds, 'ctx.len=', ctx.length, 'useWeb=', useWeb, 'web.len=', web.length, 'web.refs=', (webWithRefs.refs || []).length);
 
-    // 🏗️ STRUCTURE: Construction du prompt optimisé
-    const optimizedPrompt = buildOptimizedPrompt('search', sanitizedQuery, ctx, web, analysis);
+    // 🏗️ STRUCTURE: Construction du prompt optimisé avec RAG + Web dans context
+    const contextWithWeb = [ctx, web].filter(Boolean).join('\n\n');
+    const optimizedPrompt = buildOptimizedPrompt('search', sanitizedQuery, contextWithWeb, '', analysis);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
