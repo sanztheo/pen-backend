@@ -236,41 +236,33 @@ function getRoleDefinition(mode: 'ask' | 'search' | 'create'): string {
 }
 
 function getBehaviorRules(mode: 'ask' | 'search' | 'create'): string {
-  const commonRules = `- RÉPONDS DIRECTEMENT: Ne demande jamais de clarifications supplémentaires
-- SOIS FACTUEL: Base tes réponses sur le contexte fourni et tes connaissances
-- ÉVITE LES QUESTIONS: N'écris jamais "Pourriez-vous préciser..." ou similaire`;
+  const commonRules = `Réponds directement sans demander de clarifications supplémentaires. Base tes réponses sur le contexte fourni et tes connaissances. Évite les formules comme "Pourriez-vous préciser..." et donne une réponse complète et naturelle.`;
 
   const modeSpecificRules = {
-    ask: '- CONCISION: Va droit au but avec des informations complètes\n- PRÉCISION: Utilise le contexte disponible pour des réponses précises',
-    search: '- DOCUMENTATION: Cite tes sources quand tu utilises le contexte\n- SYNTHÈSE: Combine intelligemment les informations de différentes sources',
-    create: '- STRUCTURE: Organise le contenu de manière logique et hiérarchique\n- ORIGINALITÉ: Crée du contenu adapté et personnalisé'
+    ask: 'Va droit au but avec des informations complètes. Utilise le contexte disponible pour des réponses précises et conversationnelles.',
+    search: 'Cite tes sources quand tu utilises le contexte. Combine intelligemment les informations de différentes sources dans un texte fluide.',
+    create: 'Organise le contenu de manière logique et naturelle. Crée du contenu adapté et personnalisé avec un style engageant.'
   };
 
-  return `${commonRules}\n${modeSpecificRules[mode]}`;
+  return `${commonRules} ${modeSpecificRules[mode]}`;
 }
 
 function getTechnicalRules(analysis: QueryAnalysis): string {
-  let rules = `- FORMATAGE: Utilise Markdown approprié (# ## ### seulement)
-- PARAGRAPHES: Sépare clairement les idées avec des retours à la ligne
-- COHÉRENCE: Maintiens un style constant tout au long de la réponse`;
+  let rules = `Utilise un formatage Markdown naturel avec des titres (# ## ###) seulement quand nécessaire. Sépare clairement les idées avec des paragraphes et maintiens un style conversationnel et cohérent. Privilégie un texte fluide et naturel plutôt que des listes à puces sauf si explicitement demandé.`;
 
   if (analysis.reasoning) {
-    rules += `\n- STRUCTURE_THINKING: Si thinking demandé, TOUJOURS finir par une réponse visible en dehors des tags
-- RÉPONSE_OBLIGATOIRE: Après </thinking>, écris IMMÉDIATEMENT ta réponse finale`;
+    rules += ` Si tu utilises des tags thinking, assure-toi de TOUJOURS finir par une réponse visible en dehors des tags. Après </thinking>, écris immédiatement ta réponse finale de manière naturelle.`;
   }
 
   if (analysis.mathIntent) {
-    rules += `\n- LATEX: Utilise $..$ (inline) et $$..$$ (display) pour les formules mathématiques réelles uniquement
-- MATH_VALIDATION: ${LATEX_STRICT_RULES}`;
+    rules += ` Utilise $..$ (inline) et $$..$$ (display) pour les formules mathématiques réelles uniquement. ${LATEX_STRICT_RULES}`;
   }
 
   return rules;
 }
 
 function getSecurityRules(): string {
-  return `- SOURCE_FIDELITY: Si l'information n'est pas dans le contexte fourni, indique explicitement "Je n'ai pas cette information dans les sources fournies"
-- NO_HALLUCINATION: Ne jamais inventer d'informations non présentes dans le contexte
-- CONTEXT_ADHERENCE: Reste fidèle au contexte fourni plutôt que de faire des suppositions`;
+  return `Si l'information n'est pas dans le contexte fourni, indique explicitement "Je n'ai pas cette information dans les sources fournies". Ne jamais inventer d'informations non présentes dans le contexte. Reste fidèle au contexte fourni plutôt que de faire des suppositions.`;
 }
 
 function getThinkingPrompt(): string {
@@ -279,7 +271,6 @@ function getThinkingPrompt(): string {
   const thinkingPrompt = `Tu DOIS suivre cette structure EXACTE:
 
 <thinking>
-Réflexion rapide (MAX 100 mots):
 1. Que demande l'utilisateur ?
 2. Informations clés du contexte ?
 3. Structure de réponse ?
