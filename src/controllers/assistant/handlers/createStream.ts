@@ -8,6 +8,7 @@ import { isMathLatexIntent, LATEX_STRICT_RULES } from '../helpers/latex.js';
 import { sseWriteData } from '../helpers/sse.js';
 import { toBlockNoteAuto, sanitizeAIGeneratedContent } from '../helpers/blocknote.js';
 import { buildPagesContextChunked } from '../helpers/context.js';
+import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helpers/promptOptimizer.js';
 
 // Normalisation Markdown pour garantir la conversion fiable des titres (#, ##, ###)
 function normalizeMarkdownForHeadings(input: string): string {
@@ -62,6 +63,12 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
 
     console.log(`🔥 [CREATE-STREAM] ENTRÉE - workspaceId: ${workspaceId}, ragSources.length: ${ragSources.length}, ragSources: ${ragSources.map(s => s.title).join(', ')}`);
 
+    // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
+    const sanitizedInstruction = sanitizeUserInput(instruction);
+    
+    // 🧠 INTELLIGENCE: Analyse de la requête
+    const analysis = analyzeQuery(sanitizedInstruction, req);
+
     // 🔥 NOUVEAU: Construire le contexte à partir des sources RAG si disponibles
     let ragContextText = '';
     if (ragSources && ragSources.length > 0 && ragContext) {
@@ -85,43 +92,17 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
         
         // 🧠 RAG: Les pages sont maintenant embedées automatiquement à la sélection (frontend)
         
-        ragContextText = await buildPagesContextChunked(workspaceId, pageIds, 10, instruction, 12);
+        ragContextText = await buildPagesContextChunked(workspaceId, pageIds, 10, sanitizedInstruction, 12);
         console.log('[AssistantCreateStream] Contexte RAG construit:', ragContextText.length, 'caractères');
       }
     }
 
-    const web = useWeb ? await tavilySearch(instruction) : '';
-    const style = reflection === 'profond' ? 'Développe en détail avec une structure claire.' : 'Rédige de façon concise et claire.';
+    const web = useWeb ? await tavilySearch(sanitizedInstruction) : '';
 
     if (reflection === 'profond') {
       try {
-        const lang = detectPreferredLanguage(req);
-        const mathMode = isMathLatexIntent(instruction);
-        const mathGuidelines = `
-MODE FORMULES LaTeX:
-⚠️ UTILISE LATEX UNIQUEMENT pour les vraies formules mathématiques/scientifiques (équations, théorèmes, lois physiques).
-❌ N'INVENTE PAS de formules pour des concepts philosophiques, politiques ou littéraires.
-✅ Exemples valides: $E = mc^2$, $a^2 + b^2 = c^2$, $F = ma$
-❌ Exemples interdits: $\\text{âme} = \\text{harmonie}$, $\\text{justice} = \\text{réciprocité}$
-- Format: $$ FORMULE_MATHEMATIQUE_REELLE $$ — explication en français.
-- N'ajoute aucun \\section/\\subsection ni environnement; pas de texte accentué dans $$ ... $$.
-${LATEX_STRICT_RULES}`;
-        const geminiContext = `${ragContextText}
-
-${web}
-        Tu crées le contenu d'une page pour une application de prise de notes.
-        ${buildLangInstruction(lang)}
-        ${style}
-        Règles de cohérence:
-        - Priorise le contexte fourni (notamment le contexte des sources sélectionnées); n'invente pas de faits.
-        - Structure claire: titres (##), sous-titres (###), paragraphes courts.
-        - MARKDOWN STRICT: utilise UNIQUEMENT # (h1), ## (h2), ### (h3). INTERDICTION ABSOLUE des #### (h4), ##### (h5) ou plus profonds.
-        - FORMATTING: utilise \\n pour les retours à la ligne; sépare les paragraphes par \\n\\n.
-        - Évite les blocs compacts; privilégie lisibilité et exemples concrets.
-        - Si formules, utilise $...$ ou $$...$$ et respecte les règles LaTeX strictes.
-        - NE PAS générer automatiquement de sections "Mini-FAQ", "Checklist" ou "Questions fréquentes" sauf si explicitement demandé.
-        ${mathMode ? mathGuidelines : LATEX_STRICT_RULES}
-        Réponds uniquement avec le texte final, sans en-tête, sans balises, sans métadonnées.`;
+        // 🏗️ STRUCTURE: Construction du prompt optimisé pour Gemini (avec thinking)
+        const optimizedPrompt = buildOptimizedPrompt('create', sanitizedInstruction, ragContextText, web, analysis);
 
         res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -134,10 +115,10 @@ ${web}
         let full = '';
         let thinkingContent = '';
         await GeminiService.generateWithThinking({
-          prompt: `${style}\\n\\nSujet: ${instruction}`,
-          context: geminiContext,
-          temperature: 0.4,
-          maxTokens: 20000,
+          prompt: optimizedPrompt.userMessage,
+          context: optimizedPrompt.systemMessage,
+          temperature: optimizedPrompt.temperature,
+          maxTokens: optimizedPrompt.maxTokens,
           onStream: (chunk: string) => {
             const normalized = String(chunk || '');
             full += normalized;
@@ -157,7 +138,7 @@ ${web}
         if (!finalTitle || finalTitle.toLowerCase() === 'nouvelle page') {
           try {
             const t = await AIService.generateContent({
-              prompt: `Génère un titre court et clair (6 mots max) pour une page basée sur: ${instruction}. Réponds uniquement par le titre, sans guillemets.`,
+              prompt: `Génère un titre court et clair (6 mots max) pour une page basée sur: ${sanitizedInstruction}. Réponds uniquement par le titre, sans guillemets.`,
               context: buildLangInstruction(detectPreferredLanguage(req)),
               temperature: 0.3,
               maxTokens: 40
@@ -192,31 +173,8 @@ ${web}
       }
     }
 
-    const mathMode = isMathLatexIntent(instruction);
-    const mathGuidelines = `
-MODE FORMULES LaTeX:
-⚠️ UTILISE LATEX UNIQUEMENT pour les vraies formules mathématiques/scientifiques (équations, théorèmes, lois physiques).
-❌ N'INVENTE PAS de formules pour des concepts philosophiques, politiques ou littéraires.
-✅ Exemples valides: $E = mc^2$, $a^2 + b^2 = c^2$, $F = ma$
-❌ Exemples interdits: $\\text{âme} = \\text{harmonie}$, $\\text{justice} = \\text{réciprocité}$
-- Format: $$ FORMULE_MATHEMATIQUE_REELLE $$ — explication en français.
-- N'ajoute aucun \\section/\\subsection ni environnement; pas de texte accentué dans $$ ... $$.
-${LATEX_STRICT_RULES}`;
-    const context = `${ragContextText}
-
-${web}
-    Tu crées le contenu d'une page pour une application de prise de notes.
-    ${buildLangInstruction(detectPreferredLanguage(req))}
-    Règles de cohérence:
-    - Priorise le contexte fourni (notamment le contexte des sources sélectionnées); n'invente pas de faits.
-    - Structure claire: titres (##), sous-titres (###), paragraphes courts.
-    - MARKDOWN STRICT: utilise UNIQUEMENT # (h1), ## (h2), ### (h3). INTERDICTION ABSOLUE des #### (h4), ##### (h5) ou plus profonds.
-    - FORMATTING: utilise \\n pour les retours à la ligne; sépare les paragraphes par \\n\\n.
-    - Évite les blocs compacts; privilégie lisibilité et exemples concrets.
-    - Si formules, utilise $...$ ou $$...$$ et respecte les règles LaTeX strictes.
-    - NE PAS générer automatiquement de sections "Mini-FAQ", "Checklist" ou "Questions fréquentes" sauf si explicitement demandé.
-    ${mathMode ? mathGuidelines : LATEX_STRICT_RULES}
-    Réponds uniquement avec le texte final, sans en-tête, sans balises, sans métadonnées.`;
+    // 🏗️ STRUCTURE: Construction du prompt optimisé pour OpenAI standard
+    const optimizedPrompt = buildOptimizedPrompt('create', sanitizedInstruction, ragContextText, web, analysis);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -228,10 +186,10 @@ ${web}
 
     let full = '';
     await AIService.generateContent({
-      prompt: `${style}\n\nSujet: ${instruction}`,
-      context,
-      temperature: 0.4,
-      maxTokens: 30000,
+      prompt: optimizedPrompt.userMessage,
+      context: optimizedPrompt.systemMessage,
+      temperature: optimizedPrompt.temperature,
+      maxTokens: optimizedPrompt.maxTokens,
       onStream: (chunk: string) => {
         const normalized = String(chunk || '');
         full += normalized;
@@ -243,7 +201,7 @@ ${web}
     if (!finalTitle || finalTitle.toLowerCase() === 'nouvelle page') {
       try {
         const t = await AIService.generateContent({
-          prompt: `Génère un titre court et clair (6 mots max) pour une page basée sur: ${instruction}. Réponds uniquement par le titre, sans guillemets.`,
+          prompt: `Génère un titre court et clair (6 mots max) pour une page basée sur: ${sanitizedInstruction}. Réponds uniquement par le titre, sans guillemets.`,
           context: buildLangInstruction(detectPreferredLanguage(req)),
           temperature: 0.3,
           maxTokens: 40

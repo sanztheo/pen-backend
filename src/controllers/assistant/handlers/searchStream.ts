@@ -9,6 +9,7 @@ import { tavilySearchRefs } from '../helpers/web.js';
 import { titleRelevanceScore } from '../helpers/scoring.js';
 import { sseWriteData } from '../helpers/sse.js';
 import { formatAIStreamChunk, formatItalicReferences } from '../helpers/format.js';
+import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helpers/promptOptimizer.js';
 
 export const assistantSearchStream = async (req: Request, res: Response) => {
   try {
@@ -23,6 +24,12 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     if (!query || !workspaceId) return res.status(400).json({ error: 'query et workspaceId requis' });
 
     console.log(`🔥 [SEARCH-STREAM] ENTRÉE - workspaceId: ${workspaceId}, pageIds: [${pageIds.join(', ')}], pageIds.length: ${pageIds.length}, ragSources.length: ${ragSources.length}`);
+
+    // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
+    const sanitizedQuery = sanitizeUserInput(query);
+    
+    // 🧠 INTELLIGENCE: Analyse de la requête
+    const analysis = analyzeQuery(sanitizedQuery, req);
 
     const lang = detectPreferredLanguage(req);
     let selectedIds2: string[] = pageIds;
@@ -57,10 +64,10 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     else if ((req.body as any)?.sourcesScope === 'all') {
       console.log('[AssistantSearchStream] selection step (all sources)');
       const all = await prisma.page.findMany({ where: { workspaceId, isArchived: false }, select: { id: true, title: true }, orderBy: { updatedAt: 'desc' }, take: 200 });
-      const sel = await selectRelevantPagesWithAssistant({ question: query, pages: all.map(p => ({ id: p.id, title: p.title })), maxResults: 5 });
+      const sel = await selectRelevantPagesWithAssistant({ question: sanitizedQuery, pages: all.map(p => ({ id: p.id, title: p.title })), maxResults: 5 });
       const initialSelected2 = (sel.selected || []);
       let pruned2 = initialSelected2
-        .map(p => ({ ...p, score: titleRelevanceScore(p.title, query) }))
+        .map(p => ({ ...p, score: titleRelevanceScore(p.title, sanitizedQuery) }))
         .filter(p => p.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, 5)
@@ -71,7 +78,7 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
       if (!selectedIds2.length || selectedIds2.length === all.length) {
         console.log('[AssistantSearchStream] AI selection failed, using smart fallback');
         const score = (title: string) => {
-          const queryWords = (query || '').toLowerCase()
+          const queryWords = (sanitizedQuery || '').toLowerCase()
             .split(/[^a-zàâçéèêëîïôûùüÿñæœ0-9]+/)
             .filter(w => w.length >= 2);
           const titleLower = (title || '').toLowerCase();
@@ -179,35 +186,14 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     }
 
     const [ctx, webWithRefs] = await Promise.all([
-      buildPagesContextChunked(workspaceId, selectedIds2, 10, query, 12),
-      useWeb ? tavilySearchRefs(query) : Promise.resolve({ text: '', refs: [] })
+      buildPagesContextChunked(workspaceId, selectedIds2, 10, sanitizedQuery, 12),
+      useWeb ? tavilySearchRefs(sanitizedQuery) : Promise.resolve({ text: '', refs: [] })
     ]);
     const web = webWithRefs.text;
     console.log('[AssistantSearchStream] workspaceId=', workspaceId, 'pageIds=', pageIds, 'ctx.len=', ctx.length, 'useWeb=', useWeb, 'web.len=', web.length, 'web.refs=', (webWithRefs.refs || []).length);
 
-    const mathMode = isMathLatexIntent(query);
-    const noWebNote = web ? '' : ` Ne cite aucune URL externe si aucune source web n'est fournie; limite la section Références aux titres des pages du workspace.`;
-    const baseGuidelines = `
-Consignes:
-${buildLangInstruction(lang)}
-- Réponds uniquement avec le texte final, sans en-tête, sans balises, sans métadonnées.${noWebNote}
-- FORMATAGE: Utilise \\n pour les retours à la ligne et sépare les paragraphes par \\n\\n.
-- Découpe en paragraphes courts et aérés.`;
-    const mathGuidelines = `
-MODE FORMULES LaTeX:
-⚠️ UTILISE LATEX UNIQUEMENT pour les vraies formules mathématiques/scientifiques (équations, théorèmes, lois physiques).
-❌ N'INVENTE PAS de formules pour des concepts philosophiques, politiques ou littéraires.
-✅ Exemples valides: $E = mc^2$, $a^2 + b^2 = c^2$, $F = ma$
-❌ Exemples interdits: $\\text{âme} = \\text{harmonie}$, $\\text{justice} = \\text{réciprocité}$
-- Format: $$ FORMULE_MATHEMATIQUE_REELLE $$ — explication en français.
-- N'ajoute aucun \section/\subsection ni environnement; pas de texte accentué dans $$ ... $$.
-${LATEX_STRICT_RULES}`;
-    const context = `${ctx}
-
-${web}
-
-${baseGuidelines}
-${mathMode ? mathGuidelines : ''}`;
+    // 🏗️ STRUCTURE: Construction du prompt optimisé
+    const optimizedPrompt = buildOptimizedPrompt('search', sanitizedQuery, ctx, web, analysis);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -238,10 +224,10 @@ ${mathMode ? mathGuidelines : ''}`;
     let full = '';
     console.log('[AssistantSearchStream] start streaming to client');
     await AIService.generateContent({
-      prompt: query,
-      context,
-      temperature: 0.3,
-      maxTokens: 30000,
+      prompt: optimizedPrompt.userMessage,
+      context: optimizedPrompt.systemMessage,
+      temperature: optimizedPrompt.temperature,
+      maxTokens: optimizedPrompt.maxTokens,
       onStream: (chunk: string) => {
         const normalized = formatAIStreamChunk(chunk);
         full += normalized;
@@ -250,9 +236,9 @@ ${mathMode ? mathGuidelines : ''}`;
     });
     console.log('[AssistantSearchStream] stream completed, full.len=', full.length);
     
-    // Extraire les références Wikipedia du query
+    // Extraire les références Wikipedia du sanitizedQuery
     const wikipediaRefs: { title: string }[] = [];
-    const wikipediaMatches = query.match(/\*\*(.*?)\*\* \(Wikipedia\)/g);
+    const wikipediaMatches = sanitizedQuery.match(/\*\*(.*?)\*\* \(Wikipedia\)/g);
     if (wikipediaMatches) {
       wikipediaRefs.push(...wikipediaMatches.map(match => ({
         title: match.replace(/\*\*(.*?)\*\* \(Wikipedia\)/, '$1')
