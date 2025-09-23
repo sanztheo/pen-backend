@@ -236,26 +236,26 @@ function getRoleDefinition(mode: 'ask' | 'search' | 'create'): string {
 }
 
 function getBehaviorRules(mode: 'ask' | 'search' | 'create'): string {
-  const commonRules = `Réponds directement sans demander de clarifications supplémentaires. Base tes réponses sur le contexte fourni et tes connaissances. Évite les formules comme "Pourriez-vous préciser..." et donne une réponse complète et naturelle.`;
+  const commonRules = `Tu réponds comme un expert bienveillant dans une conversation détendue. Pas de listes, pas de puces, juste un discours naturel et fluide. Raconte, explique, développe tes idées en paragraphes liés. Utilise des transitions naturelles comme "En fait", "D'ailleurs", "Il faut savoir que", "Ce qui est intéressant c'est que" pour rendre ton discours vivant.`;
 
   const modeSpecificRules = {
-    ask: 'Va droit au but avec des informations complètes. Utilise le contexte disponible pour des réponses précises et conversationnelles.',
-    search: 'Cite tes sources quand tu utilises le contexte. Combine intelligemment les informations de différentes sources dans un texte fluide.',
-    create: 'Organise le contenu de manière logique et naturelle. Crée du contenu adapté et personnalisé avec un style engageant.'
+    ask: 'Explique directement en racontant de manière conversationnelle, comme si tu partageais tes connaissances avec un ami curieux.',
+    search: 'Raconte ce que tu as trouvé dans les sources en tissant naturellement les informations dans un récit cohérent et engageant.',
+    create: 'Développe tes idées naturellement en expliquant ton raisonnement et en guidant la réflexion avec un style personnel et accessible.'
   };
 
   return `${commonRules} ${modeSpecificRules[mode]}`;
 }
 
 function getTechnicalRules(analysis: QueryAnalysis): string {
-  let rules = `Utilise un formatage Markdown naturel avec des titres (# ## ###) seulement quand nécessaire. Sépare clairement les idées avec des paragraphes et maintiens un style conversationnel et cohérent. Privilégie un texte fluide et naturel plutôt que des listes à puces sauf si explicitement demandé.`;
+  let rules = `STYLE OBLIGATOIRE : Écris comme si tu parlais à une personne réelle dans une conversation naturelle. Utilise UNIQUEMENT des paragraphes fluides et des phrases complètes. INTERDICTION ABSOLUE d'utiliser des listes à puces (•), des tirets (-), ou des numérotations (1. 2. 3.) sauf demande explicite. Raconte et explique comme dans un dialogue, en reliant tes idées avec des mots de liaison (cependant, d'ailleurs, en effet, ainsi, etc.).`;
 
   if (analysis.reasoning) {
-    rules += ` Si tu utilises des tags thinking, assure-toi de TOUJOURS finir par une réponse visible en dehors des tags. Après </thinking>, écris immédiatement ta réponse finale de manière naturelle.`;
+    rules += ` Pour le thinking : structure tes 3 points de réflexion naturellement, puis écris une réponse conversationnelle complète.`;
   }
 
   if (analysis.mathIntent) {
-    rules += ` Utilise $..$ (inline) et $$..$$ (display) pour les formules mathématiques réelles uniquement. ${LATEX_STRICT_RULES}`;
+    rules += ` Intègre les formules mathématiques naturellement dans tes phrases avec $..$ (inline) et $$..$$  (display). ${LATEX_STRICT_RULES}`;
   }
 
   return rules;
@@ -271,12 +271,10 @@ function getThinkingPrompt(): string {
   const thinkingPrompt = `Tu DOIS suivre cette structure EXACTE:
 
 <thinking>
-1. Que demande l'utilisateur ?
-2. Informations clés du contexte ?
-3. Structure de réponse ?
+Réflexion rapide : L'utilisateur demande quoi exactement ? Quelles sont les informations importantes dans le contexte ? Comment structurer ma réponse de manière conversationnelle et naturelle ?
 </thinking>
 
-ENSUITE, écris ta réponse finale complète (sans tags thinking):
+ENSUITE, écris ta réponse finale conversationnelle en paragraphes fluides :
 
 `;
   
@@ -296,7 +294,8 @@ function getResponseGuidelines(analysis: QueryAnalysis): string {
   
   return `${langInstruction}
 LONGUEUR: ${lengthGuide[analysis.responseLength]}
-TYPE_REQUIS: Adapte ton style au type de requête (${analysis.type})`;
+FORMAT OBLIGATOIRE: Réponse conversationnelle en paragraphes fluides, JAMAIS de listes à puces
+TYPE_REQUIS: Adapte ton style au type de requête (${analysis.type}) mais toujours en style dialogue naturel`;
 }
 
 function getOptimalTemperature(mode: 'ask' | 'search' | 'create', type: QueryAnalysis['type']): number {
