@@ -36,6 +36,7 @@ import { PrismaPersistence } from './lib/y-prisma.js';
 import { prisma } from './lib/prisma.js';
 import { progressService } from './services/progressService.js';
 import compression from 'compression';
+import { backendConfig, CLIENT_URL } from './utils/config.js';
 
 dotenv.config();
 Logger.init();
@@ -43,16 +44,12 @@ Logger.init();
 const app = express();
 const server = http.createServer(app);
 
-const PORT = process.env.PORT || 3001;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+const PORT = backendConfig.port;
+const NODE_ENV = backendConfig.nodeEnv;
 
 app.use(helmet());
 app.use(cors({
-  origin: [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    ...(process.env.CLIENT_URL ? [process.env.CLIENT_URL] : [])
-  ],
+  origin: CLIENT_URL.split(',').map(url => url.trim()),
   credentials: true
 }));
 app.use(compression());

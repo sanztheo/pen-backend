@@ -1,0 +1,52 @@
+
+================================================================================
+🚀 SERVEUR PEN-SAAS DÉMARRÉ
+================================================================================
+Timestamp: 2025-09-23T09:25:43.332Z
+PID: 88391
+Node.js: v22.17.1
+Environnement: production
+Port: 3001
+================================================================================
+
+[2025-09-23T09:25:43.332Z] [LOG  ] [logger.ts:114][MEM:41MB] STRING: 📝 Système de logging initialisé: STRING: /Users/sanz/Desktop/Pennote/pen-backend/logs/server-2025-09-23T09-25-43.log
+[2025-09-23T09:25:43.335Z] [LOG  ] [logger.ts:295][MEM:41MB] STRING: 🗑️ Log supprimé: server-2025-09-22T08-35-29.log
+[2025-09-23T09:25:43.335Z] [LOG  ] [logger.ts:299][MEM:41MB] STRING: 📁 Logs disponibles: 11 fichiers dans /Users/sanz/Desktop/Pennote/pen-backend/logs
+[2025-09-23T09:25:43.685Z] [LOG  ] [index.ts:450][MEM:42MB] STRING: 🚀 Serveur Pen SaaS démarré sur le port 3001 en mode production
+[2025-09-23T09:25:43.686Z] [LOG  ] [index.ts:443][MEM:42MB] STRING: 🚀 Serveur WebSocket configuré :
+[2025-09-23T09:25:43.686Z] [LOG  ] [index.ts:444][MEM:42MB] STRING:    - /ws/collaboration/ (Yjs)
+[2025-09-23T09:25:43.686Z] [LOG  ] [index.ts:445][MEM:42MB] STRING:    - /ws/save/ (Sauvegarde)
+[2025-09-23T09:25:43.686Z] [LOG  ] [index.ts:446][MEM:42MB] STRING:    - /ws/quiz-progress/ (Progression quiz)
+[2025-09-23T09:25:43.686Z] [LOG  ] [dbHealthCheck.ts:128][MEM:42MB] STRING: 
+🩺 ===== DIAGNOSTIC BASE DE DONNÉES =====
+[2025-09-23T09:25:43.687Z] [LOG  ] [dbHealthCheck.ts:42][MEM:42MB] STRING: 🩺 [DB-HEALTH] Test de connexion...
+[2025-09-23T09:25:45.733Z] [LOG  ] [dbHealthCheck.ts:66][MEM:42MB] STRING: ✅ [DB-HEALTH] Connexion OK - Latence: 1682ms
+[2025-09-23T09:25:45.734Z] [LOG  ] [dbHealthCheck.ts:132][MEM:42MB] STRING: 📋 Statut: WARNING
+[2025-09-23T09:25:45.735Z] [LOG  ] [dbHealthCheck.ts:133][MEM:42MB] STRING: 🔗 Connexion: ✅ OK
+[2025-09-23T09:25:45.735Z] [LOG  ] [dbHealthCheck.ts:138][MEM:42MB] STRING: ⏱️  Latence: 🟡 1682ms
+[2025-09-23T09:25:45.735Z] [LOG  ] [dbHealthCheck.ts:142][MEM:42MB] STRING: 🖥️  Serveur: [{"version":"PostgreSQL 16.9 (63f4182) on aarch64-unknown-linux-gnu, compiled by gcc (Debian 10.2.1-6) 10.2.1 20210110, 64-bit","database":"neondb","user":"neondb_owner"}]
+[2025-09-23T09:25:45.736Z] [LOG  ] [dbHealthCheck.ts:146][MEM:42MB] STRING: 
+💡 Recommandations:
+[2025-09-23T09:25:45.736Z] [LOG  ] [dbHealthCheck.ts:147][MEM:42MB] STRING:    - Latence élevée détectée (>1s), vérifiez votre connexion réseau
+[2025-09-23T09:25:45.736Z] [LOG  ] [dbHealthCheck.ts:150][MEM:42MB] STRING: ==========================================
+
+[2025-09-23T09:25:45.737Z] [LOG  ] [dbHealthCheck.ts:103][MEM:42MB] STRING: 🔄 [DB-HEALTH] Tentative 1/3...
+[2025-09-23T09:25:45.737Z] [LOG  ] [dbHealthCheck.ts:42][MEM:42MB] STRING: 🩺 [DB-HEALTH] Test de connexion...
+[2025-09-23T09:25:46.093Z] [LOG  ] [dbHealthCheck.ts:66][MEM:42MB] STRING: ✅ [DB-HEALTH] Connexion OK - Latence: 178ms
+[2025-09-23T09:25:46.094Z] [LOG  ] [dbHealthCheck.ts:107][MEM:42MB] STRING: ✅ [DB-HEALTH] Connexion établie en 1 tentative(s)
+[2025-09-23T09:25:46.094Z] [LOG  ] [index.ts:457][MEM:42MB] STRING: 🎯 Démarrage des tâches automatiques...
+[2025-09-23T09:25:46.095Z] [LOG  ] [cronJobs.ts:14][MEM:42MB] STRING: 🕐 Démarrage des tâches CRON...
+[2025-09-23T09:25:46.118Z] [LOG  ] [cronJobs.ts:37][MEM:42MB] STRING: ✅ Tâche de vérification de santé programmée: 0 */6 * * * (Europe/Paris)
+[2025-09-23T09:25:46.120Z] [LOG  ] [cronJobs.ts:71][MEM:42MB] STRING: ✅ Tâche de nettoyage RAG programmée: 0 3 * * * (Europe/Paris)
+[2025-09-23T09:27:53.747Z] [LOG  ] [logger.ts:13][MEM:39MB] STRING: [31mprisma:error[39m STRING: Error in PostgreSQL connection: Error { kind: Db, cause: Some(DbError { severity: "FATAL", parsed_severity: Some(Fatal), code: SqlState(E57P01), message: "terminating connection due to administrator command", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("postgres.c"), line: Some(3289), routine: Some("ProcessInterrupts") }) }
+[2025-09-23T09:28:11.853Z] [LOG  ] [prisma.ts:59][MEM:42MB] STRING: 🔄 SIGINT reçu, fermeture propre des connexions Prisma...
+[2025-09-23T09:28:11.880Z] [LOG  ] [cronJobs.ts:103][MEM:42MB] STRING: 🛑 Arrêt des tâches CRON...
+[2025-09-23T09:28:11.881Z] [LOG  ] [cronJobs.ts:105][MEM:42MB] STRING: ✅ Tâches CRON arrêtées
+
+================================================================================
+🛑 ARRÊT DU SERVEUR (SIGINT)
+================================================================================
+Timestamp: 2025-09-23T09:28:11.882Z
+Durée de fonctionnement: 0h 2m 30s
+================================================================================
+
