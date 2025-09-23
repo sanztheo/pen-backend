@@ -145,7 +145,7 @@ export function buildOptimizedPrompt(
   
   // ⚙️ PARAMÈTRES: Ajustés selon le type de requête
   const temperature = getOptimalTemperature(mode, analysis.type);
-  const maxTokens = getOptimalMaxTokens(analysis.responseLength);
+  const maxTokens = getOptimalMaxTokens(analysis.responseLength, analysis.reasoning);
   
   console.log(`🏗️ [STRUCTURE] Paramètres optimisés:`);
   console.log(`🏗️ [STRUCTURE] - Température: ${temperature}`);
@@ -254,6 +254,11 @@ function getTechnicalRules(analysis: QueryAnalysis): string {
 - PARAGRAPHES: Sépare clairement les idées avec des retours à la ligne
 - COHÉRENCE: Maintiens un style constant tout au long de la réponse`;
 
+  if (analysis.reasoning) {
+    rules += `\n- STRUCTURE_THINKING: Si thinking demandé, TOUJOURS finir par une réponse visible en dehors des tags
+- RÉPONSE_OBLIGATOIRE: Après </thinking>, écris IMMÉDIATEMENT ta réponse finale`;
+  }
+
   if (analysis.mathIntent) {
     rules += `\n- LATEX: Utilise $..$ (inline) et $$..$$ (display) pour les formules mathématiques réelles uniquement
 - MATH_VALIDATION: ${LATEX_STRICT_RULES}`;
@@ -271,11 +276,16 @@ function getSecurityRules(): string {
 function getThinkingPrompt(): string {
   console.log(`💭 [THINKING] Ajout du prompt de réflexion (<thinking> tags)`);
   
-  const thinkingPrompt = `Avant de répondre, analyse dans <thinking></thinking>:
-1. Que demande exactement l'utilisateur ?
-2. Quelles informations pertinentes ai-je dans le contexte ?
-3. Quelle est la meilleure approche pour structurer ma réponse ?
-4. Y a-t-il des informations manquantes que je dois signaler ?
+  const thinkingPrompt = `Tu DOIS suivre cette structure EXACTE:
+
+<thinking>
+Réflexion rapide (MAX 100 mots):
+1. Que demande l'utilisateur ?
+2. Informations clés du contexte ?
+3. Structure de réponse ?
+</thinking>
+
+ENSUITE, écris ta réponse finale complète (sans tags thinking):
 
 `;
   
@@ -318,7 +328,7 @@ function getOptimalTemperature(mode: 'ask' | 'search' | 'create', type: QueryAna
   return Math.max(0, Math.min(1, baseTemperatures[mode] + typeModifiers[type]));
 }
 
-function getOptimalMaxTokens(responseLength: QueryAnalysis['responseLength']): number {
+function getOptimalMaxTokens(responseLength: QueryAnalysis['responseLength'], hasThinking: boolean = false): number {
   const tokenLimits = {
     brief: 150,
     standard: 800,
@@ -326,5 +336,13 @@ function getOptimalMaxTokens(responseLength: QueryAnalysis['responseLength']): n
     comprehensive: 3000
   };
 
-  return tokenLimits[responseLength];
+  const baseTokens = tokenLimits[responseLength];
+  
+  // 🧠 THINKING: Doubler les tokens quand thinking chain activée
+  if (hasThinking) {
+    console.log(`💭 [THINKING] Tokens doublés pour thinking chain: ${baseTokens} → ${baseTokens * 2}`);
+    return baseTokens * 2;
+  }
+  
+  return baseTokens;
 }
