@@ -102,7 +102,8 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     if (reflection === 'profond') {
       try {
         // 🏗️ STRUCTURE: Construction du prompt optimisé pour Gemini (avec thinking)
-        const optimizedPrompt = buildOptimizedPrompt('create', sanitizedInstruction, ragContextText, web, analysis);
+        const contextWithWeb = [ragContextText, web].filter(Boolean).join('\n\n');
+        const optimizedPrompt = buildOptimizedPrompt('create', sanitizedInstruction, contextWithWeb, '', analysis);
 
         res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -174,7 +175,8 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     }
 
     // 🏗️ STRUCTURE: Construction du prompt optimisé pour OpenAI standard
-    const optimizedPrompt = buildOptimizedPrompt('create', sanitizedInstruction, ragContextText, web, analysis);
+    const contextWithWeb = [ragContextText, web].filter(Boolean).join('\n\n');
+    const optimizedPrompt = buildOptimizedPrompt('create', sanitizedInstruction, contextWithWeb, '', analysis);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
