@@ -17,7 +17,7 @@ export function startCronJobs() {
   const healthCheckTask = cron.schedule(HEALTH_CHECK_SCHEDULE, async () => {
     console.log('\n🩺 [CRON] Vérification de santé de la base de données...');
     try {
-      const { prisma } = await import('../lib/prisma');
+      const { prisma } = await import('../lib/prisma.js');
       
       // Vérifier la connexion à la base de données
       await prisma.$queryRaw`SELECT 1`;
@@ -79,7 +79,7 @@ export function startCronJobs() {
       cron.schedule('*/5 * * * *', async () => {
         console.log('🧪 [TEST CRON] Vérification du statut...');
         try {
-          const { prisma } = await import('../lib/prisma');
+          const { prisma } = await import('../lib/prisma.js');
           const userCount = await prisma.user.count();
           console.log(`🧪 [TEST] Utilisateurs: ${userCount}`);
         } catch (error) {

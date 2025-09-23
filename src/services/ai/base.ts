@@ -96,7 +96,7 @@ export class AIService {
    * Générer du contenu avec l'IA
    */
   static async generateContent(options: AIGenerationOptions): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration');
+    const { ContentGenerationService } = await import('./contentGeneration.js');
     return ContentGenerationService.generateContent(options);
   }
 
@@ -104,7 +104,7 @@ export class AIService {
    * Générer un bloc spécifique
    */
   static async generateBlock(type: string, prompt: string, context?: string): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration');
+    const { ContentGenerationService } = await import('./contentGeneration.js');
     return ContentGenerationService.generateBlock(type, prompt, context);
   }
 
@@ -112,7 +112,7 @@ export class AIService {
    * Améliorer du contenu existant
    */
   static async improveContent(content: string, instructions?: string): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration');
+    const { ContentGenerationService } = await import('./contentGeneration.js');
     return ContentGenerationService.improveContent(content, instructions);
   }
 
@@ -120,7 +120,7 @@ export class AIService {
    * Continuer un texte existant
    */
   static async continueContent(content: string, length: 'court' | 'moyen' | 'long' = 'moyen'): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration');
+    const { ContentGenerationService } = await import('./contentGeneration.js');
     return ContentGenerationService.continueContent(content, length);
   }
 
@@ -128,7 +128,7 @@ export class AIService {
    * Résumer du contenu
    */
   static async summarizeContent(content: string, style: 'bullet' | 'paragraph' = 'paragraph'): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration');
+    const { ContentGenerationService } = await import('./contentGeneration.js');
     return ContentGenerationService.summarizeContent(content, style);
   }
 
@@ -136,7 +136,7 @@ export class AIService {
    * Générer des idées/suggestions
    */
   static async generateIdeas(topic: string, count: number = 5): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration');
+    const { ContentGenerationService } = await import('./contentGeneration.js');
     return ContentGenerationService.generateIdeas(topic, count);
   }
 
@@ -144,7 +144,7 @@ export class AIService {
    * Traduire du contenu
    */
   static async translateContent(content: string, targetLanguage: string): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration');
+    const { ContentGenerationService } = await import('./contentGeneration.js');
     return ContentGenerationService.translateContent(content, targetLanguage);
   }
 
@@ -152,7 +152,7 @@ export class AIService {
    * Corriger l'orthographe et la grammaire
    */
   static async correctText(content: string): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration');
+    const { ContentGenerationService } = await import('./contentGeneration.js');
     return ContentGenerationService.correctText(content);
   }
 
@@ -173,7 +173,7 @@ export class AIService {
       detectedIntent: string;
     };
   }> {
-    const { AutocompleteService } = await import('./autocomplete');
+    const { AutocompleteService } = await import('./autocomplete.js');
     return AutocompleteService.autocomplete(content, cursorPosition, blockType, maxSuggestions, signal);
   }
 
@@ -188,7 +188,7 @@ export class AIService {
     onStreamChunk?: (result: any) => void,
     signal?: AbortSignal
   ): Promise<any> {
-    const { AutocompleteService } = await import('./autocomplete');
+    const { AutocompleteService } = await import('./autocomplete.js');
     return AutocompleteService.autocompleteStream(content, cursorPosition, blockType, maxSuggestions, onStreamChunk, signal);
   }
 } 

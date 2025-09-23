@@ -485,7 +485,7 @@ async function generateAIGraphicConfig(params: {
 }): Promise<any> {
   try {
     // Importer et instancier le service de génération graphique IA
-    const { AIGraphicGenerator } = await import('../graphics/aiGraphicGenerator');
+    const { AIGraphicGenerator } = await import('../graphics/aiGraphicGenerator.js');
     const aiGraphicGenerator = new AIGraphicGenerator();
     
     const result = await aiGraphicGenerator.generateGraphicWithAI({
