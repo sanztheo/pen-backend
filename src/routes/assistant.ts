@@ -98,8 +98,8 @@ router.post('/rag/context', async (req: any, res) => {
       }
     }
 
-    // 1. Intelligence de requête - Décider si on doit faire du RAG (avec contexte des sources)
-    const shouldUseRAG = await ragSystem.shouldUseRAG(query + sourcesContext);
+    // 1. Intelligence de requête - Décider si on doit faire du RAG (analyse seulement la query)
+    const shouldUseRAG = await ragSystem.shouldUseRAG(query);
     console.log(`🔍 [RAG-DEBUG] Doit utiliser RAG: ${shouldUseRAG}`);
 
     if (!shouldUseRAG) {
