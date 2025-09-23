@@ -116,20 +116,6 @@ export class RAGSystem {
     if (normalizedQuery.length <= 2) {
       return false;
     }
-
-    // Détection locale des salutations et politesses (priorité sur le contexte)
-    const greetings = ['salut', 'bonjour', 'bonsoir', 'hello', 'hi', 'hey', 'coucou', 'bonne nuit', 'bon matin'];
-    const politeness = ['merci', 'thanks', 'au revoir', 'bye', 'goodbye', 'à bientôt'];
-    const commands = ['aide', 'help', 'quit', 'exit', 'stop'];
-    
-    const isSimpleGreeting = greetings.some(g => normalizedQuery === g || normalizedQuery.startsWith(g + ' ') || normalizedQuery.startsWith(g + ','));
-    const isPoliteness = politeness.some(p => normalizedQuery === p || normalizedQuery.startsWith(p + ' '));
-    const isCommand = commands.some(c => normalizedQuery === c || normalizedQuery.startsWith(c + ' '));
-    
-    if (isSimpleGreeting || isPoliteness || isCommand) {
-      console.log(`🔍 [RAG-DEBUG] Détection locale: "${query}" → Pas de RAG nécessaire`);
-      return false;
-    }
     
     try {
       const prompt = `Analyse cette requête utilisateur et détermine si elle nécessite une recherche dans des documents (RAG).
