@@ -75,26 +75,10 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
       console.log('[AssistantCreateStream] Utilisation du contexte RAG avec', ragSources.length, 'sources');
       ragContextText = ragContext;
     } else if (ragSources && ragSources.length > 0) {
-      // Fallback: construire le contexte à partir des pages si pas de ragContext pré-construit
-      console.log('[AssistantCreateStream] Construction du contexte à partir des sources RAG');
-      const ragTitles = ragSources.map(s => s.title);
-      const ragPages = await prisma.page.findMany({
-        where: { 
-          workspaceId, 
-          isArchived: false,
-          title: { in: ragTitles }
-        },
-        select: { id: true, title: true }
-      });
-      
-      if (ragPages.length > 0) {
-        const pageIds = ragPages.map(p => p.id);
-        
-        // 🧠 RAG: Les pages sont maintenant embedées automatiquement à la sélection (frontend)
-        
-        ragContextText = await buildPagesContextChunked(workspaceId, pageIds, 10, sanitizedInstruction, 12);
-        console.log('[AssistantCreateStream] Contexte RAG construit:', ragContextText.length, 'caractères');
-      }
+      // Pour les sources RAG externes (Wikipedia), ne pas chercher dans les pages workspace
+      // Le contexte RAG est géré par le système RAG lui-même via l'API
+      console.log('[AssistantCreateStream] Sources RAG externes détectées - contexte sera fourni par le système RAG');
+      ragContextText = ''; // Le contexte viendra du système RAG automatiquement
     }
 
     const web = useWeb ? await tavilySearch(sanitizedInstruction) : '';
