@@ -12,20 +12,49 @@ import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helper
 export const assistantAskStream = async (req: Request, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Utilisateur non authentifié' });
-    const { query, workspaceId, pageIds = [], useWeb = false } = req.body as { query: string; workspaceId: string; pageIds?: string[]; useWeb?: boolean };
+    const { query, workspaceId, pageIds = [], useWeb = false, ragSources = [] } = req.body as {
+      query: string;
+      workspaceId: string;
+      pageIds?: (string | number)[];
+      useWeb?: boolean;
+      ragSources?: Array<{ title: string; [key: string]: any }>;
+    };
     if (!query) return res.status(400).json({ error: 'query requis' });
 
-    console.log(`🔥 [ASK-STREAM] ENTRÉE - workspaceId: ${workspaceId}, pageIds: [${pageIds.join(', ')}], pageIds.length: ${pageIds.length}`);
+    // Convert pageIds to strings to ensure Prisma compatibility
+    const pageIdsStr = pageIds.map(id => String(id));
+
+    console.log(`🔥 [ASK-STREAM] ENTRÉE - workspaceId: ${workspaceId}, pageIds: [${pageIdsStr.join(', ')}], pageIds.length: ${pageIdsStr.length}, ragSources.length: ${ragSources.length}`);
 
     // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
     const sanitizedQuery = sanitizeUserInput(query);
-    
+
     // 🧠 INTELLIGENCE: Analyse de la requête
     const analysis = analyzeQuery(sanitizedQuery, req);
-    
-    // 🧠 RAG: Les pages sont maintenant embedées automatiquement à la sélection (frontend)
+
+    // 🧠 RAG: Gestion intelligente des sources
+    let contextPageIds: string[] = [];
+
+    // Si nous avons des sources RAG externes (Wikipedia), ne pas utiliser les pages workspace
+    if (ragSources && ragSources.length > 0) {
+      console.log('[ASK-STREAM] Mode RAG externe détecté, pas d\'utilisation des pages workspace');
+      contextPageIds = []; // Pas de pages workspace
+    } else if (workspaceId && pageIdsStr.length > 0) {
+      // Valider que les pageIds sont des UUIDs valides avant de les utiliser
+      const validPageIds = pageIdsStr.filter(id => {
+        // Simple validation UUID (32 chars + hyphens = 36 chars total)
+        return id.length === 36 && id.includes('-');
+      });
+
+      if (validPageIds.length !== pageIdsStr.length) {
+        console.log(`⚠️ [ASK-STREAM] IDs invalides filtrés: ${pageIdsStr.length - validPageIds.length} IDs ignorés`);
+      }
+
+      contextPageIds = validPageIds;
+    }
+
     const [ctx, web] = await Promise.all([
-      workspaceId ? buildPagesContextChunked(workspaceId, pageIds, 8, sanitizedQuery, 10) : Promise.resolve(''),
+      workspaceId && contextPageIds.length > 0 ? buildPagesContextChunked(workspaceId, contextPageIds, 8, sanitizedQuery, 10) : Promise.resolve(''),
       useWeb ? tavilySearch(sanitizedQuery) : Promise.resolve('')
     ]);
     const history = ConversationMemory.recentAsText(req.user.id, { maxChars: 1200, maxMessages: 8 });

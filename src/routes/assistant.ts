@@ -98,8 +98,23 @@ router.post('/rag/context', async (req: any, res) => {
       }
     }
 
-    // 1. Intelligence de requête - Décider si on doit faire du RAG (analyse seulement la query)
-    const shouldUseRAG = await ragSystem.shouldUseRAG(query);
+    // 1. Intelligence de requête - Décider si on doit faire du RAG
+    // NOUVEAU: Si des sources sont sélectionnées, forcer l'utilisation du RAG
+    const hasSelectedSources = selectedSources && (
+      (selectedSources.wikipediaSources && selectedSources.wikipediaSources.length > 0) ||
+      (selectedSources.mentionedPages && selectedSources.mentionedPages.length > 0) ||
+      selectedSources.sourcesScope === 'all'
+    );
+
+    let shouldUseRAG = false;
+    if (hasSelectedSources) {
+      shouldUseRAG = true;
+      console.log(`🔍 [RAG-DEBUG] RAG forcé car des sources sont sélectionnées`);
+    } else {
+      shouldUseRAG = await ragSystem.shouldUseRAG(query);
+      console.log(`🔍 [RAG-DEBUG] Analyse IA de la query: ${shouldUseRAG}`);
+    }
+
     console.log(`🔍 [RAG-DEBUG] Doit utiliser RAG: ${shouldUseRAG}`);
 
     if (!shouldUseRAG) {
@@ -125,11 +140,68 @@ router.post('/rag/context', async (req: any, res) => {
 
     // 3. Recherche RAG intelligente
     console.log(`🔍 [RAG-DEBUG] Recherche RAG pour userId: ${req.user.id}, workspaceId: ${workspaceId}, query: "${query}"`);
-    const searchResults = await ragSystem.intelligentSearch(query, {
-      userId: req.user.id,
-      workspaceId,
-      limit: 10
-    });
+
+    // 🔥 NOUVEAU: Si des sources Wikipedia sont sélectionnées, récupérer leurs IDs RAG
+    let specificSourceIds: string[] = [];
+    if (selectedSources && selectedSources.wikipediaSources && selectedSources.wikipediaSources.length > 0) {
+      console.log(`🔍 [RAG-DEBUG] Recherche des IDs pour les sources Wikipedia sélectionnées:`, selectedSources.wikipediaSources.map((s: { title: string }) => s.title));
+      const { prisma } = await import('../lib/prisma.js');
+
+      for (const wikiSource of selectedSources.wikipediaSources) {
+        try {
+          const sourceRecord = await prisma.rAGSource.findFirst({
+            where: {
+              title: wikiSource.title,
+              isGlobal: true,
+              status: 'COMPLETED'
+            },
+            select: { id: true }
+          });
+          if (sourceRecord) {
+            specificSourceIds.push(sourceRecord.id);
+            console.log(`🔍 [RAG-DEBUG] Source "${wikiSource.title}" trouvée avec ID: ${sourceRecord.id}`);
+          } else {
+            console.warn(`🔍 [RAG-DEBUG] Source "${wikiSource.title}" non trouvée dans la base RAG`);
+          }
+        } catch (error) {
+          console.error(`🔍 [RAG-DEBUG] Erreur recherche source "${wikiSource.title}":`, error);
+        }
+      }
+      console.log(`🔍 [RAG-DEBUG] IDs sources finaux:`, specificSourceIds);
+    }
+
+    let searchResults;
+    if (specificSourceIds.length > 0) {
+      // 🔥 NOUVEAU: Force une distribution équitable entre les sources sélectionnées
+      console.log(`🔍 [RAG-DEBUG] Distribution équitable forcée entre ${specificSourceIds.length} sources`);
+
+      const allResults = [];
+      const chunksPerSource = Math.ceil(12 / specificSourceIds.length); // Répartir équitablement
+
+      for (const sourceId of specificSourceIds) {
+        console.log(`🔍 [RAG-DEBUG] Recherche ${chunksPerSource} chunks pour source: ${sourceId}`);
+        const sourceResults = await ragSystem.intelligentSearch(query, {
+          userId: req.user.id,
+          workspaceId,
+          limit: chunksPerSource,
+          specificSourceIds: [sourceId] // Une seule source à la fois
+        });
+        console.log(`🔍 [RAG-DEBUG] Trouvé ${sourceResults.length} chunks pour source: ${sourceId}`);
+        allResults.push(...sourceResults);
+      }
+
+      // Mélanger les résultats pour éviter l'ordre par source
+      searchResults = allResults.sort(() => Math.random() - 0.5);
+      console.log(`🔍 [RAG-DEBUG] Total final: ${searchResults.length} chunks mélangés de ${specificSourceIds.length} sources`);
+
+    } else {
+      // Recherche normale si pas de sources spécifiques
+      searchResults = await ragSystem.intelligentSearch(query, {
+        userId: req.user.id,
+        workspaceId,
+        limit: 12
+      });
+    }
     console.log(`🔍 [RAG-DEBUG] Résultats trouvés: ${searchResults.length}`);
 
     // 4. Construire le contexte optimisé

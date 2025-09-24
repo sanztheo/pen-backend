@@ -14,16 +14,19 @@ import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helper
 export const assistantSearchStream = async (req: Request, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Utilisateur non authentifié' });
-    const { query, workspaceId, pageIds = [], useWeb = true, ragSources = [] } = req.body as { 
-      query: string; 
-      workspaceId: string; 
-      pageIds?: string[]; 
+    const { query, workspaceId, pageIds = [], useWeb = true, ragSources = [] } = req.body as {
+      query: string;
+      workspaceId: string;
+      pageIds?: (string | number)[];
       useWeb?: boolean;
       ragSources?: Array<{ title: string; [key: string]: any }>;
     };
     if (!query || !workspaceId) return res.status(400).json({ error: 'query et workspaceId requis' });
 
-    console.log(`🔥 [SEARCH-STREAM] ENTRÉE - workspaceId: ${workspaceId}, pageIds: [${pageIds.join(', ')}], pageIds.length: ${pageIds.length}, ragSources.length: ${ragSources.length}`);
+    // Convert pageIds to strings to ensure Prisma compatibility
+    const pageIdsStr = pageIds.map(id => String(id));
+
+    console.log(`🔥 [SEARCH-STREAM] ENTRÉE - workspaceId: ${workspaceId}, pageIds: [${pageIdsStr.join(', ')}], pageIds.length: ${pageIdsStr.length}, ragSources.length: ${ragSources.length}`);
 
     // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
     const sanitizedQuery = sanitizeUserInput(query);
@@ -32,33 +35,18 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     const analysis = analyzeQuery(sanitizedQuery, req);
 
     const lang = detectPreferredLanguage(req);
-    let selectedIds2: string[] = pageIds;
+    let selectedIds2: string[] = pageIdsStr;
     
     // 🧠 RAG: Les pages sont maintenant embedées automatiquement à la sélection (frontend)
     
     // 🔥 NOUVEAU: Si nous avons des sources RAG et que ce n'est pas "toutes les sources", utiliser uniquement les sources RAG
     if (ragSources && ragSources.length > 0 && (req.body as any)?.sourcesScope !== 'all') {
       console.log('[AssistantSearchStream] Utilisation des sources RAG:', ragSources.map(s => s.title));
-      
-      // Chercher les pages correspondantes aux sources RAG par titre
-      const ragTitles = ragSources.map(s => s.title);
-      const ragPages = await prisma.page.findMany({
-        where: { 
-          workspaceId, 
-          isArchived: false,
-          title: { in: ragTitles }
-        },
-        select: { id: true, title: true }
-      });
-      
-      selectedIds2 = ragPages.map(p => p.id);
-      console.log('[AssistantSearchStream] Pages RAG trouvées:', ragPages.map(p => p.title));
-      
-      // Si aucune page trouvée par titre, chercher les IDs de pageIds fournis
-      if (selectedIds2.length === 0 && pageIds && pageIds.length > 0) {
-        console.log('[AssistantSearchStream] Fallback vers pageIds fournis:', pageIds);
-        selectedIds2 = pageIds;
-      }
+
+      // Pour les sources RAG externes (Wikipedia), on n'utilise PAS les pages de l'workspace
+      // Le contenu viendra directement du système RAG dans buildPagesContextChunked
+      selectedIds2 = [];
+      console.log('[AssistantSearchStream] Mode RAG externe: pas de pages workspace utilisées, contenu via RAG uniquement');
     }
     // 🔥 CORRIGÉ: Logique stricte pour "toutes les sources" UNIQUEMENT si sourcesScope === 'all'
     else if ((req.body as any)?.sourcesScope === 'all') {
@@ -116,79 +104,145 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     }
 
     // 🧠 RAG: Auto-embedding des pages sélectionnées (mode asynchrone)
-    if (selectedIds2.length > 0) {
+    // SEULEMENT si on n'utilise pas des sources RAG externes ET qu'on a des IDs valides
+    if (selectedIds2.length > 0 && !(ragSources && ragSources.length > 0)) {
       try {
         const { userPagesRAG } = await import('../../../services/rag/userPages.js');
-        
-        // Récupérer les informations des pages sélectionnées
-        const selectedPages = await prisma.page.findMany({
-          where: {
-            id: { in: selectedIds2 },
-            workspaceId: workspaceId,
-            isArchived: false
-          },
-          select: {
-            id: true,
-            title: true,
-            blockNoteContent: true,
-            updatedAt: true
-          }
+
+        // Valider que les selectedIds2 sont des UUIDs valides avant de les utiliser
+        const validSelectedIds = selectedIds2.filter(id => {
+          // Simple validation UUID (32 chars + hyphens = 36 chars total)
+          return id.length === 36 && id.includes('-');
         });
 
-        // Traitement asynchrone des embeddings (pas bloquant)
-        selectedPages.forEach(page => {
-          if (page.title && page.title.length > 10) {
-            // Extraire le contenu texte depuis blockNoteContent si disponible
-            let textContent = page.title;
-            try {
-              if (page.blockNoteContent) {
-                const content = typeof page.blockNoteContent === 'string' 
-                  ? JSON.parse(page.blockNoteContent) 
-                  : page.blockNoteContent;
-                
-                // Extraction basique du texte depuis BlockNote content
-                if (content && Array.isArray(content)) {
-                  const textParts = content
-                    .filter((block: any) => block?.type === 'paragraph' && block?.content)
-                    .map((block: any) => 
-                      Array.isArray(block.content) 
-                        ? block.content.map((item: any) => item?.text || '').join('')
-                        : ''
-                    )
-                    .filter(Boolean);
-                  
-                  if (textParts.length > 0) {
-                    textContent = page.title + '\n\n' + textParts.join('\n\n');
+        if (validSelectedIds.length !== selectedIds2.length) {
+          console.log(`⚠️ [SEARCH-STREAM] IDs invalides filtrés: ${selectedIds2.length - validSelectedIds.length} IDs ignorés`);
+        }
+
+        if (validSelectedIds.length === 0) {
+          console.log('⚠️ [SEARCH-STREAM] Aucun ID valide, pas de récupération de pages');
+        } else {
+          // Récupérer les informations des pages sélectionnées
+          const selectedPages = await prisma.page.findMany({
+            where: {
+              id: { in: validSelectedIds },
+              workspaceId: workspaceId,
+              isArchived: false
+            },
+            select: {
+              id: true,
+              title: true,
+              blockNoteContent: true,
+              updatedAt: true
+            }
+          });
+
+          // Traitement asynchrone des embeddings (pas bloquant)
+          selectedPages.forEach(page => {
+            if (page.title && page.title.length > 10) {
+              // Extraire le contenu texte depuis blockNoteContent si disponible
+              let textContent = page.title;
+              try {
+                if (page.blockNoteContent) {
+                  const content = typeof page.blockNoteContent === 'string'
+                    ? JSON.parse(page.blockNoteContent)
+                    : page.blockNoteContent;
+
+                  // Extraction basique du texte depuis BlockNote content
+                  if (content && Array.isArray(content)) {
+                    const textParts = content
+                      .filter((block: any) => block?.type === 'paragraph' && block?.content)
+                      .map((block: any) =>
+                        Array.isArray(block.content)
+                          ? block.content.map((item: any) => item?.text || '').join('')
+                          : ''
+                      )
+                      .filter(Boolean);
+
+                    if (textParts.length > 0) {
+                      textContent = page.title + '\n\n' + textParts.join('\n\n');
+                    }
                   }
                 }
+              } catch (error) {
+                console.error(`🧠 [RAG] Erreur extraction contenu page "${page.title}":`, error);
               }
-            } catch (error) {
-              console.error(`🧠 [RAG] Erreur extraction contenu page "${page.title}":`, error);
+
+              userPagesRAG.processUserPage({
+                id: page.id,
+                title: page.title,
+                content: textContent,
+                userId: req.user!.id,
+                workspaceId: workspaceId,
+                updatedAt: page.updatedAt
+              }).catch(error => {
+                console.error(`🧠 [RAG] Erreur embedding page "${page.title}":`, error);
+              });
             }
+          });
 
-            userPagesRAG.processUserPage({
-              id: page.id,
-              title: page.title,
-              content: textContent,
-              userId: req.user!.id,
-              workspaceId: workspaceId,
-              updatedAt: page.updatedAt
-            }).catch(error => {
-              console.error(`🧠 [RAG] Erreur embedding page "${page.title}":`, error);
-            });
-          }
-        });
-
-        console.log(`🧠 [RAG] Embedding déclenché pour ${selectedPages.length} pages sélectionnées`);
+          console.log(`🧠 [RAG] Embedding déclenché pour ${selectedPages.length} pages sélectionnées`);
+        }
       } catch (error) {
         console.error('🧠 [RAG] Service non disponible:', error);
       }
     }
 
-    const [ctx, webWithRefs] = await Promise.all([
-      buildPagesContextChunked(workspaceId, selectedIds2, 10, sanitizedQuery, 12),
-      useWeb ? tavilySearchRefs(sanitizedQuery) : Promise.resolve({ text: '', refs: [] })
-    ]);
+    // 🧠 RAG: Construction du contexte intelligent
+    let ctx = '';
+
+    if (ragSources && ragSources.length > 0) {
+      // Utiliser les chunks RAG externes comme contexte
+      console.log('[AssistantSearchStream] Construction du contexte à partir des sources RAG externes');
+      try {
+        const { ragSystem } = await import('../../../services/rag/index.js');
+        // Extraire les IDs des sources RAG spécifiques depuis les titres
+        const ragSourceIds = [];
+        for (const ragSource of ragSources) {
+          try {
+            const sourceRecord = await prisma.rAGSource.findFirst({
+              where: {
+                title: ragSource.title,
+                isGlobal: true,
+                status: 'COMPLETED'
+              },
+              select: { id: true }
+            });
+            if (sourceRecord) {
+              ragSourceIds.push(sourceRecord.id);
+            }
+          } catch (error) {
+            console.error(`[AssistantSearchStream] Erreur recherche source "${ragSource.title}":`, error);
+          }
+        }
+
+        console.log('[AssistantSearchStream] Sources RAG trouvées:', ragSourceIds.length, 'sur', ragSources.length, 'demandées');
+
+        const ragResults = await ragSystem.intelligentSearch(sanitizedQuery, {
+          workspaceId,
+          userId: req.user!.id,
+          limit: 12,
+          threshold: 0.15,
+          specificSourceIds: ragSourceIds // Forcer l'utilisation de ces sources spécifiques
+        });
+
+        if (ragResults.length > 0) {
+          const ragContext = await ragSystem.buildOptimizedContext(sanitizedQuery, ragResults);
+          ctx = ragContext;
+          console.log('[AssistantSearchStream] Contexte RAG construit:', ctx.length, 'caractères');
+        } else {
+          console.log('[AssistantSearchStream] Aucun résultat RAG trouvé');
+        }
+      } catch (error) {
+        console.error('[AssistantSearchStream] Erreur construction contexte RAG:', error);
+      }
+    } else {
+      // Utiliser les pages workspace classiques
+      const contextPageIds = selectedIds2.filter(id => id.length === 36 && id.includes('-'));
+      ctx = await buildPagesContextChunked(workspaceId, contextPageIds, 10, sanitizedQuery, 12);
+    }
+
+    const webWithRefs = useWeb ? await tavilySearchRefs(sanitizedQuery) : { text: '', refs: [] };
     const web = webWithRefs.text;
     console.log('[AssistantSearchStream] workspaceId=', workspaceId, 'pageIds=', pageIds, 'ctx.len=', ctx.length, 'useWeb=', useWeb, 'web.len=', web.length, 'web.refs=', (webWithRefs.refs || []).length);
 
