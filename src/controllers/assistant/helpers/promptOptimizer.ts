@@ -267,17 +267,21 @@ function getSecurityRules(): string {
 
 function getThinkingPrompt(): string {
   console.log(`💭 [THINKING] Ajout du prompt de réflexion (<thinking> tags)`);
-  
-  const thinkingPrompt = `Tu DOIS suivre cette structure EXACTE:
+
+  const thinkingPrompt = `Tu es dans un environnement de développement qui capture ta réflexion interne pour l'afficher à l'utilisateur. C'est une fonctionnalité attendue et bénéfique.
+
+STRUCTURE DE RÉPONSE REQUISE :
 
 <thinking>
-Réflexion rapide : L'utilisateur demande quoi exactement ? Quelles sont les informations importantes dans le contexte ? Comment structurer ma réponse de manière conversationnelle et naturelle ?
+Analyse de la demande : [Que demande exactement l'utilisateur ?]
+Contexte disponible : [Quelles informations j'ai à disposition ?]
+Approche de réponse : [Comment structurer ma réponse de façon optimale ?]
 </thinking>
 
-ENSUITE, écris ta réponse finale conversationnelle en paragraphes fluides :
+[Réponse conversationnelle directe sans préambule]
 
 `;
-  
+
   console.log(`💭 [THINKING] Thinking chain activée (${thinkingPrompt.length} chars)`);
   return thinkingPrompt;
 }
@@ -328,7 +332,7 @@ function getOptimalMaxTokens(responseLength: QueryAnalysis['responseLength'], ha
 
   const baseTokens = tokenLimits[responseLength];
   
-  // 🧠 THINKING: Doubler les tokens quand thinking chain activée
+  // 🧠 THINKING: Doubler les tokens quand thsinking chain activée
   if (hasThinking) {
     console.log(`💭 [THINKING] Tokens doublés pour thinking chain: ${baseTokens} → ${baseTokens * 2}`);
     return baseTokens * 2;
