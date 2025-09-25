@@ -48,10 +48,12 @@ export class SessionMemorySystem {
           userId,
           workspaceId,
           sessionKey,
-          title: `Session ${new Date().toLocaleDateString('fr-FR')}`
+          title: `Session ${new Date().toLocaleDateString('fr-FR')}`,
+          lastQueryAt: new Date() // 🔧 FIX: Marquer la session comme récente dès sa création
         },
         include: { sourcesUsed: true }
       });
+      console.log(`✅ [SESSION-FIX] Nouvelle session ${session.id} créée avec lastQueryAt: ${session.lastQueryAt}`);
     }
 
     return session.id;
@@ -409,18 +411,38 @@ export class SessionMemorySystem {
   // 🔍 Récupérer une session active pour un utilisateur et workspace
   async getActiveSession(userId: string, workspaceId: string): Promise<any | null> {
     try {
+      const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      console.log(`🔍 [SESSION-DEBUG] Recherche session active - userId: ${userId}, workspaceId: ${workspaceId}`);
+      console.log(`🔍 [SESSION-DEBUG] Seuil de temps (dernières 24h): ${cutoffTime.toISOString()}`);
+
+      // D'abord, regarder toutes les sessions pour ce user/workspace
+      const allSessions = await prisma.rAGSession.findMany({
+        where: { userId, workspaceId },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, sessionKey: true, lastQueryAt: true, createdAt: true }
+      });
+
+      console.log(`🔍 [SESSION-DEBUG] Sessions trouvées (${allSessions.length}):`,
+        allSessions.map(s => `${s.id.substring(0, 8)}... - lastQueryAt: ${s.lastQueryAt?.toISOString() || 'null'} - created: ${s.createdAt.toISOString()}`));
+
       const session = await prisma.rAGSession.findFirst({
         where: {
           userId,
           workspaceId,
           // Considérer comme active si utilisée dans les dernières 24h
           lastQueryAt: {
-            gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
+            gte: cutoffTime
           }
         },
         orderBy: { lastQueryAt: 'desc' },
         include: { sourcesUsed: true }
       });
+
+      if (session) {
+        console.log(`✅ [SESSION-DEBUG] Session active trouvée: ${session.id}, sources: ${session.sourcesUsed.length}, lastQueryAt: ${session.lastQueryAt?.toISOString()}`);
+      } else {
+        console.log(`❌ [SESSION-DEBUG] Aucune session active trouvée dans les dernières 24h`);
+      }
 
       return session;
     } catch (error) {
@@ -463,7 +485,36 @@ export class SessionMemorySystem {
   // 💾 Sauvegarder les sources utilisées dans une session
   async saveSessionSources(sessionId: string, sources: Array<{ id: string; title: string; type: string }>): Promise<boolean> {
     try {
+      console.log(`🔍 [SESSION-DEBUG] Début sauvegarde - sessionId: ${sessionId}, sources count: ${sources.length}`);
+      console.log(`🔍 [SESSION-DEBUG] Sources détails:`, sources.map(s => `${s.title} (${s.id}, ${s.type})`));
+
+      // Vérifier si la session existe
+      const existingSession = await prisma.rAGSession.findUnique({
+        where: { id: sessionId },
+        include: { sourcesUsed: true }
+      });
+
+      if (!existingSession) {
+        console.error(`🔍 [SESSION-DEBUG] ❌ Session ${sessionId} n'existe pas!`);
+        return false;
+      }
+
+      console.log(`🔍 [SESSION-DEBUG] Session trouvée: ${existingSession.title}, sources actuelles: ${existingSession.sourcesUsed.length}`);
+
+      // Vérifier si les sources existent dans la base
+      for (const source of sources) {
+        const existingSource = await prisma.rAGSource.findUnique({
+          where: { id: source.id }
+        });
+        if (!existingSource) {
+          console.warn(`🔍 [SESSION-DEBUG] ⚠️ Source ${source.id} (${source.title}) n'existe pas dans la base RAG`);
+        } else {
+          console.log(`🔍 [SESSION-DEBUG] ✅ Source ${source.id} (${source.title}) trouvée dans la base`);
+        }
+      }
+
       // D'abord, supprimer les sources existantes pour cette session
+      console.log(`🔍 [SESSION-DEBUG] Suppression des sources existantes...`);
       await prisma.rAGSession.update({
         where: { id: sessionId },
         data: {
@@ -475,20 +526,29 @@ export class SessionMemorySystem {
 
       // Ensuite, ajouter les nouvelles sources
       const sourceConnections = sources.map(source => ({ id: source.id }));
+      console.log(`🔍 [SESSION-DEBUG] Connexion des nouvelles sources:`, sourceConnections);
 
       await prisma.rAGSession.update({
         where: { id: sessionId },
         data: {
           sourcesUsed: {
             connect: sourceConnections
-          }
+          },
+          lastQueryAt: new Date() // 🔧 FIX: Marquer la session comme récente quand on sauvegarde les sources
         }
       });
+      console.log(`✅ [SESSION-FIX] Session ${sessionId}: lastQueryAt mise à jour lors de la sauvegarde des sources`);
 
-      console.log(`✅ Session ${sessionId}: ${sources.length} sources sauvegardées`);
+      // Vérifier le résultat
+      const updatedSession = await prisma.rAGSession.findUnique({
+        where: { id: sessionId },
+        include: { sourcesUsed: true }
+      });
+
+      console.log(`✅ [SESSION-DEBUG] Session ${sessionId}: ${sources.length} sources sauvegardées, ${updatedSession?.sourcesUsed.length} sources connectées`);
       return true;
     } catch (error) {
-      console.error('Erreur sauvegarde sources session:', error);
+      console.error('🔍 [SESSION-DEBUG] ❌ Erreur sauvegarde sources session:', error);
       return false;
     }
   }

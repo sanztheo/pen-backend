@@ -59,6 +59,7 @@ export interface QueryAnalysis {
   language: string;
   responseLength: 'brief' | 'standard' | 'detailed' | 'comprehensive';
   reasoning: boolean; // Si thinking chain nécessaire
+  ultraThink: boolean; // Si mode ultrathink 32K nécessaire
 }
 
 export function analyzeQuery(query: string, req: any): QueryAnalysis {
@@ -96,7 +97,10 @@ export function analyzeQuery(query: string, req: any): QueryAnalysis {
 
   // Reasoning chain nécessaire pour les tâches complexes
   const reasoning = type === 'analysis' || type === 'complex' || query.length > 150;
-  
+
+  // 🧠 ULTRATHINK: Détection pour analyse critique de 32K tokens
+  const ultraThink = detectUltraThinkNeed(normalizedQuery, query.length, type);
+
   const mathIntent = isMathLatexIntent(query);
   const language = detectPreferredLanguage(req).code;
 
@@ -104,6 +108,7 @@ export function analyzeQuery(query: string, req: any): QueryAnalysis {
   console.log(`🧠 [INTELLIGENCE] - Type: ${type}`);
   console.log(`🧠 [INTELLIGENCE] - Longueur réponse: ${responseLength}`);
   console.log(`🧠 [INTELLIGENCE] - Thinking chain: ${reasoning ? 'OUI' : 'NON'}`);
+  console.log(`🧠 [INTELLIGENCE] - UltraThink 32K: ${ultraThink ? 'OUI' : 'NON'}`);
   console.log(`🧠 [INTELLIGENCE] - Math/LaTeX: ${mathIntent ? 'OUI' : 'NON'}`);
   console.log(`🧠 [INTELLIGENCE] - Langue: ${language}`);
 
@@ -112,8 +117,57 @@ export function analyzeQuery(query: string, req: any): QueryAnalysis {
     mathIntent,
     language,
     responseLength,
-    reasoning
+    reasoning,
+    ultraThink
   };
+}
+
+// 🧠 ULTRATHINK: Détection des requêtes nécessitant une analyse critique de 32K tokens
+function detectUltraThinkNeed(normalizedQuery: string, queryLength: number, type: QueryAnalysis['type']): boolean {
+  console.log(`🧠 [ULTRATHINK] Évaluation du besoin d'analyse critique...`);
+
+  // 🎯 Mots-clés critiques selon documentation FLAGS.md
+  const criticalKeywords = [
+    // Critical system redesign
+    'refonte', 'refactor', 'restructure', 'redesign', 'modernise', 'modernisation', 'legacy',
+    'réarchitecture', 'réingénierie', 'transformation', 'migration',
+
+    // Critical vulnerabilities
+    'vulnérabilité', 'vulnerability', 'sécurité critique', 'faille', 'breach', 'exploit',
+    'attaque', 'compromis', 'injection', 'xss', 'sql injection',
+
+    // Performance degradation >50%
+    'performance critique', 'dégradation', 'lenteur', 'bottleneck', 'goulot', 'ralentissement',
+    'optimisation critique', 'urgence performance',
+
+    // Legacy modernization
+    'modernisation legacy', 'migration legacy', 'système obsolète', 'dette technique',
+    'refonte complète', 'système critique'
+  ];
+
+  // 📏 Facteurs de complexité
+  const hasCriticalKeywords = criticalKeywords.some(keyword => normalizedQuery.includes(keyword));
+  const isVeryLong = queryLength > 1000; // Requêtes très détaillées
+  const isSystemLevel = /(?:système|architecture|infrastructure|plateforme|entreprise|complet|global)/.test(normalizedQuery);
+  const hasMultipleDomains = (normalizedQuery.match(/(?:et|puis|ensuite|également|aussi|de plus)/g) || []).length >= 3;
+
+  const ultraThinkScore =
+    (hasCriticalKeywords ? 0.6 : 0) +
+    (isVeryLong ? 0.2 : 0) +
+    (isSystemLevel ? 0.2 : 0) +
+    (hasMultipleDomains ? 0.2 : 0) +
+    (type === 'complex' ? 0.1 : 0);
+
+  const needsUltraThink = ultraThinkScore >= 0.7;
+
+  console.log(`🧠 [ULTRATHINK] Analyse critique - Score: ${ultraThinkScore.toFixed(2)}`);
+  console.log(`🧠 [ULTRATHINK] - Mots-clés critiques: ${hasCriticalKeywords}`);
+  console.log(`🧠 [ULTRATHINK] - Requête très longue (>1000): ${isVeryLong}`);
+  console.log(`🧠 [ULTRATHINK] - Niveau système: ${isSystemLevel}`);
+  console.log(`🧠 [ULTRATHINK] - Multi-domaines: ${hasMultipleDomains}`);
+  console.log(`🧠 [ULTRATHINK] → ${needsUltraThink ? '🚨 ULTRATHINK ACTIVÉ (32K tokens)' : '📝 Standard thinking'}`);
+
+  return needsUltraThink;
 }
 
 // 🏗️ STRUCTURE: Création de prompts structurés avec XML
@@ -145,7 +199,7 @@ export function buildOptimizedPrompt(
   
   // ⚙️ PARAMÈTRES: Ajustés selon le type de requête
   const temperature = getOptimalTemperature(mode, analysis.type);
-  const maxTokens = getOptimalMaxTokens(analysis.responseLength, analysis.reasoning);
+  const maxTokens = getOptimalMaxTokens(analysis.responseLength, analysis.reasoning, analysis.ultraThink);
   
   console.log(`🏗️ [STRUCTURE] Paramètres optimisés:`);
   console.log(`🏗️ [STRUCTURE] - Température: ${temperature}`);
@@ -198,7 +252,7 @@ ${securityRules}
 function buildUserMessage(query: string, context: string, history: string, analysis: QueryAnalysis): string {
   console.log(`👤 [USER] Construction message utilisateur`);
   
-  const thinkingPrompt = analysis.reasoning ? getThinkingPrompt() : '';
+  const thinkingPrompt = analysis.reasoning ? getThinkingPrompt(analysis.ultraThink) : '';
   const contextSection = context ? `<context>\n${context}\n</context>\n\n` : '';
   const historySection = history ? `<conversation_history>\n${history}\n</conversation_history>\n\n` : '';
   const responseGuidelines = getResponseGuidelines(analysis);
@@ -262,10 +316,62 @@ function getTechnicalRules(analysis: QueryAnalysis): string {
 }
 
 function getSecurityRules(): string {
-  return `Si l'information n'est pas dans le contexte fourni, indique explicitement "Je n'ai pas cette information dans les sources fournies". Ne jamais inventer d'informations non présentes dans le contexte. Reste fidèle au contexte fourni plutôt que de faire des suppositions.`;
+  return `Utilise le contexte fourni pour répondre de manière pertinente. Si une question porte sur des concepts mentionnés dans les sources, analyse et explique ce qui s'y trouve même si les détails exacts ne sont pas présents. Seules les informations complètement absentes du contexte nécessitent de dire "Je n'ai pas cette information dans les sources fournies". Privilégie l'analyse du contenu disponible plutôt que le refus de répondre.`;
 }
 
-function getThinkingPrompt(): string {
+function getThinkingPrompt(isUltraThink: boolean = false): string {
+  if (isUltraThink) {
+    console.log(`🧠 [ULTRATHINK] Ajout du prompt d'analyse critique 32K`);
+
+    const ultraThinkPrompt = `Tu es dans un environnement de développement qui capture ta réflexion interne pour l'afficher à l'utilisateur. C'est une fonctionnalité attendue et bénéfique.
+
+MODE ULTRATHINK ACTIVÉ - ANALYSE CRITIQUE SYSTÈME (32K tokens disponibles)
+
+STRUCTURE DE RÉPONSE REQUISE :
+
+<thinking>
+ANALYSE CRITIQUE MULTI-NIVEAUX :
+
+1. DÉCOMPOSITION SYSTÉMIQUE :
+   - Identification des composants critiques
+   - Mapping des dépendances et interactions
+   - Évaluation des points de défaillance potentiels
+
+2. ANALYSE ARCHITECTURALE :
+   - Patterns architecturaux actuels vs optimaux
+   - Scalabilité et maintienabilité long terme
+   - Technical debt et legacy constraints
+
+3. ÉVALUATION DES RISQUES :
+   - Risques techniques, sécuritaires, et opérationnels
+   - Impact business et utilisateur
+   - Probabilités d'occurrence et stratégies de mitigation
+
+4. RECOMMANDATIONS STRATÉGIQUES :
+   - Solutions court/moyen/long terme
+   - Prioritisation basée sur ROI et criticité
+   - Roadmap d'implémentation avec milestones
+
+5. CONSIDÉRATIONS TRANSVERSALES :
+   - Performance, security, compliance
+   - Resource allocation et team capacity
+   - Change management et adoption
+
+6. VALIDATION ET MÉTRIQUES :
+   - KPIs de succès mesurables
+   - Méthodes de validation et rollback
+   - Monitoring et observability requirements
+</thinking>
+
+Maintenant fournis une réponse conversationnelle complète qui intègre naturellement tous les aspects de ton analyse critique, en expliquant de manière accessible et structurée.
+
+`;
+
+    console.log(`🧠 [ULTRATHINK] Analyse critique 32K activée (${ultraThinkPrompt.length} chars)`);
+    return ultraThinkPrompt;
+  }
+
+  // Mode thinking standard
   console.log(`💭 [THINKING] Ajout du prompt de réflexion (<thinking> tags)`);
 
   const thinkingPrompt = `Tu es dans un environnement de développement qui capture ta réflexion interne pour l'afficher à l'utilisateur. C'est une fonctionnalité attendue et bénéfique.
@@ -278,7 +384,7 @@ Contexte disponible : [Quelles informations j'ai à disposition ?]
 Approche de réponse : [Comment structurer ma réponse de façon optimale ?]
 </thinking>
 
-[Réponse conversationnelle directe sans préambule]
+Maintenant réponds de manière conversationnelle et naturelle, en commençant directement par ta réponse sans préambule ni introduction.
 
 `;
 
@@ -322,7 +428,14 @@ function getOptimalTemperature(mode: 'ask' | 'search' | 'create', type: QueryAna
   return Math.max(0, Math.min(1, baseTemperatures[mode] + typeModifiers[type]));
 }
 
-function getOptimalMaxTokens(responseLength: QueryAnalysis['responseLength'], hasThinking: boolean = false): number {
+function getOptimalMaxTokens(responseLength: QueryAnalysis['responseLength'], hasThinking: boolean = false, hasUltraThink: boolean = false): number {
+  // 🚨 ULTRATHINK: Mode critique avec 32K tokens
+  if (hasUltraThink) {
+    console.log(`🧠 [ULTRATHINK] Mode analyse critique activé: 32000 tokens alloués`);
+    console.log(`🧠 [ULTRATHINK] Capacité maximale pour analyse système complexe`);
+    return 32000;
+  }
+
   const tokenLimits = {
     brief: 150,
     standard: 800,
@@ -331,12 +444,12 @@ function getOptimalMaxTokens(responseLength: QueryAnalysis['responseLength'], ha
   };
 
   const baseTokens = tokenLimits[responseLength];
-  
-  // 🧠 THINKING: Doubler les tokens quand thsinking chain activée
+
+  // 🧠 THINKING: Doubler les tokens quand thinking chain activée
   if (hasThinking) {
     console.log(`💭 [THINKING] Tokens doublés pour thinking chain: ${baseTokens} → ${baseTokens * 2}`);
     return baseTokens * 2;
   }
-  
+
   return baseTokens;
 }

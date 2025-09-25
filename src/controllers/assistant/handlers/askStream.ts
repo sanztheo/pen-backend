@@ -21,6 +21,17 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     };
     if (!query) return res.status(400).json({ error: 'query requis' });
 
+    // 🔍 [WEB-DEBUG] Traçage du paramètre web depuis la requête (ASK mode)
+    console.log(`🌐 [WEB-DEBUG] [ASK] Paramètre useWeb reçu: ${useWeb} (type: ${typeof useWeb}) - DEFAULT: false`);
+    console.log(`🌐 [WEB-DEBUG] [ASK] Corps de requête - useWeb:`, req.body?.useWeb);
+    console.log(`🌐 [WEB-DEBUG] [ASK] Tous les paramètres:`, JSON.stringify({
+      hasQuery: !!query,
+      workspaceId: !!workspaceId,
+      pageIdsCount: pageIds.length,
+      useWeb,
+      ragSourcesCount: ragSources.length
+    }));
+
     // Convert pageIds to strings to ensure Prisma compatibility
     const pageIdsStr = pageIds.map(id => String(id));
 
@@ -53,10 +64,24 @@ export const assistantAskStream = async (req: Request, res: Response) => {
       contextPageIds = validPageIds;
     }
 
+    // 🔍 [WEB-DEBUG] Déclenchement de la recherche web (ASK mode)
+    console.log(`🌐 [WEB-DEBUG] [ASK] Avant recherche web - useWeb: ${useWeb}, query: "${sanitizedQuery}"`);
+
     const [ctx, web] = await Promise.all([
       workspaceId && contextPageIds.length > 0 ? buildPagesContextChunked(workspaceId, contextPageIds, 8, sanitizedQuery, 10) : Promise.resolve(''),
       useWeb ? tavilySearch(sanitizedQuery) : Promise.resolve('')
     ]);
+
+    // 🔍 [WEB-DEBUG] Résultats de la recherche web (ASK mode)
+    console.log(`🌐 [WEB-DEBUG] [ASK] Après recherche web - useWeb: ${useWeb}`);
+    console.log(`🌐 [WEB-DEBUG] [ASK] - Web text length: ${web.length}`);
+    if (useWeb && web.length === 0) {
+      console.log(`🌐 [WEB-DEBUG] [ASK] ⚠️ ATTENTION: Web activé mais aucun contenu trouvé!`);
+    }
+    if (!useWeb && web.length > 0) {
+      console.log(`🌐 [WEB-DEBUG] [ASK] 🚨 ERREUR: Web désactivé mais contenu présent!`);
+    }
+
     const history = ConversationMemory.recentAsText(req.user.id, { maxChars: 1200, maxMessages: 8 });
 
     // 🏗️ STRUCTURE: Construction du prompt optimisé avec RAG + Web dans context
