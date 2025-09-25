@@ -399,11 +399,98 @@ export class SessionMemorySystem {
   }
 
   private formatSearchResults(results: RAGSearchResult[]): string {
-    return results.map((result, index) => 
+    return results.map((result, index) =>
       `## Source ${index + 1}: ${result.source.title}\n` +
       (result.sectionTitle ? `### ${result.sectionTitle}\n` : '') +
       `${result.content.slice(0, 500)}${result.content.length > 500 ? '...' : ''}\n`
     ).join('\n');
+  }
+
+  // 🔍 Récupérer une session active pour un utilisateur et workspace
+  async getActiveSession(userId: string, workspaceId: string): Promise<any | null> {
+    try {
+      const session = await prisma.rAGSession.findFirst({
+        where: {
+          userId,
+          workspaceId,
+          // Considérer comme active si utilisée dans les dernières 24h
+          lastQueryAt: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
+          }
+        },
+        orderBy: { lastQueryAt: 'desc' },
+        include: { sourcesUsed: true }
+      });
+
+      return session;
+    } catch (error) {
+      console.error('Erreur récupération session active:', error);
+      return null;
+    }
+  }
+
+  // 📚 Récupérer les sources d'une session
+  async getSessionSources(sessionId: string): Promise<Array<{ title: string; type: string; id: string }> | null> {
+    try {
+      const session = await prisma.rAGSession.findUnique({
+        where: { id: sessionId },
+        include: {
+          sourcesUsed: {
+            select: {
+              id: true,
+              title: true,
+              sourceType: true
+            }
+          }
+        }
+      });
+
+      if (!session || !session.sourcesUsed) {
+        return null;
+      }
+
+      return session.sourcesUsed.map(source => ({
+        id: source.id,
+        title: source.title,
+        type: source.sourceType || 'unknown'
+      }));
+    } catch (error) {
+      console.error('Erreur récupération sources session:', error);
+      return null;
+    }
+  }
+
+  // 💾 Sauvegarder les sources utilisées dans une session
+  async saveSessionSources(sessionId: string, sources: Array<{ id: string; title: string; type: string }>): Promise<boolean> {
+    try {
+      // D'abord, supprimer les sources existantes pour cette session
+      await prisma.rAGSession.update({
+        where: { id: sessionId },
+        data: {
+          sourcesUsed: {
+            set: [] // Vider la relation
+          }
+        }
+      });
+
+      // Ensuite, ajouter les nouvelles sources
+      const sourceConnections = sources.map(source => ({ id: source.id }));
+
+      await prisma.rAGSession.update({
+        where: { id: sessionId },
+        data: {
+          sourcesUsed: {
+            connect: sourceConnections
+          }
+        }
+      });
+
+      console.log(`✅ Session ${sessionId}: ${sources.length} sources sauvegardées`);
+      return true;
+    } catch (error) {
+      console.error('Erreur sauvegarde sources session:', error);
+      return false;
+    }
   }
 }
 

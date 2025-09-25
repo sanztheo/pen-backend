@@ -38,10 +38,36 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     let selectedIds2: string[] = pageIdsStr;
     
     // 🧠 RAG: Les pages sont maintenant embedées automatiquement à la sélection (frontend)
-    
+
+    // 🔥 NOUVEAU: Si pas de sources RAG mais une session active, récupérer les sources de la session
+    let effectiveRagSources = ragSources;
+    if ((!ragSources || ragSources.length === 0) && req.user) {
+      try {
+        console.log('[AssistantSearchStream] Pas de sources RAG explicites, vérification session active');
+        const { sessionMemory } = await import('../../../services/rag/sessionMemory.js');
+        const activeSession = await sessionMemory.getActiveSession(req.user.id, workspaceId);
+
+        if (activeSession) {
+          console.log(`[AssistantSearchStream] Session RAG active trouvée: ${activeSession.id}`);
+          // Récupérer les sources de la dernière interaction
+          const sessionSources = await sessionMemory.getSessionSources(activeSession.id);
+          if (sessionSources && sessionSources.length > 0) {
+            effectiveRagSources = sessionSources.map(source => ({
+              title: source.title,
+              type: source.type,
+              id: source.id
+            }));
+            console.log('[AssistantSearchStream] Sources récupérées de la session:', effectiveRagSources.map(s => s.title));
+          }
+        }
+      } catch (error) {
+        console.error('[AssistantSearchStream] Erreur récupération session RAG:', error);
+      }
+    }
+
     // 🔥 NOUVEAU: Si nous avons des sources RAG et que ce n'est pas "toutes les sources", utiliser uniquement les sources RAG
-    if (ragSources && ragSources.length > 0 && (req.body as any)?.sourcesScope !== 'all') {
-      console.log('[AssistantSearchStream] Utilisation des sources RAG:', ragSources.map(s => s.title));
+    if (effectiveRagSources && effectiveRagSources.length > 0 && (req.body as any)?.sourcesScope !== 'all') {
+      console.log('[AssistantSearchStream] Utilisation des sources RAG:', effectiveRagSources.map(s => s.title));
 
       // Pour les sources RAG externes (Wikipedia), on n'utilise PAS les pages de l'workspace
       // Le contenu viendra directement du système RAG dans buildPagesContextChunked
@@ -191,14 +217,14 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     // 🧠 RAG: Construction du contexte intelligent
     let ctx = '';
 
-    if (ragSources && ragSources.length > 0) {
+    if (effectiveRagSources && effectiveRagSources.length > 0) {
       // Utiliser les chunks RAG externes comme contexte
       console.log('[AssistantSearchStream] Construction du contexte à partir des sources RAG externes');
       try {
         const { ragSystem } = await import('../../../services/rag/index.js');
         // Extraire les IDs des sources RAG spécifiques depuis les titres
         const ragSourceIds = [];
-        for (const ragSource of ragSources) {
+        for (const ragSource of effectiveRagSources) {
           try {
             const sourceRecord = await prisma.rAGSource.findFirst({
               where: {
@@ -216,7 +242,7 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           }
         }
 
-        console.log('[AssistantSearchStream] Sources RAG trouvées:', ragSourceIds.length, 'sur', ragSources.length, 'demandées');
+        console.log('[AssistantSearchStream] Sources RAG trouvées:', ragSourceIds.length, 'sur', effectiveRagSources.length, 'demandées');
 
         const ragResults = await ragSystem.intelligentSearch(sanitizedQuery, {
           workspaceId,
