@@ -159,11 +159,13 @@ router.post('/rag/context', async (req: any, res) => {
     }
 
     // 2. Créer ou récupérer la session
+    console.log(`🔍 [RAG-DEBUG] SESSION - Création/récupération session pour userId: ${req.user.id}, workspaceId: ${workspaceId}, sessionKey: ${sessionKey}`);
     const sessionId = await sessionMemory.getOrCreateSession(
       req.user.id,
       workspaceId,
       sessionKey
     );
+    console.log(`🔍 [RAG-DEBUG] SESSION - Session obtenue: ${sessionId}`);
 
     // 3. Recherche RAG intelligente
     console.log(`🔍 [RAG-DEBUG] Recherche RAG pour userId: ${req.user.id}, workspaceId: ${workspaceId}, query: "${query}"`);
@@ -175,7 +177,7 @@ router.post('/rag/context', async (req: any, res) => {
     // Sources explicitement sélectionnées
     if (selectedSources && selectedSources.wikipediaSources && selectedSources.wikipediaSources.length > 0) {
       sourcesToProcess = selectedSources.wikipediaSources.map((s: { title: string }) => ({ title: s.title }));
-      console.log(`🔍 [RAG-DEBUG] Recherche des IDs pour les sources Wikipedia sélectionnées:`, sourcesToProcess.map(s => s.title));
+      console.log(`🔍 [RAG-DEBUG] Recherche des IDs pour les sources Wikipedia sélectionnées:`, sourcesToProcess.map((s: { title: string }) => s.title));
     }
     // Sources de session active
     else if (activeSessionSources && activeSessionSources.length > 0) {
@@ -250,18 +252,37 @@ router.post('/rag/context', async (req: any, res) => {
     const sessionMemoryText = await sessionMemory.getRecentMemory(sessionId, 5);
 
     // 6. 🔥 NOUVEAU: Sauvegarder les sources utilisées dans la session pour persistance
+    console.log(`🔍 [RAG-DEBUG] DIAGNOSTIC - sessionId: ${sessionId}, searchResults.length: ${searchResults.length}`);
+    console.log(`🔍 [RAG-DEBUG] DIAGNOSTIC - searchResults types:`, searchResults.map(r => `${r.source.title}(${r.source.sourceType})`));
+
     if (sessionId && searchResults.length > 0) {
       try {
         console.log(`🔍 [RAG-DEBUG] Sauvegarde des sources dans la session: ${sessionId}`);
-        await sessionMemory.saveSessionSources(sessionId, searchResults.map(r => ({
+
+        // 🔧 DÉDUPLICATION: Ne sauvegarder que les sources uniques, pas tous les chunks
+        const allSources = searchResults.map(r => ({
           id: r.source.id,
           title: r.source.title,
           type: r.source.sourceType || 'wikipedia'
-        })));
-        console.log(`🔍 [RAG-DEBUG] Sources sauvegardées: ${searchResults.map(r => r.source.title).join(', ')}`);
+        }));
+
+        // Déduplication par ID source
+        const uniqueSourcesMap = new Map();
+        allSources.forEach(source => {
+          uniqueSourcesMap.set(source.id, source);
+        });
+        const sourcesToSave = Array.from(uniqueSourcesMap.values());
+
+        console.log(`🔍 [RAG-DEBUG] Sources dédupliquées: ${allSources.length} → ${sourcesToSave.length}`);
+        console.log(`🔍 [RAG-DEBUG] Sources à sauvegarder:`, sourcesToSave);
+
+        const saved = await sessionMemory.saveSessionSources(sessionId, sourcesToSave);
+        console.log(`🔍 [RAG-DEBUG] Sauvegarde ${saved ? 'réussie' : 'échouée'}: ${searchResults.map(r => r.source.title).join(', ')}`);
       } catch (error) {
         console.error(`🔍 [RAG-DEBUG] Erreur sauvegarde sources session:`, error);
       }
+    } else {
+      console.log(`🔍 [RAG-DEBUG] Sauvegarde SKIPPÉE - sessionId: ${sessionId ? 'OK' : 'NULL'}, searchResults: ${searchResults.length}`);
     }
 
     res.json({

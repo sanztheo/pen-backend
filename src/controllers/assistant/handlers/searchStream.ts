@@ -23,6 +23,17 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     };
     if (!query || !workspaceId) return res.status(400).json({ error: 'query et workspaceId requis' });
 
+    // 🔍 [WEB-DEBUG] Traçage du paramètre web depuis la requête
+    console.log(`🌐 [WEB-DEBUG] Paramètre useWeb reçu: ${useWeb} (type: ${typeof useWeb})`);
+    console.log(`🌐 [WEB-DEBUG] Corps de requête - useWeb:`, req.body?.useWeb);
+    console.log(`🌐 [WEB-DEBUG] Tous les paramètres:`, JSON.stringify({
+      hasQuery: !!query,
+      workspaceId: !!workspaceId,
+      pageIdsCount: pageIds.length,
+      useWeb,
+      ragSourcesCount: ragSources.length
+    }));
+
     // Convert pageIds to strings to ensure Prisma compatibility
     const pageIdsStr = pageIds.map(id => String(id));
 
@@ -268,8 +279,23 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
       ctx = await buildPagesContextChunked(workspaceId, contextPageIds, 10, sanitizedQuery, 12);
     }
 
+    // 🔍 [WEB-DEBUG] Déclenchement de la recherche web
+    console.log(`🌐 [WEB-DEBUG] Avant recherche web - useWeb: ${useWeb}, query: "${sanitizedQuery}"`);
+
     const webWithRefs = useWeb ? await tavilySearchRefs(sanitizedQuery) : { text: '', refs: [] };
     const web = webWithRefs.text;
+
+    // 🔍 [WEB-DEBUG] Résultats de la recherche web
+    console.log(`🌐 [WEB-DEBUG] Après recherche web - useWeb: ${useWeb}`);
+    console.log(`🌐 [WEB-DEBUG] - Web text length: ${web.length}`);
+    console.log(`🌐 [WEB-DEBUG] - Web refs count: ${(webWithRefs.refs || []).length}`);
+    if (useWeb && web.length === 0) {
+      console.log(`🌐 [WEB-DEBUG] ⚠️ ATTENTION: Web activé mais aucun contenu trouvé!`);
+    }
+    if (!useWeb && web.length > 0) {
+      console.log(`🌐 [WEB-DEBUG] 🚨 ERREUR: Web désactivé mais contenu présent!`);
+    }
+
     console.log('[AssistantSearchStream] workspaceId=', workspaceId, 'pageIds=', pageIds, 'ctx.len=', ctx.length, 'useWeb=', useWeb, 'web.len=', web.length, 'web.refs=', (webWithRefs.refs || []).length);
 
     // 🏗️ STRUCTURE: Construction du prompt optimisé avec RAG + Web dans context
@@ -329,6 +355,17 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     const refPages2 = await prisma.page.findMany({ where: { id: { in: selectedIds2 } }, select: { id:true, title:true } });
     const pageRefs = refPages2.map(p => ({ title: p.title }));
     const webRefs = webWithRefs.refs || [];
+
+    // 🔍 [WEB-DEBUG] Traçage des références finales
+    console.log(`🌐 [WEB-DEBUG] Références finales - useWeb: ${useWeb}`);
+    console.log(`🌐 [WEB-DEBUG] - Page refs count: ${pageRefs.length}`);
+    console.log(`🌐 [WEB-DEBUG] - Web refs count: ${webRefs.length}`);
+    console.log(`🌐 [WEB-DEBUG] - Wikipedia refs count: ${wikipediaRefs.length}`);
+    if (!useWeb && webRefs.length > 0) {
+      console.log(`🌐 [WEB-DEBUG] 🚨 ALERTE: Web désactivé mais ${webRefs.length} références web présentes!`);
+      console.log(`🌐 [WEB-DEBUG] Web refs details:`, webRefs.map(r => r.title || r.url || JSON.stringify(r)));
+    }
+
     const refsBlock = formatItalicReferences([...pageRefs, ...webRefs, ...wikipediaRefs]);
     if (refsBlock) {
       sseWriteData(res, refsBlock);

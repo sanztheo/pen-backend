@@ -61,6 +61,17 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     };
     if (!instruction || !workspaceId) return res.status(400).json({ error: 'instruction, workspaceId requis' });
 
+    // 🔍 [WEB-DEBUG] Traçage du paramètre web depuis la requête (CREATE mode)
+    console.log(`🌐 [WEB-DEBUG] [CREATE] Paramètre useWeb reçu: ${useWeb} (type: ${typeof useWeb}) - DEFAULT: true`);
+    console.log(`🌐 [WEB-DEBUG] [CREATE] Corps de requête - useWeb:`, req.body?.useWeb);
+    console.log(`🌐 [WEB-DEBUG] [CREATE] Tous les paramètres:`, JSON.stringify({
+      hasInstruction: !!instruction,
+      workspaceId: !!workspaceId,
+      useWeb,
+      ragSourcesCount: ragSources.length,
+      reflection
+    }));
+
     console.log(`🔥 [CREATE-STREAM] ENTRÉE - workspaceId: ${workspaceId}, ragSources.length: ${ragSources.length}, ragSources: ${ragSources.map(s => s.title).join(', ')}`);
 
     // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
@@ -81,7 +92,20 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
       ragContextText = ''; // Le contexte viendra du système RAG automatiquement
     }
 
+    // 🔍 [WEB-DEBUG] Déclenchement de la recherche web (CREATE mode)
+    console.log(`🌐 [WEB-DEBUG] [CREATE] Avant recherche web - useWeb: ${useWeb}, instruction: "${sanitizedInstruction}"`);
+
     const web = useWeb ? await tavilySearch(sanitizedInstruction) : '';
+
+    // 🔍 [WEB-DEBUG] Résultats de la recherche web (CREATE mode)
+    console.log(`🌐 [WEB-DEBUG] [CREATE] Après recherche web - useWeb: ${useWeb}`);
+    console.log(`🌐 [WEB-DEBUG] [CREATE] - Web text length: ${web.length}`);
+    if (useWeb && web.length === 0) {
+      console.log(`🌐 [WEB-DEBUG] [CREATE] ⚠️ ATTENTION: Web activé mais aucun contenu trouvé!`);
+    }
+    if (!useWeb && web.length > 0) {
+      console.log(`🌐 [WEB-DEBUG] [CREATE] 🚨 ERREUR: Web désactivé mais contenu présent!`);
+    }
 
     if (reflection === 'profond') {
       try {
