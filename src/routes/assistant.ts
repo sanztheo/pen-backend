@@ -106,10 +106,37 @@ router.post('/rag/context', async (req: any, res) => {
       selectedSources.sourcesScope === 'all'
     );
 
+    // 🔥 NOUVEAU: Si pas de sources sélectionnées, vérifier si une session active existe
+    let hasActiveSession = false;
+    let activeSessionSources = null;
+    if (!hasSelectedSources && req.user) {
+      try {
+        console.log(`🔍 [RAG-DEBUG] Pas de sources sélectionnées, vérification session active pour userId: ${req.user.id}`);
+        const { sessionMemory } = await import('../services/rag/sessionMemory.js');
+        const activeSession = await sessionMemory.getActiveSession(req.user.id, workspaceId);
+
+        if (activeSession) {
+          hasActiveSession = true;
+          activeSessionSources = await sessionMemory.getSessionSources(activeSession.id);
+          console.log(`🔍 [RAG-DEBUG] Session RAG active trouvée avec ${activeSessionSources?.length || 0} sources`);
+          if (activeSessionSources && activeSessionSources.length > 0) {
+            console.log(`🔍 [RAG-DEBUG] Sources de session:`, activeSessionSources.map(s => s.title));
+          }
+        } else {
+          console.log(`🔍 [RAG-DEBUG] Aucune session RAG active trouvée`);
+        }
+      } catch (error) {
+        console.error(`🔍 [RAG-DEBUG] Erreur vérification session:`, error);
+      }
+    }
+
     let shouldUseRAG = false;
     if (hasSelectedSources) {
       shouldUseRAG = true;
       console.log(`🔍 [RAG-DEBUG] RAG forcé car des sources sont sélectionnées`);
+    } else if (hasActiveSession && activeSessionSources && activeSessionSources.length > 0) {
+      shouldUseRAG = true;
+      console.log(`🔍 [RAG-DEBUG] RAG forcé car session active avec ${activeSessionSources.length} sources`);
     } else {
       shouldUseRAG = await ragSystem.shouldUseRAG(query);
       console.log(`🔍 [RAG-DEBUG] Analyse IA de la query: ${shouldUseRAG}`);
@@ -141,17 +168,29 @@ router.post('/rag/context', async (req: any, res) => {
     // 3. Recherche RAG intelligente
     console.log(`🔍 [RAG-DEBUG] Recherche RAG pour userId: ${req.user.id}, workspaceId: ${workspaceId}, query: "${query}"`);
 
-    // 🔥 NOUVEAU: Si des sources Wikipedia sont sélectionnées, récupérer leurs IDs RAG
+    // 🔥 NOUVEAU: Si des sources Wikipedia sont sélectionnées OU une session active, récupérer leurs IDs RAG
     let specificSourceIds: string[] = [];
+    let sourcesToProcess = [];
+
+    // Sources explicitement sélectionnées
     if (selectedSources && selectedSources.wikipediaSources && selectedSources.wikipediaSources.length > 0) {
-      console.log(`🔍 [RAG-DEBUG] Recherche des IDs pour les sources Wikipedia sélectionnées:`, selectedSources.wikipediaSources.map((s: { title: string }) => s.title));
+      sourcesToProcess = selectedSources.wikipediaSources.map((s: { title: string }) => ({ title: s.title }));
+      console.log(`🔍 [RAG-DEBUG] Recherche des IDs pour les sources Wikipedia sélectionnées:`, sourcesToProcess.map(s => s.title));
+    }
+    // Sources de session active
+    else if (activeSessionSources && activeSessionSources.length > 0) {
+      sourcesToProcess = activeSessionSources;
+      console.log(`🔍 [RAG-DEBUG] Recherche des IDs pour les sources de session:`, sourcesToProcess.map(s => s.title));
+    }
+
+    if (sourcesToProcess.length > 0) {
       const { prisma } = await import('../lib/prisma.js');
 
-      for (const wikiSource of selectedSources.wikipediaSources) {
+      for (const source of sourcesToProcess) {
         try {
           const sourceRecord = await prisma.rAGSource.findFirst({
             where: {
-              title: wikiSource.title,
+              title: source.title,
               isGlobal: true,
               status: 'COMPLETED'
             },
@@ -159,12 +198,12 @@ router.post('/rag/context', async (req: any, res) => {
           });
           if (sourceRecord) {
             specificSourceIds.push(sourceRecord.id);
-            console.log(`🔍 [RAG-DEBUG] Source "${wikiSource.title}" trouvée avec ID: ${sourceRecord.id}`);
+            console.log(`🔍 [RAG-DEBUG] Source "${source.title}" trouvée avec ID: ${sourceRecord.id}`);
           } else {
-            console.warn(`🔍 [RAG-DEBUG] Source "${wikiSource.title}" non trouvée dans la base RAG`);
+            console.warn(`🔍 [RAG-DEBUG] Source "${source.title}" non trouvée dans la base RAG`);
           }
         } catch (error) {
-          console.error(`🔍 [RAG-DEBUG] Erreur recherche source "${wikiSource.title}":`, error);
+          console.error(`🔍 [RAG-DEBUG] Erreur recherche source "${source.title}":`, error);
         }
       }
       console.log(`🔍 [RAG-DEBUG] IDs sources finaux:`, specificSourceIds);
@@ -209,6 +248,21 @@ router.post('/rag/context', async (req: any, res) => {
 
     // 5. Récupérer la mémoire de session récente
     const sessionMemoryText = await sessionMemory.getRecentMemory(sessionId, 5);
+
+    // 6. 🔥 NOUVEAU: Sauvegarder les sources utilisées dans la session pour persistance
+    if (sessionId && searchResults.length > 0) {
+      try {
+        console.log(`🔍 [RAG-DEBUG] Sauvegarde des sources dans la session: ${sessionId}`);
+        await sessionMemory.saveSessionSources(sessionId, searchResults.map(r => ({
+          id: r.source.id,
+          title: r.source.title,
+          type: r.source.sourceType || 'wikipedia'
+        })));
+        console.log(`🔍 [RAG-DEBUG] Sources sauvegardées: ${searchResults.map(r => r.source.title).join(', ')}`);
+      } catch (error) {
+        console.error(`🔍 [RAG-DEBUG] Erreur sauvegarde sources session:`, error);
+      }
+    }
 
     res.json({
       success: true,
