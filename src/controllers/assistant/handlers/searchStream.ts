@@ -1,66 +1,49 @@
+/**
+ * 🔍 SEARCH STREAM HANDLER - REFACTORISÉ
+ * Handler unifié pour la recherche avec RAG + Web + Workspace
+ */
+
 import { Request, Response } from 'express';
 import { prisma } from '../../../lib/prisma.js';
 import { AIService } from '../../../services/ai/index.js';
-import { selectRelevantPagesWithAssistant } from '../../../services/ai/assistants/selectPages.js';
-import { detectPreferredLanguage, buildLangInstruction } from '../helpers/language.js';
-import { isMathLatexIntent, LATEX_STRICT_RULES } from '../helpers/latex.js';
-import { buildPagesContextChunked } from '../helpers/context.js';
-import { tavilySearchRefs } from '../helpers/web.js';
-import { titleRelevanceScore } from '../helpers/scoring.js';
 import { sseWriteData } from '../helpers/sse.js';
 import { formatAIStreamChunk, formatItalicReferences } from '../helpers/format.js';
 import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helpers/promptOptimizer.js';
+import { AssistantHandlerService } from '../services/HandlerService.js';
+import { SourceSelectionService } from '../services/SourceSelectionService.js';
+import { DebugLogger } from '../config/debug.js';
 
 export const assistantSearchStream = async (req: Request, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Utilisateur non authentifié' });
-    const { query, workspaceId, pageIds = [], useWeb = true, ragSources = [] } = req.body as {
-      query: string;
-      workspaceId: string;
-      pageIds?: (string | number)[];
-      useWeb?: boolean;
-      ragSources?: Array<{ title: string; [key: string]: any }>;
-    };
-    if (!query || !workspaceId) return res.status(400).json({ error: 'query et workspaceId requis' });
+    // 🔧 REFACTOR: Validation et parsing unifié
+    const { request, errors } = AssistantHandlerService.parseRequest(req);
+    if (errors.length > 0) {
+      return res.status(400).json({ error: errors.join(', ') });
+    }
 
-    // 🔍 [WEB-DEBUG] Traçage du paramètre web depuis la requête
-    console.log(`🌐 [WEB-DEBUG] Paramètre useWeb reçu: ${useWeb} (type: ${typeof useWeb})`);
-    console.log(`🌐 [WEB-DEBUG] Corps de requête - useWeb:`, req.body?.useWeb);
-    console.log(`🌐 [WEB-DEBUG] Tous les paramètres:`, JSON.stringify({
-      hasQuery: !!query,
-      workspaceId: !!workspaceId,
-      pageIdsCount: pageIds.length,
-      useWeb,
-      ragSourcesCount: ragSources.length
-    }));
+    const { query, workspaceId, pageIds, useWeb, ragSources, userId } = request;
 
-    // Convert pageIds to strings to ensure Prisma compatibility
-    const pageIdsStr = pageIds.map(id => String(id));
+    // 🔍 REFACTOR: Debug unifié
+    AssistantHandlerService.traceWebParams('SEARCH', request);
 
-    console.log(`🔥 [SEARCH-STREAM] ENTRÉE - workspaceId: ${workspaceId}, pageIds: [${pageIdsStr.join(', ')}], pageIds.length: ${pageIdsStr.length}, ragSources.length: ${ragSources.length}`);
+    DebugLogger.performance(`[SEARCH] ENTRÉE - workspaceId: ${workspaceId}, pageIds: ${pageIds.length}, ragSources: ${ragSources.length}`);
 
-    // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
+    // 🛡️ SÉCURITÉ: Nettoyage unifié
     const sanitizedQuery = sanitizeUserInput(query);
-    
-    // 🧠 INTELLIGENCE: Analyse de la requête
+
+    // 🧠 INTELLIGENCE: Analyse unifié
     const analysis = analyzeQuery(sanitizedQuery, req);
 
-    const lang = detectPreferredLanguage(req);
-    let selectedIds2: string[] = pageIdsStr;
-    
-    // 🧠 RAG: Les pages sont maintenant embedées automatiquement à la sélection (frontend)
-
-    // 🔥 NOUVEAU: Si pas de sources RAG mais une session active, récupérer les sources de la session
+    // 🔥 REFACTOR: Récupération session RAG si nécessaire
     let effectiveRagSources = ragSources;
-    if ((!ragSources || ragSources.length === 0) && req.user) {
+    if ((!ragSources || ragSources.length === 0) && userId) {
       try {
-        console.log('[AssistantSearchStream] Pas de sources RAG explicites, vérification session active');
+        DebugLogger.rag('Pas de sources RAG explicites, vérification session active');
         const { sessionMemory } = await import('../../../services/rag/sessionMemory.js');
-        const activeSession = await sessionMemory.getActiveSession(req.user.id, workspaceId);
+        const activeSession = await sessionMemory.getActiveSession(userId, workspaceId);
 
         if (activeSession) {
-          console.log(`[AssistantSearchStream] Session RAG active trouvée: ${activeSession.id}`);
-          // Récupérer les sources de la dernière interaction
+          DebugLogger.rag(`Session RAG active trouvée: ${activeSession.id}`);
           const sessionSources = await sessionMemory.getSessionSources(activeSession.id);
           if (sessionSources && sessionSources.length > 0) {
             effectiveRagSources = sessionSources.map(source => ({
@@ -68,240 +51,52 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
               type: source.type,
               id: source.id
             }));
-            console.log('[AssistantSearchStream] Sources récupérées de la session:', effectiveRagSources.map(s => s.title));
+            DebugLogger.rag('Sources récupérées de la session:', effectiveRagSources.map(s => s.title));
           }
         }
       } catch (error) {
-        console.error('[AssistantSearchStream] Erreur récupération session RAG:', error);
+        DebugLogger.rag('Erreur récupération session RAG:', error);
       }
     }
 
-    // 🔥 NOUVEAU: Si nous avons des sources RAG et que ce n'est pas "toutes les sources", utiliser uniquement les sources RAG
-    if (effectiveRagSources && effectiveRagSources.length > 0 && (req.body as any)?.sourcesScope !== 'all') {
-      console.log('[AssistantSearchStream] Utilisation des sources RAG:', effectiveRagSources.map(s => s.title));
+    // 🎯 REFACTOR: Sélection de sources avec strategy pattern
+    const sourceSelection = await SourceSelectionService.selectSources({
+      query: sanitizedQuery,
+      workspaceId,
+      userId,
+      ragSources: effectiveRagSources,
+      sourcesScope: (req.body as any)?.sourcesScope,
+      selectedPageIds: pageIds
+    });
 
-      // Pour les sources RAG externes (Wikipedia), on n'utilise PAS les pages de l'workspace
-      // Le contenu viendra directement du système RAG dans buildPagesContextChunked
-      selectedIds2 = [];
-      console.log('[AssistantSearchStream] Mode RAG externe: pas de pages workspace utilisées, contenu via RAG uniquement');
-    }
-    // 🔥 CORRIGÉ: Logique stricte pour "toutes les sources" UNIQUEMENT si sourcesScope === 'all'
-    else if ((req.body as any)?.sourcesScope === 'all') {
-      console.log('[AssistantSearchStream] selection step (all sources)');
-      const all = await prisma.page.findMany({ where: { workspaceId, isArchived: false }, select: { id: true, title: true }, orderBy: { updatedAt: 'desc' }, take: 200 });
-      const sel = await selectRelevantPagesWithAssistant({ question: sanitizedQuery, pages: all.map(p => ({ id: p.id, title: p.title })), maxResults: 5 });
-      const initialSelected2 = (sel.selected || []);
-      let pruned2 = initialSelected2
-        .map(p => ({ ...p, score: titleRelevanceScore(p.title, sanitizedQuery) }))
-        .filter(p => p.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5)
-        .map(p => p.id);
-      console.log('[AssistantSearchStream] IA selection (raw)=', initialSelected2.map(p => p.title));
-      console.log('[AssistantSearchStream] IA selection pruned (ids.len)=', pruned2.length);
-      selectedIds2 = pruned2;
-      if (!selectedIds2.length || selectedIds2.length === all.length) {
-        console.log('[AssistantSearchStream] AI selection failed, using smart fallback');
-        const score = (title: string) => {
-          const queryWords = (sanitizedQuery || '').toLowerCase()
-            .split(/[^a-zàâçéèêëîïôûùüÿñæœ0-9]+/)
-            .filter(w => w.length >= 2);
-          const titleLower = (title || '').toLowerCase();
-          let totalScore = 0;
-          for (const word of queryWords) {
-            if (titleLower.includes(word)) {
-              totalScore += word.length * 2;
-            }
-            const wordParts = word.split('');
-            let partialMatch = 0;
-            for (const char of wordParts) {
-              if (titleLower.includes(char)) partialMatch++;
-            }
-            totalScore += (partialMatch / word.length) * 0.5;
-          }
-          return totalScore;
-        };
-        const scored = all.map(p => ({ ...p, score: score(p.title) }))
-          .filter(p => p.score > 0)
-          .sort((a, b) => b.score - a.score);
-        selectedIds2 = scored.slice(0, Math.min(5, scored.length)).map(p => p.id);
-        console.log('[AssistantSearchStream] fallback selection:', scored.slice(0,5).map(p => `${p.title} (${p.score})`));
-        if (!selectedIds2.length) {
-          selectedIds2 = all.slice(0, 3).map(p => p.id);
-          console.log('[AssistantSearchStream] final fallback: recent pages');
-        }
-      }
-      console.log('[AssistantSearchStream] selectedIds.len=', selectedIds2.length);
-    }
-    // 🔥 NOUVEAU: Si pas de sources sélectionnées et pas "toutes les sources", utiliser un fallback minimal
-    else if (!selectedIds2 || selectedIds2.length === 0) {
-      console.log('[AssistantSearchStream] Aucune source sélectionnée et pas en mode "toutes les sources"');
-      // Fallback : ne prendre aucune page ou retourner une erreur
-      selectedIds2 = [];
-    }
+    DebugLogger.rag(`Stratégie sélectionnée: ${sourceSelection.strategy}, pages: ${sourceSelection.selectedPageIds.length}, RAG: ${sourceSelection.ragSources.length}`);
 
-    // 🧠 RAG: Auto-embedding des pages sélectionnées (mode asynchrone)
-    // SEULEMENT si on n'utilise pas des sources RAG externes ET qu'on a des IDs valides
-    if (selectedIds2.length > 0 && !(ragSources && ragSources.length > 0)) {
+    // 🧠 RAG: Auto-embedding asynchrone pour pages workspace
+    if (sourceSelection.selectedPageIds.length > 0 && sourceSelection.strategy !== 'rag') {
       try {
-        const { userPagesRAG } = await import('../../../services/rag/userPages.js');
-
-        // Valider que les selectedIds2 sont des UUIDs valides avant de les utiliser
-        const validSelectedIds = selectedIds2.filter(id => {
-          // Simple validation UUID (32 chars + hyphens = 36 chars total)
-          return id.length === 36 && id.includes('-');
-        });
-
-        if (validSelectedIds.length !== selectedIds2.length) {
-          console.log(`⚠️ [SEARCH-STREAM] IDs invalides filtrés: ${selectedIds2.length - validSelectedIds.length} IDs ignorés`);
-        }
-
-        if (validSelectedIds.length === 0) {
-          console.log('⚠️ [SEARCH-STREAM] Aucun ID valide, pas de récupération de pages');
-        } else {
-          // Récupérer les informations des pages sélectionnées
-          const selectedPages = await prisma.page.findMany({
-            where: {
-              id: { in: validSelectedIds },
-              workspaceId: workspaceId,
-              isArchived: false
-            },
-            select: {
-              id: true,
-              title: true,
-              blockNoteContent: true,
-              updatedAt: true
-            }
-          });
-
-          // Traitement asynchrone des embeddings (pas bloquant)
-          selectedPages.forEach(page => {
-            if (page.title && page.title.length > 10) {
-              // Extraire le contenu texte depuis blockNoteContent si disponible
-              let textContent = page.title;
-              try {
-                if (page.blockNoteContent) {
-                  const content = typeof page.blockNoteContent === 'string'
-                    ? JSON.parse(page.blockNoteContent)
-                    : page.blockNoteContent;
-
-                  // Extraction basique du texte depuis BlockNote content
-                  if (content && Array.isArray(content)) {
-                    const textParts = content
-                      .filter((block: any) => block?.type === 'paragraph' && block?.content)
-                      .map((block: any) =>
-                        Array.isArray(block.content)
-                          ? block.content.map((item: any) => item?.text || '').join('')
-                          : ''
-                      )
-                      .filter(Boolean);
-
-                    if (textParts.length > 0) {
-                      textContent = page.title + '\n\n' + textParts.join('\n\n');
-                    }
-                  }
-                }
-              } catch (error) {
-                console.error(`🧠 [RAG] Erreur extraction contenu page "${page.title}":`, error);
-              }
-
-              userPagesRAG.processUserPage({
-                id: page.id,
-                title: page.title,
-                content: textContent,
-                userId: req.user!.id,
-                workspaceId: workspaceId,
-                updatedAt: page.updatedAt
-              }).catch(error => {
-                console.error(`🧠 [RAG] Erreur embedding page "${page.title}":`, error);
-              });
-            }
-          });
-
-          console.log(`🧠 [RAG] Embedding déclenché pour ${selectedPages.length} pages sélectionnées`);
-        }
+        await processUserPagesEmbedding(sourceSelection.selectedPageIds, workspaceId, userId);
       } catch (error) {
-        console.error('🧠 [RAG] Service non disponible:', error);
+        DebugLogger.embedding('Erreur embedding pages:', error);
       }
     }
 
-    // 🧠 RAG: Construction du contexte intelligent
-    let ctx = '';
+    // 🏗️ REFACTOR: Construction contexte unifié
+    const contextResult = await AssistantHandlerService.buildContextStrategy('search', {
+      query: sanitizedQuery,
+      workspaceId,
+      pageIds: sourceSelection.selectedPageIds,
+      useWeb,
+      ragSources: sourceSelection.ragSources,
+      userId
+    });
 
-    if (effectiveRagSources && effectiveRagSources.length > 0) {
-      // Utiliser les chunks RAG externes comme contexte
-      console.log('[AssistantSearchStream] Construction du contexte à partir des sources RAG externes');
-      try {
-        const { ragSystem } = await import('../../../services/rag/index.js');
-        // Extraire les IDs des sources RAG spécifiques depuis les titres
-        const ragSourceIds = [];
-        for (const ragSource of effectiveRagSources) {
-          try {
-            const sourceRecord = await prisma.rAGSource.findFirst({
-              where: {
-                title: ragSource.title,
-                isGlobal: true,
-                status: 'COMPLETED'
-              },
-              select: { id: true }
-            });
-            if (sourceRecord) {
-              ragSourceIds.push(sourceRecord.id);
-            }
-          } catch (error) {
-            console.error(`[AssistantSearchStream] Erreur recherche source "${ragSource.title}":`, error);
-          }
-        }
-
-        console.log('[AssistantSearchStream] Sources RAG trouvées:', ragSourceIds.length, 'sur', effectiveRagSources.length, 'demandées');
-
-        const ragResults = await ragSystem.intelligentSearch(sanitizedQuery, {
-          workspaceId,
-          userId: req.user!.id,
-          limit: 12,
-          threshold: 0.15,
-          specificSourceIds: ragSourceIds // Forcer l'utilisation de ces sources spécifiques
-        });
-
-        if (ragResults.length > 0) {
-          const ragContext = await ragSystem.buildOptimizedContext(sanitizedQuery, ragResults);
-          ctx = ragContext;
-          console.log('[AssistantSearchStream] Contexte RAG construit:', ctx.length, 'caractères');
-        } else {
-          console.log('[AssistantSearchStream] Aucun résultat RAG trouvé');
-        }
-      } catch (error) {
-        console.error('[AssistantSearchStream] Erreur construction contexte RAG:', error);
-      }
-    } else {
-      // Utiliser les pages workspace classiques
-      const contextPageIds = selectedIds2.filter(id => id.length === 36 && id.includes('-'));
-      ctx = await buildPagesContextChunked(workspaceId, contextPageIds, 10, sanitizedQuery, 12);
-    }
-
-    // 🔍 [WEB-DEBUG] Déclenchement de la recherche web
-    console.log(`🌐 [WEB-DEBUG] Avant recherche web - useWeb: ${useWeb}, query: "${sanitizedQuery}"`);
-
-    const webWithRefs = useWeb ? await tavilySearchRefs(sanitizedQuery) : { text: '', refs: [] };
-    const web = webWithRefs.text;
-
-    // 🔍 [WEB-DEBUG] Résultats de la recherche web
-    console.log(`🌐 [WEB-DEBUG] Après recherche web - useWeb: ${useWeb}`);
-    console.log(`🌐 [WEB-DEBUG] - Web text length: ${web.length}`);
-    console.log(`🌐 [WEB-DEBUG] - Web refs count: ${(webWithRefs.refs || []).length}`);
-    if (useWeb && web.length === 0) {
-      console.log(`🌐 [WEB-DEBUG] ⚠️ ATTENTION: Web activé mais aucun contenu trouvé!`);
-    }
-    if (!useWeb && web.length > 0) {
-      console.log(`🌐 [WEB-DEBUG] 🚨 ERREUR: Web désactivé mais contenu présent!`);
-    }
-
-    console.log('[AssistantSearchStream] workspaceId=', workspaceId, 'pageIds=', pageIds, 'ctx.len=', ctx.length, 'useWeb=', useWeb, 'web.len=', web.length, 'web.refs=', (webWithRefs.refs || []).length);
-
-    // 🏗️ STRUCTURE: Construction du prompt optimisé avec RAG + Web dans context
-    const contextWithWeb = [ctx, web].filter(Boolean).join('\n\n');
+    // 🏗️ STRUCTURE: Prompt optimisé
+    const contextWithWeb = [contextResult.pageContext, contextResult.ragContext, contextResult.webContext]
+      .filter(Boolean)
+      .join('\n\n');
     const optimizedPrompt = buildOptimizedPrompt('search', sanitizedQuery, contextWithWeb, '', analysis);
 
+    // 📡 SSE Setup
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Connection', 'keep-alive');
@@ -310,26 +105,32 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
     res.flushHeaders();
 
-    const steps: string[] = [
+    // 🔄 Status steps
+    const steps = [
       'Analyse la requête et le contexte',
       'Recherche des passages pertinents dans tes pages',
       useWeb ? 'Explore des sources web fiables' : 'Se limite aux pages du workspace',
       'Sélectionne les éléments clés',
       'Rédige une réponse claire et structurée'
     ];
+
     try {
-      for (const s of steps) {
+      for (const step of steps) {
         res.write(`event: status\n`);
-        res.write(`data: ${s}\n\n`);
+        res.write(`data: ${step}\n\n`);
         if ((res as any).flush) {
           (res as any).flush();
         }
         await new Promise(r => setTimeout(r, 250));
       }
-    } catch {}
+    } catch (error) {
+      DebugLogger.performance('Erreur status steps:', error);
+    }
 
-    let full = '';
-    console.log('[AssistantSearchStream] start streaming to client');
+    // 🤖 AI Generation
+    let fullResponse = '';
+    DebugLogger.performance('[SEARCH] Début streaming vers client');
+
     await AIService.generateContent({
       prompt: optimizedPrompt.userMessage,
       context: optimizedPrompt.systemMessage,
@@ -337,13 +138,113 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
       maxTokens: optimizedPrompt.maxTokens,
       onStream: (chunk: string) => {
         const normalized = formatAIStreamChunk(chunk);
-        full += normalized;
+        fullResponse += normalized;
         sseWriteData(res, normalized);
       }
     });
-    console.log('[AssistantSearchStream] stream completed, full.len=', full.length);
-    
-    // Extraire les références Wikipedia du sanitizedQuery
+
+    DebugLogger.performance(`[SEARCH] Streaming terminé, longueur: ${fullResponse.length}`);
+
+    // 📚 Références finales
+    await sendReferences(res, sourceSelection.selectedPageIds, contextResult.webRefs || [], sanitizedQuery);
+
+    res.write('event: done\n\n');
+    DebugLogger.performance('[SEARCH] Événement done envoyé');
+    res.end();
+
+  } catch (error) {
+    DebugLogger.rag('Erreur assistantSearchStream:', error);
+    try {
+      res.write(`event: error\ndata: ${(error as any)?.message || 'Erreur'}\n\n`);
+    } catch (writeError) {
+      DebugLogger.rag('Erreur écriture erreur SSE:', writeError);
+    }
+    res.end();
+  }
+};
+
+/**
+ * 🧠 REFACTOR: Embedding asynchrone des pages utilisateur
+ */
+async function processUserPagesEmbedding(pageIds: string[], workspaceId: string, userId: string) {
+  try {
+    const { userPagesRAG } = await import('../../../services/rag/userPages.js');
+
+    // Récupération des pages
+    const pages = await prisma.page.findMany({
+      where: {
+        id: { in: pageIds },
+        workspaceId,
+        isArchived: false
+      },
+      select: {
+        id: true,
+        title: true,
+        blockNoteContent: true,
+        updatedAt: true
+      }
+    });
+
+    // Traitement asynchrone
+    pages.forEach(page => {
+      if (page.title && page.title.length > 10) {
+        let textContent = page.title;
+
+        try {
+          if (page.blockNoteContent) {
+            const content = typeof page.blockNoteContent === 'string'
+              ? JSON.parse(page.blockNoteContent)
+              : page.blockNoteContent;
+
+            if (content && Array.isArray(content)) {
+              const textParts = content
+                .filter((block: any) => block?.type === 'paragraph' && block?.content)
+                .map((block: any) =>
+                  Array.isArray(block.content)
+                    ? block.content.map((item: any) => item?.text || '').join('')
+                    : ''
+                )
+                .filter(Boolean);
+
+              if (textParts.length > 0) {
+                textContent = page.title + '\n\n' + textParts.join('\n\n');
+              }
+            }
+          }
+        } catch (error) {
+          DebugLogger.embedding(`Erreur extraction contenu page "${page.title}":`, error);
+        }
+
+        userPagesRAG.processUserPage({
+          id: page.id,
+          title: page.title,
+          content: textContent,
+          userId,
+          workspaceId,
+          updatedAt: page.updatedAt
+        }).catch(error => {
+          DebugLogger.embedding(`Erreur embedding page "${page.title}":`, error);
+        });
+      }
+    });
+
+    DebugLogger.embedding(`Embedding déclenché pour ${pages.length} pages sélectionnées`);
+  } catch (error) {
+    DebugLogger.embedding('Erreur processUserPagesEmbedding:', error);
+  }
+}
+
+/**
+ * 📚 REFACTOR: Envoi des références unifié
+ */
+async function sendReferences(
+  res: Response,
+  selectedPageIds: string[],
+  webRefs: Array<{ title?: string; url?: string }>,
+  sanitizedQuery: string
+) {
+  try {
+    // Extraire les références Wikipedia du query
     const wikipediaRefs: { title: string }[] = [];
     const wikipediaMatches = sanitizedQuery.match(/\*\*(.*?)\*\* \(Wikipedia\)/g);
     if (wikipediaMatches) {
@@ -351,32 +252,30 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
         title: match.replace(/\*\*(.*?)\*\* \(Wikipedia\)/, '$1')
       })));
     }
-    
-    const refPages2 = await prisma.page.findMany({ where: { id: { in: selectedIds2 } }, select: { id:true, title:true } });
-    const pageRefs = refPages2.map(p => ({ title: p.title }));
-    const webRefs = webWithRefs.refs || [];
 
-    // 🔍 [WEB-DEBUG] Traçage des références finales
-    console.log(`🌐 [WEB-DEBUG] Références finales - useWeb: ${useWeb}`);
-    console.log(`🌐 [WEB-DEBUG] - Page refs count: ${pageRefs.length}`);
-    console.log(`🌐 [WEB-DEBUG] - Web refs count: ${webRefs.length}`);
-    console.log(`🌐 [WEB-DEBUG] - Wikipedia refs count: ${wikipediaRefs.length}`);
-    if (!useWeb && webRefs.length > 0) {
-      console.log(`🌐 [WEB-DEBUG] 🚨 ALERTE: Web désactivé mais ${webRefs.length} références web présentes!`);
-      console.log(`🌐 [WEB-DEBUG] Web refs details:`, webRefs.map(r => r.title || r.url || JSON.stringify(r)));
-    }
+    // Références des pages
+    const refPages = await prisma.page.findMany({
+      where: { id: { in: selectedPageIds } },
+      select: { id: true, title: true }
+    });
+    const pageRefs = refPages.map(p => ({ title: p.title }));
 
-    const refsBlock = formatItalicReferences([...pageRefs, ...webRefs, ...wikipediaRefs]);
+    // Debug références finales
+    DebugLogger.web(`Références finales - Pages: ${pageRefs.length}, Web: ${webRefs.length}, Wikipedia: ${wikipediaRefs.length}`);
+
+    // Formatage et envoi
+    const allRefs = [
+      ...pageRefs,
+      ...webRefs.filter(ref => ref.title), // Filtrer les références web sans titre
+      ...wikipediaRefs
+    ].map(ref => ({ title: ref.title || '', url: 'url' in ref ? ref.url : undefined }));
+
+    const refsBlock = formatItalicReferences(allRefs);
     if (refsBlock) {
       sseWriteData(res, refsBlock);
-      console.log('[AssistantSearchStream] sent references block len=', refsBlock.length);
+      DebugLogger.performance(`Bloc références envoyé, longueur: ${refsBlock.length}`);
     }
-    res.write('event: done\n\n');
-    console.log('[AssistantSearchStream] done event sent');
-    res.end();
-  } catch (e) {
-    console.error('assistantSearchStream error', e);
-    try { res.write(`event: error\ndata: ${(e as any)?.message || 'Erreur'}\n\n`); } catch {}
-    res.end();
+  } catch (error) {
+    DebugLogger.rag('Erreur sendReferences:', error);
   }
-};
+}
