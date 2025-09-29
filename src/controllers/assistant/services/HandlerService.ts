@@ -19,8 +19,8 @@ export interface HandlerRequest {
 }
 
 export interface ContextResult {
-  pageContext: string;
-  webContext: string;
+  pages: string;
+  web: string;
   webRefs?: Array<{ title?: string; url?: string }>;
   ragContext?: string;
 }
@@ -104,8 +104,8 @@ export class AssistantHandlerService {
     DebugLogger.performance(`[${mode.toUpperCase()}] Construction contexte - fin (${endTime - startTime}ms)`);
 
     return {
-      pageContext,
-      webContext,
+      pages: pageContext,
+      web: webContext,
       webRefs: mode === 'search' ? webRefs : undefined,
       ragContext: ragContext || undefined
     };

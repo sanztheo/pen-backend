@@ -12,12 +12,12 @@ import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helper
 // 🚀 NOUVEAUX SERVICES (refactoring architecture)
 import { DebugLogger } from '../config/debug.js';
 import { ValidationUtils } from '../utils/validation.js';
-import { HandlerService } from '../services/HandlerService.js';
+import { AssistantHandlerService } from '../services/HandlerService.js';
 
 export const assistantAskStream = async (req: Request, res: Response) => {
   try {
     // 🔍 Validation et parsing unifié avec le nouveau service
-    const { request, errors } = HandlerService.parseRequest(req);
+    const { request, errors } = AssistantHandlerService.parseRequest(req);
     if (errors.length > 0) {
       return res.status(400).json({ error: errors[0] });
     }
@@ -53,18 +53,18 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     // 🚀 Construction contexte avec le service unifié
     DebugLogger.web(`[ASK] Déclenchement recherche web - useWeb: ${useWeb}`);
 
-    const contextResult = await HandlerService.buildContextStrategy('ask', {
+    const contextResult = await AssistantHandlerService.buildContextStrategy('ask', {
       query: sanitizedQuery,
       workspaceId,
       pageIds: contextPageIds,
       useWeb,
       ragSources,
-      userId: req.user.id
+      userId: req.user?.id || 'anonymous'
     });
 
     DebugLogger.web(`[ASK] Contexte construit - pages: ${contextResult.pages.length}, web: ${contextResult.web.length}`);
 
-    const history = ConversationMemory.recentAsText(req.user.id, { maxChars: 1200, maxMessages: 8 });
+    const history = ConversationMemory.recentAsText(req.user?.id || 'anonymous', { maxChars: 1200, maxMessages: 8 });
 
     // 🏗️ STRUCTURE: Construction du prompt optimisé avec contexte unifié
     const contextWithWeb = [contextResult.pages, contextResult.web].filter(Boolean).join('\n\n');
@@ -91,8 +91,8 @@ export const assistantAskStream = async (req: Request, res: Response) => {
       }
     });
     try { 
-      ConversationMemory.addMessage(req.user.id, 'user', sanitizedQuery);
-      ConversationMemory.addMessage(req.user.id, 'assistant', fullAnswer.trim());
+      ConversationMemory.addMessage(req.user?.id || 'anonymous', 'user', sanitizedQuery);
+      ConversationMemory.addMessage(req.user?.id || 'anonymous', 'assistant', fullAnswer.trim());
     } catch {}
     res.write('event: done\n\n');
     res.end();
