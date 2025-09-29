@@ -33,8 +33,8 @@ function createBackendConfig(): BackendConfig {
     clientUrl = 'http://localhost:5173,http://localhost:3000,http://localhost:4173,https://pen-frontend-ashy.vercel.app';
     console.log(`🔧 [BACKEND-CONFIG] Mode développement détecté - Port: ${port}`);
   } else {
-    // Environnement de production - uniquement les domaines de prod
-    clientUrl = 'https://pen-frontend-ashy.vercel.app';
+    // Environnement de production - domaines de prod autorisés
+    clientUrl = 'https://pen-frontend-ashy.vercel.app,https://app.pennote.fr';
     console.log(`🚀 [BACKEND-CONFIG] Mode production détecté - Port: ${port}`);
   }
   
