@@ -19,16 +19,19 @@ function createBackendConfig(): BackendConfig {
   const port = parseInt(process.env.PORT || '3001', 10);
   
   // Détection automatique de l'environnement
-  const isDevelopment = nodeEnv === 'development' || 
-                       process.env.NODE_ENV === 'dev' ||
-                       port === 3001; // Port de développement typique
+  const isDevelopment = nodeEnv === 'development' ||
+                       process.env.NODE_ENV === 'dev';
   
   const isProduction = nodeEnv === 'production' && !isDevelopment;
   
   // Configuration des URLs clients autorisées
   let clientUrl: string;
-  
-  if (isDevelopment) {
+
+  // Priorité à la variable d'environnement CLIENT_URL si définie
+  if (process.env.CLIENT_URL) {
+    clientUrl = process.env.CLIENT_URL;
+    console.log(`🔧 [BACKEND-CONFIG] CLIENT_URL détecté depuis env - Port: ${port}`);
+  } else if (isDevelopment) {
     // Environnement de développement - autoriser localhost
     clientUrl = 'http://localhost:5173,http://localhost:3000,http://localhost:4173,https://pen-frontend-ashy.vercel.app';
     console.log(`🔧 [BACKEND-CONFIG] Mode développement détecté - Port: ${port}`);
