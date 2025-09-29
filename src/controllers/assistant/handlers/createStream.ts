@@ -10,6 +10,11 @@ import { toBlockNoteAuto, sanitizeAIGeneratedContent } from '../helpers/blocknot
 import { buildPagesContextChunked } from '../helpers/context.js';
 import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helpers/promptOptimizer.js';
 
+// 🚀 NOUVEAUX SERVICES (refactoring architecture)
+import { DebugLogger } from '../config/debug.js';
+import { ValidationUtils } from '../utils/validation.js';
+import { HandlerService } from '../services/HandlerService.js';
+
 // Normalisation Markdown pour garantir la conversion fiable des titres (#, ##, ###)
 function normalizeMarkdownForHeadings(input: string): string {
   let s = (input || '').replace(/\r\n?/g, '\n');
@@ -40,39 +45,26 @@ function normalizeMarkdownForHeadings(input: string): string {
 export const assistantCreateStream = async (req: Request, res: Response) => {
   try {
     if (!req.user) return res.status(401).json({ error: 'Utilisateur non authentifié' });
-    const { 
-      instruction, 
-      title, 
-      workspaceId, 
-      projectId, 
-      reflection = 'rapide', 
-      useWeb = true, 
+
+    // 🚀 Parsing spécialisé pour CREATE (instruction au lieu de query)
+    const {
+      instruction,
+      title,
+      workspaceId,
+      projectId,
+      reflection = 'rapide',
+      useWeb = true,
       ragSources = [],
-      ragContext = '' 
-    } = req.body as {
-      instruction: string; 
-      title?: string; 
-      workspaceId: string; 
-      projectId?: string; 
-      reflection?: 'rapide' | 'profond'; 
-      useWeb?: boolean;
-      ragSources?: Array<{ title: string; [key: string]: any }>;
-      ragContext?: string;
-    };
-    if (!instruction || !workspaceId) return res.status(400).json({ error: 'instruction, workspaceId requis' });
+      ragContext = ''
+    } = req.body;
 
-    // 🔍 [WEB-DEBUG] Traçage du paramètre web depuis la requête (CREATE mode)
-    console.log(`🌐 [WEB-DEBUG] [CREATE] Paramètre useWeb reçu: ${useWeb} (type: ${typeof useWeb}) - DEFAULT: true`);
-    console.log(`🌐 [WEB-DEBUG] [CREATE] Corps de requête - useWeb:`, req.body?.useWeb);
-    console.log(`🌐 [WEB-DEBUG] [CREATE] Tous les paramètres:`, JSON.stringify({
-      hasInstruction: !!instruction,
-      workspaceId: !!workspaceId,
-      useWeb,
-      ragSourcesCount: ragSources.length,
-      reflection
-    }));
+    if (!instruction || !workspaceId) {
+      return res.status(400).json({ error: 'instruction, workspaceId requis' });
+    }
 
-    console.log(`🔥 [CREATE-STREAM] ENTRÉE - workspaceId: ${workspaceId}, ragSources.length: ${ragSources.length}, ragSources: ${ragSources.map(s => s.title).join(', ')}`);
+    // 🔍 Debug unifié avec le nouveau système
+    DebugLogger.web(`[CREATE] useWeb reçu: ${useWeb} (type: ${typeof useWeb}) - DEFAULT: true`);
+    DebugLogger.rag(`[CREATE] ENTRÉE - workspaceId: ${workspaceId}, ragSources: ${ragSources.length}, reflection: ${reflection}`);
 
     // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
     const sanitizedInstruction = sanitizeUserInput(instruction);
@@ -80,37 +72,34 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     // 🧠 INTELLIGENCE: Analyse de la requête
     const analysis = analyzeQuery(sanitizedInstruction, req);
 
-    // 🔥 NOUVEAU: Construire le contexte à partir des sources RAG si disponibles
+    // 🚀 Construction contexte avec les services unifiés
     let ragContextText = '';
     if (ragSources && ragSources.length > 0 && ragContext) {
-      console.log('[AssistantCreateStream] Utilisation du contexte RAG avec', ragSources.length, 'sources');
+      DebugLogger.rag(`[CREATE] Utilisation contexte RAG avec ${ragSources.length} sources`);
       ragContextText = ragContext;
     } else if (ragSources && ragSources.length > 0) {
-      // Pour les sources RAG externes (Wikipedia), ne pas chercher dans les pages workspace
-      // Le contexte RAG est géré par le système RAG lui-même via l'API
-      console.log('[AssistantCreateStream] Sources RAG externes détectées - contexte sera fourni par le système RAG');
+      DebugLogger.rag(`[CREATE] Sources RAG externes détectées - contexte fourni par système RAG`);
       ragContextText = ''; // Le contexte viendra du système RAG automatiquement
     }
 
-    // 🔍 [WEB-DEBUG] Déclenchement de la recherche web (CREATE mode)
-    console.log(`🌐 [WEB-DEBUG] [CREATE] Avant recherche web - useWeb: ${useWeb}, instruction: "${sanitizedInstruction}"`);
+    // 🚀 Construction contexte web avec service unifié
+    DebugLogger.web(`[CREATE] Déclenchement recherche web - useWeb: ${useWeb}`);
 
-    const web = useWeb ? await tavilySearch(sanitizedInstruction) : '';
+    const contextResult = await HandlerService.buildContextStrategy('create', {
+      query: sanitizedInstruction,
+      workspaceId,
+      pageIds: [], // CREATE ne prend pas de pages spécifiques
+      useWeb,
+      ragSources,
+      userId: req.user.id
+    });
 
-    // 🔍 [WEB-DEBUG] Résultats de la recherche web (CREATE mode)
-    console.log(`🌐 [WEB-DEBUG] [CREATE] Après recherche web - useWeb: ${useWeb}`);
-    console.log(`🌐 [WEB-DEBUG] [CREATE] - Web text length: ${web.length}`);
-    if (useWeb && web.length === 0) {
-      console.log(`🌐 [WEB-DEBUG] [CREATE] ⚠️ ATTENTION: Web activé mais aucun contenu trouvé!`);
-    }
-    if (!useWeb && web.length > 0) {
-      console.log(`🌐 [WEB-DEBUG] [CREATE] 🚨 ERREUR: Web désactivé mais contenu présent!`);
-    }
+    DebugLogger.web(`[CREATE] Contexte construit - web: ${contextResult.web.length}`);
 
     if (reflection === 'profond') {
       try {
         // 🏗️ STRUCTURE: Construction du prompt optimisé pour Gemini (avec thinking)
-        const contextWithWeb = [ragContextText, web].filter(Boolean).join('\n\n');
+        const contextWithWeb = [ragContextText, contextResult.web].filter(Boolean).join('\n\n');
         const optimizedPrompt = buildOptimizedPrompt('create', sanitizedInstruction, contextWithWeb, '', analysis);
 
         res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -183,7 +172,7 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     }
 
     // 🏗️ STRUCTURE: Construction du prompt optimisé pour OpenAI standard
-    const contextWithWeb = [ragContextText, web].filter(Boolean).join('\n\n');
+    const contextWithWeb = [ragContextText, contextResult.web].filter(Boolean).join('\n\n');
     const optimizedPrompt = buildOptimizedPrompt('create', sanitizedInstruction, contextWithWeb, '', analysis);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
