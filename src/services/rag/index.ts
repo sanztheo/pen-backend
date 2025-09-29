@@ -188,16 +188,28 @@ Réponds uniquement "OUI" ou "NON"`;
   // 🎯 Détection du type de question avec GPT-4.1-nano
   private async detectQuestionType(query: string): Promise<'RESUME' | 'EXPLICATION' | 'FACTUELLE'> {
     try {
-      const prompt = `Analyse cette question et détermine son type :
+      const prompt = `Classe cette question RAG selon les exemples. Réponds UNIQUEMENT avec le JSON demandé.
 
-TYPES :
-- RESUME : Questions générales sur le contenu (ex: "ça parle de quoi?", "résume", "contenu principal")
-- EXPLICATION : Questions demandant des explications (ex: "comment ça marche?", "pourquoi?", "explique")  
-- FACTUELLE : Questions spécifiques cherchant des faits précis (ex: "quelle est la date?", "qui a inventé?")
+EXEMPLES :
+"Résumé" → {"type": "RESUME"}
+"Que contient ce document ?" → {"type": "RESUME"}
+"Comment fonctionne un ordinateur quantique ?" → {"type": "EXPLICATION"}
+"Pourquoi John von Neumann est-il important ?" → {"type": "EXPLICATION"}
+"Quelle est la date de naissance de John von Neumann ?" → {"type": "FACTUELLE"}
+"Qui a inventé l'ordinateur quantique ?" → {"type": "FACTUELLE"}
 
-Question: "${query}"
+RÈGLES :
+- RESUME : synthèse générale, vue d'ensemble
+- EXPLICATION : mécanismes, principes, processus
+- FACTUELLE : données précises, chiffres, dates, noms
 
-Réponds uniquement: RESUME, EXPLICATION, ou FACTUELLE`;
+QUESTION : "${query}"
+
+Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU {"type": "FACTUELLE"}`;
+
+      // 🔍 Debug complet de l'appel OpenAI
+      console.log(`🔑 [API-DEBUG] OPENAI_API_KEY présente: ${!!process.env.OPENAI_API_KEY}`);
+      console.log(`🤖 [API-DEBUG] Model utilisé: ${process.env.OPENAI_DETECTION_MODEL || 'gpt-4o-mini'}`);
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -208,24 +220,81 @@ Réponds uniquement: RESUME, EXPLICATION, ou FACTUELLE`;
         body: JSON.stringify({
           model: process.env.OPENAI_DETECTION_MODEL || 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0,
-          max_tokens: 15
+          temperature: 0, // Best practice 2025: temperature=0 pour classification factuelle
+          // 🔧 Fix pour gpt-5-nano-2025-08-07
+          ...(process.env.OPENAI_DETECTION_MODEL?.includes('gpt-5-nano')
+            ? { max_completion_tokens: 30 }
+            : { max_tokens: 30 }
+          ),
+          response_format: { type: "json_object" } // 🚀 Force JSON strict
         })
       });
 
-      const result = await response.json() as OpenAIChatCompletion;
-      const questionType = result.choices?.[0]?.message?.content?.trim()?.toUpperCase();
-      
-      if (['RESUME', 'EXPLICATION', 'FACTUELLE'].includes(questionType)) {
-        return questionType as 'RESUME' | 'EXPLICATION' | 'FACTUELLE';
+      console.log(`🌐 [API-DEBUG] Response status: ${response.status} ${response.statusText}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ [API-ERROR] OpenAI API Error: ${response.status} - ${errorText}`);
+        return 'RESUME'; // Fallback intelligent pour "Résumé"
       }
-      
-      return 'FACTUELLE'; // Fallback
+
+      const result = await response.json() as OpenAIChatCompletion;
+      const rawResponse = result.choices?.[0]?.message?.content?.trim();
+
+      console.log(`📤 [API-DEBUG] Raw JSON response: "${rawResponse}"`);
+
+      try {
+        // 🚀 Parse du JSON strict
+        const jsonResponse = JSON.parse(rawResponse || '{}');
+        const questionType = jsonResponse.type?.toUpperCase();
+
+        console.log(`🎯 [DETECT-JSON-2025] Query: "${query}" → JSON: ${rawResponse} → Type: ${questionType}`);
+
+        if (['RESUME', 'EXPLICATION', 'FACTUELLE'].includes(questionType)) {
+          return questionType as 'RESUME' | 'EXPLICATION' | 'FACTUELLE';
+        }
+
+        console.warn(`⚠️ [JSON-ERROR] Type invalide dans JSON: "${questionType}"`);
+
+      } catch (parseError) {
+        console.error(`❌ [JSON-PARSE-ERROR] JSON invalide: "${rawResponse}"`, parseError);
+      }
+
+      // Fallback intelligent si JSON échoue
+      console.warn(`🔄 [JSON-FALLBACK] Utilisation du fallback déterministe`);
+      return this.detectQuestionTypeFallback(query);
       
     } catch (error) {
-      console.error('Erreur détection type question:', error);
-      return 'FACTUELLE'; // Fallback
+      console.error('❌ [API-ERROR] Erreur détection type question:', error);
+
+      return this.detectQuestionTypeFallback(query);
     }
+  }
+
+  // 🔄 Fallback déterministe pour détection de type question (si OpenAI échoue)
+  private detectQuestionTypeFallback(query: string): 'RESUME' | 'EXPLICATION' | 'FACTUELLE' {
+    const queryLower = query.toLowerCase().trim();
+
+    // Mots-clés RESUME (requêtes de synthèse)
+    const resumeKeywords = ['résumé', 'resume', 'synthèse', 'synthese', 'contenu', 'parle de quoi',
+                          'global', 'général', 'vue d\'ensemble', 'essentiel', 'principal'];
+
+    // Mots-clés EXPLICATION
+    const explanationKeywords = ['comment', 'pourquoi', 'explique', 'explication', 'principe',
+                               'fonctionnement', 'mécanisme', 'processus'];
+
+    if (resumeKeywords.some(keyword => queryLower.includes(keyword))) {
+      console.log(`🔄 [FALLBACK] "${query}" → RESUME (mot-clé détecté)`);
+      return 'RESUME';
+    }
+
+    if (explanationKeywords.some(keyword => queryLower.includes(keyword))) {
+      console.log(`🔄 [FALLBACK] "${query}" → EXPLICATION (mot-clé détecté)`);
+      return 'EXPLICATION';
+    }
+
+    console.log(`🔄 [FALLBACK] "${query}" → FACTUELLE (défaut)`);
+    return 'FACTUELLE';
   }
 
   // 📊 Récupération des chunks de meilleure qualité avec diversification (pour questions générales)
