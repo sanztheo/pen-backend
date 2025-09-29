@@ -9,33 +9,24 @@ import { sseWriteData } from '../helpers/sse.js';
 import { formatAIStreamChunk } from '../helpers/format.js';
 import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helpers/promptOptimizer.js';
 
+// 🚀 NOUVEAUX SERVICES (refactoring architecture)
+import { DebugLogger } from '../config/debug.js';
+import { ValidationUtils } from '../utils/validation.js';
+import { HandlerService } from '../services/HandlerService.js';
+
 export const assistantAskStream = async (req: Request, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Utilisateur non authentifié' });
-    const { query, workspaceId, pageIds = [], useWeb = false, ragSources = [] } = req.body as {
-      query: string;
-      workspaceId: string;
-      pageIds?: (string | number)[];
-      useWeb?: boolean;
-      ragSources?: Array<{ title: string; [key: string]: any }>;
-    };
-    if (!query) return res.status(400).json({ error: 'query requis' });
+    // 🔍 Validation et parsing unifié avec le nouveau service
+    const { request, errors } = HandlerService.parseRequest(req);
+    if (errors.length > 0) {
+      return res.status(400).json({ error: errors[0] });
+    }
 
-    // 🔍 [WEB-DEBUG] Traçage du paramètre web depuis la requête (ASK mode)
-    console.log(`🌐 [WEB-DEBUG] [ASK] Paramètre useWeb reçu: ${useWeb} (type: ${typeof useWeb}) - DEFAULT: false`);
-    console.log(`🌐 [WEB-DEBUG] [ASK] Corps de requête - useWeb:`, req.body?.useWeb);
-    console.log(`🌐 [WEB-DEBUG] [ASK] Tous les paramètres:`, JSON.stringify({
-      hasQuery: !!query,
-      workspaceId: !!workspaceId,
-      pageIdsCount: pageIds.length,
-      useWeb,
-      ragSourcesCount: ragSources.length
-    }));
+    const { query, workspaceId, pageIds, useWeb, ragSources } = request;
 
-    // Convert pageIds to strings to ensure Prisma compatibility
-    const pageIdsStr = pageIds.map(id => String(id));
-
-    console.log(`🔥 [ASK-STREAM] ENTRÉE - workspaceId: ${workspaceId}, pageIds: [${pageIdsStr.join(', ')}], pageIds.length: ${pageIdsStr.length}, ragSources.length: ${ragSources.length}`);
+    // 🔍 Debug unifié avec le nouveau système
+    DebugLogger.web(`[ASK] useWeb reçu: ${useWeb} (type: ${typeof useWeb})`);
+    DebugLogger.rag(`[ASK] ENTRÉE - workspaceId: ${workspaceId}, pageIds: ${pageIds.length}, ragSources: ${ragSources.length}`);
 
     // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
     const sanitizedQuery = sanitizeUserInput(query);
@@ -43,49 +34,40 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     // 🧠 INTELLIGENCE: Analyse de la requête
     const analysis = analyzeQuery(sanitizedQuery, req);
 
-    // 🧠 RAG: Gestion intelligente des sources
+    // 🧠 RAG: Gestion intelligente des sources avec validation unifiée
     let contextPageIds: string[] = [];
 
     // Si nous avons des sources RAG externes (Wikipedia), ne pas utiliser les pages workspace
     if (ragSources && ragSources.length > 0) {
-      console.log('[ASK-STREAM] Mode RAG externe détecté, pas d\'utilisation des pages workspace');
+      DebugLogger.rag('[ASK] Mode RAG externe détecté, pas d\'utilisation des pages workspace');
       contextPageIds = []; // Pas de pages workspace
-    } else if (workspaceId && pageIdsStr.length > 0) {
-      // Valider que les pageIds sont des UUIDs valides avant de les utiliser
-      const validPageIds = pageIdsStr.filter(id => {
-        // Simple validation UUID (32 chars + hyphens = 36 chars total)
-        return id.length === 36 && id.includes('-');
-      });
+    } else if (workspaceId && pageIds.length > 0) {
+      // 🚀 Validation UUID avec le service unifié
+      contextPageIds = ValidationUtils.validatePageIds(pageIds);
 
-      if (validPageIds.length !== pageIdsStr.length) {
-        console.log(`⚠️ [ASK-STREAM] IDs invalides filtrés: ${pageIdsStr.length - validPageIds.length} IDs ignorés`);
+      if (contextPageIds.length !== pageIds.length) {
+        DebugLogger.rag(`IDs invalides filtrés: ${pageIds.length - contextPageIds.length} IDs ignorés`);
       }
-
-      contextPageIds = validPageIds;
     }
 
-    // 🔍 [WEB-DEBUG] Déclenchement de la recherche web (ASK mode)
-    console.log(`🌐 [WEB-DEBUG] [ASK] Avant recherche web - useWeb: ${useWeb}, query: "${sanitizedQuery}"`);
+    // 🚀 Construction contexte avec le service unifié
+    DebugLogger.web(`[ASK] Déclenchement recherche web - useWeb: ${useWeb}`);
 
-    const [ctx, web] = await Promise.all([
-      workspaceId && contextPageIds.length > 0 ? buildPagesContextChunked(workspaceId, contextPageIds, 8, sanitizedQuery, 10) : Promise.resolve(''),
-      useWeb ? tavilySearch(sanitizedQuery) : Promise.resolve('')
-    ]);
+    const contextResult = await HandlerService.buildContextStrategy('ask', {
+      query: sanitizedQuery,
+      workspaceId,
+      pageIds: contextPageIds,
+      useWeb,
+      ragSources,
+      userId: req.user.id
+    });
 
-    // 🔍 [WEB-DEBUG] Résultats de la recherche web (ASK mode)
-    console.log(`🌐 [WEB-DEBUG] [ASK] Après recherche web - useWeb: ${useWeb}`);
-    console.log(`🌐 [WEB-DEBUG] [ASK] - Web text length: ${web.length}`);
-    if (useWeb && web.length === 0) {
-      console.log(`🌐 [WEB-DEBUG] [ASK] ⚠️ ATTENTION: Web activé mais aucun contenu trouvé!`);
-    }
-    if (!useWeb && web.length > 0) {
-      console.log(`🌐 [WEB-DEBUG] [ASK] 🚨 ERREUR: Web désactivé mais contenu présent!`);
-    }
+    DebugLogger.web(`[ASK] Contexte construit - pages: ${contextResult.pages.length}, web: ${contextResult.web.length}`);
 
     const history = ConversationMemory.recentAsText(req.user.id, { maxChars: 1200, maxMessages: 8 });
 
-    // 🏗️ STRUCTURE: Construction du prompt optimisé avec RAG + Web dans context
-    const contextWithWeb = [ctx, web].filter(Boolean).join('\n\n');
+    // 🏗️ STRUCTURE: Construction du prompt optimisé avec contexte unifié
+    const contextWithWeb = [contextResult.pages, contextResult.web].filter(Boolean).join('\n\n');
     const optimizedPrompt = buildOptimizedPrompt('ask', sanitizedQuery, contextWithWeb, history, analysis);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
