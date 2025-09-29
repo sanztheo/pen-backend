@@ -208,8 +208,10 @@ QUESTION : "${query}"
 Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU {"type": "FACTUELLE"}`;
 
       // 🔍 Debug complet de l'appel OpenAI
+      const isGpt5Nano = process.env.OPENAI_DETECTION_MODEL?.includes('gpt-5-nano');
       console.log(`🔑 [API-DEBUG] OPENAI_API_KEY présente: ${!!process.env.OPENAI_API_KEY}`);
       console.log(`🤖 [API-DEBUG] Model utilisé: ${process.env.OPENAI_DETECTION_MODEL || 'gpt-4o-mini'}`);
+      console.log(`⚙️ [API-DEBUG] Mode gpt-5-nano détecté: ${isGpt5Nano}`);
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -220,8 +222,12 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         body: JSON.stringify({
           model: process.env.OPENAI_DETECTION_MODEL || 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
-          temperature: 0, // Best practice 2025: temperature=0 pour classification factuelle
-          // 🔧 Fix pour gpt-5-nano-2025-08-07
+          // 🔧 Fix température pour gpt-5-nano-2025-08-07 (seul default=1 supporté)
+          ...(process.env.OPENAI_DETECTION_MODEL?.includes('gpt-5-nano')
+            ? {} // Pas de température pour gpt-5-nano (utilise default=1)
+            : { temperature: 0 } // temperature=0 pour autres modèles
+          ),
+          // 🔧 Fix max_tokens pour gpt-5-nano-2025-08-07
           ...(process.env.OPENAI_DETECTION_MODEL?.includes('gpt-5-nano')
             ? { max_completion_tokens: 30 }
             : { max_tokens: 30 }
