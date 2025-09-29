@@ -13,7 +13,7 @@ import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helper
 // 🚀 NOUVEAUX SERVICES (refactoring architecture)
 import { DebugLogger } from '../config/debug.js';
 import { ValidationUtils } from '../utils/validation.js';
-import { HandlerService } from '../services/HandlerService.js';
+import { AssistantHandlerService } from '../services/HandlerService.js';
 
 // Normalisation Markdown pour garantir la conversion fiable des titres (#, ##, ###)
 function normalizeMarkdownForHeadings(input: string): string {
@@ -85,13 +85,13 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     // 🚀 Construction contexte web avec service unifié
     DebugLogger.web(`[CREATE] Déclenchement recherche web - useWeb: ${useWeb}`);
 
-    const contextResult = await HandlerService.buildContextStrategy('create', {
+    const contextResult = await AssistantHandlerService.buildContextStrategy('create', {
       query: sanitizedInstruction,
       workspaceId,
       pageIds: [], // CREATE ne prend pas de pages spécifiques
       useWeb,
       ragSources,
-      userId: req.user.id
+      userId: req.user?.id || 'anonymous'
     });
 
     DebugLogger.web(`[CREATE] Contexte construit - web: ${contextResult.web.length}`);

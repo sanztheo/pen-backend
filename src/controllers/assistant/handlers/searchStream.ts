@@ -91,7 +91,7 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     });
 
     // 🏗️ STRUCTURE: Prompt optimisé
-    const contextWithWeb = [contextResult.pageContext, contextResult.ragContext, contextResult.webContext]
+    const contextWithWeb = [contextResult.pages, contextResult.ragContext, contextResult.web]
       .filter(Boolean)
       .join('\n\n');
     const optimizedPrompt = buildOptimizedPrompt('search', sanitizedQuery, contextWithWeb, '', analysis);
