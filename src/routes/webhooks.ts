@@ -287,18 +287,27 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
     const isEnded = ['ended', 'expired', 'canceled', 'cancelled'].includes(normalizedStatus);
     
     // Extraire le vrai plan depuis les métadonnées Clerk (pas seulement le status)
-    const realPlan = data.plan || meta.plan || data.subscriptionPlan || 'free_user';
+    const planData = data.plan || meta.plan || data.subscriptionPlan;
+    let realPlan = 'free_user';
+
+    if (planData) {
+      if (typeof planData === 'string') {
+        realPlan = planData;
+      } else if (planData.slug) {
+        realPlan = planData.slug;
+      }
+    }
+
     const initialPlan = isEnded ? 'free_user' : (realPlan === 'premium' ? 'premium' : 'free_user');
 
     console.log(`🔍 [Webhook Debug] Plan extraction:`, {
       userId,
       type,
+      planData,
       realPlan,
       initialPlan,
       isActive,
-      isEnded,
-      dataPlan: data.plan,
-      metaPlan: meta.plan
+      isEnded
     });
     
     // Mapper les status vers les valeurs valides de l'enum Prisma
