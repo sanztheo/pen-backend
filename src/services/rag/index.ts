@@ -683,7 +683,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
   private async processChunks(sourceId: string, chunks: RAGChunkInput[]): Promise<void> {
     const { mapWithConcurrency, chunkArray } = await import('../../utils/concurrency.js');
-    const concurrency = Math.max(1, parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || '2', 10));
+    const concurrency = Math.max(1, parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || '10', 10));
     const batchSize = Math.max(1, parseInt(process.env.RAG_DB_BATCH_SIZE || '100', 10));
 
     const t0 = Date.now();
@@ -775,32 +775,95 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 }
 
-// 🤖 Service d'embeddings - Réutilise le service existant
-import { DocumentSearchService } from '../quiz/documentSearchService.js';
-
+// 🚀 Service d'embeddings optimisé - OpenAI text-embedding-3-small
 class EmbeddingService {
-  private documentSearchService: DocumentSearchService;
-  
+  private static readonly OPENAI_EMBEDDING_MODEL = 'text-embedding-3-small';
+  private static readonly OPENAI_API_URL = 'https://api.openai.com/v1/embeddings';
+
   constructor() {
-    // Réutiliser une instance unique pour partager le pipeline et éviter des rechargements
-    this.documentSearchService = DocumentSearchService.getInstance();
+    // Vérifier que la clé API OpenAI est configurée
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY manquante pour le service d\'embeddings');
+    }
   }
-  
+
   async generateEmbedding(text: string): Promise<number[]> {
     try {
-      console.log(`🔍 [EMBEDDING] Génération embedding pour: "${text.slice(0, 50)}..."`);
-      
-      // Utilise le service existant
-      const embedding = await this.documentSearchService.generateQueryEmbedding(text);
-      
-      if (!embedding) {
-        throw new Error('Échec génération embedding');
+      console.log(`🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${text.slice(0, 50)}..."`);
+      const startTime = Date.now();
+
+      const response = await fetch(EmbeddingService.OPENAI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: EmbeddingService.OPENAI_EMBEDDING_MODEL,
+          input: text,
+          encoding_format: 'float'
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenAI API erreur (${response.status}): ${errorText}`);
       }
-      
-      console.log(`✅ [EMBEDDING] Embedding généré: ${embedding.length} dimensions`);
+
+      const data = await response.json();
+      const embedding = data.data?.[0]?.embedding;
+
+      if (!embedding || !Array.isArray(embedding)) {
+        throw new Error('Format de réponse OpenAI invalide');
+      }
+
+      const duration = Date.now() - startTime;
+      console.log(`✅ [EMBEDDING-FAST] Embedding généré en ${duration}ms: ${embedding.length} dimensions`);
       return embedding;
+
     } catch (error) {
-      console.error('Erreur génération embedding:', error);
+      console.error('❌ [EMBEDDING-FAST] Erreur génération embedding:', error);
+      throw error;
+    }
+  }
+
+  // 🚀 BONUS: Méthode batch pour traiter plusieurs chunks d'un coup (future optimisation)
+  async generateBatchEmbeddings(texts: string[]): Promise<number[][]> {
+    try {
+      console.log(`🚀 [EMBEDDING-BATCH] Génération batch de ${texts.length} embeddings...`);
+      const startTime = Date.now();
+
+      const response = await fetch(EmbeddingService.OPENAI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: EmbeddingService.OPENAI_EMBEDDING_MODEL,
+          input: texts,
+          encoding_format: 'float'
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenAI API erreur (${response.status}): ${errorText}`);
+      }
+
+      const data = await response.json();
+      const embeddings = data.data?.map((item: any) => item.embedding) || [];
+
+      if (embeddings.length !== texts.length) {
+        throw new Error(`Nombre d'embeddings reçus (${embeddings.length}) != textes envoyés (${texts.length})`);
+      }
+
+      const duration = Date.now() - startTime;
+      console.log(`✅ [EMBEDDING-BATCH] ${embeddings.length} embeddings générés en ${duration}ms (${Math.round(duration/embeddings.length)}ms/embedding)`);
+      return embeddings;
+
+    } catch (error) {
+      console.error('❌ [EMBEDDING-BATCH] Erreur génération batch:', error);
       throw error;
     }
   }
