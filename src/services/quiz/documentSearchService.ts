@@ -5,7 +5,6 @@
  */
 
 import { Pool } from 'pg';
-import { pipeline } from '@xenova/transformers';
 import { AIService } from '../ai/base.js';
 
 // Connexion dédiée à la base d'embeddings
@@ -69,7 +68,6 @@ export interface TopicAnalysisResult {
 
 export class DocumentSearchService {
   private static instance: DocumentSearchService;
-  private embeddingPipeline: any = null;
 
   static getInstance(): DocumentSearchService {
     if (!DocumentSearchService.instance) {
@@ -79,23 +77,15 @@ export class DocumentSearchService {
   }
 
   /**
-   * Initialise le pipeline d'embedding avec le même modèle que Python
+   * 🚀 Configuration OpenAI embeddings (remplace Xenova)
    */
-  private async initEmbeddingPipeline() {
-    if (!this.embeddingPipeline) {
-      try {
-        console.log('🤖 Chargement du modèle Xenova/all-MiniLM-L6-v2...');
-        this.embeddingPipeline = await pipeline(
-          'feature-extraction',
-          'Xenova/all-MiniLM-L6-v2'
-        );
-        console.log('✅ Modèle d\'embedding chargé');
-      } catch (error) {
-        console.error('❌ Erreur chargement modèle embedding:', error);
-        throw error;
-      }
+  private static readonly OPENAI_EMBEDDING_MODEL = 'text-embedding-3-small';
+  private static readonly OPENAI_API_URL = 'https://api.openai.com/v1/embeddings';
+
+  private validateOpenAIConfig(): void {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY manquante pour les embeddings');
     }
-    return this.embeddingPipeline;
   }
 
   /**
@@ -383,26 +373,48 @@ Format exact attendu:
   }
 
   /**
-   * Génère l'embedding d'une requête en utilisant Transformers.js
+   * 🚀 Génère l'embedding d'une requête avec OpenAI text-embedding-3-small
    */
   async generateQueryEmbedding(query: string): Promise<number[] | null> {
     try {
-      const pipeline = await this.initEmbeddingPipeline();
-      
-      // Génère l'embedding avec le même modèle que Python
-      const result = await pipeline(query, { 
-        pooling: 'mean', 
-        normalize: true 
+      this.validateOpenAIConfig();
+
+      console.log(`🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${query.slice(0, 50)}..."`);
+      const startTime = Date.now();
+
+      const response = await fetch(DocumentSearchService.OPENAI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: DocumentSearchService.OPENAI_EMBEDDING_MODEL,
+          input: query,
+          encoding_format: 'float'
+        })
       });
-      
-      // Transforme le tensor en array JavaScript avec typage explicite
-      const embedding: number[] = Array.from(result.data as Float32Array);
-      
-      console.log(`🧠 Embedding généré pour "${query}" (${embedding.length} dimensions)`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ OpenAI API erreur (${response.status}): ${errorText}`);
+        return null;
+      }
+
+      const data = await response.json();
+      const embedding = data.data?.[0]?.embedding;
+
+      if (!embedding || !Array.isArray(embedding)) {
+        console.error('❌ Format de réponse OpenAI invalide');
+        return null;
+      }
+
+      const duration = Date.now() - startTime;
+      console.log(`✅ [EMBEDDING-FAST] Embedding généré en ${duration}ms: ${embedding.length} dimensions`);
       return embedding;
-      
+
     } catch (error) {
-      console.error('❌ Erreur génération embedding:', error);
+      console.error('❌ Erreur génération embedding OpenAI:', error);
       return null;
     }
   }
