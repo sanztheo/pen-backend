@@ -81,8 +81,15 @@ async function handlePlanChange(userId: string, newPlan: string, newStatus: stri
     
     // Si l'abonnement est terminé (ended/expired), effet immédiat vers free_user
     if (newStatus === 'ended' || newStatus === 'expired' || newStatus === 'canceled') {
-      console.log(`🔚 [Webhook] Abonnement terminé ${userId}: ${oldPlan} → free_user, effet immédiat`);
-      newPlan = 'free_user';
+      console.log(`🔚 [Webhook] Abonnement terminé ${userId}: ${oldPlan} → ${newPlan} (was going to force free_user)`);
+
+      // Ne pas forcer free_user si le nouveau plan est premium (transition active)
+      if (newPlan !== 'premium') {
+        console.log(`🔚 [Webhook] Forcing free_user because newPlan=${newPlan}`);
+        newPlan = 'free_user';
+      } else {
+        console.log(`🔚 [Webhook] Keeping premium plan during transition`);
+      }
       cancelAtPeriodEnd = false;
     }
     // Si downgrade de premium vers free, appliquer à la fin de la période (sauf si ended)
@@ -339,6 +346,14 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
 
     // 4) Gérer le changement de plan avec respect des cycles
     const planInfo = await handlePlanChange(userId, initialPlan, status, data);
+
+    console.log(`🔍 [Webhook Debug] Plan Info:`, {
+      userId,
+      type,
+      inputPlan: initialPlan,
+      outputPlan: planInfo.plan,
+      status: planInfo.status
+    });
 
     // 5) Upsert l'abonnement avec la logique de cycle appropriée
     const sub = await prisma.userSubscription.upsert({
