@@ -401,7 +401,7 @@ Format exact attendu:
         return null;
       }
 
-      const data = await response.json();
+      const data = await response.json() as { data?: Array<{ embedding?: number[] }> };
       const embedding = data.data?.[0]?.embedding;
 
       if (!embedding || !Array.isArray(embedding)) {

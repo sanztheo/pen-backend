@@ -829,7 +829,7 @@ class EmbeddingService {
         throw new Error(`OpenAI API erreur (${response.status}): ${errorText}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as { data?: Array<{ embedding?: number[] }> };
       const embedding = data.data?.[0]?.embedding;
 
       if (!embedding || !Array.isArray(embedding)) {
@@ -870,8 +870,8 @@ class EmbeddingService {
         throw new Error(`OpenAI API erreur (${response.status}): ${errorText}`);
       }
 
-      const data = await response.json();
-      const embeddings = data.data?.map((item: any) => item.embedding) || [];
+      const data = await response.json() as { data?: Array<{ embedding?: number[] }> };
+      const embeddings = data.data?.map((item) => item.embedding).filter((emb): emb is number[] => !!emb) || [];
 
       if (embeddings.length !== texts.length) {
         throw new Error(`Nombre d'embeddings reçus (${embeddings.length}) != textes envoyés (${texts.length})`);
