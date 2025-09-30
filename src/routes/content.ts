@@ -146,7 +146,8 @@ router.post('/projects', authenticateToken, async (req, res) => {
       return res.status(403).json({
         success: false,
         error: error.message,
-        code: 'PROJECTS_LIMIT_REACHED'
+        code: 'PROJECTS_LIMIT_REACHED',
+        limitType: 'project'
       });
     }
     
