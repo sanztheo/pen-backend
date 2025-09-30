@@ -125,8 +125,24 @@ export class SimplifiedContentService {
       const userLimits = await prisma.userLimits.findUnique({ where: { userId } });
       if (!userLimits) throw new Error('Limitations utilisateur non trouvées');
 
+      console.log('🔍 [SIMPLIFIED-CONTENT] Debug limitations projet:', {
+        userId,
+        projectsUsed: userLimits.projectsUsed,
+        projectsLimit: userLimits.projectsLimit,
+        calculation: `${userLimits.projectsUsed} < ${userLimits.projectsLimit}`,
+        result: userLimits.projectsUsed < userLimits.projectsLimit,
+        isPremium: userLimits.projectsLimit === -1
+      });
+
       const canCreateProject = userLimits.projectsLimit === -1 || userLimits.projectsUsed < userLimits.projectsLimit;
-      if (!canCreateProject) throw new Error(`Limite de projets atteinte (${userLimits.projectsUsed}/${userLimits.projectsLimit})`);
+      if (!canCreateProject) {
+        console.error('🚫 [SIMPLIFIED-CONTENT] Création bloquée par limitation:', {
+          projectsUsed: userLimits.projectsUsed,
+          projectsLimit: userLimits.projectsLimit,
+          canCreate: canCreateProject
+        });
+        throw new Error(`Limite de projets atteinte (${userLimits.projectsUsed}/${userLimits.projectsLimit})`);
+      }
 
       const project = await prisma.$transaction(async (tx) => {
         const newProject = await tx.project.create({
