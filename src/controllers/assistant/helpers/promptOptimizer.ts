@@ -429,27 +429,200 @@ function getOptimalTemperature(mode: 'ask' | 'search' | 'create', type: QueryAna
 }
 
 function getOptimalMaxTokens(responseLength: QueryAnalysis['responseLength'], hasThinking: boolean = false, hasUltraThink: boolean = false): number {
-  // 🚨 ULTRATHINK: Mode critique avec 32K tokens
+  // 🚨 ULTRATHINK: Mode critique avec tokens élevés pour gpt-5-nano
   if (hasUltraThink) {
-    console.log(`🧠 [ULTRATHINK] Mode analyse critique activé: 32000 tokens alloués`);
+    console.log(`🧠 [ULTRATHINK] Mode analyse critique activé: 50000 tokens alloués (gpt-5-nano)`);
     console.log(`🧠 [ULTRATHINK] Capacité maximale pour analyse système complexe`);
-    return 32000;
+    return 50000;
   }
 
+  // 🚀 Limites adaptées pour gpt-5-nano (400k contexte, 128k output max)
   const tokenLimits = {
-    brief: 150,
-    standard: 800,
-    detailed: 1500,
-    comprehensive: 3000
+    brief: 500,      // Plus généreux pour des réponses de qualité
+    standard: 2000,   // Réponses détaillées par défaut
+    detailed: 8000,   // Analyses approfondies
+    comprehensive: 20000  // Réponses très complètes avec gros contexte
   };
 
   const baseTokens = tokenLimits[responseLength];
 
-  // 🧠 THINKING: Doubler les tokens quand thinking chain activée
+  // 🧠 THINKING: Augmenter significantly pour thinking chain
   if (hasThinking) {
-    console.log(`💭 [THINKING] Tokens doublés pour thinking chain: ${baseTokens} → ${baseTokens * 2}`);
-    return baseTokens * 2;
+    const thinkingTokens = Math.min(baseTokens * 2, 40000); // Cap à 40k pour thinking
+    console.log(`💭 [THINKING] Tokens augmentés pour thinking chain: ${baseTokens} → ${thinkingTokens}`);
+    return thinkingTokens;
   }
 
   return baseTokens;
+}
+
+// 🧠 TRONCATURE INTELLIGENTE: Garantir toujours une réponse même avec gros contexte
+export function ensureResponseCapacity(
+  userMessage: string,
+  maxTokens: number,
+  contextWindowLimit: number = 390000  // 390k pour gpt-5-nano (laisse marge pour système)
+): string {
+  console.log(`🎯 [TRUNCATION] Vérification capacité de réponse`);
+  console.log(`🎯 [TRUNCATION] - Message: ${userMessage.length} chars`);
+  console.log(`🎯 [TRUNCATION] - Tokens réponse demandés: ${maxTokens}`);
+  console.log(`🎯 [TRUNCATION] - Limite contexte: ${contextWindowLimit} tokens`);
+
+  // Estimation grossière: 1 token ≈ 4 caractères en français
+  const estimatedInputTokens = Math.ceil(userMessage.length / 4);
+  const reservedResponseTokens = Math.max(maxTokens, 8000); // Minimum 8k pour réponse
+  const availableInputTokens = contextWindowLimit - reservedResponseTokens;
+
+  console.log(`🎯 [TRUNCATION] - Tokens estimés input: ${estimatedInputTokens}`);
+  console.log(`🎯 [TRUNCATION] - Tokens réservés réponse: ${reservedResponseTokens}`);
+  console.log(`🎯 [TRUNCATION] - Tokens disponibles input: ${availableInputTokens}`);
+
+  // Si le message dépasse la capacité, tronquer intelligemment
+  if (estimatedInputTokens > availableInputTokens) {
+    console.log(`🚨 [TRUNCATION] Message trop long - troncature nécessaire`);
+
+    return intelligentTruncation(userMessage, availableInputTokens);
+  }
+
+  console.log(`✅ [TRUNCATION] Message dans les limites - aucune troncature nécessaire`);
+  return userMessage;
+}
+
+function intelligentTruncation(userMessage: string, maxInputTokens: number): string {
+  console.log(`✂️ [SMART-TRUNCATE] Début troncature intelligente`);
+
+  const maxChars = maxInputTokens * 4; // Conversion approximative tokens → chars
+
+  // Étape 1: Extraire les sections critiques
+  const sections = extractMessageSections(userMessage);
+  console.log(`✂️ [SMART-TRUNCATE] Sections extraites:`, {
+    userQuery: sections.userQuery?.length || 0,
+    context: sections.context?.length || 0,
+    history: sections.history?.length || 0,
+    other: sections.other?.length || 0
+  });
+
+  // Étape 2: Priorités de préservation (comme OpenAI/Claude)
+  const priorities = [
+    { name: 'user_query', content: sections.userQuery, priority: 100 }, // JAMAIS tronquer
+    { name: 'response_guidelines', content: sections.responseGuidelines, priority: 90 },
+    { name: 'thinking_prompt', content: sections.thinkingPrompt, priority: 80 },
+    { name: 'recent_history', content: sections.history?.slice(-1000), priority: 70 }, // Garde historique récent
+    { name: 'essential_context', content: sections.context?.slice(0, 2000), priority: 60 }, // Début du contexte
+    { name: 'remaining_context', content: sections.context?.slice(2000), priority: 30 },
+    { name: 'old_history', content: sections.history?.slice(0, -1000), priority: 20 }
+  ].filter(item => item.content && item.content.length > 0);
+
+  // Étape 3: Reconstruction progressive selon priorités
+  let reconstructed = '';
+  let remainingChars = maxChars;
+
+  console.log(`✂️ [SMART-TRUNCATE] Reconstruction par priorité (${maxChars} chars max)`);
+
+  for (const item of priorities.sort((a, b) => b.priority - a.priority)) {
+    if (item.content && item.content.length <= remainingChars) {
+      reconstructed += item.content;
+      remainingChars -= item.content.length;
+      console.log(`✂️ [SMART-TRUNCATE] ✅ ${item.name}: ${item.content.length} chars ajoutés`);
+    } else if (item.priority >= 80 && item.content) {
+      // Sections critiques: forcer même si ça dépasse un peu
+      reconstructed += item.content;
+      remainingChars -= item.content.length;
+      console.log(`✂️ [SMART-TRUNCATE] 🚨 ${item.name}: ${item.content.length} chars forcés (critique)`);
+    } else {
+      console.log(`✂️ [SMART-TRUNCATE] ❌ ${item.name}: ${item.content?.length || 0} chars ignorés (pas de place)`);
+    }
+  }
+
+  // Étape 4: Ajout d'un marqueur de troncature
+  if (reconstructed.length < userMessage.length) {
+    const truncationNote = `\n\n[NOTICE: Contexte tronqué intelligemment pour garantir une réponse. Requête utilisateur préservée intégralement.]`;
+    reconstructed += truncationNote;
+  }
+
+  console.log(`✂️ [SMART-TRUNCATE] Troncature terminée:`);
+  console.log(`✂️ [SMART-TRUNCATE] - Original: ${userMessage.length} chars`);
+  console.log(`✂️ [SMART-TRUNCATE] - Tronqué: ${reconstructed.length} chars`);
+  console.log(`✂️ [SMART-TRUNCATE] - Réduction: ${((1 - reconstructed.length/userMessage.length) * 100).toFixed(1)}%`);
+
+  return reconstructed;
+}
+
+function extractMessageSections(userMessage: string): {
+  userQuery: string | null;
+  context: string | null;
+  history: string | null;
+  thinkingPrompt: string | null;
+  responseGuidelines: string | null;
+  other: string | null;
+} {
+  console.log(`🔍 [EXTRACT] Extraction des sections du message`);
+
+  // Patterns pour extraire les sections XML
+  const userQueryMatch = userMessage.match(/<user_query>([\s\S]*?)<\/user_query>/);
+  const contextMatch = userMessage.match(/<context>([\s\S]*?)<\/context>/);
+  const historyMatch = userMessage.match(/<conversation_history>([\s\S]*?)<\/conversation_history>/);
+  const guidelinesMatch = userMessage.match(/<response_guidelines>([\s\S]*?)<\/response_guidelines>/);
+
+  // Thinking prompt est généralement au début
+  const thinkingMatch = userMessage.match(/^([\s\S]*?)<(?:context|conversation_history|user_query)/);
+
+  const sections = {
+    userQuery: userQueryMatch?.[1]?.trim() || null,
+    context: contextMatch?.[1]?.trim() || null,
+    history: historyMatch?.[1]?.trim() || null,
+    thinkingPrompt: thinkingMatch?.[1]?.trim() || null,
+    responseGuidelines: guidelinesMatch?.[1]?.trim() || null,
+    other: null as string | null
+  };
+
+  // Calculer "other" = ce qui n'est dans aucune section identifiée
+  const identifiedLength = Object.values(sections)
+    .filter(Boolean)
+    .reduce((sum, content) => sum + (content?.length || 0), 0);
+
+  if (identifiedLength < userMessage.length * 0.9) {
+    sections.other = userMessage; // Fallback si extraction échoue
+  }
+
+  console.log(`🔍 [EXTRACT] Sections trouvées:`, {
+    userQuery: !!sections.userQuery,
+    context: !!sections.context,
+    history: !!sections.history,
+    thinkingPrompt: !!sections.thinkingPrompt,
+    responseGuidelines: !!sections.responseGuidelines
+  });
+
+  return sections;
+}
+
+// 🎯 FONCTION PRINCIPALE: Optimisation de prompt avec troncature intelligente
+export function optimizePrompt(
+  mode: 'ask' | 'search' | 'create',
+  query: string,
+  context: string,
+  history: string,
+  req: any
+): PromptStructure {
+  console.log(`🚀 [OPTIMIZER] Début optimisation complète du prompt`);
+
+  // Étape 1: Analyse de la requête
+  const analysis = analyzeQuery(query, req);
+
+  // Étape 2: Construction du prompt de base
+  const basePrompt = buildOptimizedPrompt(mode, query, context, history, analysis);
+
+  // Étape 3: Vérification et troncature intelligente si nécessaire
+  const optimizedUserMessage = ensureResponseCapacity(
+    basePrompt.userMessage,
+    basePrompt.maxTokens
+  );
+
+  console.log(`🚀 [OPTIMIZER] Optimisation terminée:`);
+  console.log(`🚀 [OPTIMIZER] - Message utilisateur final: ${optimizedUserMessage.length} chars`);
+  console.log(`🚀 [OPTIMIZER] - Troncature appliquée: ${optimizedUserMessage.length !== basePrompt.userMessage.length ? 'OUI' : 'NON'}`);
+
+  return {
+    ...basePrompt,
+    userMessage: optimizedUserMessage
+  };
 }

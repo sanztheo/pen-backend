@@ -8,7 +8,7 @@ import { prisma } from '../../../lib/prisma.js';
 import { AIService } from '../../../services/ai/index.js';
 import { sseWriteData } from '../helpers/sse.js';
 import { formatAIStreamChunk, formatItalicReferences } from '../helpers/format.js';
-import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helpers/promptOptimizer.js';
+import { sanitizeUserInput, analyzeQuery, optimizePrompt } from '../helpers/promptOptimizer.js';
 import { AssistantHandlerService } from '../services/HandlerService.js';
 import { SourceSelectionService } from '../services/SourceSelectionService.js';
 import { DebugLogger } from '../config/debug.js';
@@ -94,7 +94,7 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     const contextWithWeb = [contextResult.pages, contextResult.ragContext, contextResult.web]
       .filter(Boolean)
       .join('\n\n');
-    const optimizedPrompt = buildOptimizedPrompt('search', sanitizedQuery, contextWithWeb, '', analysis);
+    const optimizedPrompt = optimizePrompt('search', sanitizedQuery, contextWithWeb, '', req);
 
     // 📡 SSE Setup
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
