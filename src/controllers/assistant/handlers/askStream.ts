@@ -7,7 +7,7 @@ import { tavilySearch } from '../helpers/web.js';
 import { buildPagesContextChunked } from '../helpers/context.js';
 import { sseWriteData } from '../helpers/sse.js';
 import { formatAIStreamChunk } from '../helpers/format.js';
-import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helpers/promptOptimizer.js';
+import { sanitizeUserInput, analyzeQuery, optimizePrompt } from '../helpers/promptOptimizer.js';
 
 // 🚀 NOUVEAUX SERVICES (refactoring architecture)
 import { DebugLogger } from '../config/debug.js';
@@ -30,9 +30,6 @@ export const assistantAskStream = async (req: Request, res: Response) => {
 
     // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
     const sanitizedQuery = sanitizeUserInput(query);
-
-    // 🧠 INTELLIGENCE: Analyse de la requête
-    const analysis = analyzeQuery(sanitizedQuery, req);
 
     // 🧠 RAG: Gestion intelligente des sources avec validation unifiée
     let contextPageIds: string[] = [];
@@ -66,9 +63,9 @@ export const assistantAskStream = async (req: Request, res: Response) => {
 
     const history = ConversationMemory.recentAsText(req.user?.id || 'anonymous', { maxChars: 1200, maxMessages: 8 });
 
-    // 🏗️ STRUCTURE: Construction du prompt optimisé avec contexte unifié
+    // 🎯 OPTIMISATION COMPLÈTE: Prompt avec troncature intelligente garantie
     const contextWithWeb = [contextResult.pages, contextResult.web].filter(Boolean).join('\n\n');
-    const optimizedPrompt = buildOptimizedPrompt('ask', sanitizedQuery, contextWithWeb, history, analysis);
+    const optimizedPrompt = optimizePrompt('ask', sanitizedQuery, contextWithWeb, history, req);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

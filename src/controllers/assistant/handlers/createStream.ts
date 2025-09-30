@@ -8,7 +8,7 @@ import { isMathLatexIntent, LATEX_STRICT_RULES } from '../helpers/latex.js';
 import { sseWriteData } from '../helpers/sse.js';
 import { toBlockNoteAuto, sanitizeAIGeneratedContent } from '../helpers/blocknote.js';
 import { buildPagesContextChunked } from '../helpers/context.js';
-import { sanitizeUserInput, analyzeQuery, buildOptimizedPrompt } from '../helpers/promptOptimizer.js';
+import { sanitizeUserInput, analyzeQuery, optimizePrompt } from '../helpers/promptOptimizer.js';
 
 // 🚀 NOUVEAUX SERVICES (refactoring architecture)
 import { DebugLogger } from '../config/debug.js';
@@ -98,9 +98,9 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
 
     if (reflection === 'profond') {
       try {
-        // 🏗️ STRUCTURE: Construction du prompt optimisé pour Gemini (avec thinking)
+        // 🎯 OPTIMISATION COMPLÈTE: Prompt avec troncature intelligente garantie pour Gemini
         const contextWithWeb = [ragContextText, contextResult.web].filter(Boolean).join('\n\n');
-        const optimizedPrompt = buildOptimizedPrompt('create', sanitizedInstruction, contextWithWeb, '', analysis);
+        const optimizedPrompt = optimizePrompt('create', sanitizedInstruction, contextWithWeb, '', req);
 
         res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -171,9 +171,9 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
       }
     }
 
-    // 🏗️ STRUCTURE: Construction du prompt optimisé pour OpenAI standard
+    // 🎯 OPTIMISATION COMPLÈTE: Prompt avec troncature intelligente garantie pour OpenAI
     const contextWithWeb = [ragContextText, contextResult.web].filter(Boolean).join('\n\n');
-    const optimizedPrompt = buildOptimizedPrompt('create', sanitizedInstruction, contextWithWeb, '', analysis);
+    const optimizedPrompt = optimizePrompt('create', sanitizedInstruction, contextWithWeb, '', req);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
