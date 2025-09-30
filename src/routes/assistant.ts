@@ -131,12 +131,20 @@ router.post('/rag/context', async (req: any, res) => {
     }
 
     let shouldUseRAG = false;
+
+    // 🚀 SMART FILTER: Éviter RAG pour salutations/questions simples
+    const isSimpleGreeting = /^(salut|hello|hi|bonjour|bonsoir|coucou|hey)[\s!?]*$/i.test(query.trim());
+    const isVeryShort = query.trim().length < 10;
+
     if (hasSelectedSources) {
       shouldUseRAG = true;
       console.log(`🔍 [RAG-DEBUG] RAG forcé car des sources sont sélectionnées`);
-    } else if (hasActiveSession && activeSessionSources && activeSessionSources.length > 0) {
+    } else if (hasActiveSession && activeSessionSources && activeSessionSources.length > 0 && !isSimpleGreeting && !isVeryShort) {
       shouldUseRAG = true;
       console.log(`🔍 [RAG-DEBUG] RAG forcé car session active avec ${activeSessionSources.length} sources`);
+    } else if (isSimpleGreeting || isVeryShort) {
+      shouldUseRAG = false;
+      console.log(`🔍 [RAG-DEBUG] RAG SKIPPÉ - salutation/query simple détectée: "${query}"`);
     } else {
       shouldUseRAG = await ragSystem.shouldUseRAG(query);
       console.log(`🔍 [RAG-DEBUG] Analyse IA de la query: ${shouldUseRAG}`);
