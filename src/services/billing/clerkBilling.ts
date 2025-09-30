@@ -25,7 +25,7 @@ export class ClerkBillingService {
    */
   static async getUserSubscription(userId: string) {
     try {
-      console.log(`🔍 [BILLING] Récupération de l'abonnement pour l'utilisateur: ${userId}`);
+      // 🔇 [BILLING] Log silencieux pour éviter le spam (debug only)
       
       // Récupérer de la DB locale
       let subscription = await prisma.userSubscription.findUnique({

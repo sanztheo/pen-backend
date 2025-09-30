@@ -544,7 +544,8 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
       // 4. Calcul de similarité et tri (temporaire - pgvector fera ça nativement)
       const resultsWithSimilarity = chunks.map((chunk: any) => {
-        const similarity = this.calculateSimilarity(JSON.stringify(queryEmbedding), chunk.embedding);
+        // 🚀 FIX: Passer directement l'array, plus efficace
+        const similarity = this.calculateSimilarity(queryEmbedding, chunk.embedding);
         return {
           id: chunk.id,
           content: chunk.cleanContent,
@@ -749,12 +750,13 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     return Math.ceil(text.split(/\s+/).length * 1.3);
   }
 
-  private calculateSimilarity(embedding1: string | null, embedding2: string | null): number {
+  private calculateSimilarity(embedding1: number[] | string | null, embedding2: string | null): number {
     // Implémentation temporaire - sera remplacée par pgvector
     if (!embedding1 || !embedding2) return 0;
-    
+
     try {
-      const vec1 = JSON.parse(embedding1);
+      // 🚀 FIX: Support both array and string embeddings
+      const vec1 = Array.isArray(embedding1) ? embedding1 : JSON.parse(embedding1);
       const vec2 = JSON.parse(embedding2);
       
       // Similarité cosinus simple
@@ -767,8 +769,25 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         norm1 += vec1[i] * vec1[i];
         norm2 += vec2[i] * vec2[i];
       }
-      
-      return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+
+      // 🚀 FIX: Éviter division par zéro qui cause NaN
+      const norm1Sqrt = Math.sqrt(norm1);
+      const norm2Sqrt = Math.sqrt(norm2);
+
+      if (norm1Sqrt === 0 || norm2Sqrt === 0) {
+        console.log(`⚠️ [SIMILARITY] Vector normalization is zero - returning 0`);
+        return 0;
+      }
+
+      const similarity = dotProduct / (norm1Sqrt * norm2Sqrt);
+
+      // 🚀 FIX: Valider que le résultat n'est pas NaN
+      if (isNaN(similarity)) {
+        console.log(`⚠️ [SIMILARITY] NaN detected - vectors:`, { vec1Length: vec1.length, vec2Length: vec2.length });
+        return 0;
+      }
+
+      return similarity;
     } catch {
       return 0;
     }
