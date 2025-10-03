@@ -20,14 +20,17 @@ export class SimplifiedContentService {
       include: {
         _count: { select: { pages: true } },
         owner: { select: { id: true, firstName: true, lastName: true, email: true } },
+        children: { // 🚀 Support des projets imbriqués
+          orderBy: { position: 'asc' }
+        },
         pages: {
           where: { isArchived: false },
           orderBy: { position: 'asc' },
-          select: { 
-            id: true, 
-            title: true, 
-            projectId: true, 
-            slug: true, 
+          select: {
+            id: true,
+            title: true,
+            projectId: true,
+            slug: true,
             position: true,
             isPinned: true,
             icon: true,
@@ -118,10 +121,10 @@ export class SimplifiedContentService {
   /**
    * Crée un projet (dans le workspace par défaut)
    */
-  static async createProject(userId: string, data: { name: string; description?: string }) {
+  static async createProject(userId: string, data: { name: string; description?: string; parentId?: string | null }) {
     try {
       const defaultWorkspaceId = await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
-      
+
       const userLimits = await prisma.userLimits.findUnique({ where: { userId } });
       if (!userLimits) throw new Error('Limitations utilisateur non trouvées');
 
@@ -144,13 +147,34 @@ export class SimplifiedContentService {
         throw new Error(`Limite de projets atteinte (${userLimits.projectsUsed}/${userLimits.projectsLimit})`);
       }
 
+      // 🛡️ SÉCURITÉ: Valider le parentId si fourni
+      if (data.parentId) {
+        const parentProject = await prisma.project.findFirst({
+          where: {
+            id: data.parentId,
+            workspaceId: defaultWorkspaceId, // Doit être dans le même workspace
+            createdBy: userId // Doit appartenir au même utilisateur
+          }
+        });
+
+        if (!parentProject) {
+          console.error('🚫 [SIMPLIFIED-CONTENT] Parent project non trouvé ou accès refusé:', {
+            parentId: data.parentId,
+            userId,
+            workspaceId: defaultWorkspaceId
+          });
+          throw new Error('Parent project not found or access denied');
+        }
+      }
+
       const project = await prisma.$transaction(async (tx) => {
         const newProject = await tx.project.create({
           data: {
             name: data.name,
             description: data.description,
             workspaceId: defaultWorkspaceId,
-            createdBy: userId
+            createdBy: userId,
+            parentId: data.parentId || null // 🚀 Support des projets imbriqués à tous les niveaux
           },
           include: {
             owner: { select: { id: true, firstName: true, lastName: true, email: true } },

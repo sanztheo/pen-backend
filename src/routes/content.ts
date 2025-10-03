@@ -14,7 +14,8 @@ const router = Router();
 // Schémas de validation
 const createProjectSchema = z.object({
   name: z.string().min(1, 'Le nom est requis').max(255),
-  description: z.string().optional()
+  description: z.string().optional(),
+  parentId: z.string().uuid().nullable().optional() // 🚀 Support des projets imbriqués
 });
 
 const createPageSchema = z.object({

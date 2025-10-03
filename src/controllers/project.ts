@@ -78,7 +78,8 @@ export const createProject = async (req: Request, res: Response) => {
           name: validatedData.name,
           description: validatedData.description,
           workspaceId: validatedData.workspaceId,
-          createdBy: req.user!.id
+          createdBy: req.user!.id,
+          parentId: null // Par défaut, les projets sont créés à la racine
         },
         include: {
           owner: {
