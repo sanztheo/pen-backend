@@ -7,7 +7,7 @@ const ReorderItemSchema = z.object({
   id: z.string(),
   type: z.enum(['page', 'project']),
   position: z.number().int().min(0),
-  parentId: z.string().nullable().optional(), // null pour root, string pour dans un projet
+  parentId: z.string().nullable().optional(), // null pour root, string pour dans un projet (ou un autre projet pour les projets imbriqués)
 });
 
 const ReorderRequestSchema = z.object({
@@ -59,6 +59,88 @@ export const reorderItems = async (req: Request, res: Response) => {
       }
     }
 
+    // 🛡️ SÉCURITÉ: Valider tous les parentId fournis
+    const parentIds = items
+      .filter(item => item.parentId !== null && item.parentId !== undefined)
+      .map(item => item.parentId as string);
+
+    if (parentIds.length > 0) {
+      const validParents = await prisma.project.findMany({
+        where: {
+          id: { in: parentIds },
+          workspaceId: workspaceId // Doit être dans le même workspace
+        },
+        select: { id: true }
+      });
+
+      const validParentIds = new Set(validParents.map(p => p.id));
+
+      for (const item of items) {
+        if (item.parentId && !validParentIds.has(item.parentId)) {
+          console.error('🚫 [REORDER] Parent project invalide:', {
+            itemId: item.id,
+            parentId: item.parentId,
+            workspaceId
+          });
+          return res.status(403).json({
+            success: false,
+            error: `Parent project ${item.parentId} not found or access denied`,
+            code: 'INVALID_PARENT_ID'
+          });
+        }
+      }
+    }
+
+    // 🛡️ SÉCURITÉ: Prévenir les cycles dans les projets imbriqués
+    const projectItems = items.filter(item => item.type === 'project' && item.parentId);
+
+    if (projectItems.length > 0) {
+      // Récupérer tous les projets du workspace pour détecter les cycles
+      const allProjects = await prisma.project.findMany({
+        where: { workspaceId },
+        select: { id: true, parentId: true }
+      });
+
+      // Fonction récursive pour vérifier si targetId est un descendant de projectId
+      const isDescendant = (projectId: string, targetId: string): boolean => {
+        const children = allProjects.filter(p => p.parentId === projectId);
+
+        for (const child of children) {
+          if (child.id === targetId) return true;
+          if (isDescendant(child.id, targetId)) return true;
+        }
+
+        return false;
+      };
+
+      for (const item of projectItems) {
+        // Vérification 1: Un projet ne peut pas être son propre parent
+        if (item.parentId === item.id) {
+          console.error('🚫 [REORDER] Cycle détecté: projet parent de lui-même:', {
+            projectId: item.id
+          });
+          return res.status(400).json({
+            success: false,
+            error: 'Cannot set project as its own parent',
+            code: 'CYCLE_DETECTED'
+          });
+        }
+
+        // Vérification 2: Le nouveau parent ne doit pas être un descendant du projet
+        if (isDescendant(item.id, item.parentId!)) {
+          console.error('🚫 [REORDER] Cycle détecté: parent est un descendant:', {
+            projectId: item.id,
+            parentId: item.parentId
+          });
+          return res.status(400).json({
+            success: false,
+            error: 'Cannot create cycle: target parent is a descendant of the project',
+            code: 'CYCLE_DETECTED'
+          });
+        }
+      }
+    }
+
     // 3. Transaction atomique
     const result = await prisma.$transaction(async (tx) => {
       const updates = [];
@@ -70,9 +152,10 @@ export const reorderItems = async (req: Request, res: Response) => {
           });
           updates.push({ type: 'page', id: update.id });
         } else if (item.type === 'project') {
+          // 🚀 Support des projets imbriqués : parentId peut maintenant être un autre projet
           const update = await tx.project.update({
             where: { id: item.id },
-            data: { position: item.position, workspaceId: workspaceId },
+            data: { position: item.position, parentId: item.parentId || null, workspaceId: workspaceId },
           });
           updates.push({ type: 'project', id: update.id });
         }
