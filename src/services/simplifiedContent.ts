@@ -20,14 +20,17 @@ export class SimplifiedContentService {
       include: {
         _count: { select: { pages: true } },
         owner: { select: { id: true, firstName: true, lastName: true, email: true } },
+        children: { // 🚀 Support des projets imbriqués
+          orderBy: { position: 'asc' }
+        },
         pages: {
           where: { isArchived: false },
           orderBy: { position: 'asc' },
-          select: { 
-            id: true, 
-            title: true, 
-            projectId: true, 
-            slug: true, 
+          select: {
+            id: true,
+            title: true,
+            projectId: true,
+            slug: true,
             position: true,
             isPinned: true,
             icon: true,
@@ -118,10 +121,10 @@ export class SimplifiedContentService {
   /**
    * Crée un projet (dans le workspace par défaut)
    */
-  static async createProject(userId: string, data: { name: string; description?: string }) {
+  static async createProject(userId: string, data: { name: string; description?: string; parentId?: string | null }) {
     try {
       const defaultWorkspaceId = await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
-      
+
       const userLimits = await prisma.userLimits.findUnique({ where: { userId } });
       if (!userLimits) throw new Error('Limitations utilisateur non trouvées');
 
@@ -150,7 +153,8 @@ export class SimplifiedContentService {
             name: data.name,
             description: data.description,
             workspaceId: defaultWorkspaceId,
-            createdBy: userId
+            createdBy: userId,
+            parentId: data.parentId || null // 🚀 Support des projets imbriqués à tous les niveaux
           },
           include: {
             owner: { select: { id: true, firstName: true, lastName: true, email: true } },

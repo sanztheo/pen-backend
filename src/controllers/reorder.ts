@@ -7,7 +7,7 @@ const ReorderItemSchema = z.object({
   id: z.string(),
   type: z.enum(['page', 'project']),
   position: z.number().int().min(0),
-  parentId: z.string().nullable().optional(), // null pour root, string pour dans un projet
+  parentId: z.string().nullable().optional(), // null pour root, string pour dans un projet (ou un autre projet pour les projets imbriqués)
 });
 
 const ReorderRequestSchema = z.object({
@@ -70,9 +70,10 @@ export const reorderItems = async (req: Request, res: Response) => {
           });
           updates.push({ type: 'page', id: update.id });
         } else if (item.type === 'project') {
+          // 🚀 Support des projets imbriqués : parentId peut maintenant être un autre projet
           const update = await tx.project.update({
             where: { id: item.id },
-            data: { position: item.position, workspaceId: workspaceId },
+            data: { position: item.position, parentId: item.parentId || null, workspaceId: workspaceId },
           });
           updates.push({ type: 'project', id: update.id });
         }
