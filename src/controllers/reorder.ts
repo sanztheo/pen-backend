@@ -91,6 +91,56 @@ export const reorderItems = async (req: Request, res: Response) => {
       }
     }
 
+    // 🛡️ SÉCURITÉ: Prévenir les cycles dans les projets imbriqués
+    const projectItems = items.filter(item => item.type === 'project' && item.parentId);
+
+    if (projectItems.length > 0) {
+      // Récupérer tous les projets du workspace pour détecter les cycles
+      const allProjects = await prisma.project.findMany({
+        where: { workspaceId },
+        select: { id: true, parentId: true }
+      });
+
+      // Fonction récursive pour vérifier si targetId est un descendant de projectId
+      const isDescendant = (projectId: string, targetId: string): boolean => {
+        const children = allProjects.filter(p => p.parentId === projectId);
+
+        for (const child of children) {
+          if (child.id === targetId) return true;
+          if (isDescendant(child.id, targetId)) return true;
+        }
+
+        return false;
+      };
+
+      for (const item of projectItems) {
+        // Vérification 1: Un projet ne peut pas être son propre parent
+        if (item.parentId === item.id) {
+          console.error('🚫 [REORDER] Cycle détecté: projet parent de lui-même:', {
+            projectId: item.id
+          });
+          return res.status(400).json({
+            success: false,
+            error: 'Cannot set project as its own parent',
+            code: 'CYCLE_DETECTED'
+          });
+        }
+
+        // Vérification 2: Le nouveau parent ne doit pas être un descendant du projet
+        if (isDescendant(item.id, item.parentId!)) {
+          console.error('🚫 [REORDER] Cycle détecté: parent est un descendant:', {
+            projectId: item.id,
+            parentId: item.parentId
+          });
+          return res.status(400).json({
+            success: false,
+            error: 'Cannot create cycle: target parent is a descendant of the project',
+            code: 'CYCLE_DETECTED'
+          });
+        }
+      }
+    }
+
     // 3. Transaction atomique
     const result = await prisma.$transaction(async (tx) => {
       const updates = [];
