@@ -59,6 +59,38 @@ export const reorderItems = async (req: Request, res: Response) => {
       }
     }
 
+    // 🛡️ SÉCURITÉ: Valider tous les parentId fournis
+    const parentIds = items
+      .filter(item => item.parentId !== null && item.parentId !== undefined)
+      .map(item => item.parentId as string);
+
+    if (parentIds.length > 0) {
+      const validParents = await prisma.project.findMany({
+        where: {
+          id: { in: parentIds },
+          workspaceId: workspaceId // Doit être dans le même workspace
+        },
+        select: { id: true }
+      });
+
+      const validParentIds = new Set(validParents.map(p => p.id));
+
+      for (const item of items) {
+        if (item.parentId && !validParentIds.has(item.parentId)) {
+          console.error('🚫 [REORDER] Parent project invalide:', {
+            itemId: item.id,
+            parentId: item.parentId,
+            workspaceId
+          });
+          return res.status(403).json({
+            success: false,
+            error: `Parent project ${item.parentId} not found or access denied`,
+            code: 'INVALID_PARENT_ID'
+          });
+        }
+      }
+    }
+
     // 3. Transaction atomique
     const result = await prisma.$transaction(async (tx) => {
       const updates = [];

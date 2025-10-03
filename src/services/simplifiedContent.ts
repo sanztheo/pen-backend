@@ -147,6 +147,26 @@ export class SimplifiedContentService {
         throw new Error(`Limite de projets atteinte (${userLimits.projectsUsed}/${userLimits.projectsLimit})`);
       }
 
+      // 🛡️ SÉCURITÉ: Valider le parentId si fourni
+      if (data.parentId) {
+        const parentProject = await prisma.project.findFirst({
+          where: {
+            id: data.parentId,
+            workspaceId: defaultWorkspaceId, // Doit être dans le même workspace
+            createdBy: userId // Doit appartenir au même utilisateur
+          }
+        });
+
+        if (!parentProject) {
+          console.error('🚫 [SIMPLIFIED-CONTENT] Parent project non trouvé ou accès refusé:', {
+            parentId: data.parentId,
+            userId,
+            workspaceId: defaultWorkspaceId
+          });
+          throw new Error('Parent project not found or access denied');
+        }
+      }
+
       const project = await prisma.$transaction(async (tx) => {
         const newProject = await tx.project.create({
           data: {
