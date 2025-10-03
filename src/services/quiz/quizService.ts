@@ -826,15 +826,20 @@ export class QuizService {
 
         console.log('🔍 Analyse du workspace:', workspace.name, 'avec', workspace.projects.length, 'projets');
 
+        // 🚀 Pour chaque projet, récupérer TOUTES les pages (incluant sous-projets)
         for (const project of workspace.projects) {
-          console.log('📁 Analyse du projet:', project.name || 'Sans nom', 'avec', project.pages.length, 'pages');
-          
-          for (const page of project.pages) {
+          console.log('📁 Analyse du projet:', project.name || 'Sans nom', 'avec', project.pages.length, 'pages directes');
+
+          // Récupération récursive de toutes les pages
+          const allProjectPages = await this.getAllPagesRecursively(project.id);
+          console.log(`📊 Total pages pour "${project.name}" (incluant sous-projets): ${allProjectPages.length}`);
+
+          for (const page of allProjectPages) {
             if (page.blockNoteContent) {
               try {
                 // Extraire le contenu du JSON BlockNote
                 const blockNoteContent = page.blockNoteContent as any[];
-                
+
                 if (Array.isArray(blockNoteContent)) {
                   const pageContent = blockNoteContent
                     .map(block => {
@@ -849,9 +854,9 @@ export class QuizService {
                     })
                     .filter(content => content.trim().length > 0)
                     .join('\n');
-                  
+
                   console.log('📄 Page:', page.title, '- Contenu extrait:', pageContent.length, 'caractères');
-                  
+
                   if (pageContent.length >= (options.minContentLength || 0)) {
                     extractedContent.push({
                       pageId: page.id,
@@ -1025,7 +1030,7 @@ export class QuizService {
   }
 
   /**
-   * Traite le contenu d'un projet entier
+   * Traite le contenu d'un projet entier (récursivement pour les projets imbriqués)
    */
   private static async processProjectContent(project: any, options: PageProjectAnalysisOptions, results: WorkspaceAnalysisResult[]) {
     const extractedContent: WorkspaceAnalysisResult['extractedContent'] = [];
@@ -1033,10 +1038,14 @@ export class QuizService {
 
     console.log('📁 Analyse du projet:', project.name, 'avec', project.pages.length, 'pages');
 
-    // Extraction du contenu de toutes les pages du projet
-    for (const page of project.pages) {
+    // 🚀 Récupération RÉCURSIVE de toutes les pages (projet + sous-projets)
+    const allPages = await this.getAllPagesRecursively(project.id);
+    console.log(`📊 Total pages récupérées (incluant sous-projets): ${allPages.length}`);
+
+    // Extraction du contenu de toutes les pages (directes + des sous-projets)
+    for (const page of allPages) {
       let pageContent = '';
-      
+
       if (page.blockNoteContent && typeof page.blockNoteContent === 'object') {
         pageContent = this.extractTextFromBlockNoteContent(page.blockNoteContent);
         if (pageContent && pageContent.length >= (options.minContentLength || 100)) {
@@ -1070,7 +1079,7 @@ export class QuizService {
       results.push({
         workspaceId: project.workspace.id,
         workspaceName: `${project.name} (Projet)`,
-        totalPages: project.pages.length,
+        totalPages: allPages.length, // 🚀 Compte total incluant sous-projets
         analyzedPages: extractedContent.length,
         contentSummary: {
           totalWords,
@@ -1081,6 +1090,45 @@ export class QuizService {
         extractedContent
       });
     }
+  }
+
+  /**
+   * 🚀 Récupère récursivement toutes les pages d'un projet et de ses enfants
+   */
+  private static async getAllPagesRecursively(projectId: string): Promise<any[]> {
+    const allPages: any[] = [];
+
+    // Récupérer le projet avec ses pages et ses enfants
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        pages: {
+          where: { isArchived: false },
+          select: {
+            id: true,
+            title: true,
+            blockNoteContent: true
+          }
+        },
+        children: {
+          where: { isArchived: false },
+          select: { id: true }
+        }
+      }
+    });
+
+    if (!project) return allPages;
+
+    // Ajouter les pages directes du projet
+    allPages.push(...project.pages);
+
+    // Récupérer récursivement les pages des sous-projets
+    for (const child of project.children) {
+      const childPages = await this.getAllPagesRecursively(child.id);
+      allPages.push(...childPages);
+    }
+
+    return allPages;
   }
 
   /**
