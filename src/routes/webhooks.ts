@@ -47,10 +47,29 @@ async function checkAndResetMonthlyLimits(userId: string, subscription: any) {
 }
 
 // Fonction pour gérer les changements de plan avec respect des cycles de facturation
-async function handlePlanChange(userId: string, newPlan: string, newStatus: string, webhookData: any) {
+async function handlePlanChange(userId: string, newPlan: string, newStatus: string, webhookData: any, eventTimestamp?: Date) {
   const existing = await prisma.userSubscription.findUnique({
     where: { userId }
   });
+
+  // ✅ TIMESTAMP CHECK: Ignorer les événements obsolètes
+  if (existing && eventTimestamp && existing.updatedAt > eventTimestamp) {
+    console.log(`⏭️ [Webhook] Event ignored (older than current state)`, {
+      userId,
+      eventTime: eventTimestamp.toISOString(),
+      lastUpdate: existing.updatedAt.toISOString()
+    });
+    // Retourner l'état actuel sans modification
+    return {
+      plan: existing.plan,
+      status: existing.status,
+      currentPeriodStart: existing.currentPeriodStart,
+      currentPeriodEnd: existing.currentPeriodEnd,
+      cancelAtPeriodEnd: existing.cancelAtPeriodEnd,
+      clerkSubscriptionId: existing.clerkSubscriptionId,
+      wasIgnored: true
+    };
+  }
 
   const now = new Date();
   let currentPeriodStart = now;
@@ -78,13 +97,19 @@ async function handlePlanChange(userId: string, newPlan: string, newStatus: stri
   let cancelAtPeriodEnd = false;
   if (existing) {
     const oldPlan = existing.plan;
-    
+
     // Si l'abonnement est terminé (ended/expired), effet immédiat vers free_user
     if (newStatus === 'ended' || newStatus === 'expired' || newStatus === 'canceled') {
       console.log(`🔚 [Webhook] Abonnement terminé ${userId}: ${oldPlan} → ${newPlan} (was going to force free_user)`);
 
+      // IMPORTANT: Ne pas downgrader si le plan actuel en base est déjà premium
+      // (cas d'un ancien plan gratuit qui se termine pendant un upgrade vers premium)
+      if (oldPlan === 'premium') {
+        console.log(`🔚 [Webhook] Keeping current premium plan (old plan ended during upgrade)`);
+        newPlan = 'premium';
+      }
       // Ne pas forcer free_user si le nouveau plan est premium (transition active)
-      if (newPlan !== 'premium') {
+      else if (newPlan !== 'premium') {
         console.log(`🔚 [Webhook] Forcing free_user because newPlan=${newPlan}`);
         newPlan = 'free_user';
       } else {
@@ -112,7 +137,8 @@ async function handlePlanChange(userId: string, newPlan: string, newStatus: stri
     currentPeriodStart,
     currentPeriodEnd,
     cancelAtPeriodEnd,
-    clerkSubscriptionId: webhookData.id || webhookData.subscription_id || existing?.clerkSubscriptionId || null
+    clerkSubscriptionId: webhookData.id || webhookData.subscription_id || existing?.clerkSubscriptionId || null,
+    wasIgnored: false
   };
 }
 
@@ -135,6 +161,21 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
 
     const type = evt.type as string;
     const data = evt.data as any;
+    const eventId = evt.id as string;
+    // Extraire le timestamp de l'événement (Svix utilise created_at ou timestamp)
+    const eventTimestamp = evt.created_at ? new Date(evt.created_at * 1000) : (evt.timestamp ? new Date(evt.timestamp) : new Date());
+
+    // ✅ IDEMPOTENCE: Vérifier si l'événement a déjà été traité
+    if (eventId) {
+      const alreadyProcessed = await prisma.webhookEvent.findUnique({
+        where: { eventId }
+      });
+
+      if (alreadyProcessed) {
+        console.log('⏭️ [Clerk Webhook] Event already processed, skipping', { eventId, type });
+        return res.status(200).json({ skipped: true, reason: 'already_processed' });
+      }
+    }
 
     const relevant = [
       'user.updated',
@@ -162,30 +203,40 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
     // Ne jamais utiliser data.id (souvent un ID d'abonnement). On veut l'ID Clerk user_*
     // 0) Déterminer le userId selon le type d'event
     let userId: string | undefined = undefined;
+
+    // Pour les événements user.*, l'ID est directement dans data.id
     if (type?.startsWith('user.') && typeof data?.id === 'string' && data.id.startsWith('user_')) {
       userId = data.id;
     }
 
-    const candidates = [
-      data?.user_id,
-      data?.userId,
-      data?.user?.id,
-      data?.actor?.id,
-      data?.payer_id,
-      data?.payer?.id,
-      data?.payer?.user_id,
-      data?.items?.[0]?.payer_id,
-      data?.items?.[0]?.payer?.user_id,
-    ].filter(Boolean);
+    // Pour les événements billing (subscription*, subscriptionItem*, payment*), prioriser payer
+    if (!userId && (type?.includes('subscription') || type?.includes('payment'))) {
+      const billingCandidates = [
+        data?.payer?.user_id,      // ✅ Priorité 1 selon doc Clerk
+        data?.payer_id,             // ✅ Priorité 2
+        data?.items?.[0]?.payer?.user_id,
+        data?.items?.[0]?.payer_id,
+      ].filter(Boolean);
 
+      userId = billingCandidates.find((id: any) => typeof id === 'string' && id.startsWith('user_')) as string | undefined;
+    }
+
+    // Fallback pour autres cas
     if (!userId) {
-      userId = candidates.find((id: any) => typeof id === 'string' && id.startsWith('user_')) as string | undefined;
+      const fallbackCandidates = [
+        data?.user_id,
+        data?.userId,
+        data?.user?.id,
+        data?.actor?.id,
+      ].filter(Boolean);
+
+      userId = fallbackCandidates.find((id: any) => typeof id === 'string' && id.startsWith('user_')) as string | undefined;
     }
     if (!userId) {
       console.log('🪝 [Clerk Webhook] Aucune user_id dans event, on ignore', {
         type,
-        candidates,
         payer: data?.payer,
+        payerId: data?.payer_id,
         status: data?.status,
       });
       return res.status(200).json({ skipped: true });
@@ -253,7 +304,7 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
       ]);
 
       // Upsert des limitations par défaut (FREE) avec synchronisation de l'usage réel
-      const limits = await prisma.userLimits.upsert({
+      await prisma.userLimits.upsert({
         where: { userId },
         update: {
           // Synchroniser l'usage avec les données réelles
@@ -282,6 +333,17 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
         }
       });
       console.log('🪝 [Clerk Webhook] User limits OK', { userId, limits: 'FREE' });
+
+      // ✅ IDEMPOTENCE: Enregistrer l'événement comme traité
+      if (eventId) {
+        await prisma.webhookEvent.create({
+          data: {
+            eventId,
+            type,
+            processedAt: new Date(),
+          }
+        });
+      }
 
       return res.status(200).json({ success: true });
     }
@@ -345,15 +407,22 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
     const status = mapStatusToPrisma(rawStatus);
 
     // 4) Gérer le changement de plan avec respect des cycles
-    const planInfo = await handlePlanChange(userId, initialPlan, status, data);
+    const planInfo = await handlePlanChange(userId, initialPlan, status, data, eventTimestamp);
 
     console.log(`🔍 [Webhook Debug] Plan Info:`, {
       userId,
       type,
       inputPlan: initialPlan,
       outputPlan: planInfo.plan,
-      status: planInfo.status
+      status: planInfo.status,
+      wasIgnored: planInfo.wasIgnored
     });
+
+    // Si l'événement a été ignoré (trop vieux), ne pas mettre à jour
+    if (planInfo.wasIgnored) {
+      console.log('⏭️ [Webhook] Skipping update due to outdated event');
+      return res.status(200).json({ success: true, skipped: true, reason: 'outdated_event' });
+    }
 
     // 5) Upsert l'abonnement avec la logique de cycle appropriée
     const sub = await prisma.userSubscription.upsert({
@@ -430,6 +499,18 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
     });
 
     console.log('🪝 [Clerk Webhook] Sync:', { type, userId, plan: sub.plan, status: sub.status, limits: isPremium ? 'PREMIUM' : 'FREE' });
+
+    // ✅ IDEMPOTENCE: Enregistrer l'événement comme traité
+    if (eventId) {
+      await prisma.webhookEvent.create({
+        data: {
+          eventId,
+          type,
+          processedAt: new Date(),
+        }
+      });
+    }
+
     return res.status(200).json({ success: true });
   } catch (err: any) {
     console.error('[Clerk Webhook] Error:', err?.message || err);

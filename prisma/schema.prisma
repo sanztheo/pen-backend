@@ -651,6 +651,18 @@ model RAGSession {
   @@map("rag_sessions")
 }
 
+// 🔐 Webhook Event pour idempotence
+model WebhookEvent {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId     String   @unique @map("event_id") @db.VarChar(255)
+  type        String   @db.VarChar(100)
+  processedAt DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  @@index([eventId])
+  @@index([processedAt])
+  @@map("webhook_events")
+}
+
 // Enums pour le système RAG
 enum RAGSourceType {
   PDF
