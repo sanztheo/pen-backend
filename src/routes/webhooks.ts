@@ -52,8 +52,9 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
     const relevantEvents = [
       'user.created',
       'user.updated',
-      'subscriptionItem.active',   // ✅ Plan actif
-      // ❌ On n'écoute PAS subscriptionItem.ended (ancien plan qui se termine)
+      'subscriptionItem.active',    // ✅ Plan activé (upgrade/nouveau)
+      'subscriptionItem.canceled',  // ✅ Annulé (actif jusqu'à fin période)
+      'subscriptionItem.ended',     // ✅ Complètement terminé
     ];
 
     if (!relevantEvents.includes(type)) {
@@ -270,6 +271,109 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
       });
 
       // Marquer comme traité
+      if (eventId) {
+        await prisma.webhookEvent.create({
+          data: { eventId, type, processedAt: new Date() }
+        });
+      }
+
+      return res.status(200).json({ success: true });
+    }
+
+    // 🔚 SubscriptionItem.canceled - Annulé mais actif jusqu'à fin période
+    if (type === 'subscriptionItem.canceled') {
+      console.log(`⚠️ [Webhook] subscriptionItem.canceled - Plan annulé mais actif jusqu'à fin période:`, {
+        userId,
+        planData: data?.plan
+      });
+
+      // Juste logger, ne rien changer (le plan reste actif jusqu'à .ended)
+      if (eventId) {
+        await prisma.webhookEvent.create({
+          data: { eventId, type, processedAt: new Date() }
+        });
+      }
+
+      return res.status(200).json({ success: true, message: 'canceled_but_still_active' });
+    }
+
+    // 🔚 SubscriptionItem.ended - Complètement terminé
+    if (type === 'subscriptionItem.ended') {
+      const planSlug = data?.plan?.slug || 'free_user';
+      console.log(`🔚 [Webhook] subscriptionItem.ended - Plan terminé:`, {
+        userId,
+        planSlug,
+        planData: data?.plan
+      });
+
+      // Si c'est le premium qui se termine → Retour au free
+      if (planSlug === 'premium') {
+        const now = new Date();
+        await prisma.userSubscription.upsert({
+          where: { userId },
+          update: {
+            plan: 'free_user',
+            status: 'ended',
+            updatedAt: new Date(),
+          },
+          create: {
+            userId,
+            plan: 'free_user',
+            status: 'active',
+            currentPeriodStart: now,
+            currentPeriodEnd: new Date(now.setMonth(now.getMonth() + 1)),
+          }
+        });
+
+        // Calculer l'usage réel
+        const [workspacesCount, projectsCount, customQuizzesCount, presetSequencesCount, aiCreditsUsed] = await Promise.all([
+          prisma.workspace.count({ where: { ownerId: userId } }),
+          prisma.project.count({ where: { createdBy: userId } }),
+          prisma.quiz.count({ where: { userId, preset: 'NONE' } }),
+          prisma.quizSequence.count({ where: { userId } }),
+          prisma.usageRecord.aggregate({
+            where: { userId, resourceType: { in: ['ai_credits', 'openai_request'] } },
+            _sum: { quantity: true }
+          }).then(result => result._sum.quantity || 0)
+        ]);
+
+        // Limites FREE
+        await prisma.userLimits.upsert({
+          where: { userId },
+          update: {
+            aiCreditsLimit: 50,
+            workspacesLimit: 2,
+            projectsLimit: 4,
+            customQuizzesLimit: 5,
+            presetSequencesLimit: 1,
+            workspacesUsed: workspacesCount,
+            projectsUsed: projectsCount,
+            customQuizzesUsed: customQuizzesCount,
+            presetSequencesUsed: presetSequencesCount,
+            aiCreditsUsed: Math.max(0, aiCreditsUsed),
+          },
+          create: {
+            userId,
+            aiCreditsLimit: 50,
+            workspacesLimit: 2,
+            projectsLimit: 4,
+            customQuizzesLimit: 5,
+            presetSequencesLimit: 1,
+            aiCreditsUsed: Math.max(0, aiCreditsUsed),
+            workspacesUsed: workspacesCount,
+            projectsUsed: projectsCount,
+            customQuizzesUsed: customQuizzesCount,
+            presetSequencesUsed: presetSequencesCount,
+            lastResetAt: new Date(),
+            resetType: 'monthly',
+          }
+        });
+
+        console.log(`✅ [Webhook] Premium ended → free_user appliqué`);
+      } else {
+        console.log(`⏭️ [Webhook] Free plan ended, ignoré`);
+      }
+
       if (eventId) {
         await prisma.webhookEvent.create({
           data: { eventId, type, processedAt: new Date() }
