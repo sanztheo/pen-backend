@@ -225,6 +225,27 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
       return res.status(200).json({ skipped: true });
     }
 
+    // 🛡️ PROTECTION: Ignorer subscriptionItem.ended si l'utilisateur a déjà un abonnement premium actif
+    // Cela évite le race condition où subscriptionItem.ended (ancien plan gratuit) arrive après subscription.active (nouveau premium)
+    if (type === 'subscriptionItem.ended') {
+      const currentSub = await prisma.userSubscription.findUnique({
+        where: { userId }
+      });
+
+      if (currentSub?.plan === 'premium' && ['active', 'trialing'].includes(currentSub.status)) {
+        console.log('🛡️ [Clerk Webhook] Ignoring subscriptionItem.ended - user has active premium subscription', {
+          userId,
+          currentPlan: currentSub.plan,
+          currentStatus: currentSub.status
+        });
+        return res.status(200).json({
+          skipped: true,
+          reason: 'premium_active_protected',
+          message: 'subscriptionItem.ended ignored to protect active premium subscription'
+        });
+      }
+    }
+
     // 1) S'assurer que l'utilisateur existe dans PostgreSQL (FK requirement)
     const secretKey = process.env.CLERK_SECRET_KEY;
     if (!secretKey) {
