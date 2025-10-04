@@ -8,6 +8,7 @@ import cron from 'node-cron';
 // Configuration des tâches
 const HEALTH_CHECK_SCHEDULE = '0 */6 * * *'; // Toutes les 6 heures
 const RAG_CLEANUP_SCHEDULE = '0 3 * * *'; // Tous les jours à 3h du matin
+const DAILY_ARTICLE_SCHEDULE = '0 0 * * *'; // Tous les jours à minuit
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 export function startCronJobs() {
@@ -70,6 +71,40 @@ export function startCronJobs() {
 
   console.log(`✅ Tâche de nettoyage RAG programmée: ${RAG_CLEANUP_SCHEDULE} (Europe/Paris)`);
 
+  // 📰 Fetch de l'article scientifique du jour (Futura Sciences)
+  const dailyArticleTask = cron.schedule(DAILY_ARTICLE_SCHEDULE, async () => {
+    console.log('\n📰 [CRON] Fetch de l\'article scientifique du jour...');
+    try {
+      const { FuturaRssService } = await import('../services/futuraRss.service.js');
+
+      // Récupérer et sauvegarder l'article du jour
+      const latestArticle = await FuturaRssService.fetchLatestArticle();
+
+      if (latestArticle) {
+        const savedArticle = await FuturaRssService.saveDailyArticle(latestArticle);
+
+        if (savedArticle) {
+          console.log(`✅ [CRON] Article du jour sauvegardé: "${savedArticle.title.substring(0, 50)}..."`);
+
+          // Nettoyer les anciens articles (garder seulement 30 jours)
+          const deletedCount = await FuturaRssService.cleanupOldArticles();
+          console.log(`🗑️ [CRON] ${deletedCount} ancien(s) article(s) supprimé(s)`);
+        } else {
+          console.warn('⚠️ [CRON] Article déjà existant pour aujourd\'hui');
+        }
+      } else {
+        console.error('❌ [CRON] Aucun article récupéré depuis Futura Sciences');
+      }
+
+    } catch (error) {
+      console.error('❌ [CRON] Erreur lors du fetch de l\'article quotidien:', error);
+    }
+  }, {
+    timezone: 'Europe/Paris'
+  });
+
+  console.log(`✅ Tâche article quotidien programmée: ${DAILY_ARTICLE_SCHEDULE} (Europe/Paris)`);
+
   // En développement, ajouter une tâche de test plus fréquente
   if (NODE_ENV === 'development') {
     // Tâche de test toutes les 5 minutes (désactivée par défaut)
@@ -95,7 +130,8 @@ export function startCronJobs() {
 
   return {
     healthCheck: healthCheckTask,
-    ragCleanup: ragCleanupTask
+    ragCleanup: ragCleanupTask,
+    dailyArticle: dailyArticleTask
   };
 }
 
