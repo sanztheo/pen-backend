@@ -114,7 +114,7 @@ async function processScheduledDowngrades(now: Date) {
       data: {
         aiCreditsLimit: 50,
         workspacesLimit: 2,
-        projectsLimit: 4,
+        projectsLimit: -1,
         customQuizzesLimit: 5,
         presetSequencesLimit: 1,
         // Reset des crédits consommables
