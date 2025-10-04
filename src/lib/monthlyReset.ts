@@ -27,36 +27,65 @@ export async function processMonthlyResets() {
     
     for (const user of usersToCheck) {
       if (!user.userLimits || !user.subscription) continue;
-      
+
       const limits = user.userLimits;
       const subscription = user.subscription;
-      
+
       // Utiliser la date de début de période comme référence
       const referenceDate = subscription.currentPeriodStart || new Date(limits.lastResetAt);
-      
+
       // Calculer la prochaine date de reset (même jour du mois suivant)
+      // Amélioration: gérer les fins de mois correctement
       const nextResetDate = new Date(referenceDate);
+      const originalDay = referenceDate.getDate();
       nextResetDate.setMonth(nextResetDate.getMonth() + 1);
-      
+
+      // Si le jour a changé (ex: 31 jan → 3 mars), ajuster au dernier jour du mois
+      if (nextResetDate.getDate() !== originalDay) {
+        nextResetDate.setDate(0); // Dernier jour du mois précédent
+      }
+
       // Si on a dépassé la date de reset, réinitialiser
       if (now >= nextResetDate) {
         console.log(`🔄 [Monthly Reset] Reset pour utilisateur ${user.id}`, {
           lastReset: limits.lastResetAt,
+          currentPeriodStart: subscription.currentPeriodStart?.toISOString(),
           nextReset: nextResetDate.toISOString(),
           subscription: subscription.plan
         });
 
-        await prisma.userLimits.update({
-          where: { userId: user.id },
-          data: {
-            // Reset uniquement les crédits consommables
-            aiCreditsUsed: 0,
-            customQuizzesUsed: 0,
-            presetSequencesUsed: 0,
-            lastResetAt: now,
-          }
-        });
-        
+        // Calculer la nouvelle période
+        const newPeriodStart = new Date(now);
+        const newPeriodEnd = new Date(now);
+        newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
+
+        // Ajuster si fin de mois problématique
+        const newOriginalDay = newPeriodStart.getDate();
+        if (newPeriodEnd.getDate() !== newOriginalDay) {
+          newPeriodEnd.setDate(0);
+        }
+
+        // Mettre à jour les limites ET la période de subscription
+        await prisma.$transaction([
+          prisma.userLimits.update({
+            where: { userId: user.id },
+            data: {
+              // Reset uniquement les crédits consommables
+              aiCreditsUsed: 0,
+              customQuizzesUsed: 0,
+              presetSequencesUsed: 0,
+              lastResetAt: now,
+            }
+          }),
+          prisma.userSubscription.update({
+            where: { userId: user.id },
+            data: {
+              currentPeriodStart: newPeriodStart,
+              currentPeriodEnd: newPeriodEnd,
+            }
+          })
+        ]);
+
         resetCount++;
       }
     }

@@ -340,7 +340,7 @@ model UserLimits {
   workspacesUsed       Int      @default(0) @map("workspaces_used")
   workspacesLimit      Int      @default(2) @map("workspaces_limit")
   projectsUsed         Int      @default(0) @map("projects_used")
-  projectsLimit        Int      @default(4) @map("projects_limit")
+  projectsLimit        Int      @default(-1) @map("projects_limit")
   customQuizzesUsed    Int      @default(0) @map("custom_quizzes_used")
   customQuizzesLimit   Int      @default(5) @map("custom_quizzes_limit")
   presetSequencesUsed  Int      @default(0) @map("preset_sequences_used")

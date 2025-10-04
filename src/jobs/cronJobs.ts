@@ -9,6 +9,7 @@ import cron from 'node-cron';
 const HEALTH_CHECK_SCHEDULE = '0 */6 * * *'; // Toutes les 6 heures
 const RAG_CLEANUP_SCHEDULE = '0 3 * * *'; // Tous les jours à 3h du matin
 const DAILY_ARTICLE_SCHEDULE = '0 0 * * *'; // Tous les jours à minuit
+const MONTHLY_RESET_SCHEDULE = '0 2 * * *'; // Tous les jours à 2h du matin
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 export function startCronJobs() {
@@ -105,6 +106,28 @@ export function startCronJobs() {
 
   console.log(`✅ Tâche article quotidien programmée: ${DAILY_ARTICLE_SCHEDULE} (Europe/Paris)`);
 
+  // 🔄 Reset mensuel des limitations pour les users gratuits
+  const monthlyResetTask = cron.schedule(MONTHLY_RESET_SCHEDULE, async () => {
+    console.log('\n🔄 [CRON] Démarrage du reset mensuel...');
+    try {
+      const { processMonthlyResets } = await import('../lib/monthlyReset.js');
+
+      const result = await processMonthlyResets();
+
+      console.log(`✅ [CRON] Reset mensuel terminé:`, {
+        usersReset: result.resetCount,
+        downgrades: result.downgradeCount
+      });
+
+    } catch (error) {
+      console.error('❌ [CRON] Erreur lors du reset mensuel:', error);
+    }
+  }, {
+    timezone: 'Europe/Paris'
+  });
+
+  console.log(`✅ Tâche de reset mensuel programmée: ${MONTHLY_RESET_SCHEDULE} (Europe/Paris)`);
+
   // En développement, ajouter une tâche de test plus fréquente
   if (NODE_ENV === 'development') {
     // Tâche de test toutes les 5 minutes (désactivée par défaut)
@@ -131,7 +154,8 @@ export function startCronJobs() {
   return {
     healthCheck: healthCheckTask,
     ragCleanup: ragCleanupTask,
-    dailyArticle: dailyArticleTask
+    dailyArticle: dailyArticleTask,
+    monthlyReset: monthlyResetTask
   };
 }
 
