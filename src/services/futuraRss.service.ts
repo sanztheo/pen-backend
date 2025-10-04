@@ -1,5 +1,5 @@
 import Parser from 'rss-parser';
-import { prisma } from '../lib/prisma';
+import { prisma } from '../lib/prisma.js';
 
 // Types pour les articles RSS
 interface FuturaArticle {
