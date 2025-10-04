@@ -1,0 +1,102 @@
+import { Request, Response } from 'express';
+import { FuturaRssService } from '../services/futuraRss.service.js';
+import { secureError } from '../lib/secureLogging.js';
+
+export class DailyArticleController {
+  /**
+   * Récupère l'article scientifique du jour
+   * GET /api/daily-article
+   */
+  async getDailyArticle(req: Request, res: Response) {
+    try {
+      console.log('[DAILY-ARTICLE-API] Récupération de l\'article du jour...');
+
+      const article = await FuturaRssService.getDailyArticle();
+
+      if (!article) {
+        return res.status(404).json({
+          success: false,
+          error: 'Aucun article disponible pour aujourd\'hui'
+        });
+      }
+
+      console.log(`[DAILY-ARTICLE-API] Article récupéré: "${article.title.substring(0, 50)}..."`);
+
+      res.json({
+        success: true,
+        data: {
+          id: article.id,
+          title: article.title,
+          description: article.description,
+          url: article.url,
+          imageUrl: article.imageUrl,
+          publishedAt: article.publishedAt,
+          fetchedAt: article.fetchedAt
+        },
+        metadata: {
+          source: 'Futura Sciences',
+          fetchedAt: article.fetchedAt
+        }
+      });
+
+    } catch (error) {
+      secureError('[DAILY-ARTICLE-API] Erreur récupération article', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Erreur lors de la récupération de l\'article'
+      });
+    }
+  }
+
+  /**
+   * Force le fetch d'un nouvel article aléatoire
+   * POST /api/daily-article/refresh
+   */
+  async refreshDailyArticle(req: Request, res: Response) {
+    try {
+      console.log('[DAILY-ARTICLE-API] Refresh manuel de l\'article...');
+
+      const latestArticle = await FuturaRssService.fetchLatestArticle();
+
+      if (!latestArticle) {
+        return res.status(500).json({
+          success: false,
+          error: 'Impossible de récupérer un article depuis Futura Sciences'
+        });
+      }
+
+      // Forcer la création d'un nouvel article même s'il y en a déjà un aujourd'hui
+      const savedArticle = await FuturaRssService.saveDailyArticle(latestArticle, true);
+
+      if (!savedArticle) {
+        return res.status(500).json({
+          success: false,
+          error: 'Erreur lors de la sauvegarde de l\'article'
+        });
+      }
+
+      console.log(`[DAILY-ARTICLE-API] Nouvel article sauvegardé: "${savedArticle.title.substring(0, 50)}..."`);
+
+      res.json({
+        success: true,
+        data: {
+          id: savedArticle.id,
+          title: savedArticle.title,
+          description: savedArticle.description,
+          url: savedArticle.url,
+          imageUrl: savedArticle.imageUrl,
+          publishedAt: savedArticle.publishedAt,
+          fetchedAt: savedArticle.fetchedAt
+        },
+        message: 'Article rafraîchi avec succès'
+      });
+
+    } catch (error) {
+      secureError('[DAILY-ARTICLE-API] Erreur refresh article', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Erreur lors du rafraîchissement de l\'article'
+      });
+    }
+  }
+}
