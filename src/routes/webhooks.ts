@@ -47,29 +47,10 @@ async function checkAndResetMonthlyLimits(userId: string, subscription: any) {
 }
 
 // Fonction pour gérer les changements de plan avec respect des cycles de facturation
-async function handlePlanChange(userId: string, newPlan: string, newStatus: string, webhookData: any, eventTimestamp?: Date) {
+async function handlePlanChange(userId: string, newPlan: string, newStatus: string, webhookData: any) {
   const existing = await prisma.userSubscription.findUnique({
     where: { userId }
   });
-
-  // ✅ TIMESTAMP CHECK: Ignorer les événements obsolètes
-  if (existing && eventTimestamp && existing.updatedAt > eventTimestamp) {
-    console.log(`⏭️ [Webhook] Event ignored (older than current state)`, {
-      userId,
-      eventTime: eventTimestamp.toISOString(),
-      lastUpdate: existing.updatedAt.toISOString()
-    });
-    // Retourner l'état actuel sans modification
-    return {
-      plan: existing.plan,
-      status: existing.status,
-      currentPeriodStart: existing.currentPeriodStart,
-      currentPeriodEnd: existing.currentPeriodEnd,
-      cancelAtPeriodEnd: existing.cancelAtPeriodEnd,
-      clerkSubscriptionId: existing.clerkSubscriptionId,
-      wasIgnored: true
-    };
-  }
 
   const now = new Date();
   let currentPeriodStart = now;
@@ -95,40 +76,45 @@ async function handlePlanChange(userId: string, newPlan: string, newStatus: stri
 
   // Gestion des changements de plan
   let cancelAtPeriodEnd = false;
-  if (existing) {
-    const oldPlan = existing.plan;
 
-    // Si l'abonnement est terminé (ended/expired), effet immédiat vers free_user
-    if (newStatus === 'ended' || newStatus === 'expired' || newStatus === 'canceled') {
-      console.log(`🔚 [Webhook] Abonnement terminé ${userId}: ${oldPlan} → ${newPlan} (was going to force free_user)`);
+  // ✅ FIX: Always process plan logic, even for new subscriptions
+  const oldPlan = existing ? existing.plan : 'free_user';
 
-      // IMPORTANT: Ne pas downgrader si le plan actuel en base est déjà premium
-      // (cas d'un ancien plan gratuit qui se termine pendant un upgrade vers premium)
-      if (oldPlan === 'premium') {
-        console.log(`🔚 [Webhook] Keeping current premium plan (old plan ended during upgrade)`);
-        newPlan = 'premium';
-      }
-      // Ne pas forcer free_user si le nouveau plan est premium (transition active)
-      else if (newPlan !== 'premium') {
-        console.log(`🔚 [Webhook] Forcing free_user because newPlan=${newPlan}`);
-        newPlan = 'free_user';
-      } else {
-        console.log(`🔚 [Webhook] Keeping premium plan during transition`);
-      }
-      cancelAtPeriodEnd = false;
-    }
-    // Si downgrade de premium vers free, appliquer à la fin de la période (sauf si ended)
-    else if (oldPlan === 'premium' && newPlan === 'free_user') {
-      console.log(`📉 [Webhook] Downgrade détecté ${userId}: ${oldPlan} → ${newPlan}, effet à la fin de période: ${currentPeriodEnd.toISOString()}`);
-      cancelAtPeriodEnd = true;
-      // Conserver le plan premium jusqu'à la fin de la période
+  // Si l'abonnement est terminé (ended/expired), effet immédiat vers free_user
+  if (newStatus === 'ended' || newStatus === 'expired' || newStatus === 'canceled') {
+    console.log(`🔚 [Webhook] Abonnement terminé ${userId}: ${oldPlan} → ${newPlan} (was going to force free_user)`);
+
+    // IMPORTANT: Ne pas downgrader si le plan actuel en base est déjà premium
+    // (cas d'un ancien plan gratuit qui se termine pendant un upgrade vers premium)
+    if (oldPlan === 'premium') {
+      console.log(`🔚 [Webhook] Keeping current premium plan (old plan ended during upgrade)`);
       newPlan = 'premium';
     }
-    // Si upgrade vers premium, effet immédiat
-    else if (oldPlan === 'free_user' && newPlan === 'premium') {
-      console.log(`📈 [Webhook] Upgrade détecté ${userId}: ${oldPlan} → ${newPlan}, effet immédiat`);
-      cancelAtPeriodEnd = false;
+    // Ne pas forcer free_user si le nouveau plan est premium (transition active)
+    else if (newPlan !== 'premium') {
+      console.log(`🔚 [Webhook] Forcing free_user because newPlan=${newPlan}`);
+      newPlan = 'free_user';
+    } else {
+      console.log(`🔚 [Webhook] Keeping premium plan during transition`);
     }
+    cancelAtPeriodEnd = false;
+  }
+  // Si downgrade de premium vers free, appliquer à la fin de la période (sauf si ended)
+  else if (oldPlan === 'premium' && newPlan === 'free_user') {
+    console.log(`📉 [Webhook] Downgrade détecté ${userId}: ${oldPlan} → ${newPlan}, effet à la fin de période: ${currentPeriodEnd.toISOString()}`);
+    cancelAtPeriodEnd = true;
+    // Conserver le plan premium jusqu'à la fin de la période
+    newPlan = 'premium';
+  }
+  // Si upgrade vers premium, effet immédiat
+  else if (oldPlan === 'free_user' && newPlan === 'premium') {
+    console.log(`📈 [Webhook] Upgrade détecté ${userId}: ${oldPlan} → ${newPlan}, effet immédiat`);
+    cancelAtPeriodEnd = false;
+  }
+  // ✅ FIX: Handle new premium subscriptions (no existing record)
+  else if (!existing && newPlan === 'premium') {
+    console.log(`🆕 [Webhook] Nouvelle souscription premium ${userId}, effet immédiat`);
+    cancelAtPeriodEnd = false;
   }
 
   return {
@@ -137,8 +123,7 @@ async function handlePlanChange(userId: string, newPlan: string, newStatus: stri
     currentPeriodStart,
     currentPeriodEnd,
     cancelAtPeriodEnd,
-    clerkSubscriptionId: webhookData.id || webhookData.subscription_id || existing?.clerkSubscriptionId || null,
-    wasIgnored: false
+    clerkSubscriptionId: webhookData.id || webhookData.subscription_id || existing?.clerkSubscriptionId || null
   };
 }
 
@@ -162,8 +147,6 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
     const type = evt.type as string;
     const data = evt.data as any;
     const eventId = evt.id as string;
-    // Extraire le timestamp de l'événement (Svix utilise created_at ou timestamp)
-    const eventTimestamp = evt.created_at ? new Date(evt.created_at * 1000) : (evt.timestamp ? new Date(evt.timestamp) : new Date());
 
     // ✅ IDEMPOTENCE: Vérifier si l'événement a déjà été traité
     if (eventId) {
@@ -407,22 +390,15 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
     const status = mapStatusToPrisma(rawStatus);
 
     // 4) Gérer le changement de plan avec respect des cycles
-    const planInfo = await handlePlanChange(userId, initialPlan, status, data, eventTimestamp);
+    const planInfo = await handlePlanChange(userId, initialPlan, status, data);
 
     console.log(`🔍 [Webhook Debug] Plan Info:`, {
       userId,
       type,
       inputPlan: initialPlan,
       outputPlan: planInfo.plan,
-      status: planInfo.status,
-      wasIgnored: planInfo.wasIgnored
+      status: planInfo.status
     });
-
-    // Si l'événement a été ignoré (trop vieux), ne pas mettre à jour
-    if (planInfo.wasIgnored) {
-      console.log('⏭️ [Webhook] Skipping update due to outdated event');
-      return res.status(200).json({ success: true, skipped: true, reason: 'outdated_event' });
-    }
 
     // 5) Upsert l'abonnement avec la logique de cycle appropriée
     const sub = await prisma.userSubscription.upsert({
