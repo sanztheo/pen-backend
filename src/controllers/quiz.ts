@@ -592,7 +592,7 @@ export class QuizController {
             // Limites par défaut (FREE)
             aiCreditsLimit: 50,
             workspacesLimit: 2,
-            projectsLimit: 4,
+            projectsLimit: -1,
             customQuizzesLimit: 5,
             presetSequencesLimit: 1,
             aiCreditsUsed: 0,
