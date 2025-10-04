@@ -58,7 +58,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
         // Mettre à jour les limites selon le plan (au cas où)
         aiCreditsLimit: isPremium ? -1 : 50,
         workspacesLimit: isPremium ? -1 : 2,
-        projectsLimit: isPremium ? -1 : 4,
+        projectsLimit: -1,
         customQuizzesLimit: isPremium ? -1 : 5,
         presetSequencesLimit: isPremium ? -1 : 1,
       },
@@ -67,7 +67,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
         // Limites selon le plan
         aiCreditsLimit: isPremium ? -1 : 50,
         workspacesLimit: isPremium ? -1 : 2,
-        projectsLimit: isPremium ? -1 : 4,
+        projectsLimit: -1,
         customQuizzesLimit: isPremium ? -1 : 5,
         presetSequencesLimit: isPremium ? -1 : 1,
         // Usage synchronisé avec la réalité

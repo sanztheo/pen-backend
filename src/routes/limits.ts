@@ -32,7 +32,7 @@ router.get('/', authenticateToken, async (req, res) => {
           // Mettre à jour les limites selon le plan si elles existent déjà
           aiCreditsLimit: isPremium ? -1 : 50,
           workspacesLimit: isPremium ? -1 : 2,
-          projectsLimit: isPremium ? -1 : 4,
+          projectsLimit: -1,
           pagesLimit: isPremium ? -1 : 20,
           customQuizzesLimit: isPremium ? -1 : 5,
           presetSequencesLimit: isPremium ? -1 : 1
@@ -42,7 +42,7 @@ router.get('/', authenticateToken, async (req, res) => {
           // Limites selon le plan
           aiCreditsLimit: isPremium ? -1 : 50,
           workspacesLimit: isPremium ? -1 : 2,
-          projectsLimit: isPremium ? -1 : 4,
+          projectsLimit: -1,
           pagesLimit: isPremium ? -1 : 20,
           customQuizzesLimit: isPremium ? -1 : 5,
           presetSequencesLimit: isPremium ? -1 : 1,

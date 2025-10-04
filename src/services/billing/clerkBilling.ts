@@ -165,7 +165,7 @@ export class ClerkBillingService {
           // Mettre à jour les limites selon le nouveau plan
           aiCreditsLimit: isPremium ? -1 : 50,
           workspacesLimit: isPremium ? -1 : 2,
-          projectsLimit: isPremium ? -1 : 4,
+          projectsLimit: -1,
           customQuizzesLimit: isPremium ? -1 : 5,
           presetSequencesLimit: isPremium ? -1 : 1,
           // Synchroniser l'usage avec les données réelles
@@ -180,7 +180,7 @@ export class ClerkBillingService {
           // Limites selon le nouveau plan
           aiCreditsLimit: isPremium ? -1 : 50,
           workspacesLimit: isPremium ? -1 : 2,
-          projectsLimit: isPremium ? -1 : 4,
+          projectsLimit: -1,
           customQuizzesLimit: isPremium ? -1 : 5,
           presetSequencesLimit: isPremium ? -1 : 1,
           // Usage synchronisé avec la réalité
