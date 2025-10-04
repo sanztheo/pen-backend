@@ -9,7 +9,6 @@ export class DailyArticleController {
    */
   async getDailyArticle(req: Request, res: Response) {
     try {
-      console.log('[DAILY-ARTICLE-API] Récupération de l\'article du jour...');
 
       const article = await FuturaRssService.getDailyArticle();
 
@@ -20,7 +19,6 @@ export class DailyArticleController {
         });
       }
 
-      console.log(`[DAILY-ARTICLE-API] Article récupéré: "${article.title.substring(0, 50)}..."`);
 
       res.json({
         success: true,
@@ -54,7 +52,6 @@ export class DailyArticleController {
    */
   async refreshDailyArticle(req: Request, res: Response) {
     try {
-      console.log('[DAILY-ARTICLE-API] Refresh manuel de l\'article...');
 
       const latestArticle = await FuturaRssService.fetchLatestArticle();
 
@@ -75,7 +72,6 @@ export class DailyArticleController {
         });
       }
 
-      console.log(`[DAILY-ARTICLE-API] Nouvel article sauvegardé: "${savedArticle.title.substring(0, 50)}..."`);
 
       res.json({
         success: true,
