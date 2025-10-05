@@ -375,6 +375,25 @@ export class FuturaRssService {
   }
 
   /**
+   * Récupère le dernier article disponible dans la base de données (peu importe la date)
+   * @returns Le dernier article disponible ou null si aucun article n'existe
+   */
+  static async getLatestAvailableArticle() {
+    try {
+      const article = await prisma.dailyArticle.findFirst({
+        orderBy: {
+          fetchedAt: 'desc'
+        }
+      });
+
+      return article;
+    } catch (error) {
+      console.error('❌ Error getting latest available article:', error);
+      return null;
+    }
+  }
+
+  /**
    * Nettoie les anciens articles (garde seulement les 30 derniers jours)
    */
   static async cleanupOldArticles() {
