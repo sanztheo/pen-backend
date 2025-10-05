@@ -12,18 +12,18 @@ router.get('/', authenticateToken, async (req, res) => {
       return res.status(401).json({ success: false, error: 'Non autorisé' });
     }
 
-    // Récupérer les limitations de l'utilisateur ou créer des limitations par défaut
+    // Récupérer les limitations de l'utilisateur avec la subscription
     let userLimits = await prisma.userLimits.findUnique({
+      where: { userId }
+    });
+
+    // Récupérer la subscription pour avoir currentPeriodEnd
+    const subscription = await prisma.userSubscription.findUnique({
       where: { userId }
     });
 
     // Si l'utilisateur n'a pas encore de limitations, les créer avec les valeurs par défaut
     if (!userLimits) {
-      // Récupérer le plan de l'utilisateur pour définir les limites
-      const subscription = await prisma.userSubscription.findUnique({
-        where: { userId }
-      });
-
       const isPremium = subscription?.plan === 'premium';
 
       userLimits = await prisma.userLimits.upsert({
@@ -57,7 +57,11 @@ router.get('/', authenticateToken, async (req, res) => {
       });
     }
 
-    res.json({ success: true, limits: userLimits });
+    res.json({
+      success: true,
+      limits: userLimits,
+      nextResetDate: subscription?.currentPeriodEnd || null
+    });
   } catch (error) {
     console.error('Erreur lors de la récupération des limitations:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
