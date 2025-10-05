@@ -9,16 +9,22 @@ export class DailyArticleController {
    */
   async getDailyArticle(req: Request, res: Response) {
     try {
+      // Essayer d'abord de récupérer l'article du jour
+      let article = await FuturaRssService.getDailyArticle();
 
-      const article = await FuturaRssService.getDailyArticle();
+      // Si aucun article du jour n'est disponible, récupérer le dernier article disponible
+      if (!article) {
+        console.log('⚠️ [DAILY-ARTICLE] Aucun article du jour, récupération du dernier disponible...');
+        article = await FuturaRssService.getLatestAvailableArticle();
+      }
 
+      // Si toujours aucun article (base vide), retourner une erreur
       if (!article) {
         return res.status(404).json({
           success: false,
-          error: 'Aucun article disponible pour aujourd\'hui'
+          error: 'Aucun article disponible'
         });
       }
-
 
       res.json({
         success: true,
@@ -33,7 +39,8 @@ export class DailyArticleController {
         },
         metadata: {
           source: 'Futura Sciences',
-          fetchedAt: article.fetchedAt
+          fetchedAt: article.fetchedAt,
+          isToday: this.isToday(article.fetchedAt)
         }
       });
 
@@ -44,6 +51,19 @@ export class DailyArticleController {
         error: error instanceof Error ? error.message : 'Erreur lors de la récupération de l\'article'
       });
     }
+  }
+
+  /**
+   * Vérifie si une date est aujourd'hui
+   */
+  private isToday(date: Date): boolean {
+    const today = new Date();
+    const checkDate = new Date(date);
+    return (
+      checkDate.getDate() === today.getDate() &&
+      checkDate.getMonth() === today.getMonth() &&
+      checkDate.getFullYear() === today.getFullYear()
+    );
   }
 
   /**
