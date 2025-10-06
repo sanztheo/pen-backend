@@ -195,6 +195,61 @@ export const clearUserCache = async (userId: string) => {
 };
 
 /**
+ * Cache BlockNote Content avec TTL 2 minutes
+ * TTL court car le contenu est édité fréquemment
+ */
+export const cacheBlockNoteContent = async (pageId: string) => {
+  try {
+    const cacheKey = `blocknote:${pageId}`;
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ [REDIS-CACHE] BlockNote HIT: ${pageId}`);
+      return JSON.parse(cached);
+    }
+
+    console.log(`❌ [REDIS-CACHE] BlockNote MISS: ${pageId}`);
+    const page = await prisma.page.findUnique({
+      where: { id: pageId },
+      select: {
+        id: true,
+        title: true,
+        blockNoteContent: true
+      }
+    } as any);
+
+    if (page) {
+      // TTL 2min (120s) car contenu éditable fréquemment
+      await redis.setex(cacheKey, 120, JSON.stringify(page));
+    }
+
+    return page;
+  } catch (error) {
+    console.error('⚠️ [REDIS] Fallback to DB (cache error):', error);
+    return await prisma.page.findUnique({
+      where: { id: pageId },
+      select: {
+        id: true,
+        title: true,
+        blockNoteContent: true
+      }
+    } as any);
+  }
+};
+
+/**
+ * Invalider le cache BlockNote (après sauvegarde)
+ */
+export const invalidateBlockNoteCache = async (pageId: string) => {
+  try {
+    await redis.del(`blocknote:${pageId}`);
+    console.log(`🗑️ [REDIS-CACHE] BlockNote invalidated: ${pageId}`);
+  } catch (error) {
+    console.error('⚠️ [REDIS] Erreur invalidation cache BlockNote:', error);
+  }
+};
+
+/**
  * Health check Redis
  */
 export const redisHealthCheck = async (): Promise<boolean> => {
