@@ -23,6 +23,7 @@ const updatePageSchema = z.object({
 
 // Créer une page
 export const createPage = async (req: Request, res: Response) => {
+  const startTime = Date.now(); // 🕐 DÉBUT
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Utilisateur non authentifié' });
@@ -30,38 +31,19 @@ export const createPage = async (req: Request, res: Response) => {
 
     const validatedData = createPageSchema.parse(req.body);
     const userId = req.user.id;
+    console.log(`⏱️  [PERF] Validation: ${Date.now() - startTime}ms`);
 
-    // Vérifier les limitations de l'utilisateur
-    const userLimits = await prisma.userLimits.findUnique({
-      where: { userId }
-    });
-
-    if (!userLimits) {
-      return res.status(404).json({ error: 'Limitations utilisateur non trouvées' });
-    }
-
-    // Vérifier si l'utilisateur peut créer une nouvelle page
-    const canCreatePage = userLimits.pagesLimit === -1 || userLimits.pagesUsed < userLimits.pagesLimit;
-    
-    if (!canCreatePage) {
-      return res.status(403).json({ 
-        error: 'Limite de pages atteinte',
-        message: `Vous avez atteint votre limite de ${userLimits.pagesLimit} pages. Passez à Premium pour créer des pages illimitées.`,
-        limits: {
-          used: userLimits.pagesUsed,
-          limit: userLimits.pagesLimit
-        }
-      });
-    }
-
+    // 🚀 PHASE 1 OPTIMIZATION: Déterminer workspaceId avant la parallélisation
     let workspaceIdForCheck: string | undefined;
     let finalWorkspaceId: string;
 
     if (validatedData.projectId) {
-      const project = await prisma.project.findUnique({
+      // Si un projectId est fourni, on doit le récupérer pour obtenir le workspaceId
+      const projectPromise = prisma.project.findUnique({
         where: { id: validatedData.projectId },
         select: { workspaceId: true }
       });
+      const project = await projectPromise;
       if (!project) {
         return res.status(404).json({ error: 'Projet non trouvé' });
       }
@@ -72,111 +54,125 @@ export const createPage = async (req: Request, res: Response) => {
       workspaceIdForCheck = finalWorkspaceId;
     }
 
-    // Vérifier l'accès au workspace
-    const workspace = await prisma.workspace.findFirst({
-      where: {
-        id: workspaceIdForCheck,
-        OR: [
-          { ownerId: req.user.id },
-          { members: { some: { userId: req.user.id, isActive: true } } }
-        ]
-      }
-    });
+    const beforeValidations = Date.now();
+    // 🚀 PHASE 1 OPTIMIZATION: Paralléliser TOUTES les validations (80-120ms → 120ms)
+    const [userLimits, workspace, parentPage, lastPage] = await Promise.all([
+      // 1. Vérifier les limitations utilisateur
+      prisma.userLimits.findUnique({
+        where: { userId }
+      }),
+      // 2. Vérifier l'accès au workspace
+      prisma.workspace.findFirst({
+        where: {
+          id: workspaceIdForCheck,
+          OR: [
+            { ownerId: req.user.id },
+            { members: { some: { userId: req.user.id, isActive: true } } }
+          ]
+        }
+      }),
+      // 3. Vérifier la page parent si spécifiée
+      validatedData.parentId
+        ? prisma.page.findFirst({
+            where: {
+              id: validatedData.parentId,
+              workspaceId: finalWorkspaceId
+            }
+          })
+        : Promise.resolve(null),
+      // 4. Calculer la position si non spécifiée
+      validatedData.position === undefined
+        ? prisma.page.findFirst({
+            where: {
+              workspaceId: finalWorkspaceId,
+              projectId: validatedData.projectId || null,
+              parentId: validatedData.parentId || null
+            },
+            orderBy: { position: 'desc' }
+          })
+        : Promise.resolve(null)
+    ]);
+    console.log(`⏱️  [PERF] Queries parallèles: ${Date.now() - beforeValidations}ms`);
+
+    // Validations après parallélisation
+    if (!userLimits) {
+      return res.status(404).json({ error: 'Limitations utilisateur non trouvées' });
+    }
+
+    const canCreatePage = userLimits.pagesLimit === -1 || userLimits.pagesUsed < userLimits.pagesLimit;
+    if (!canCreatePage) {
+      return res.status(403).json({
+        error: 'Limite de pages atteinte',
+        message: `Vous avez atteint votre limite de ${userLimits.pagesLimit} pages. Passez à Premium pour créer des pages illimitées.`,
+        limits: {
+          used: userLimits.pagesUsed,
+          limit: userLimits.pagesLimit
+        }
+      });
+    }
 
     if (!workspace) {
       return res.status(404).json({ error: 'Workspace non trouvé ou accès refusé' });
     }
 
-    // Vérifier la page parent si spécifiée
-    if (validatedData.parentId) {
-      const parentPage = await prisma.page.findFirst({
-        where: {
-          id: validatedData.parentId,
-          workspaceId: finalWorkspaceId // La page parente doit être dans le même workspace
-        }
-      });
-      if (!parentPage) {
-        return res.status(404).json({ error: 'Page parent non trouvée dans le même workspace' });
-      }
-    }
-    
-    // Calculer la position
-    let position = validatedData.position;
-    if (position === undefined) {
-      const lastPage = await prisma.page.findFirst({
-        where: {
-          workspaceId: finalWorkspaceId,
-          projectId: validatedData.projectId || null,
-          parentId: validatedData.parentId || null
-        },
-        orderBy: { position: 'desc' }
-      });
-      position = lastPage ? lastPage.position + 1 : 0;
+    if (validatedData.parentId && !parentPage) {
+      return res.status(404).json({ error: 'Page parent non trouvée dans le même workspace' });
     }
 
-    // Utiliser une transaction pour la création et l'incrémentation
-    // 🛡️ Déplacer la génération de slug À L'INTÉRIEUR de la transaction pour éviter les race conditions
-    const page = await prisma.$transaction(async (tx: any) => {
-      // Générer un slug unique à l'intérieur de la transaction
-      const baseSlug = validatedData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      const existingSlugs = await tx.page.findMany({
-        where: {
-          workspaceId: finalWorkspaceId,
-          slug: { startsWith: baseSlug }
-        },
-        select: { slug: true }
-      });
-      const slugSet = new Set(existingSlugs.map((p: { slug: string | null }) => p.slug || ''));
-      let slug = baseSlug;
-      let counter = 1;
-      while (slugSet.has(slug)) {
-        slug = `${baseSlug}-${counter}`;
-        counter++;
+    // Calculer la position finale
+    const position = validatedData.position ?? (lastPage ? lastPage.position + 1 : 0);
+
+    // 🚀 PHASE 1 OPTIMIZATION: Simplifier génération de slug (sortir de la transaction)
+    const baseSlug = validatedData.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const timestamp = Date.now().toString(36); // Base36 pour compacité
+    const randomSuffix = Math.random().toString(36).substring(2, 6); // 4 chars aléatoires
+    const slug = `${baseSlug}-${timestamp}${randomSuffix}`;
+
+    const beforeCreate = Date.now();
+    // 🚀 PHASE 1 OPTIMIZATION: Transaction ultra-light (1 seule query)
+    const page = await prisma.page.create({
+      data: {
+        title: validatedData.title,
+        slug,
+        position,
+        projectId: validatedData.projectId,
+        workspaceId: finalWorkspaceId,
+        parentId: validatedData.parentId,
+        createdBy: req.user!.id
+      },
+      include: {
+        author: { select: { id: true, firstName: true, lastName: true, email: true } },
+        project: { select: { id: true, name: true, workspaceId: true } },
+        children: { where: { isArchived: false }, orderBy: { position: 'asc' } },
+        _count: { select: { children: true } }
       }
+    });
+    console.log(`⏱️  [PERF] Création page DB: ${Date.now() - beforeCreate}ms`);
 
-      // Créer la page avec le slug généré de façon atomique
-      const newPage = await tx.page.create({
-        data: {
-          title: validatedData.title,
-          slug,
-          position,
-          projectId: validatedData.projectId,
-          workspaceId: finalWorkspaceId,
-          parentId: validatedData.parentId,
-          createdBy: req.user!.id
-        },
-        include: {
-          author: { select: { id: true, firstName: true, lastName: true, email: true } },
-          project: { select: { id: true, name: true, workspaceId: true } },
-          children: { where: { isArchived: false }, orderBy: { position: 'asc' } },
-          _count: { select: { children: true } }
-        }
-      });
-
-      // Incrémenter le compteur d'usage des pages
-      await tx.userLimits.update({
+    // 🚀 PHASE 1 OPTIMIZATION: Updates d'activité et compteurs en asynchrone (non-bloquant)
+    // Ces opérations ne sont pas critiques pour la réponse client
+    Promise.all([
+      // Incrémenter compteur utilisateur
+      prisma.userLimits.update({
         where: { userId },
-        data: {
-          pagesUsed: {
-            increment: 1
-          }
-        }
-      });
-
-      return newPage;
-    });
-
-    // Mettre à jour l'activité
-    await prisma.workspace.update({
-      where: { id: finalWorkspaceId },
-      data: { lastActivityAt: new Date() }
-    });
-    if (validatedData.projectId) {
-      await prisma.project.update({
-        where: { id: validatedData.projectId },
+        data: { pagesUsed: { increment: 1 } }
+      }),
+      // Mettre à jour activité workspace
+      prisma.workspace.update({
+        where: { id: finalWorkspaceId },
         data: { lastActivityAt: new Date() }
-      });
-    }
+      }),
+      // Mettre à jour activité projet si applicable
+      validatedData.projectId
+        ? prisma.project.update({
+            where: { id: validatedData.projectId },
+            data: { lastActivityAt: new Date() }
+          })
+        : Promise.resolve(null)
+    ]).catch((error) => {
+      console.error('⚠️ [ASYNC] Erreur updates non-bloquants:', error);
+      // Ne pas bloquer la réponse, juste logger
+    });
 
     // 🧠 RAG: Traiter la page pour l'embedding (mode asynchrone, pas bloquant)
     try {
@@ -199,6 +195,7 @@ export const createPage = async (req: Request, res: Response) => {
       console.error('🧠 [RAG] Service non disponible:', error);
     }
 
+    console.log(`⏱️  [PERF] TOTAL createPage: ${Date.now() - startTime}ms`);
     res.status(201).json({
       message: 'Page créée avec succès',
       page
@@ -224,6 +221,14 @@ export const getPage = async (req: Request, res: Response) => {
     }
 
     const { id } = req.params;
+
+    // 🚫 BLOQUER les IDs temporaires (optimistic UI)
+    if (id.startsWith('temp-')) {
+      console.log(`⏭️  [GET-PAGE] ID temporaire ignoré: "${id}"`);
+      return res.status(404).json({ error: 'Page temporaire, en cours de création' });
+    }
+
+    console.log(`🔍 [GET-PAGE] ID reçu: "${id}" (type: ${typeof id}, length: ${id?.length})`);
 
     const page = await prisma.page.findFirst({
       where: {
