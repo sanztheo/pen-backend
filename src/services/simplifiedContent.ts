@@ -139,6 +139,7 @@ export class SimplifiedContentService {
       console.log(`⏱️  [SIMPLIFIED-PERF] Validations parallèles (REDIS): ${Date.now() - beforeValidations}ms`);
 
       // Vérifications
+      if (!defaultWorkspaceId) throw new Error('Workspace par défaut non trouvé');
       if (!userLimits) throw new Error('Limitations utilisateur non trouvées');
 
       console.log('🔍 [SIMPLIFIED-CONTENT] Debug limitations projet:', {
@@ -218,6 +219,7 @@ export class SimplifiedContentService {
       console.log(`⏱️  [SIMPLIFIED-PERF] Validations parallèles (REDIS): ${Date.now() - beforeValidations}ms`);
 
       // Vérifications sécurité
+      if (!defaultWorkspaceId) throw new Error('Workspace par défaut non trouvé');
       if (data.projectId && !project) {
         throw new Error('Projet non trouvé ou accès non autorisé.');
       }
