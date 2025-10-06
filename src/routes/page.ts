@@ -1,9 +1,9 @@
 import { Router } from 'express';
-import { 
-  createPage, 
-  getPage, 
-  getProjectPages, 
-  updatePage, 
+import {
+  createPage,
+  getPage,
+  getProjectPages,
+  updatePage,
   deletePage,
   cleanupArchivedPages,
   getRecentPages,
@@ -11,6 +11,7 @@ import {
 } from '../controllers/page.js';
 import { authenticateToken } from '../middlewares/auth.js';
 import { PrismaClient } from '@prisma/client';
+import { cacheBlockNoteContent, invalidateBlockNoteCache } from '../lib/redis.js';
 
 const prisma = new PrismaClient();
 
@@ -165,11 +166,16 @@ router.post('/:pageId/blocknote-content', async (req, res) => {
     // 🎯 TOUJOURS SAUVEGARDER LE CONTENU COMPLET (pour la cohérence)
     const updatedPage = await prisma.page.update({
       where: { id: pageId },
-      data: { 
+      data: {
         ...(content && { blockNoteContent: content as any }),
         updatedAt: new Date()
       }
     } as any);
+
+    // 🗑️ INVALIDER CACHE REDIS après sauvegarde
+    invalidateBlockNoteCache(pageId).catch(err =>
+      console.error('⚠️ [REDIS] Erreur invalidation cache:', err)
+    );
 
     console.log('✅ [API] Contenu BlockNote sauvegardé:', {
       pageId,
@@ -200,10 +206,11 @@ router.post('/:pageId/blocknote-content', async (req, res) => {
   }
 });
 
-// 🆕 CHARGER CONTENU BLOCKNOTE DIRECTEMENT (Solution officielle)
+// 🆕 CHARGER CONTENU BLOCKNOTE DIRECTEMENT (Solution officielle + Redis Cache)
 router.get('/:pageId/blocknote-content', async (req, res) => {
   try {
     const { pageId } = req.params;
+    const startTime = Date.now();
 
     console.log('📖 [API] Chargement contenu BlockNote:', {
       pageId,
@@ -215,28 +222,22 @@ router.get('/:pageId/blocknote-content', async (req, res) => {
     // 🚨 VALIDATION UUID
     if (!pageId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId)) {
       console.error('❌ [API] PageId invalide:', pageId);
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'PageId doit être un UUID valide',
-        received: pageId 
+        received: pageId
       });
     }
 
-    const page = await prisma.page.findUnique({
-      where: { id: pageId },
-      select: { 
-        id: true, 
-        title: true, 
-        blockNoteContent: true 
-      }
-    } as any);
+    // 🚀 REDIS CACHE: Récupérer depuis cache (2min TTL)
+    const page = await cacheBlockNoteContent(pageId);
 
     if (!page) {
       return res.status(404).json({ error: 'Page non trouvée' });
     }
 
     const content = (page as any).blockNoteContent as any[] || [];
-    
-    console.log('✅ [API] Contenu BlockNote chargé:', {
+
+    console.log(`✅ [API] Contenu BlockNote chargé (${Date.now() - startTime}ms):`, {
       pageId,
       blocksCount: content.length,
       hasNestedBlocks: content.some((b: any) => b.children && b.children.length > 0)
