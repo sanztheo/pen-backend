@@ -17,6 +17,7 @@ const updateProjectSchema = z.object({
 
 // Créer un projet
 export const createProject = async (req: Request, res: Response) => {
+  const startTime = Date.now(); // 🕐 DÉBUT
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Utilisateur non authentifié' });
@@ -24,21 +25,43 @@ export const createProject = async (req: Request, res: Response) => {
 
     const validatedData = createProjectSchema.parse(req.body);
     const userId = req.user.id;
+    console.log(`⏱️  [PERF] Validation projet: ${Date.now() - startTime}ms`);
 
-    // Vérifier les limitations de l'utilisateur
-    const userLimits = await prisma.userLimits.findUnique({
-      where: { userId }
-    });
+    const beforeValidations = Date.now();
+    // 🚀 PHASE 1 OPTIMIZATION: Paralléliser validations (160-200ms → 100-120ms)
+    const [userLimits, workspace] = await Promise.all([
+      // 1. Vérifier les limitations utilisateur
+      prisma.userLimits.findUnique({
+        where: { userId }
+      }),
+      // 2. Vérifier l'accès au workspace
+      prisma.workspace.findFirst({
+        where: {
+          id: validatedData.workspaceId,
+          OR: [
+            { ownerId: req.user.id },
+            {
+              members: {
+                some: {
+                  userId: req.user.id,
+                  isActive: true
+                }
+              }
+            }
+          ]
+        }
+      })
+    ]);
+    console.log(`⏱️  [PERF] Queries parallèles projet: ${Date.now() - beforeValidations}ms`);
 
+    // Validations après parallélisation
     if (!userLimits) {
       return res.status(404).json({ error: 'Limitations utilisateur non trouvées' });
     }
 
-    // Vérifier si l'utilisateur peut créer un nouveau projet
     const canCreateProject = userLimits.projectsLimit === -1 || userLimits.projectsUsed < userLimits.projectsLimit;
-    
     if (!canCreateProject) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Limite de projets atteinte',
         message: `Vous avez atteint votre limite de ${userLimits.projectsLimit} projets. Passez à Premium pour créer des projets illimités.`,
         limits: {
@@ -48,79 +71,59 @@ export const createProject = async (req: Request, res: Response) => {
       });
     }
 
-    // Vérifier que l'utilisateur a accès au workspace
-    const workspace = await prisma.workspace.findFirst({
-      where: {
-        id: validatedData.workspaceId,
-        OR: [
-          { ownerId: req.user.id },
-          {
-            members: {
-              some: {
-                userId: req.user.id,
-                isActive: true
-              }
-            }
-          }
-        ]
-      }
-    });
-
     if (!workspace) {
       return res.status(404).json({ error: 'Workspace non trouvé ou accès refusé' });
     }
 
-    // Utiliser une transaction pour la création et l'incrémentation
-    const project = await prisma.$transaction(async (tx: any) => {
-      // Créer le projet
-      const newProject = await tx.project.create({
-        data: {
-          name: validatedData.name,
-          description: validatedData.description,
-          workspaceId: validatedData.workspaceId,
-          createdBy: req.user!.id,
-          parentId: null // Par défaut, les projets sont créés à la racine
+    const beforeCreate = Date.now();
+    // 🚀 PHASE 1 OPTIMIZATION: Création directe sans transaction lourde
+    const project = await prisma.project.create({
+      data: {
+        name: validatedData.name,
+        description: validatedData.description,
+        workspaceId: validatedData.workspaceId,
+        createdBy: req.user!.id,
+        parentId: null // Par défaut, les projets sont créés à la racine
+      },
+      include: {
+        owner: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true
+          }
         },
-        include: {
-          owner: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true
-            }
-          },
-          workspace: {
-            select: {
-              id: true,
-              name: true
-            }
-          },
-          _count: {
-            select: {
-              pages: true
-            }
+        workspace: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        _count: {
+          select: {
+            pages: true
           }
         }
-      });
-
-      // Incrémenter le compteur d'usage des projets
-      await tx.userLimits.update({
-        where: { userId },
-        data: {
-          projectsUsed: {
-            increment: 1
-          }
-        }
-      });
-
-      return newProject;
+      }
     });
+    console.log(`⏱️  [PERF] Création projet DB: ${Date.now() - beforeCreate}ms`);
 
-    // Mettre à jour l'activité du workspace
-    await prisma.workspace.update({
-      where: { id: validatedData.workspaceId },
-      data: { lastActivityAt: new Date() }
+    // 🚀 PHASE 1 OPTIMIZATION: Updates asynchrones (non-bloquant)
+    Promise.all([
+      // Incrémenter compteur utilisateur
+      prisma.userLimits.update({
+        where: { userId },
+        data: { projectsUsed: { increment: 1 } }
+      }),
+      // Mettre à jour activité workspace
+      prisma.workspace.update({
+        where: { id: validatedData.workspaceId },
+        data: { lastActivityAt: new Date() }
+      })
+    ]).catch((error) => {
+      console.error('⚠️ [ASYNC] Erreur updates non-bloquants:', error);
+      // Ne pas bloquer la réponse, juste logger
     });
 
     // ❌ LOGS D'ACTIVITÉ DÉSACTIVÉS pour économiser l'espace
@@ -138,6 +141,7 @@ export const createProject = async (req: Request, res: Response) => {
     //   }
     // });
 
+    console.log(`⏱️  [PERF] TOTAL createProject: ${Date.now() - startTime}ms`);
     res.status(201).json({
       message: 'Projet créé avec succès',
       project

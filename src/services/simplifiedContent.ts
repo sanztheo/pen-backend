@@ -5,6 +5,7 @@
 
 import { prisma } from '../lib/prisma.js';
 import { DefaultWorkspaceService } from './defaultWorkspace.js';
+import { cacheUserLimits, cacheWorkspace, cacheProject, cacheDefaultWorkspaceId, invalidateUserLimitsCache } from '../lib/redis.js';
 
 export class SimplifiedContentService {
   /**
@@ -123,9 +124,21 @@ export class SimplifiedContentService {
    */
   static async createProject(userId: string, data: { name: string; description?: string; parentId?: string | null }) {
     try {
-      const defaultWorkspaceId = await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
+      const startTime = Date.now(); // 🕐 DÉBUT
+      console.log(`⏱️  [SIMPLIFIED-PERF] START createProject`);
 
-      const userLimits = await prisma.userLimits.findUnique({ where: { userId } });
+      // 🚀 PHASE 2 OPTIMIZATION: Paralléliser avec REDIS CACHE
+      const beforeValidations = Date.now();
+      const [defaultWorkspaceId, userLimits, parentProject] = await Promise.all([
+        cacheDefaultWorkspaceId(userId), // Redis cache (1h TTL)
+        cacheUserLimits(userId), // Redis cache (5min TTL)
+        data.parentId
+          ? cacheProject(data.parentId, userId) // Redis cache (10min TTL)
+          : Promise.resolve(null)
+      ]);
+      console.log(`⏱️  [SIMPLIFIED-PERF] Validations parallèles (REDIS): ${Date.now() - beforeValidations}ms`);
+
+      // Vérifications
       if (!userLimits) throw new Error('Limitations utilisateur non trouvées');
 
       console.log('🔍 [SIMPLIFIED-CONTENT] Debug limitations projet:', {
@@ -147,46 +160,38 @@ export class SimplifiedContentService {
         throw new Error(`Limite de projets atteinte (${userLimits.projectsUsed}/${userLimits.projectsLimit})`);
       }
 
-      // 🛡️ SÉCURITÉ: Valider le parentId si fourni
-      if (data.parentId) {
-        const parentProject = await prisma.project.findFirst({
-          where: {
-            id: data.parentId,
-            workspaceId: defaultWorkspaceId, // Doit être dans le même workspace
-            createdBy: userId // Doit appartenir au même utilisateur
-          }
-        });
-
-        if (!parentProject) {
-          console.error('🚫 [SIMPLIFIED-CONTENT] Parent project non trouvé ou accès refusé:', {
-            parentId: data.parentId,
-            userId,
-            workspaceId: defaultWorkspaceId
-          });
-          throw new Error('Parent project not found or access denied');
-        }
+      if (data.parentId && !parentProject) {
+        throw new Error('Parent project not found or access denied');
+      }
+      if (parentProject && parentProject.workspaceId !== defaultWorkspaceId) {
+        throw new Error('Le projet parent n\'appartient pas au workspace par défaut.');
       }
 
-      const project = await prisma.$transaction(async (tx) => {
-        const newProject = await tx.project.create({
-          data: {
-            name: data.name,
-            description: data.description,
-            workspaceId: defaultWorkspaceId,
-            createdBy: userId,
-            parentId: data.parentId || null // 🚀 Support des projets imbriqués à tous les niveaux
-          },
-          include: {
-            owner: { select: { id: true, firstName: true, lastName: true, email: true } },
-            _count: { select: { pages: true } }
-          }
-        });
-
-        await tx.userLimits.update({ where: { userId }, data: { projectsUsed: { increment: 1 } } });
-        return newProject;
+      // 🚀 Création projet (sans transaction lourde)
+      const beforeCreate = Date.now();
+      const project = await prisma.project.create({
+        data: {
+          name: data.name,
+          description: data.description,
+          workspaceId: defaultWorkspaceId,
+          createdBy: userId,
+          parentId: data.parentId || null
+        },
+        include: {
+          owner: { select: { id: true, firstName: true, lastName: true, email: true } },
+          _count: { select: { pages: true } }
+        }
       });
+      console.log(`⏱️  [SIMPLIFIED-PERF] Création projet DB: ${Date.now() - beforeCreate}ms`);
 
-      await prisma.workspace.update({ where: { id: defaultWorkspaceId }, data: { lastActivityAt: new Date() } });
+      // 🚀 Updates asynchrones (non-bloquant) + invalidation cache
+      Promise.all([
+        prisma.userLimits.update({ where: { userId }, data: { projectsUsed: { increment: 1 } } })
+          .then(() => invalidateUserLimitsCache(userId)), // Invalider cache après update
+        prisma.workspace.update({ where: { id: defaultWorkspaceId }, data: { lastActivityAt: new Date() } })
+      ]).catch(err => console.error('⚠️ [ASYNC] Erreur updates projet:', err));
+
+      console.log(`⏱️  [SIMPLIFIED-PERF] TOTAL createProject: ${Date.now() - startTime}ms`);
       return project;
     } catch (error) {
       console.error('❌ [SIMPLIFIED-CONTENT] Erreur création projet:', error);
@@ -199,22 +204,29 @@ export class SimplifiedContentService {
    */
   static async createPage(userId: string, data: { title: string; projectId?: string | null; }) {
     try {
-      const defaultWorkspaceId = await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
-      
-      if (data.projectId) {
-        const project = await prisma.project.findFirst({
-          where: {
-            id: data.projectId,
-            workspaceId: defaultWorkspaceId,
-            createdBy: userId // SÉCURITÉ: Vérifier que l'utilisateur est bien le créateur
-          }
-        });
+      const startTime = Date.now(); // 🕐 DÉBUT
+      console.log(`⏱️  [SIMPLIFIED-PERF] START createPage`);
 
-        if (!project) {
-          throw new Error('Projet non trouvé ou accès non autorisé.');
-        }
+      // 🚀 PHASE 2 OPTIMIZATION: Paralléliser avec REDIS CACHE
+      const beforeValidations = Date.now();
+      const [defaultWorkspaceId, project] = await Promise.all([
+        cacheDefaultWorkspaceId(userId), // Redis cache (1h TTL)
+        data.projectId
+          ? cacheProject(data.projectId, userId) // Redis cache (10min TTL)
+          : Promise.resolve(null)
+      ]);
+      console.log(`⏱️  [SIMPLIFIED-PERF] Validations parallèles (REDIS): ${Date.now() - beforeValidations}ms`);
+
+      // Vérifications sécurité
+      if (data.projectId && !project) {
+        throw new Error('Projet non trouvé ou accès non autorisé.');
+      }
+      if (project && project.workspaceId !== defaultWorkspaceId) {
+        throw new Error('Le projet n\'appartient pas au workspace par défaut.');
       }
 
+      // 🚀 Création page
+      const beforeCreate = Date.now();
       const page = await prisma.page.create({
         data: {
           title: data.title,
@@ -226,8 +238,15 @@ export class SimplifiedContentService {
           id: true, title: true, projectId: true, workspaceId: true, slug: true, position: true, createdAt: true, updatedAt: true
         }
       });
+      console.log(`⏱️  [SIMPLIFIED-PERF] Création page DB: ${Date.now() - beforeCreate}ms`);
 
-      await prisma.workspace.update({ where: { id: defaultWorkspaceId }, data: { lastActivityAt: new Date() } });
+      // 🚀 Update workspace asynchrone (non-bloquant)
+      prisma.workspace.update({
+        where: { id: defaultWorkspaceId },
+        data: { lastActivityAt: new Date() }
+      }).catch(err => console.error('⚠️ [ASYNC] Erreur update workspace:', err));
+
+      console.log(`⏱️  [SIMPLIFIED-PERF] TOTAL createPage: ${Date.now() - startTime}ms`);
       return page;
     } catch (error) {
       console.error('❌ [SIMPLIFIED-CONTENT] Erreur création page:', error);

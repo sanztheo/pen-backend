@@ -32,7 +32,7 @@ import { clerkWebhookHandler } from './routes/webhooks.js';
 import { startCronJobs } from './jobs/cronJobs.js';
 import { AuthService } from './services/auth.js';
 import { DatabaseHealthCheck } from './lib/dbHealthCheck.js';
-import { Logger } from './lib/logger.js';
+// import { Logger } from './lib/logger.js'; // ❌ DÉSACTIVÉ - cache les logs console
 import { PrismaPersistence } from './lib/y-prisma.js';
 import { prisma } from './lib/prisma.js';
 import { progressService } from './services/progressService.js';
@@ -40,7 +40,7 @@ import compression from 'compression';
 import { backendConfig, CLIENT_URL } from './utils/config.js';
 
 dotenv.config();
-Logger.init();
+// Logger.init(); // ❌ DÉSACTIVÉ - maintenant console.log s'affiche dans le terminal
 
 const app = express();
 const server = http.createServer(app);
@@ -449,7 +449,10 @@ const setupYjsWebSocket = (server: http.Server) => {
 };
 
 server.listen(PORT, async () => {
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(`🚀 Serveur Pen SaaS démarré sur le port ${PORT} en mode ${NODE_ENV}`);
+  console.log(`✨ VERSION: OPTIMIZED-PERF-LOGS - ${new Date().toISOString()}`);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   setupYjsWebSocket(server);
 
   try {
