@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { QuizService } from '../services/quiz/quizService.js';
-import { SchoolLevel, QuestionType } from '../services/quiz/types.js';
+import { SchoolLevel, QuestionType, LyceeSpecialty } from '../services/quiz/types.js';
 import { OpenAIAssistantService } from '../services/quiz/assistant/index.js';
 import { prisma } from '../lib/prisma.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,6 +11,70 @@ const streamingSessions = new Map<string, {
   request: any;
   createdAt: Date;
 }>();
+
+const LYCEE_SPECIALTY_LABELS: Record<LyceeSpecialty, string> = {
+  [LyceeSpecialty.MATHEMATIQUES]: 'Mathématiques',
+  [LyceeSpecialty.PHYSIQUE_CHIMIE]: 'Physique-Chimie',
+  [LyceeSpecialty.SVT]: 'Sciences de la Vie et de la Terre',
+  [LyceeSpecialty.HISTOIRE_GEO]: 'Histoire-Géographie',
+  [LyceeSpecialty.SES]: 'Sciences Économiques et Sociales',
+  [LyceeSpecialty.LANGUES]: 'Langues Vivantes',
+  [LyceeSpecialty.LITTERATURE]: 'Littérature',
+  [LyceeSpecialty.ARTS]: 'Arts',
+  [LyceeSpecialty.NSI]: 'Numérique et Sciences Informatiques',
+  [LyceeSpecialty.SI]: 'Sciences de l\'Ingénieur',
+  [LyceeSpecialty.PHILOSOPHIE]: 'Philosophie',
+  [LyceeSpecialty.EPS]: 'Éducation Physique et Sportive',
+  [LyceeSpecialty.LANGUES_CULTURES_ANTIQUITE]: 'Langues et Cultures de l\'Antiquité',
+  [LyceeSpecialty.BIOLOGIE_ECOLOGIE]: 'Biologie-Écologie',
+  [LyceeSpecialty.SCIENCES_INGENIEUR]: 'Sciences de l\'Ingénieur',
+  [LyceeSpecialty.ARTS_PLASTIQUES]: 'Arts Plastiques',
+  [LyceeSpecialty.MUSIQUE]: 'Musique',
+  [LyceeSpecialty.THEATRE]: 'Théâtre',
+  [LyceeSpecialty.CINEMA_AUDIOVISUEL]: 'Cinéma-Audiovisuel',
+  [LyceeSpecialty.DANSE]: 'Danse',
+  [LyceeSpecialty.HISTOIRE_ARTS]: 'Histoire des Arts'
+};
+
+const getSpecialtyLabel = (specialty: LyceeSpecialty | undefined): string | undefined => {
+  if (!specialty) {
+    return undefined;
+  }
+
+  return LYCEE_SPECIALTY_LABELS[specialty] || specialty.replace(/_/g, ' ');
+};
+
+const buildSpecialtyDistribution = (
+  specialties: LyceeSpecialty[] | undefined,
+  totalQuestions: number
+): LyceeSpecialty[] => {
+  if (!specialties || specialties.length === 0 || totalQuestions <= 0) {
+    return [];
+  }
+
+  const uniqueSpecialties = Array.from(new Set(specialties)) as LyceeSpecialty[];
+  if (uniqueSpecialties.length === 0) {
+    return [];
+  }
+
+  const baseCount = Math.floor(totalQuestions / uniqueSpecialties.length);
+  const remainder = totalQuestions % uniqueSpecialties.length;
+  const counts = uniqueSpecialties.map((_, index) => baseCount + (index < remainder ? 1 : 0));
+
+  const distribution: LyceeSpecialty[] = [];
+  let pointer = 0;
+
+  while (distribution.length < totalQuestions) {
+    const index = pointer % uniqueSpecialties.length;
+    if (counts[index] > 0) {
+      distribution.push(uniqueSpecialties[index]);
+      counts[index] -= 1;
+    }
+    pointer += 1;
+  }
+
+  return distribution;
+};
 
 // Nettoyer les sessions expirées (plus de 1 heure)
 setInterval(() => {
@@ -567,6 +631,20 @@ export class QuizStreamingController {
         }))
       );
 
+      const specialtyDistribution = buildSpecialtyDistribution(lyceeSpecialties, questionCount);
+      if (specialtyDistribution.length > 0) {
+        const specialtySummary = specialtyDistribution.reduce<Record<string, number>>((acc, specialty) => {
+          const label = getSpecialtyLabel(specialty) || specialty;
+          acc[label] = (acc[label] || 0) + 1;
+          return acc;
+        }, {});
+
+        console.log('📚 [STREAMING] Répartition spécialités:', Object.entries(specialtySummary).map(([label, count]) => ({
+          specialty: label,
+          count
+        })));
+      }
+
       // 🆕 Générer les questions avec Chat Completion + JSON strict (gpt-4o-mini)
       const generatedQuestions: any[] = [];
       const assistantService = new OpenAIAssistantService();
@@ -578,7 +656,8 @@ export class QuizStreamingController {
         schoolLevel,
         questionCount: 1,
         collegeGrade,
-        lyceeSpecialties,
+        lyceeSpecialties: lyceeSpecialties || [],
+        allLyceeSpecialties: lyceeSpecialties || [],
         higherEdField,
         preset,
         specificSubject,
@@ -612,7 +691,18 @@ export class QuizStreamingController {
             questionCount: 1, // Une seule question
             existingQuestions: generatedQuestions.length > 0 ? generatedQuestions : undefined
           };
-          
+
+          const specialtyForQuestion = specialtyDistribution[i];
+          const specialtyLabel = specialtyForQuestion ? (getSpecialtyLabel(specialtyForQuestion) || specialtyForQuestion) : undefined;
+
+          if (specialtyForQuestion && specialtyLabel) {
+            console.log(`🎓 [STREAMING] Spécialité ciblée pour question ${i + 1}: ${specialtyLabel}`);
+            singleQuestionRequest.lyceeSpecialties = [specialtyForQuestion];
+            singleQuestionRequest.focusSpecialty = specialtyForQuestion;
+            singleQuestionRequest.focusSpecialtyLabel = specialtyLabel;
+            singleQuestionRequest.specificSubject = specialtyLabel;
+          }
+
           console.log(`🎯 [STREAMING] Question ${i + 1}: Type assigné = ${specificQuestionType}`);
           console.log(`🧠 [STREAMING-DEBUG] Envoi au Chat Completion (gpt-4o-mini) pour question ${i + 1}:`);
           console.log(`  - ragContext: ${singleQuestionRequest.ragContext ? `${singleQuestionRequest.ragContext.length} chars` : 'undefined/null'}`);
@@ -626,6 +716,17 @@ export class QuizStreamingController {
           
           if (questionResult && questionResult.questions && questionResult.questions.length > 0) {
             const newQuestion = questionResult.questions[0];
+            if (specialtyLabel && !newQuestion.subject) {
+              newQuestion.subject = specialtyLabel;
+            }
+
+            if (specialtyForQuestion) {
+              newQuestion.metadata = {
+                ...(newQuestion.metadata || {}),
+                lyceeSpecialty: specialtyForQuestion,
+                lyceeSpecialtyLabel: specialtyLabel
+              };
+            }
             generatedQuestions.push(newQuestion);
 
             // Sauvegarder la question immédiatement en base

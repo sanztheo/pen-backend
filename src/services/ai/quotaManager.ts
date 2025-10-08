@@ -1,4 +1,5 @@
 import { prisma } from '../../lib/prisma.js';
+import { cacheQuotaUsage, invalidateQuotaUsageCache } from '../../lib/redis.js';
 
 // Types pour le gestionnaire de quotas
 interface QuotaUsage {
@@ -53,13 +54,20 @@ export class OpenAIQuotaManager {
   }
 
   /**
-   * Obtenir l'usage actuel depuis le cache ou la DB
+   * Obtenir l'usage actuel depuis Redis cache ou la DB
    */
   private static async getCurrentUsage(key: string = 'global'): Promise<QuotaUsage> {
     const now = new Date();
     const limits = this.getLimits();
 
-    // Vérifier le cache
+    // 🚀 REDIS CACHE: Récupérer depuis cache (2min TTL)
+    const redisUsage = await cacheQuotaUsage(key);
+    if (redisUsage) {
+      this.quotaCache.set(key, redisUsage);
+      return redisUsage;
+    }
+
+    // Vérifier le cache mémoire si Redis échoue
     const cached = this.quotaCache.get(key);
     if (cached && (now.getTime() - cached.windowStart.getTime()) < limits.windowDurationMs) {
       return cached;
@@ -98,7 +106,7 @@ export class OpenAIQuotaManager {
     } catch (error) {
       // Si la table n'existe pas, utiliser cache en mémoire uniquement
       console.warn('⚠️ Table openai_usage_log introuvable, utilisation cache mémoire:', error);
-      
+
       const result: QuotaUsage = {
         requests: 0,
         tokens: 0,
@@ -209,6 +217,11 @@ export class OpenAIQuotaManager {
         }
       });
       console.log(`✅ [QUOTA] Usage enregistré en DB: ${model} - ${totalTokens} tokens - $${cost.toFixed(4)}`);
+
+      // 🗑️ INVALIDER CACHE REDIS après enregistrement
+      invalidateQuotaUsageCache(quotaKey).catch(err =>
+        console.error('⚠️ [REDIS] Erreur invalidation cache Quota:', err)
+      );
     } catch (error) {
       console.error('❌ [QUOTA] Erreur enregistrement DB:', error);
       console.log('💾 Cache mémoire utilisé pour l\'usage OpenAI - Client Prisma doit être régénéré !');
