@@ -18,22 +18,22 @@ const LYCEE_SPECIALTY_LABELS: Record<LyceeSpecialty, string> = {
   [LyceeSpecialty.SVT]: 'Sciences de la Vie et de la Terre',
   [LyceeSpecialty.HISTOIRE_GEO]: 'Histoire-Géographie',
   [LyceeSpecialty.SES]: 'Sciences Économiques et Sociales',
-  [LyceeSpecialty.LANGUES]: 'Langues Vivantes',
-  [LyceeSpecialty.LITTERATURE]: 'Littérature',
-  [LyceeSpecialty.ARTS]: 'Arts',
-  [LyceeSpecialty.NSI]: 'Numérique et Sciences Informatiques',
-  [LyceeSpecialty.SI]: 'Sciences de l\'Ingénieur',
-  [LyceeSpecialty.PHILOSOPHIE]: 'Philosophie',
-  [LyceeSpecialty.EPS]: 'Éducation Physique et Sportive',
-  [LyceeSpecialty.LANGUES_CULTURES_ANTIQUITE]: 'Langues et Cultures de l\'Antiquité',
-  [LyceeSpecialty.BIOLOGIE_ECOLOGIE]: 'Biologie-Écologie',
-  [LyceeSpecialty.SCIENCES_INGENIEUR]: 'Sciences de l\'Ingénieur',
+  [LyceeSpecialty.LANGUES_LITTERATURE]: 'Langues, littératures et cultures étrangères',
+  [LyceeSpecialty.LLCER_ANGLAIS]: 'LLCER Anglais',
+  [LyceeSpecialty.LLCER_ESPAGNOL]: 'LLCER Espagnol',
+  [LyceeSpecialty.LLCER_ALLEMAND]: 'LLCER Allemand',
+  [LyceeSpecialty.LLCER_ITALIEN]: 'LLCER Italien',
   [LyceeSpecialty.ARTS_PLASTIQUES]: 'Arts Plastiques',
   [LyceeSpecialty.MUSIQUE]: 'Musique',
   [LyceeSpecialty.THEATRE]: 'Théâtre',
   [LyceeSpecialty.CINEMA_AUDIOVISUEL]: 'Cinéma-Audiovisuel',
   [LyceeSpecialty.DANSE]: 'Danse',
-  [LyceeSpecialty.HISTOIRE_ARTS]: 'Histoire des Arts'
+  [LyceeSpecialty.HISTOIRE_DES_ARTS]: 'Histoire des Arts',
+  [LyceeSpecialty.NSI]: 'Numérique et Sciences Informatiques',
+  [LyceeSpecialty.SI]: 'Sciences de l\'Ingénieur',
+  [LyceeSpecialty.SCIENCES_INGENIEUR]: 'Sciences de l\'Ingénieur',
+  [LyceeSpecialty.BIOLOGIE_ECOLOGIE]: 'Biologie-Écologie',
+  [LyceeSpecialty.SPORT]: 'Éducation Physique et Sportive'
 };
 
 const getSpecialtyLabel = (specialty: LyceeSpecialty | undefined): string | undefined => {
@@ -651,7 +651,7 @@ export class QuizStreamingController {
       
       console.log(`🚀 [STREAMING] Utilisation du mode Chat Completion + JSON strict (gpt-4o-mini) pour ${questionCount} questions`);
 
-      const baseRequest = {
+      const baseRequest: Record<string, any> = {
         userId,
         schoolLevel,
         questionCount: 1,
@@ -685,7 +685,7 @@ export class QuizStreamingController {
           });
 
           // Générer une seule question avec le type SPÉCIFIQUE
-          const singleQuestionRequest = {
+          const singleQuestionRequest: Record<string, any> = {
             ...baseRequest,
             questionTypes: [specificQuestionType], // ✅ UN SEUL TYPE SPÉCIFIQUE !
             questionCount: 1, // Une seule question
