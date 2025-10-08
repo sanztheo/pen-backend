@@ -1,5 +1,6 @@
 // 🧠 RAG Session Memory - Mémoire persistante entre sessions
 import { prisma } from '../../lib/prisma.js';
+import { cacheActiveRAGSession, invalidateRAGSessionCache } from '../../lib/redis.js';
 import type { RAGSearchResult } from './index.js';
 
 export interface SessionContext {
@@ -68,17 +69,17 @@ export class SessionMemorySystem {
     searchResults?: RAGSearchResult[]
   ): Promise<void> {
     try {
-      const session = await prisma.rAGSession.findUnique({
+      const currentSession = await prisma.rAGSession.findUnique({
         where: { id: sessionId }
       });
 
-      if (!session) {
+      if (!currentSession) {
         throw new Error('Session non trouvée');
       }
 
       // Récupérer l'historique actuel
-      const currentQueries = Array.isArray(session.queries) ? session.queries as string[] : [];
-      const currentResponses = Array.isArray(session.responses) ? session.responses as string[] : [];
+      const currentQueries = Array.isArray(currentSession.queries) ? currentSession.queries as string[] : [];
+      const currentResponses = Array.isArray(currentSession.responses) ? currentSession.responses as string[] : [];
 
       // Ajouter la nouvelle interaction
       const updatedQueries = [...currentQueries, query];
@@ -86,7 +87,7 @@ export class SessionMemorySystem {
 
       // Construire le contexte cumulé
       const newContext = await this.buildCumulativeContext(
-        session.id,
+        currentSession.id,
         updatedQueries,
         updatedResponses,
         searchResults
@@ -100,7 +101,7 @@ export class SessionMemorySystem {
       );
 
       // Mettre à jour la session
-      await prisma.rAGSession.update({
+      const updatedSession = await prisma.rAGSession.update({
         where: { id: sessionId },
         data: {
           queries,
@@ -114,6 +115,11 @@ export class SessionMemorySystem {
           }
         }
       });
+
+      // 🗑️ INVALIDER CACHE REDIS après sauvegarde interaction
+      invalidateRAGSessionCache(updatedSession.userId, updatedSession.workspaceId || '').catch(err =>
+        console.error('⚠️ [REDIS] Erreur invalidation cache RAG:', err)
+      );
 
     } catch (error) {
       console.error('Erreur sauvegarde interaction:', error);
@@ -408,38 +414,18 @@ export class SessionMemorySystem {
     ).join('\n');
   }
 
-  // 🔍 Récupérer une session active pour un utilisateur et workspace
+  // 🔍 Récupérer une session active pour un utilisateur et workspace (AVEC REDIS CACHE)
   async getActiveSession(userId: string, workspaceId: string): Promise<any | null> {
     try {
-      const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
       console.log(`🔍 [SESSION-DEBUG] Recherche session active - userId: ${userId}, workspaceId: ${workspaceId}`);
+      const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
       console.log(`🔍 [SESSION-DEBUG] Seuil de temps (dernières 24h): ${cutoffTime.toISOString()}`);
 
-      // D'abord, regarder toutes les sessions pour ce user/workspace
-      const allSessions = await prisma.rAGSession.findMany({
-        where: { userId, workspaceId },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, sessionKey: true, lastQueryAt: true, createdAt: true }
-      });
-
-      console.log(`🔍 [SESSION-DEBUG] Sessions trouvées (${allSessions.length}):`,
-        allSessions.map(s => `${s.id.substring(0, 8)}... - lastQueryAt: ${s.lastQueryAt?.toISOString() || 'null'} - created: ${s.createdAt.toISOString()}`));
-
-      const session = await prisma.rAGSession.findFirst({
-        where: {
-          userId,
-          workspaceId,
-          // Considérer comme active si utilisée dans les dernières 24h
-          lastQueryAt: {
-            gte: cutoffTime
-          }
-        },
-        orderBy: { lastQueryAt: 'desc' },
-        include: { sourcesUsed: true }
-      });
+      // 🚀 REDIS CACHE: Récupérer depuis cache (5min TTL)
+      const session = await cacheActiveRAGSession(userId, workspaceId);
 
       if (session) {
-        console.log(`✅ [SESSION-DEBUG] Session active trouvée: ${session.id}, sources: ${session.sourcesUsed.length}, lastQueryAt: ${session.lastQueryAt?.toISOString()}`);
+        console.log(`✅ [SESSION-DEBUG] Session active trouvée: ${session.id}, sources: ${session.sourcesUsed?.length || 0}, lastQueryAt: ${session.lastQueryAt?.toISOString()}`);
       } else {
         console.log(`❌ [SESSION-DEBUG] Aucune session active trouvée dans les dernières 24h`);
       }
@@ -528,7 +514,7 @@ export class SessionMemorySystem {
       const sourceConnections = sources.map(source => ({ id: source.id }));
       console.log(`🔍 [SESSION-DEBUG] Connexion des nouvelles sources:`, sourceConnections);
 
-      await prisma.rAGSession.update({
+      const savedSession = await prisma.rAGSession.update({
         where: { id: sessionId },
         data: {
           sourcesUsed: {
@@ -538,6 +524,11 @@ export class SessionMemorySystem {
         }
       });
       console.log(`✅ [SESSION-FIX] Session ${sessionId}: lastQueryAt mise à jour lors de la sauvegarde des sources`);
+
+      // 🗑️ INVALIDER CACHE REDIS après sauvegarde sources
+      invalidateRAGSessionCache(savedSession.userId, savedSession.workspaceId || '').catch(err =>
+        console.error('⚠️ [REDIS] Erreur invalidation cache RAG:', err)
+      );
 
       // Vérifier le résultat
       const updatedSession = await prisma.rAGSession.findUnique({

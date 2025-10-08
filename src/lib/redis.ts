@@ -250,6 +250,125 @@ export const invalidateBlockNoteCache = async (pageId: string) => {
 };
 
 /**
+ * Cache Active RAG Session avec TTL 5 minutes
+ * TTL court car session change fréquemment
+ */
+export const cacheActiveRAGSession = async (userId: string, workspaceId: string) => {
+  try {
+    const cacheKey = `rag-session:${userId}:${workspaceId}`;
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ [REDIS-CACHE] RAG Session HIT: ${userId}/${workspaceId}`);
+      return JSON.parse(cached);
+    }
+
+    console.log(`❌ [REDIS-CACHE] RAG Session MISS: ${userId}/${workspaceId}`);
+    const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const session = await prisma.rAGSession.findFirst({
+      where: {
+        userId,
+        workspaceId,
+        lastQueryAt: { gte: cutoffTime }
+      },
+      orderBy: { lastQueryAt: 'desc' },
+      include: { sourcesUsed: true }
+    });
+
+    if (session) {
+      await redis.setex(cacheKey, 300, JSON.stringify(session)); // 5min TTL
+    }
+
+    return session;
+  } catch (error) {
+    console.error('⚠️ [REDIS] Fallback to DB (cache error):', error);
+    const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return await prisma.rAGSession.findFirst({
+      where: {
+        userId,
+        workspaceId,
+        lastQueryAt: { gte: cutoffTime }
+      },
+      orderBy: { lastQueryAt: 'desc' },
+      include: { sourcesUsed: true }
+    });
+  }
+};
+
+/**
+ * Invalider le cache RAG Session (après update)
+ */
+export const invalidateRAGSessionCache = async (userId: string, workspaceId: string) => {
+  try {
+    await redis.del(`rag-session:${userId}:${workspaceId}`);
+    console.log(`🗑️ [REDIS-CACHE] RAG Session invalidated: ${userId}/${workspaceId}`);
+  } catch (error) {
+    console.error('⚠️ [REDIS] Erreur invalidation cache RAG Session:', error);
+  }
+};
+
+/**
+ * Cache OpenAI Quota Usage avec TTL 2 minutes
+ * TTL court pour éviter dépassements de quota
+ */
+export const cacheQuotaUsage = async (quotaKey: string = 'global') => {
+  try {
+    const cacheKey = `quota-usage:${quotaKey}`;
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ [REDIS-CACHE] Quota Usage HIT: ${quotaKey}`);
+      return JSON.parse(cached);
+    }
+
+    console.log(`❌ [REDIS-CACHE] Quota Usage MISS: ${quotaKey}`);
+    const now = new Date();
+    const windowStart = new Date(now.getTime() - 3600000); // 1h window
+
+    const usageRecords = await prisma.openaiUsageLog.findMany({
+      where: {
+        quotaKey,
+        createdAt: { gte: windowStart }
+      },
+      select: {
+        promptTokens: true,
+        completionTokens: true,
+        estimatedCost: true
+      }
+    });
+
+    const result = {
+      requests: usageRecords.length,
+      tokens: usageRecords.reduce((sum, record) => sum + record.promptTokens + record.completionTokens, 0),
+      cost: usageRecords.reduce((sum, record) => sum + record.estimatedCost, 0),
+      windowStart: windowStart
+    };
+
+    if (usageRecords.length > 0) {
+      await redis.setex(cacheKey, 120, JSON.stringify(result)); // 2min TTL
+    }
+
+    return result;
+  } catch (error) {
+    console.error('⚠️ [REDIS] Fallback to memory (cache error):', error);
+    return null; // Fallback to in-memory cache in quotaManager
+  }
+};
+
+/**
+ * Invalider le cache Quota Usage (après enregistrement)
+ */
+export const invalidateQuotaUsageCache = async (quotaKey: string = 'global') => {
+  try {
+    await redis.del(`quota-usage:${quotaKey}`);
+    console.log(`🗑️ [REDIS-CACHE] Quota Usage invalidated: ${quotaKey}`);
+  } catch (error) {
+    console.error('⚠️ [REDIS] Erreur invalidation cache Quota:', error);
+  }
+};
+
+/**
  * Health check Redis
  */
 export const redisHealthCheck = async (): Promise<boolean> => {
