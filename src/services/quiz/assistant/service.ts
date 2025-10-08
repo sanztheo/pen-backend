@@ -538,7 +538,7 @@ Tu DOIS impérativement retourner une réponse au format JSON strict fourni.`;
       questionTypes, 
       specificSubject, 
       existingQuestions = [],
-      lyceeSpecialities = [],
+      lyceeSpecialties = [],
       higherEdField,
       ragContext,
       coursesOnly = false,
@@ -564,8 +564,8 @@ PARAMÈTRES :
 - Difficulté : ${difficulty}
 - ID question : ${questionId}`;
 
-    if (lyceeSpecialities.length > 0) {
-      prompt += `\n- Spécialités Lycée : ${lyceeSpecialities.join(', ')}`;
+    if (lyceeSpecialties.length > 0) {
+      prompt += `\n- Spécialités Lycée : ${lyceeSpecialties.join(', ')}`;
     }
 
     if (higherEdField) {
