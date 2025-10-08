@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { QuizService } from '../services/quiz/quizService.js';
-import { SchoolLevel, QuestionType } from '../services/quiz/types.js';
+import { SchoolLevel, QuestionType, LyceeSpecialty } from '../services/quiz/types.js';
 import { OpenAIAssistantService } from '../services/quiz/assistant/index.js';
 import { prisma } from '../lib/prisma.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,6 +11,70 @@ const streamingSessions = new Map<string, {
   request: any;
   createdAt: Date;
 }>();
+
+const LYCEE_SPECIALTY_LABELS: Record<LyceeSpecialty, string> = {
+  [LyceeSpecialty.MATHEMATIQUES]: 'Mathématiques',
+  [LyceeSpecialty.PHYSIQUE_CHIMIE]: 'Physique-Chimie',
+  [LyceeSpecialty.SVT]: 'Sciences de la Vie et de la Terre',
+  [LyceeSpecialty.HISTOIRE_GEO]: 'Histoire-Géographie',
+  [LyceeSpecialty.SES]: 'Sciences Économiques et Sociales',
+  [LyceeSpecialty.LANGUES]: 'Langues Vivantes',
+  [LyceeSpecialty.LITTERATURE]: 'Littérature',
+  [LyceeSpecialty.ARTS]: 'Arts',
+  [LyceeSpecialty.NSI]: 'Numérique et Sciences Informatiques',
+  [LyceeSpecialty.SI]: 'Sciences de l\'Ingénieur',
+  [LyceeSpecialty.PHILOSOPHIE]: 'Philosophie',
+  [LyceeSpecialty.EPS]: 'Éducation Physique et Sportive',
+  [LyceeSpecialty.LANGUES_CULTURES_ANTIQUITE]: 'Langues et Cultures de l\'Antiquité',
+  [LyceeSpecialty.BIOLOGIE_ECOLOGIE]: 'Biologie-Écologie',
+  [LyceeSpecialty.SCIENCES_INGENIEUR]: 'Sciences de l\'Ingénieur',
+  [LyceeSpecialty.ARTS_PLASTIQUES]: 'Arts Plastiques',
+  [LyceeSpecialty.MUSIQUE]: 'Musique',
+  [LyceeSpecialty.THEATRE]: 'Théâtre',
+  [LyceeSpecialty.CINEMA_AUDIOVISUEL]: 'Cinéma-Audiovisuel',
+  [LyceeSpecialty.DANSE]: 'Danse',
+  [LyceeSpecialty.HISTOIRE_ARTS]: 'Histoire des Arts'
+};
+
+const getSpecialtyLabel = (specialty: LyceeSpecialty | undefined): string | undefined => {
+  if (!specialty) {
+    return undefined;
+  }
+
+  return LYCEE_SPECIALTY_LABELS[specialty] || specialty.replace(/_/g, ' ');
+};
+
+const buildSpecialtyDistribution = (
+  specialties: LyceeSpecialty[] | undefined,
+  totalQuestions: number
+): LyceeSpecialty[] => {
+  if (!specialties || specialties.length === 0 || totalQuestions <= 0) {
+    return [];
+  }
+
+  const uniqueSpecialties = Array.from(new Set(specialties));
+  if (uniqueSpecialties.length === 0) {
+    return [];
+  }
+
+  const baseCount = Math.floor(totalQuestions / uniqueSpecialties.length);
+  const remainder = totalQuestions % uniqueSpecialties.length;
+  const counts = uniqueSpecialties.map((_, index) => baseCount + (index < remainder ? 1 : 0));
+
+  const distribution: LyceeSpecialty[] = [];
+  let pointer = 0;
+
+  while (distribution.length < totalQuestions) {
+    const index = pointer % uniqueSpecialties.length;
+    if (counts[index] > 0) {
+      distribution.push(uniqueSpecialties[index]);
+      counts[index] -= 1;
+    }
+    pointer += 1;
+  }
+
+  return distribution;
+};
 
 // Nettoyer les sessions expirées (plus de 1 heure)
 setInterval(() => {
