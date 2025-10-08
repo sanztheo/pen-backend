@@ -52,7 +52,7 @@ const buildSpecialtyDistribution = (
     return [];
   }
 
-  const uniqueSpecialties = Array.from(new Set(specialties));
+  const uniqueSpecialties = Array.from(new Set(specialties)) as LyceeSpecialty[];
   if (uniqueSpecialties.length === 0) {
     return [];
   }
@@ -631,6 +631,20 @@ export class QuizStreamingController {
         }))
       );
 
+      const specialtyDistribution = buildSpecialtyDistribution(lyceeSpecialties, questionCount);
+      if (specialtyDistribution.length > 0) {
+        const specialtySummary = specialtyDistribution.reduce<Record<string, number>>((acc, specialty) => {
+          const label = getSpecialtyLabel(specialty) || specialty;
+          acc[label] = (acc[label] || 0) + 1;
+          return acc;
+        }, {});
+
+        console.log('📚 [STREAMING] Répartition spécialités:', Object.entries(specialtySummary).map(([label, count]) => ({
+          specialty: label,
+          count
+        })));
+      }
+
       // 🆕 Générer les questions avec Chat Completion + JSON strict (gpt-4o-mini)
       const generatedQuestions: any[] = [];
       const assistantService = new OpenAIAssistantService();
@@ -642,7 +656,8 @@ export class QuizStreamingController {
         schoolLevel,
         questionCount: 1,
         collegeGrade,
-        lyceeSpecialties,
+        lyceeSpecialties: lyceeSpecialties || [],
+        allLyceeSpecialties: lyceeSpecialties || [],
         higherEdField,
         preset,
         specificSubject,
@@ -676,7 +691,18 @@ export class QuizStreamingController {
             questionCount: 1, // Une seule question
             existingQuestions: generatedQuestions.length > 0 ? generatedQuestions : undefined
           };
-          
+
+          const specialtyForQuestion = specialtyDistribution[i];
+          const specialtyLabel = specialtyForQuestion ? (getSpecialtyLabel(specialtyForQuestion) || specialtyForQuestion) : undefined;
+
+          if (specialtyForQuestion && specialtyLabel) {
+            console.log(`🎓 [STREAMING] Spécialité ciblée pour question ${i + 1}: ${specialtyLabel}`);
+            singleQuestionRequest.lyceeSpecialties = [specialtyForQuestion];
+            singleQuestionRequest.focusSpecialty = specialtyForQuestion;
+            singleQuestionRequest.focusSpecialtyLabel = specialtyLabel;
+            singleQuestionRequest.specificSubject = specialtyLabel;
+          }
+
           console.log(`🎯 [STREAMING] Question ${i + 1}: Type assigné = ${specificQuestionType}`);
           console.log(`🧠 [STREAMING-DEBUG] Envoi au Chat Completion (gpt-4o-mini) pour question ${i + 1}:`);
           console.log(`  - ragContext: ${singleQuestionRequest.ragContext ? `${singleQuestionRequest.ragContext.length} chars` : 'undefined/null'}`);
@@ -690,6 +716,17 @@ export class QuizStreamingController {
           
           if (questionResult && questionResult.questions && questionResult.questions.length > 0) {
             const newQuestion = questionResult.questions[0];
+            if (specialtyLabel && !newQuestion.subject) {
+              newQuestion.subject = specialtyLabel;
+            }
+
+            if (specialtyForQuestion) {
+              newQuestion.metadata = {
+                ...(newQuestion.metadata || {}),
+                lyceeSpecialty: specialtyForQuestion,
+                lyceeSpecialtyLabel: specialtyLabel
+              };
+            }
             generatedQuestions.push(newQuestion);
 
             // Sauvegarder la question immédiatement en base

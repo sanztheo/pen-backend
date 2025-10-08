@@ -19,6 +19,38 @@ import {
   buildDynamicCorrectionContent
 } from './promptCache.js';
 
+const SPECIALTY_LABELS: Record<string, string> = {
+  MATHEMATIQUES: 'Mathématiques',
+  PHYSIQUE_CHIMIE: 'Physique-Chimie',
+  SVT: 'Sciences de la Vie et de la Terre',
+  HISTOIRE_GEO: 'Histoire-Géographie',
+  SES: 'Sciences Économiques et Sociales',
+  LANGUES: 'Langues Vivantes',
+  LITTERATURE: 'Littérature',
+  ARTS: 'Arts',
+  NSI: 'Numérique et Sciences Informatiques',
+  SI: 'Sciences de l\'Ingénieur',
+  PHILOSOPHIE: 'Philosophie',
+  EPS: 'Éducation Physique et Sportive',
+  LANGUES_CULTURES_ANTIQUITE: 'Langues et Cultures de l\'Antiquité',
+  BIOLOGIE_ECOLOGIE: 'Biologie-Écologie',
+  SCIENCES_INGENIEUR: 'Sciences de l\'Ingénieur',
+  ARTS_PLASTIQUES: 'Arts Plastiques',
+  MUSIQUE: 'Musique',
+  THEATRE: 'Théâtre',
+  CINEMA_AUDIOVISUEL: 'Cinéma-Audiovisuel',
+  DANSE: 'Danse',
+  HISTOIRE_ARTS: 'Histoire des Arts'
+};
+
+const formatSpecialtyLabel = (specialty?: string): string | undefined => {
+  if (!specialty) {
+    return undefined;
+  }
+
+  return SPECIALTY_LABELS[specialty] || specialty.replace(/_/g, ' ');
+};
+
 // 🆕 Schéma JSON strict pour les questions
 const QUIZ_QUESTION_SCHEMA = {
   type: "object",
@@ -539,6 +571,8 @@ Tu DOIS impérativement retourner une réponse au format JSON strict fourni.`;
       specificSubject, 
       existingQuestions = [],
       lyceeSpecialties = [],
+      focusSpecialty,
+      focusSpecialtyLabel,
       higherEdField,
       ragContext,
       coursesOnly = false,
@@ -565,7 +599,14 @@ PARAMÈTRES :
 - ID question : ${questionId}`;
 
     if (lyceeSpecialties.length > 0) {
-      prompt += `\n- Spécialités Lycée : ${lyceeSpecialties.join(', ')}`;
+      const formattedSpecialties = lyceeSpecialties.map((specialty: string) => formatSpecialtyLabel(specialty) || specialty);
+      prompt += `\n- Spécialités Lycée : ${formattedSpecialties.join(', ')}`;
+    }
+
+    if (focusSpecialtyLabel) {
+      prompt += `\n- Spécialité ciblée pour cette question : ${focusSpecialtyLabel}`;
+    } else if (focusSpecialty) {
+      prompt += `\n- Spécialité ciblée pour cette question : ${formatSpecialtyLabel(String(focusSpecialty)) || String(focusSpecialty).replace(/_/g, ' ')}`;
     }
 
     if (higherEdField) {
