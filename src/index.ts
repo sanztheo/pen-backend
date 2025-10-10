@@ -27,6 +27,7 @@ import quizLimitsRoutes from './routes/quizLimits.js';
 import syncLimitsRoutes from './routes/sync-limits.js';
 import updatesRoutes from './routes/updates.js';
 import dailyArticleRoutes from './routes/dailyArticle.js';
+import uploadRoutes from './routes/upload.js';
 import { clerkWebhookHandler } from './routes/webhooks.js';
 
 import { startCronJobs } from './jobs/cronJobs.js';
@@ -78,6 +79,7 @@ app.use('/api/ai-credits', aiCreditsRoutes);
 app.use('/api/quiz-limits', quizLimitsRoutes);
 app.use('/api/sync-limits', syncLimitsRoutes);
 app.use('/api/updates', updatesRoutes);
+app.use('/api/upload', uploadRoutes);
 app.use('/api/daily-article', dailyArticleRoutes);
 
 app.use('*', (req, res) => res.status(404).json({ error: 'Route non trouvée' }));
