@@ -98,7 +98,7 @@ export class AssistantFileManager {
         
         if (fileAge > maxAge) {
           try {
-            await (openai.files as any).del(file.id);
+            await openai.files.delete(file.id);
             
             // Nettoyer le cache local
             for (const [key, cachedFileId] of this.fileCache.entries()) {
