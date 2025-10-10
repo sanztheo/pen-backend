@@ -391,7 +391,7 @@ INSTRUCTIONS :
 1. Génère exactement ${request.questionCount} questions
 2. Répartis équitablement les types de questions demandés
 3. Varie les niveaux de difficulté (30% facile, 50% moyen, 20% difficile)
-4. Assure-toi que chaque question a un barème de points cohérent
+4. IMPORTANT : Chaque question vaut exactement 1 point (le système convertira automatiquement sur 20)
 5. Estime le temps nécessaire pour chaque question
 ${PromptUtils.getLatexInstructions()}
 
@@ -432,11 +432,12 @@ IMPORTANT pour le titre IA :
       const normalizedQuizData = this.normalizeQuizData(quizData);
 
       // Validation et normalisation des questions
+      // Pour les quiz personnalisés (NONE), toutes les questions valent 1 point
       normalizedQuizData.questions = normalizedQuizData.questions.map((q: any, index: number) => {
         return {
           ...q,
           id: q.id || `Q${index + 1}`,
-          points: q.points || 1,
+          points: 1, // Toujours 1 point pour les quiz personnalisés
           difficulty: q.difficulty || 'moyen',
           timeEstimate: q.timeEstimate || 30,
           category: q.category || 'Général'
@@ -570,7 +571,7 @@ PARAMÈTRES DU QUIZ :
 - Types de questions : ${request.questionTypes.join(', ')}
 
 INSTRUCTIONS :
-${request.coursesOnly 
+${request.coursesOnly
   ? `⚠️ MODE STRICT COURS UNIQUEMENT - RÈGLES ABSOLUES :
 1. Base les questions EXCLUSIVEMENT sur le contenu fourni ci-dessous
 2. INTERDIT TOTAL d'utiliser tes connaissances générales ou externes
@@ -583,7 +584,8 @@ ${request.coursesOnly
 3. Assure-toi que les questions enrichissent et testent la compréhension`}
 4. Génère ${request.questionCount} questions pertinentes
 5. Varie les niveaux de difficulté selon le niveau scolaire
-6. Cite la source d'origine dans la catégorie
+6. IMPORTANT : Chaque question vaut exactement 1 point (le système convertira automatiquement sur 20)
+7. Cite la source d'origine dans la catégorie
 
 IMPORTANT : Réponds UNIQUEMENT en JSON valide, sans texte explicatif. 
 
@@ -616,11 +618,12 @@ IMPORTANT pour le titre IA :
       const quizData = JsonUtils.extractJsonFromText(result.content);
 
       // Validation et normalisation des questions (workspace)
+      // Pour les quiz personnalisés (basés sur workspaces), toutes les questions valent 1 point
       quizData.questions = quizData.questions.map((q: any, index: number) => {
         return {
           ...q,
           id: q.id || `Q${index + 1}`,
-          points: q.points || 1,
+          points: 1, // Toujours 1 point pour les quiz personnalisés
           difficulty: q.difficulty || 'moyen',
           timeEstimate: q.timeEstimate || 30,
           category: q.category || 'Général'
