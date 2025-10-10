@@ -120,9 +120,9 @@ const QUIZ_QUESTION_SCHEMA = {
           },
           points: {
             type: "integer",
-            description: "Points attribués à cette question (1-5 selon difficulté)",
+            description: "Points attribués à cette question (toujours 1 pour quiz personnalisés)",
             minimum: 1,
-            maximum: 5
+            maximum: 1
           },
           subject: {
             type: "string",
@@ -596,7 +596,12 @@ PARAMÈTRES :
 - Type de question : ${questionTypes[0] || 'MULTIPLE_CHOICE'}
 - Sujet : ${specificSubject || 'Général'}
 - Difficulté : ${difficulty}
-- ID question : ${questionId}`;
+- ID question : ${questionId}
+
+⚠️ IMPORTANT SYSTÈME DE POINTS :
+- Chaque question DOIT valoir exactement 1 point (points = 1)
+- Le système convertira automatiquement le score final sur 20
+- NE PAS varier les points selon la difficulté`;
 
     if (lyceeSpecialties.length > 0) {
       const formattedSpecialties = lyceeSpecialties.map((specialty: string) => formatSpecialtyLabel(specialty) || specialty);
