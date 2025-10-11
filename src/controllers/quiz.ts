@@ -2321,22 +2321,34 @@ export class QuizController {
         }
       };
 
-      // Sauvegarder le résultat en base (même structure que la correction IA)
-      const savedResult = await prisma.quizResult.create({
-        data: {
-          quizId,
-          totalScore,
-          maxScore,
-          percentage,
-          adaptedGrade: Math.round((totalScore / maxScore) * 20),
-          gradeScale: '/20',
-          detailedScoring: questionResults as any,
-          aiCorrection: quizResult.aiCorrection as any,
-          recommendations: quizResult.aiCorrection.recommendations as any
-        }
+      // Sauvegarder le résultat ET marquer le quiz comme terminé (même logique que submitQuiz)
+      const savedResult = await prisma.$transaction(async (tx: any) => {
+        // Marquer le quiz comme terminé
+        await tx.quiz.update({
+          where: { id: quizId },
+          data: {
+            isCompleted: true,
+            completedAt: new Date()
+          }
+        });
+
+        // Créer le résultat
+        return await tx.quizResult.create({
+          data: {
+            quizId,
+            totalScore,
+            maxScore,
+            percentage,
+            adaptedGrade: Math.round((totalScore / maxScore) * 20),
+            gradeScale: '/20',
+            detailedScoring: questionResults as any,
+            aiCorrection: quizResult.aiCorrection as any,
+            recommendations: quizResult.aiCorrection.recommendations as any
+          }
+        });
       });
 
-      console.log(`✅ [FAST-CORRECTION] Résultat sauvegardé: ${savedResult.id}`);
+      console.log(`✅ [FAST-CORRECTION] Résultat sauvegardé et quiz marqué comme terminé: ${savedResult.id}`);
 
       res.status(200).json({
         success: true,

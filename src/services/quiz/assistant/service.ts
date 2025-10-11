@@ -108,7 +108,64 @@ const QUIZ_QUESTION_SCHEMA = {
               required: ["id", "text", "isCorrect"],
               additionalProperties: false
             },
-            description: "Options de réponse (obligatoire pour MULTIPLE_CHOICE et TRUE_FALSE, array vide pour OPEN_QUESTION)"
+            description: "Options de réponse (obligatoire pour MULTIPLE_CHOICE et TRUE_FALSE, array vide pour OPEN_QUESTION et MATCHING)"
+          },
+          leftColumn: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: {
+                  type: "string",
+                  description: "Identifiant de l'élément de gauche (1, 2, 3, 4...)"
+                },
+                text: {
+                  type: "string",
+                  description: "Texte de l'élément à associer"
+                }
+              },
+              required: ["id", "text"],
+              additionalProperties: false
+            },
+            description: "Colonne de gauche pour MATCHING (éléments à associer) - obligatoire pour MATCHING, vide pour autres types"
+          },
+          rightColumn: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: {
+                  type: "string",
+                  description: "Identifiant de l'élément de droite (A, B, C, D...)"
+                },
+                text: {
+                  type: "string",
+                  description: "Texte de la définition/réponse"
+                }
+              },
+              required: ["id", "text"],
+              additionalProperties: false
+            },
+            description: "Colonne de droite pour MATCHING (définitions/réponses) - obligatoire pour MATCHING, vide pour autres types"
+          },
+          correctMatches: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                leftId: {
+                  type: "string",
+                  description: "ID de l'élément de gauche"
+                },
+                rightId: {
+                  type: "string",
+                  description: "ID de l'élément de droite correspondant"
+                }
+              },
+              required: ["leftId", "rightId"],
+              additionalProperties: false
+            },
+            description: "Paires correctes pour MATCHING - obligatoire pour MATCHING, vide pour autres types"
           },
           expectedAnswer: {
             type: "string",
@@ -161,10 +218,13 @@ const QUIZ_QUESTION_SCHEMA = {
         },
         required: [
           "id",
-          "question", 
+          "question",
           "type",
           "difficulty",
           "options",
+          "leftColumn",
+          "rightColumn",
+          "correctMatches",
           "expectedAnswer",
           "explanation",
           "points",
@@ -172,7 +232,7 @@ const QUIZ_QUESTION_SCHEMA = {
           "schoolLevel",
           "hasGraphic",
           "graphicId",
-          "graphicLibrary", 
+          "graphicLibrary",
           "graphicType",
           "basedOnDocument",
           "documentReference"
@@ -653,25 +713,60 @@ ${existingQuestions.map((q: any, i: number) => `${i + 1}. ${q.question}`).join('
 - Crée exactement 4 options (A, B, C, D)
 - Une seule option correcte
 - Options plausibles et équilibrées
-- Pas d'indices dans la formulation`;
+- Pas d'indices dans la formulation
+- leftColumn = [] (array vide)
+- rightColumn = [] (array vide)
+- correctMatches = [] (array vide)`;
         break;
       case 'TRUE_FALSE':
         prompt += `\n\n📝 INSTRUCTIONS VRAI/FAUX :
 - Crée exactement 2 options : "Vrai" et "Faux"
 - Affirmation claire et précise
-- Évite les formulations ambiguës`;
+- Évite les formulations ambiguës
+- leftColumn = [] (array vide)
+- rightColumn = [] (array vide)
+- correctMatches = [] (array vide)`;
         break;
       case 'OPEN_QUESTION':
         prompt += `\n\n📝 INSTRUCTIONS QUESTION OUVERTE :
 - Question nécessitant une réponse développée
 - Fournis une réponse modèle détaillée
-- options = [] (array vide)`;
+- options = [] (array vide)
+- leftColumn = [] (array vide)
+- rightColumn = [] (array vide)
+- correctMatches = [] (array vide)`;
         break;
       case 'MATCHING':
         prompt += `\n\n📝 INSTRUCTIONS MATCHING :
-- Question d'association d'éléments
+- Question d'association d'éléments (terme → définition)
 - Minimum 4 paires à associer
-- options = [] (array vide)`;
+- options = [] (array vide - OBLIGATOIRE)
+- leftColumn = array de 4+ éléments avec id (1, 2, 3, 4...) et text (ex: termes, concepts)
+- rightColumn = array de 4+ éléments avec id (A, B, C, D...) et text (ex: définitions)
+- correctMatches = array des paires correctes (ex: [{leftId: "1", rightId: "A"}, ...])
+- expectedAnswer = format "1-A, 2-B, 3-C, 4-D" pour référence
+
+EXEMPLE DE STRUCTURE MATCHING:
+{
+  "leftColumn": [
+    {"id": "1", "text": "Photosynthèse"},
+    {"id": "2", "text": "Respiration"},
+    {"id": "3", "text": "Transpiration"},
+    {"id": "4", "text": "Germination"}
+  ],
+  "rightColumn": [
+    {"id": "A", "text": "Processus de croissance d'une graine"},
+    {"id": "B", "text": "Production d'énergie par les cellules"},
+    {"id": "C", "text": "Évaporation d'eau par les feuilles"},
+    {"id": "D", "text": "Synthèse de glucose à partir de lumière"}
+  ],
+  "correctMatches": [
+    {"leftId": "1", "rightId": "D"},
+    {"leftId": "2", "rightId": "B"},
+    {"leftId": "3", "rightId": "C"},
+    {"leftId": "4", "rightId": "A"}
+  ]
+}`;
         break;
     }
 
