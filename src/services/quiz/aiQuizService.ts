@@ -490,7 +490,9 @@ export class AIQuizService {
                 question: q.question,
                 type: q.type,
                 options: 'options' in q ? q.options : undefined
-              }))
+              })),
+              schoolLevel: request.schoolLevel,
+              collegeGrade: request.collegeGrade
             }
           ),
           `Complete Correction (Chat Completion): ${request.quizId}`
@@ -520,7 +522,9 @@ export class AIQuizService {
                   question: q.question,
                   type: q.type,
                   options: 'options' in q ? q.options : undefined
-                }))
+                })),
+                schoolLevel: request.schoolLevel,
+                collegeGrade: request.collegeGrade
               }
             ),
             `Documents Correction (Chat Completion): ${request.quizId}`
@@ -549,7 +553,9 @@ export class AIQuizService {
                   question: q.question,
                   type: q.type,
                   options: 'options' in q ? q.options : undefined
-                }))
+                })),
+                schoolLevel: request.schoolLevel,
+                collegeGrade: request.collegeGrade
               }
             ),
             `Documents Correction (Chat Completion): ${request.quizId}`
@@ -579,7 +585,9 @@ export class AIQuizService {
                 question: q.question,
                 type: q.type,
                 options: 'options' in q ? q.options : undefined
-              }))
+              })),
+              schoolLevel: request.schoolLevel,
+              collegeGrade: request.collegeGrade
             }
           ),
           `Graphics Correction (Chat Completion): ${request.quizId}`
@@ -605,7 +613,9 @@ export class AIQuizService {
                 question: q.question,
                 options: (q as any).options,
                 correctAnswerId: (q as any).correctAnswerId
-              }))
+              })),
+              schoolLevel: request.schoolLevel,
+              collegeGrade: request.collegeGrade
             }
           ),
           `Standard Correction (Chat Completion): ${request.quizId}`

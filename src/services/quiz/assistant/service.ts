@@ -8,9 +8,9 @@ import {
 } from './thread.js';
 import { ASSISTANT_ID, ASSISTANT_ID_DOCUMENTS } from './index.js';
 import { assistantFileManager } from './fileManager.js';
-import { 
+import {
   STATIC_BASE_INSTRUCTIONS,
-  STATIC_DOCUMENT_INSTRUCTIONS, 
+  STATIC_DOCUMENT_INSTRUCTIONS,
   STATIC_GRAPHICS_INSTRUCTIONS,
   STATIC_CORRECTION_INSTRUCTIONS,
   buildCachedPrompt,
@@ -18,6 +18,7 @@ import {
   buildDynamicQuizContent,
   buildDynamicCorrectionContent
 } from './promptCache.js';
+import { getProfessorCorrectionPrompt } from './professorPersonas.js';
 
 const SPECIALTY_LABELS: Record<string, string> = {
   MATHEMATIQUES: 'Mathématiques',
@@ -1990,8 +1991,16 @@ Tu DOIS retourner une évaluation complète au format JSON strict fourni.`;
   private buildStandardCorrectionPrompt(quizId: string, answers: any[], options?: any): string {
     // Récupérer les questions depuis les options si disponibles
     const questions = options?.questions || [];
-    
-    let prompt = `CORRIGE CE QUIZ STANDARD
+
+    // 👨‍🏫 INTÉGRATION DU PERSONA PROFESSORAL ADAPTATIF
+    const professorPersona = getProfessorCorrectionPrompt(
+      options?.schoolLevel || 'LYCEE_SECONDE',
+      options?.collegeGrade
+    );
+
+    let prompt = `${professorPersona}
+
+CORRIGE CE QUIZ STANDARD
 
 QUIZ ID : ${quizId}
 NOMBRE DE RÉPONSES : ${answers.length}
@@ -2028,13 +2037,27 @@ INSTRUCTIONS DE CORRECTION SPÉCIFIQUES PAR TYPE :
 - VALIDATION STRICTE : Compare la réponse utilisateur avec l'option marquée "isCorrect": true
 - Si la réponse utilisateur = ID de l'option correcte → isCorrect: true, points = pointsTotal
 - Si la réponse utilisateur ≠ ID de l'option correcte → isCorrect: false, points = 0
-- correctAnswer : TOUJOURS l'ID de l'option où "isCorrect": true (ex: "A", "B", "C")
+- correctAnswer : ⚠️ RÈGLE ABSOLUE - UNIQUEMENT L'ID/LETTRE ⚠️
+  * FORMAT OBLIGATOIRE : Une seule lettre majuscule ("A", "B", "C", ou "D")
+  * EXEMPLE CORRECT : correctAnswer: "B"
+  * EXEMPLE INTERDIT : correctAnswer: "L'énergie totale d'un système..."
+  * INTERDICTION FORMELLE : Ne JAMAIS écrire le texte de la réponse
+  * VALIDATION : correctAnswer doit être exactement 1 caractère
 - NE JAMAIS donner de points si la réponse ne correspond pas exactement à l'option correcte
 
 🔹 QUESTIONS OUVERTES (OPEN_QUESTION) :
 - Évaluation sur le contenu, la pertinence et la justesse de la réponse
 - Points partiels possibles selon la qualité de la réponse
-- correctAnswer : réponse textuelle complète et précise
+- correctAnswer : ⚠️ RÉPONSE MODÈLE COMPLÈTE AVEC DÉMONSTRATION ⚠️
+  * Pour les DÉMONSTRATIONS (maths, géométrie, physique) :
+    → Inclure TOUTES les étapes du raisonnement (constructions, propriétés, calculs)
+    → Format : "Étape 1: ... | Étape 2: ... | Étape 3: ... | Conclusion: ..."
+    → INTERDIT : Donner uniquement la conclusion finale
+  * Pour les EXPLICATIONS (sciences, histoire, etc.) :
+    → Inclure le développement complet, pas seulement la réponse finale
+    → Exemples, arguments, justifications détaillées
+  * EXEMPLE CORRECT (géométrie) : "Construction: Tracer triangle ABC. Prolonger BC en D. Tracer parallèle à AB passant par C. Propriété: Les angles alternes-internes sont égaux (BC//AB). Calcul: angle ACB + angle BCD = 180° (angles supplémentaires). Donc A + B + C = 180°."
+  * EXEMPLE INTERDIT : "La somme des angles d'un triangle est 180°."
 - Correction plus nuancée possible (25%, 50%, 75%, 100% des points)
 
 🔹 RÈGLES DE COHÉRENCE OBLIGATOIRES :
@@ -2068,8 +2091,16 @@ GÉNÈRE une correction complète et pédagogique au format JSON strict requis.`
   private buildCompleteCorrectionPrompt(quizId: string, answers: any[], options?: any): string {
     // Récupérer les questions depuis les options si disponibles
     const questions = options?.questions || [];
-    
-    let prompt = `CORRIGE CE QUIZ COMPLET (GRAPHIQUES + DOCUMENTS)
+
+    // 👨‍🏫 INTÉGRATION DU PERSONA PROFESSORAL ADAPTATIF
+    const professorPersona = getProfessorCorrectionPrompt(
+      options?.schoolLevel || 'LYCEE_SECONDE',
+      options?.collegeGrade
+    );
+
+    let prompt = `${professorPersona}
+
+CORRIGE CE QUIZ COMPLET (GRAPHIQUES + DOCUMENTS)
 
 QUIZ ID : ${quizId}
 NOMBRE DE RÉPONSES : ${answers.length}
@@ -2108,13 +2139,27 @@ INSTRUCTIONS DE CORRECTION SPÉCIFIQUES PAR TYPE :
 - VALIDATION STRICTE : Compare la réponse utilisateur avec l'option marquée "isCorrect": true
 - Si la réponse utilisateur = ID de l'option correcte → isCorrect: true, points = pointsTotal
 - Si la réponse utilisateur ≠ ID de l'option correcte → isCorrect: false, points = 0
-- correctAnswer : TOUJOURS l'ID de l'option où "isCorrect": true (ex: "A", "B", "C")
+- correctAnswer : ⚠️ RÈGLE ABSOLUE - UNIQUEMENT L'ID/LETTRE ⚠️
+  * FORMAT OBLIGATOIRE : Une seule lettre majuscule ("A", "B", "C", ou "D")
+  * EXEMPLE CORRECT : correctAnswer: "B"
+  * EXEMPLE INTERDIT : correctAnswer: "L'énergie totale d'un système..."
+  * INTERDICTION FORMELLE : Ne JAMAIS écrire le texte de la réponse
+  * VALIDATION : correctAnswer doit être exactement 1 caractère
 - NE JAMAIS donner de points si la réponse ne correspond pas exactement à l'option correcte
 
 🔹 QUESTIONS OUVERTES (OPEN_QUESTION) :
 - Évaluation sur le contenu, la pertinence et la justesse de la réponse
 - Points partiels possibles selon la qualité de la réponse
-- correctAnswer : réponse textuelle complète et précise
+- correctAnswer : ⚠️ RÉPONSE MODÈLE COMPLÈTE AVEC DÉMONSTRATION ⚠️
+  * Pour les DÉMONSTRATIONS (maths, géométrie, physique) :
+    → Inclure TOUTES les étapes du raisonnement (constructions, propriétés, calculs)
+    → Format : "Étape 1: ... | Étape 2: ... | Étape 3: ... | Conclusion: ..."
+    → INTERDIT : Donner uniquement la conclusion finale
+  * Pour les EXPLICATIONS (sciences, histoire, etc.) :
+    → Inclure le développement complet, pas seulement la réponse finale
+    → Exemples, arguments, justifications détaillées
+  * EXEMPLE CORRECT (géométrie) : "Construction: Tracer triangle ABC. Prolonger BC en D. Tracer parallèle à AB passant par C. Propriété: Les angles alternes-internes sont égaux (BC//AB). Calcul: angle ACB + angle BCD = 180° (angles supplémentaires). Donc A + B + C = 180°."
+  * EXEMPLE INTERDIT : "La somme des angles d'un triangle est 180°."
 - Correction plus nuancée possible (25%, 50%, 75%, 100% des points)
 
 🔹 RÈGLES DE COHÉRENCE OBLIGATOIRES :

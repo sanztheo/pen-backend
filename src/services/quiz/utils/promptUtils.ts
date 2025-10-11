@@ -3,6 +3,7 @@ import { CollegePrompts, LyceePrompts, SuperieurPrompts } from '../levels/index.
 import { getBrevetPrompt } from '../presets/brevet/index.js';
 import { getBacPrompt } from '../presets/bac/index.js';
 import { getPartielsPrompt } from '../presets/partiels/index.js';
+import { getFewShotPrompt } from '../assistant/fewShotExamples.js';
 
 /**
  * Utilitaires pour la génération de prompts IA
@@ -25,14 +26,34 @@ export class PromptUtils {
 
   /**
    * Génère un prompt personnalisé basé sur les paramètres spécifiques de l'utilisateur
+   * 🎓 NOUVEAUTÉ : Intégration automatique Few-Shot pour génération sans RAG
    */
   static getCustomPrompt(request: QuizGenerationRequest): string {
     // Base du prompt selon le niveau
     let basePrompt = this.getGenerationPromptByLevel(request.schoolLevel, request.collegeGrade);
-    
+
+    // 🎓 FEW-SHOT : Ajouter les exemples calibrés si PAS de RAG
+    // Détection : ragContext vide → Few-Shot activé automatiquement
+    const ragContextProvided = request.ragContext && request.ragContext.trim().length > 0;
+    const shouldActivateFewShot = !ragContextProvided;
+
+    if (shouldActivateFewShot) {
+      console.log(`🎓 [FEW-SHOT] Génération SANS RAG détectée - Ajout des exemples calibrés`);
+      console.log(`🎓 [FEW-SHOT] Contexte RAG: ${ragContextProvided ? 'OUI' : 'NON'} - Few-Shot: ACTIVÉ`);
+      const fewShotPrompt = getFewShotPrompt(
+        request.schoolLevel,
+        request.collegeGrade
+      );
+      basePrompt += "\n\n" + fewShotPrompt;
+      console.log(`🎓 [FEW-SHOT] Exemples intégrés pour améliorer la qualité sans documents`);
+    } else {
+      console.log(`📚 [RAG] Génération AVEC contexte RAG - Few-Shot désactivé (non nécessaire)`);
+      console.log(`📚 [RAG] Taille contexte: ${request.ragContext?.length || 0} caractères`);
+    }
+
     // Construire les spécifications personnalisées
     let customizations = [];
-    
+
     // Spécialités/matières (vérifier à la fois specialties, lyceeSpecialties et selectedSpecialties)
     const specialtiesList = request.specialties || request.lyceeSpecialties || request.selectedSpecialties;
     if (specialtiesList && specialtiesList.length > 0) {
