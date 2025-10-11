@@ -1,13 +1,15 @@
 /**
  * Prompt Caching OpenAI 2024 - Optimisation de Performance
- * 
+ *
  * Ce fichier contient les prompts statiques pour maximiser l'efficacité du cache OpenAI.
  * Les prompts > 1024 tokens sont automatiquement mis en cache avec 50% de réduction de coût
  * et jusqu'à 80% de réduction de latence.
- * 
+ *
  * RÈGLE IMPORTANTE: Le contenu statique DOIT être placé AU DÉBUT des prompts.
  * Le contenu dynamique (paramètres variables) DOIT être placé À LA FIN.
  */
+
+import { getFewShotPrompt } from './fewShotExamples.js';
 
 // ===== PROMPTS STATIQUES POUR CACHE =====
 
@@ -335,6 +337,7 @@ ${dynamicContent}`;
 /**
  * Version complète avec system prompt intégré pour assistants sans system prompt
  * Utilise STATIC_BASE_INSTRUCTIONS comme base commune
+ * 🎓 NOUVEAUTÉ : Intégration Few-Shot pour génération sans RAG
  */
 export function buildFullCachedPrompt(
   assistantType: 'PRINCIPAL' | 'PARALLELE',
@@ -343,37 +346,52 @@ export function buildFullCachedPrompt(
     includeDocuments?: boolean;
     includeGraphics?: boolean;
     includeCorrection?: boolean;
+    includeFewShot?: boolean;
+    schoolLevel?: string;
+    collegeGrade?: string;
   } = {}
 ): string {
   // Base commune pour tous les assistants
   let fullPrompt = STATIC_BASE_INSTRUCTIONS;
-  
+
+  // 🎓 FEW-SHOT : Ajouter les exemples calibrés AVANT les autres spécialisations
+  // Important : les exemples doivent être au début pour maximiser le cache
+  if (options.includeFewShot) {
+    console.log(`🎓 [FEW-SHOT] Ajout des exemples calibrés au prompt (niveau: ${options.schoolLevel})`);
+    const fewShotPrompt = getFewShotPrompt(
+      options.schoolLevel || 'LYCEE',
+      options.collegeGrade
+    );
+    fullPrompt += "\n\n" + fewShotPrompt;
+    console.log(`🎓 [FEW-SHOT] Exemples ajoutés au cache OpenAI pour réutilisation`);
+  }
+
   // Ajouter les spécialisations selon le type et les options
   if (options.includeDocuments) {
     fullPrompt += "\n\n" + STATIC_DOCUMENT_INSTRUCTIONS;
   }
-  
+
   if (options.includeGraphics) {
     fullPrompt += "\n\n" + STATIC_GRAPHICS_INSTRUCTIONS;
   }
-  
+
   if (options.includeCorrection) {
     fullPrompt += "\n\n" + STATIC_CORRECTION_INSTRUCTIONS;
   }
-  
+
   // Ajouter les instructions spécifiques au type d'assistant
   if (assistantType === 'PARALLELE') {
     fullPrompt += `\n\n=== MODE GÉNÉRATION PARALLÈLE ===
 
 Tu travailles en coordination avec l'assistant principal pour diviser la charge de génération.
 - Respecte exactement ta portion assignée
-- Maintiens la cohérence avec le style global  
+- Maintiens la cohérence avec le style global
 - Utilise les mêmes standards de qualité
 - Livre dans les délais synchronisés
 
 Ne déborde JAMAIS sur le travail de l'assistant principal.`;
   }
-  
+
   return buildCachedPrompt(fullPrompt, dynamicContent);
 }
 

@@ -158,6 +158,7 @@ export interface QuizGenerationRequest {
   sequentialConfig?: Partial<SequentialQuizConfig>;
   specificSubject?: ExamSubject; // Pour générer un quiz spécifique dans une séquence
   coursesOnly?: boolean; // Si true, utilise uniquement le contenu des cours, sinon mélange cours + connaissances IA
+  ragContext?: string; // ✅ ADDED: Contexte RAG construit par le frontend depuis les pages/projets sélectionnés
   documentConfig?: { // NOUVEAU : Configuration documentaire dynamique par matière
     enableDocuments: boolean;
     documentTopics: string[];
