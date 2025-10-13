@@ -434,6 +434,17 @@ IMPORTANT pour le titre IA :
       // Validation et normalisation des questions
       // Pour les quiz personnalisés (NONE), toutes les questions valent 1 point
       normalizedQuizData.questions = normalizedQuizData.questions.map((q: any, index: number) => {
+        // Supprimer les doublons dans les QCM
+        if (q.type === 'MULTIPLE_CHOICE' && q.options) {
+          q.options = this.removeDuplicateOptions(q.options, q.id || `Q${index + 1}`);
+        }
+
+        // Supprimer les doublons dans les questions de matching
+        if (q.type === 'MATCHING') {
+          q.leftColumn = this.removeDuplicateMatchingItems(q.leftColumn, 'leftColumn', q.id || `Q${index + 1}`);
+          q.rightColumn = this.removeDuplicateMatchingItems(q.rightColumn, 'rightColumn', q.id || `Q${index + 1}`);
+        }
+
         return {
           ...q,
           id: q.id || `Q${index + 1}`,
@@ -620,6 +631,17 @@ IMPORTANT pour le titre IA :
       // Validation et normalisation des questions (workspace)
       // Pour les quiz personnalisés (basés sur workspaces), toutes les questions valent 1 point
       quizData.questions = quizData.questions.map((q: any, index: number) => {
+        // Supprimer les doublons dans les QCM
+        if (q.type === 'MULTIPLE_CHOICE' && q.options) {
+          q.options = this.removeDuplicateOptions(q.options, q.id || `Q${index + 1}`);
+        }
+
+        // Supprimer les doublons dans les questions de matching
+        if (q.type === 'MATCHING') {
+          q.leftColumn = this.removeDuplicateMatchingItems(q.leftColumn, 'leftColumn', q.id || `Q${index + 1}`);
+          q.rightColumn = this.removeDuplicateMatchingItems(q.rightColumn, 'rightColumn', q.id || `Q${index + 1}`);
+        }
+
         return {
           ...q,
           id: q.id || `Q${index + 1}`,
@@ -963,5 +985,65 @@ IMPORTANT pour le titre IA :
       console.warn('⚠️ Erreur lors de la récupération de la config graphique:', error);
       return { enableGraphics: false };
     }
+  }
+
+  /**
+   * Supprime les options en doublon dans les QCM
+   */
+  private static removeDuplicateOptions(options: any[], questionId: string): any[] {
+    if (!options || options.length === 0) return options;
+
+    const seen = new Set<string>();
+    const uniqueOptions: any[] = [];
+    let duplicatesFound = false;
+
+    for (const option of options) {
+      const textLower = option.text?.toLowerCase().trim();
+
+      if (!textLower || seen.has(textLower)) {
+        duplicatesFound = true;
+        console.warn(`⚠️ [DUPLICATE-FIX] Question ${questionId}: Option en doublon détectée et supprimée: "${option.text}"`);
+        continue;
+      }
+
+      seen.add(textLower);
+      uniqueOptions.push(option);
+    }
+
+    if (duplicatesFound) {
+      console.log(`✅ [DUPLICATE-FIX] Question ${questionId}: ${options.length - uniqueOptions.length} doublon(s) supprimé(s)`);
+    }
+
+    return uniqueOptions;
+  }
+
+  /**
+   * Supprime les éléments en doublon dans les colonnes de matching
+   */
+  private static removeDuplicateMatchingItems(items: any[], columnName: string, questionId: string): any[] {
+    if (!items || items.length === 0) return items;
+
+    const seen = new Set<string>();
+    const uniqueItems: any[] = [];
+    let duplicatesFound = false;
+
+    for (const item of items) {
+      const textLower = item.text?.toLowerCase().trim();
+
+      if (!textLower || seen.has(textLower)) {
+        duplicatesFound = true;
+        console.warn(`⚠️ [DUPLICATE-FIX] Question ${questionId} (${columnName}): Élément en doublon détecté et supprimé: "${item.text}"`);
+        continue;
+      }
+
+      seen.add(textLower);
+      uniqueItems.push(item);
+    }
+
+    if (duplicatesFound) {
+      console.log(`✅ [DUPLICATE-FIX] Question ${questionId} (${columnName}): ${items.length - uniqueItems.length} doublon(s) supprimé(s)`);
+    }
+
+    return uniqueItems;
   }
 } 

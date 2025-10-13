@@ -283,6 +283,9 @@ Génère des questions à choix multiples (QCM) avec :
 - UNE seule bonne réponse
 - 3 distracteurs plausibles mais incorrects
 - Des options équilibrées en longueur
+- ⚠️ RÈGLE CRITIQUE : TOUTES les 4 options DOIVENT être DIFFÉRENTES
+- ⚠️ INTERDIT ABSOLU : Aucune option ne doit avoir le même texte qu'une autre
+- ⚠️ VÉRIFICATION OBLIGATOIRE : Avant de finaliser, vérifie qu'aucune option n'est en doublon
 `,
       [QuestionType.TRUE_FALSE]: `
 Génère des questions Vrai/Faux avec :
@@ -304,6 +307,9 @@ Génère des questions d'appariement avec :
 - Des correspondances logiques et claires
 - Évite les ambiguïtés dans les associations
 - Un mélange de l'ordre des éléments
+- ⚠️ RÈGLE CRITIQUE : TOUS les éléments de chaque colonne DOIVENT être UNIQUES
+- ⚠️ INTERDIT ABSOLU : Aucun doublon dans leftColumn ni dans rightColumn
+- ⚠️ VÉRIFICATION OBLIGATOIRE : Avant de finaliser, vérifie qu'il n'y a aucun élément en doublon
 `
     };
     return typePrompts[type];
@@ -319,6 +325,10 @@ IMPORTANT :
   - id: "A", "B", "C" ou "D"
   - text: le texte de la réponse
   - isCorrect: true ou false
+- ⚠️ RÈGLE ABSOLUE POUR LES QCM : Les 4 options DOIVENT être TOTALEMENT DIFFÉRENTES
+  - Chaque option doit avoir un texte UNIQUE et DISTINCT
+  - INTERDIT : Avoir deux options avec le même texte (même si légèrement différentes)
+  - OBLIGATOIRE : Vérifie qu'aucune option n'est en doublon avant de finaliser
 - Exemple de question MULTIPLE_CHOICE attendue :
 {
   "id": "1",
@@ -361,11 +371,14 @@ IMPORTANT :
 
 RÈGLES CRUCIALES POUR MATCHING :
 1. La leftColumn doit contenir les TERMES/CONCEPTS (courts, précis)
-2. La rightColumn doit contenir les DÉFINITIONS/EXPLICATIONS (plus détaillées)  
+2. La rightColumn doit contenir les DÉFINITIONS/EXPLICATIONS (plus détaillées)
 3. OBLIGATOIRE: leftColumn et rightColumn doivent avoir EXACTEMENT le même nombre d'éléments
 4. Ne JAMAIS mettre le même contenu dans les deux colonnes
 5. Les textes des colonnes doivent être DIFFÉRENTS et complémentaires
 6. Chaque élément de leftColumn doit avoir EXACTEMENT une correspondance dans rightColumn
+7. ⚠️ RÈGLE ABSOLUE : Aucun élément ne doit apparaître en doublon dans leftColumn
+8. ⚠️ RÈGLE ABSOLUE : Aucun élément ne doit apparaître en doublon dans rightColumn
+9. ⚠️ VÉRIFICATION OBLIGATOIRE : Avant de finaliser, vérifie qu'il n'y a AUCUN doublon dans les deux colonnes
 
 - Exemple CORRECT de question MATCHING :
 {

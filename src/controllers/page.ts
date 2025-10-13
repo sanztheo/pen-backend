@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { redisCache } from '../services/cache/redisCache.js';
 
 // Schémas de validation
 const createPageSchema = z.object({
@@ -177,7 +178,7 @@ export const createPage = async (req: Request, res: Response) => {
     // 🧠 RAG: Traiter la page pour l'embedding (mode asynchrone, pas bloquant)
     try {
       const { userPagesRAG } = await import('../services/rag/userPages.js');
-      
+
       // Traitement asynchrone si la page a du contenu
       if (page.title && page.title.length > 10) {
         userPagesRAG.processUserPage({
@@ -194,6 +195,11 @@ export const createPage = async (req: Request, res: Response) => {
     } catch (error) {
       console.error('🧠 [RAG] Service non disponible:', error);
     }
+
+    // 🗑️ REDIS CACHE INVALIDATION: Invalider le cache asynchrone (non-bloquant)
+    redisCache.invalidatePattern(`recent-pages:${req.user!.id}:*`, { namespace: 'pages' })
+      .then(() => console.log(`🗑️ [Cache] Pages récentes invalidées pour user ${req.user!.id}`))
+      .catch(error => console.warn('⚠️ [Cache] Échec invalidation:', error));
 
     console.log(`⏱️  [PERF] TOTAL createPage: ${Date.now() - startTime}ms`);
     res.status(201).json({
@@ -309,6 +315,7 @@ export const getWorkspaceRootPages = async (req: Request, res: Response) => {
 
 // Récupérer les pages récemment consultées par l'utilisateur
 export const getRecentPages = async (req: Request, res: Response) => {
+  const startTime = Date.now();
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Utilisateur non authentifié' });
@@ -319,55 +326,70 @@ export const getRecentPages = async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
     const skip = (page - 1) * limit;
 
-    const recentPages = await prisma.page.findMany({
-      where: {
-        isArchived: false,
-        workspace: {
-          OR: [
-            { ownerId: req.user.id },
-            { members: { some: { userId: req.user.id, isActive: true } } },
-          ],
-        },
-      },
-      orderBy: {
-        updatedAt: 'desc',
-      },
-      skip,
-      take: limit,
-      select: {
-        id: true,
-        title: true,
-        slug: true,
-        updatedAt: true,
-        icon: true,
-        iconColor: true,
-        projectId: true,
-        workspaceId: true,
-        author: {
+    // 🚀 REDIS CACHE: Clé unique par utilisateur et pagination
+    const cacheKey = `recent-pages:${req.user.id}:page${page}:limit${limit}`;
+
+    // 🚀 INSTANT RESPONSE: Utiliser getOrSet pour cache-aside pattern
+    const recentPages = await redisCache.getOrSet(
+      cacheKey,
+      async () => {
+        console.log(`🔄 [Cache MISS] Fetching pages from DB for user ${req.user!.id}`);
+        const pages = await prisma.page.findMany({
+          where: {
+            isArchived: false,
+            workspace: {
+              OR: [
+                { ownerId: req.user!.id },
+                { members: { some: { userId: req.user!.id, isActive: true } } },
+              ],
+            },
+          },
+          orderBy: {
+            updatedAt: 'desc',
+          },
+          skip,
+          take: limit,
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
-            email: true
+            title: true,
+            slug: true,
+            updatedAt: true,
+            icon: true,
+            iconColor: true,
+            projectId: true,
+            workspaceId: true,
+            author: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            },
+            project: {
+              select: {
+                id: true,
+                name: true
+              }
+            },
+            _count: {
+              select: {
+                children: true
+              }
+            }
           }
-        },
-        project: {
-          select: {
-            id: true,
-            name: true
-          }
-        },
-        _count: {
-          select: {
-            children: true
-          }
-        }
-      }
-    });
+        });
+        return pages;
+      },
+      { ttl: 120, namespace: 'pages' } // 2 minutes de cache
+    );
+
+    const duration = Date.now() - startTime;
+    console.log(`⚡ [getRecentPages] Réponse en ${duration}ms`);
 
     res.json({ pages: recentPages, pagination: { page, limit } });
   } catch (error) {
-    console.error('Erreur récupération pages récentes:', error);
+    console.error('❌ [getRecentPages] Erreur:', error);
     res.status(500).json({ error: 'Erreur interne du serveur' });
   }
 };
@@ -577,7 +599,7 @@ export const updatePage = async (req: Request, res: Response) => {
     try {
       if (validatedData.title && validatedData.title !== page.title) {
         const { userPagesRAG } = await import('../services/rag/userPages.js');
-        
+
         userPagesRAG.processUserPage({
           id: updatedPage.id,
           title: updatedPage.title,
@@ -591,6 +613,37 @@ export const updatePage = async (req: Request, res: Response) => {
       }
     } catch (error) {
       console.error('🧠 [RAG] Service non disponible:', error);
+    }
+
+    // 🗑️ REDIS CACHE INVALIDATION: Invalider le cache des pages récentes pour tous les membres du workspace
+    try {
+      // Récupérer tous les membres du workspace pour invalider leur cache
+      const workspaceMembers = await prisma.workspace.findUnique({
+        where: { id: page.workspaceId },
+        select: {
+          ownerId: true,
+          members: {
+            where: { isActive: true },
+            select: { userId: true }
+          }
+        }
+      });
+
+      if (workspaceMembers) {
+        const userIds = [
+          workspaceMembers.ownerId,
+          ...workspaceMembers.members.map(m => m.userId)
+        ];
+
+        // Invalider le cache pour chaque utilisateur du workspace
+        for (const userId of userIds) {
+          await redisCache.invalidatePattern(`recent-pages:${userId}:*`, { namespace: 'pages' });
+        }
+
+        console.log(`🗑️ [Cache Invalidation] Pages récentes invalidées pour ${userIds.length} utilisateurs`);
+      }
+    } catch (cacheError) {
+      console.warn('⚠️ [Cache Invalidation] Échec invalidation cache (non bloquant):', cacheError);
     }
 
     res.json({
