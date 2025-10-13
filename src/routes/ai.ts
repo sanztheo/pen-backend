@@ -5,16 +5,21 @@ import { z } from 'zod';
 // Utiliser fetch global (Node >= 18)
 import { testAI } from '../controllers/ai/base.js';
 import { generateContent, improveContent, continueContent } from '../controllers/ai/content.js';
-import { 
-  generateBlock, 
+import {
+  generateBlock,
   generatePlan,
   generateFromPage,
-  summarizeContent, 
-  generateIdeas, 
-  translateContent, 
-  correctText 
+  summarizeContent,
+  generateIdeas,
+  translateContent,
+  correctText
 } from '../controllers/ai/specialized.js';
 import { autocomplete } from '../controllers/ai/autocomplete.js';
+
+// 🤖 Import Vercel AI SDK pour BlockNote AI (v0.40+)
+import { streamText, convertToModelMessages } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
+import { toolDefinitionsToToolSet } from '@blocknote/xl-ai';
 
 const router = Router();
 
@@ -59,6 +64,90 @@ router.post('/ideas', requireAICredits({ cost: 0.5, action: 'content_generation'
 router.post('/translate', requireAICredits({ cost: 0.3, action: 'specialized_function' }), translateContent);
 router.post('/correct', requireAICredits({ cost: 0.3, action: 'specialized_function' }), correctText);
 router.post('/autocomplete', requireAICredits({ cost: 0.3, action: 'specialized_function' }), autocomplete);
+
+// 🔗 ROUTE CHAT POUR BLOCKNOTE AI - Coût: 1.0 crédit
+// Utilise le SDK Vercel AI pour la conversion des messages et le streaming
+// Conforme à la documentation BlockNote: https://www.blocknotejs.org/docs/features/ai/backend-integration
+router.post('/chat', requireAICredits({ cost: 1.0, action: 'openai_proxy' }), async (req, res) => {
+  try {
+    const { messages, toolDefinitions } = req.body;
+
+    console.log('🔄 [AI-CHAT] Messages UIMessage reçus:', {
+      messagesCount: messages?.length,
+      hasToolDefinitions: !!toolDefinitions,
+      userId: (req as any).user?.id
+    });
+
+    // Validation basique
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({
+        error: 'VALIDATION_ERROR',
+        message: 'Le champ "messages" est requis et doit être un tableau'
+      });
+    }
+
+    // Configuration du modèle OpenAI avec l'API key
+    const modelName = process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
+    const openaiProvider = createOpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
+    console.log('🤖 [AI-CHAT] Configuration:', {
+      model: modelName,
+      hasTools: !!toolDefinitions,
+      apiKeyConfigured: !!process.env.OPENAI_API_KEY
+    });
+
+    // ✅ BlockNote v0.40+: Utiliser convertToModelMessages et toolDefinitionsToToolSet
+    const result = streamText({
+      model: openaiProvider(modelName),
+      messages: convertToModelMessages(messages), // Conversion officielle AI SDK
+      tools: toolDefinitions ? toolDefinitionsToToolSet(toolDefinitions) : undefined,
+      toolChoice: toolDefinitions ? 'required' : undefined,
+    });
+
+    // 🔒 AUDIT: Journaliser la consommation
+    const userId = (req as any).user?.id;
+    const cost = (req as any).aiCredits?.cost ?? 1.0;
+    console.log(`✅ [AUDIT] Chat endpoint utilisé: userId=${userId}, cost=${cost}`);
+
+    // ✅ BlockNote v0.40+: Convertir Response en stream Express
+    const response = result.toUIMessageStreamResponse();
+
+    // Copier les headers de la Response vers Express
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+
+    // Streamer le body vers Express
+    if (response.body) {
+      const reader = response.body.getReader();
+
+      async function pump() {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            res.end();
+            break;
+          }
+          res.write(value);
+        }
+      }
+
+      await pump();
+    } else {
+      res.end();
+    }
+
+  } catch (error: any) {
+    console.error('❌ [AI-CHAT] Erreur:', error);
+    res.status(500).json({
+      error: 'AI chat error',
+      message: error.message
+    });
+  }
+});
 
 export default router; 
 
