@@ -67,6 +67,16 @@ app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/pages', pageRoutes);
 app.use('/api/ai', aiRoutes);
+
+// 🤖 Route spéciale pour BlockNote AI - alias direct vers /api/ai/chat
+// BlockNote AI utilise DefaultChatTransport qui appelle /api/chat
+app.post('/api/chat', (req, res, next) => {
+  // Modifier l'URL pour correspondre à la route du router AI
+  req.url = '/chat';
+  req.originalUrl = '/api/ai/chat';
+  // Passer la requête au router AI
+  aiRoutes(req, res, next);
+});
 app.use('/api/assistant', assistantRoutes);
 app.use('/api/conversations', conversationsRoutes);
 app.use('/api/quiz', quizRoutes);
