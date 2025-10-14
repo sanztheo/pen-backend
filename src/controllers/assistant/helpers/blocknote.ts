@@ -58,8 +58,22 @@ function parseInlineContent(text: string): any[] {
       p.regex.lastIndex = 0;
     });
     matches.sort((a, b) => a.start - b.start);
+    
+    // Filtrer les matches qui se chevauchent (garder le plus long/prioritaire)
+    const filtered: typeof matches = [];
+    for (const match of matches) {
+      const hasOverlap = filtered.some(f => 
+        (match.start >= f.start && match.start < f.end) ||
+        (match.end > f.start && match.end <= f.end) ||
+        (match.start <= f.start && match.end >= f.end)
+      );
+      if (!hasOverlap) {
+        filtered.push(match);
+      }
+    }
+    
     let idx = 0;
-    for (const m of matches) {
+    for (const m of filtered) {
       if (m.start > idx) {
         const plain = t.slice(idx, m.start);
         if (plain) content.push({ type: 'text', text: plain });

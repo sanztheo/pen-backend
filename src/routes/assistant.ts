@@ -137,17 +137,25 @@ router.post('/rag/context', async (req: any, res) => {
     const isVeryShort = query.trim().length < 10;
 
     if (hasSelectedSources) {
+      // ✅ L'utilisateur a EXPLICITEMENT sélectionné des sources → forcer le RAG
       shouldUseRAG = true;
-      console.log(`🔍 [RAG-DEBUG] RAG forcé car des sources sont sélectionnées`);
-    } else if (hasActiveSession && activeSessionSources && activeSessionSources.length > 0 && !isSimpleGreeting && !isVeryShort) {
-      shouldUseRAG = true;
-      console.log(`🔍 [RAG-DEBUG] RAG forcé car session active avec ${activeSessionSources.length} sources`);
+      console.log(`🔍 [RAG-DEBUG] RAG forcé car des sources sont explicitement sélectionnées`);
     } else if (isSimpleGreeting || isVeryShort) {
+      // ❌ Salutation ou query trop courte → skip RAG
       shouldUseRAG = false;
       console.log(`🔍 [RAG-DEBUG] RAG SKIPPÉ - salutation/query simple détectée: "${query}"`);
     } else {
-      shouldUseRAG = await ragSystem.shouldUseRAG(query);
-      console.log(`🔍 [RAG-DEBUG] Analyse IA de la query: ${shouldUseRAG}`);
+      // 🧠 ANALYSE INTELLIGENTE: Demander à l'IA de décider en tenant compte des sources disponibles
+      if (hasActiveSession && activeSessionSources && activeSessionSources.length > 0) {
+        // Session active avec sources → demander à l'IA si elles sont pertinentes
+        console.log(`🔍 [RAG-DEBUG] Session active trouvée avec ${activeSessionSources.length} sources: [${activeSessionSources.map(s => s.title).join(', ')}]`);
+        console.log(`🔍 [RAG-DEBUG] Analyse IA de la pertinence des sources pour: "${query}"`);
+        shouldUseRAG = await ragSystem.shouldUseRAG(query, activeSessionSources);
+      } else {
+        // Pas de sources → analyse standard
+        shouldUseRAG = await ragSystem.shouldUseRAG(query);
+        console.log(`🔍 [RAG-DEBUG] Analyse IA standard de la query: ${shouldUseRAG}`);
+      }
     }
 
     console.log(`🔍 [RAG-DEBUG] Doit utiliser RAG: ${shouldUseRAG}`);
