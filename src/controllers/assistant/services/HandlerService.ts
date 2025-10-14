@@ -144,6 +144,33 @@ export class AssistantHandlerService {
 
       if (ragSourceIds.length === 0) return '';
 
+      // ✅ Vérification de pertinence via IA AVANT de chercher dans RAG
+      const sourcesTitles = ragSources.map(s => `"${s.title}"`).join(', ');
+      DebugLogger.rag(`🔍 Vérification pertinence des sources: ${sourcesTitles} pour query: "${query}"`);
+      
+      const { AIService } = await import('../../../services/ai/index.js');
+      const relevancePrompt = `Requête utilisateur: "${query}"
+
+Sources disponibles: ${sourcesTitles}
+
+Ces sources sont-elles PERTINENTES pour répondre à cette requête?
+Réponds UNIQUEMENT par "OUI" si au moins une source est pertinente, ou "NON" si aucune source n'est pertinente.`;
+
+      const relevanceCheck = await AIService.generateContent({
+        prompt: relevancePrompt,
+        context: '',
+        temperature: 0.1,
+        maxTokens: 10
+      });
+
+      const isRelevant = relevanceCheck.content?.trim().toUpperCase().includes('OUI');
+      DebugLogger.rag(`🤖 Vérification pertinence: ${isRelevant ? 'PERTINENTES ✅' : 'NON PERTINENTES ❌'}`);
+
+      if (!isRelevant) {
+        DebugLogger.rag(`⏭️ Sources ignorées car non pertinentes pour: "${query}"`);
+        return '';
+      }
+
       const ragResults = await ragSystem.intelligentSearch(query, {
         workspaceId,
         userId,
