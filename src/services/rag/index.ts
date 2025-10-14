@@ -109,7 +109,7 @@ export class RAGSystem {
   }
 
   // 🧠 Intelligence de requête NotebookLM-style avec GPT-4.1-nano
-  async shouldUseRAG(query: string): Promise<boolean> {
+  async shouldUseRAG(query: string, availableSources?: Array<{ title: string; type: string }>): Promise<boolean> {
     const normalizedQuery = query.toLowerCase().trim();
     
     // Cas évidents - pas besoin d'appeler GPT
@@ -118,18 +118,31 @@ export class RAGSystem {
     }
     
     try {
-      const prompt = `Analyse cette requête utilisateur et détermine si elle nécessite une recherche dans des documents (RAG).
+      let prompt = `Analyse cette requête utilisateur et détermine si elle nécessite une recherche dans des documents (RAG).
 
 RÈGLES :
 - Salutations/politesses (salut, bonjour, merci) = NON RAG
 - Questions sur l'IA elle-même (qui es-tu, comment tu fonctionnes) = NON RAG  
 - Commandes système (aide, help, quit) = NON RAG
+- Questions générales de culture générale = NON RAG (sauf si des sources pertinentes sont disponibles)
 - Questions nécessitant des informations spécifiques = OUI RAG
 - Questions de résumé de contenu = OUI RAG
 
-Requête: "${query}"
+Requête: "${query}"`;
 
-Réponds uniquement "OUI" ou "NON"`;
+      // 🎯 NOUVEAU: Si des sources sont disponibles, vérifier leur pertinence
+      if (availableSources && availableSources.length > 0) {
+        const sourcesList = availableSources.map(s => `- ${s.title} (${s.type})`).join('\n');
+        prompt += `
+
+Sources disponibles dans la session active:
+${sourcesList}
+
+⚠️ IMPORTANT: Utilise le RAG UNIQUEMENT si au moins UNE source est pertinente pour répondre à la requête.
+Si AUCUNE source n'est pertinente (ex: sources sur "Caca" pour une question sur "Python"), réponds NON.`;
+      }
+
+      prompt += `\n\nRéponds uniquement "OUI" ou "NON"`;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -148,13 +161,17 @@ Réponds uniquement "OUI" ou "NON"`;
       const result = await response.json() as OpenAIChatCompletion;
       const decision = result.choices?.[0]?.message?.content?.trim()?.toUpperCase();
       
-      console.log(`🧠 [RAG-DETECTION] Query: "${query}" → Decision: ${decision}`);
+      if (availableSources && availableSources.length > 0) {
+        console.log(`🧠 [RAG-DETECTION-SMART] Query: "${query}" | Sources: [${availableSources.map(s => s.title).join(', ')}] → Decision: ${decision}`);
+      } else {
+        console.log(`🧠 [RAG-DETECTION] Query: "${query}" → Decision: ${decision}`);
+      }
       
       return decision === 'OUI';
       
     } catch (error) {
-      console.error('Erreur détection RAG, fallback to true:', error);
-      return true; // En cas d'erreur, utiliser RAG par sécurité
+      console.error('Erreur détection RAG, fallback to false:', error);
+      return false; // 🔧 FIX: En cas d'erreur, ne PAS forcer le RAG avec des sources non pertinentes
     }
   }
 
