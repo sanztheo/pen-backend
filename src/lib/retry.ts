@@ -20,7 +20,9 @@ export async function withRetry<T>(
     } catch (error: any) {
       const isConnectionError = error.message?.includes("Can't reach database server") || 
                                error.message?.includes("Connection") ||
-                               error.code === 'P1001';
+                               error.message?.includes("Server has closed") ||
+                               error.code === 'P1001' ||
+                               error.code === 'P1017'; // Neon cold start
       
       if (attempt === maxRetries || !isConnectionError) {
         console.error(`❌ Échec final après ${attempt} tentatives:`, error.message);

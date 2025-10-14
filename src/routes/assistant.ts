@@ -624,4 +624,30 @@ router.post('/upload', upload.array('files', 5), async (req: any, res) => {
   }
 });
 
+// Endpoint pour convertir markdown en BlockNote
+router.post('/markdown-to-blocknote', async (req, res) => {
+  try {
+    const { markdown } = req.body;
+    
+    if (!markdown || typeof markdown !== 'string') {
+      return res.status(400).json({ error: 'Markdown requis' });
+    }
+
+    // Importer la fonction de conversion
+    const { toBlockNoteAuto } = await import('../controllers/assistant/helpers/blocknote.js');
+    
+    // Convertir le markdown en BlockNote
+    const blockNote = toBlockNoteAuto(markdown);
+    
+    res.json({ 
+      success: true,
+      blockNote,
+      blocksCount: blockNote.length
+    });
+  } catch (error) {
+    console.error('Erreur conversion markdown->blocknote:', error);
+    res.status(500).json({ error: 'Erreur lors de la conversion' });
+  }
+});
+
 export default router;

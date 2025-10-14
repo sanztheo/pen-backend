@@ -240,11 +240,11 @@ router.get('/:id/messages', async (req, res) => {
 });
 
 // 💬 POST /conversations/:id/messages - Ajouter un message à une conversation
-router.post('/:id/messages', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle } = req.body;
-    const userId = req.user!.id;
+  router.post('/:id/messages', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle, projectId } = req.body;
+      const userId = req.user!.id;
 
     if (!content) {
       return res.status(400).json({ error: 'Le contenu du message est requis' });
@@ -264,19 +264,20 @@ router.post('/:id/messages', async (req, res) => {
     }
 
     // Ajouter le message
-    const message = await prisma.aIMessage.create({
-      data: {
-        conversationId: id,
-        role,
-        content,
-        mentions: mentions || [],
-        files: files || [],
-        wikipediaSources: wikipediaSources || [],
-        mode: mode || null,
-        pageId: pageId || null,
-        pageTitle: pageTitle || null,
-      }
-    });
+      const message = await prisma.aIMessage.create({
+        data: {
+          conversationId: id,
+          role,
+          content,
+          mentions: mentions || [],
+          files: files || [],
+          wikipediaSources: wikipediaSources || [],
+          mode: mode || null,
+          pageId: pageId || null,
+          pageTitle: pageTitle || null,
+          projectId: projectId || null,
+        }
+      });
 
     // Mettre à jour les métadonnées de la conversation
     await prisma.aIConversation.update({
