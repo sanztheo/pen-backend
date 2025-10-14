@@ -98,9 +98,6 @@ function isLatexLine(line: string): { isLatex: boolean, latex?: string, isDispla
   return { isLatex: false };
 }
 
-// Expressions typiques de narration IA à ignorer
-const META_LINE_RE = /^(je\s+(vais|dois|suis|commence|utilise|vais\s+générer|vais\s+vérifier|vais\s+structurer|vais\s+utiliser|vais\s+m'assurer)|j[’'](ai|irai|utilise|assure)|plan\s+détaillé|révision\s+des\s+règles|exemples?|attention|alternative|je\s+vais\s+maintenant|cela\s+(semble|ne\s+semble\s+pas))/i;
-
 /**
  * Décompose une ligne qui mélange texte et formules $$...$$ en blocs BlockNote.
  * Exemple: "Donc, $$c^2=a^2+b^2$$ — où c ..." → [p("Donc,"), latex, p("— où c ...")]
@@ -150,16 +147,47 @@ export function toBlockNote(content: string): any[] {
   const blocks: any[] = [];
   let inBracketDisplay = false;
   let bracketBuffer = '';
+  let inCodeBlock = false;
+  let codeBlockLanguage = '';
+  let codeBlockContent: string[] = [];
   
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
     const line = raw.trim();
     
+    // Détection des blocs de code markdown ```language
+    if (line.startsWith('```')) {
+      if (!inCodeBlock) {
+        // Début d'un bloc de code
+        inCodeBlock = true;
+        codeBlockLanguage = line.slice(3).trim() || 'plaintext';
+        codeBlockContent = [];
+        continue;
+      } else {
+        // Fin du bloc de code
+        inCodeBlock = false;
+        const codeText = codeBlockContent.join('\n');
+        blocks.push({
+          type: 'codeBlock',
+          props: {
+            language: codeBlockLanguage
+          },
+          content: [{ type: 'text', text: codeText }]
+        });
+        codeBlockLanguage = '';
+        codeBlockContent = [];
+        continue;
+      }
+    }
+    
+    // Si on est dans un bloc de code, accumuler les lignes
+    if (inCodeBlock) {
+      codeBlockContent.push(raw); // Garder l'indentation originale
+      continue;
+    }
+    
     // Skip completely empty lines
     if (!line) continue;
-
-    // Ignorer lignes de narration/meta IA omniprésentes
-    if (META_LINE_RE.test(line)) continue;
 
     // Désactivation complète des blocs display via \[ ... \]: tout est traité en inline plus haut
 
@@ -188,6 +216,15 @@ export function toBlockNote(content: string): any[] {
             const ordered = String(d || '').toLowerCase() === 'ol';
             const type = ordered ? 'numberedListItem' : 'bulletListItem';
             blocks.push({ type, content: parseInlineContent(c) });
+            continue;
+          }
+          if (t === 'cb') {
+            const language = typeof d === 'string' ? d : 'plaintext';
+            blocks.push({
+              type: 'codeBlock',
+              props: { language },
+              content: [{ type: 'text', text: c }]
+            });
             continue;
           }
           if (t === 'p') {
@@ -245,6 +282,18 @@ export function toBlockNote(content: string): any[] {
     });
   }
 
+  // Si un bloc de code n'a pas été fermé, le fermer maintenant
+  if (inCodeBlock && codeBlockContent.length > 0) {
+    const codeText = codeBlockContent.join('\n');
+    blocks.push({
+      type: 'codeBlock',
+      props: {
+        language: codeBlockLanguage || 'plaintext'
+      },
+      content: [{ type: 'text', text: codeText }]
+    });
+  }
+
   // Ensure we always return at least one block
   if (blocks.length === 0) {
     return [{ type: 'paragraph', content: [{ type: 'text', text: content.trim() }] }];
@@ -255,13 +304,14 @@ export function toBlockNote(content: string): any[] {
 
 /**
  * Convertit un JSONL compact (une ligne = un bloc) en contenu BlockNote.
- * Format minimal attendu par bloc: {"t":"p"|"h"|"lx"|"li","c":"...","d":number|string}
- * - t: type (p=paragraph, h=heading, lx=latex, li=list item)
- * - c: contenu texte (pour lx: LaTeX SANS délimiteurs textuels parasites)
+ * Format minimal attendu par bloc: {"t":"p"|"h"|"lx"|"li"|"cb","c":"...","d":number|string}
+ * - t: type (p=paragraph, h=heading, lx=latex, li=list item, cb=code block)
+ * - c: contenu texte (pour lx: LaTeX SANS délimiteurs textuels parasites, pour cb: le code)
  * - d:
  *   - h: niveau (2 ou 3)
  *   - lx: 1 = display ($$...$$), 0 = inline ($...$)
  *   - li: 'ul' ou 'ol'
+ *   - cb: langage de programmation (ex: 'python', 'javascript', etc.)
  */
 export function toBlockNoteFromJSONL(jsonl: string): any[] {
   if (!jsonl || typeof jsonl !== 'string') {
@@ -317,6 +367,16 @@ export function toBlockNoteFromJSONL(jsonl: string): any[] {
       continue;
     }
 
+    if (t === 'cb') {
+      const language = typeof d === 'string' ? d : 'plaintext';
+      blocks.push({
+        type: 'codeBlock',
+        props: { language },
+        content: [{ type: 'text', text: c }]
+      });
+      continue;
+    }
+
     if (t === 'p') {
       blocks.push({ type: 'paragraph', content: parseInlineContent(c) });
       continue;
@@ -359,17 +419,15 @@ export function toBlockNoteAuto(input: string): any[] {
 }
 
 /**
- * Supprime le bruit de "réflexion" que les modèles écrivent parfois hors <thinking>,
- * retire les blocs de code fences ```...``` et nettoie l'entête narrative ("Je vais …", "Plan détaillé", etc.).
+ * Supprime le bruit de "réflexion" que les modèles écrivent parfois hors <thinking>
+ * et nettoie l'entête narrative ("Je vais …", "Plan détaillé", etc.).
  */
 export function sanitizeAIGeneratedContent(input: string): string {
   if (!input) return '';
   let out = String(input);
   // 1) Retirer toute réflexion balisée
   out = out.replace(/<thinking>[\s\S]*?<\/thinking>/g, '');
-  // 2) Retirer blocs de code fences (ex: ```json ... ```)
-  out = out.replace(/```[a-zA-Z0-9]*[\s\S]*?```/g, '');
-  // 3) Nettoyer les lignes d'entête narratives au début
+  // 2) Nettoyer les lignes d'entête narratives au début
   const lines = out.split(/\r?\n/);
   const narrativeRe = /^(je\s+(vais|dois|suis|commence|utilise|vais\s+générer|vais\s+vérifier)|j[’'](ai|irai|utilise)|plan\s+détaillé|révision\s+des\s+règles|exemples?|attention|alternative)/i;
   let idx = 0;
@@ -380,7 +438,7 @@ export function sanitizeAIGeneratedContent(input: string): string {
       continue;
     }
     // Si ligne JSONL ou contenu structuré, on démarre
-    if (t.startsWith('{') || t.startsWith('##') || t.startsWith('###') || t.startsWith('- ') || t.startsWith('* ') || /^\d+\.\s+/.test(t) || t.startsWith('$$') || t.startsWith('$')) {
+    if (t.startsWith('{') || t.startsWith('##') || t.startsWith('###') || t.startsWith('- ') || t.startsWith('* ') || /^\d+\.\s+/.test(t) || t.startsWith('$$') || t.startsWith('$') || t.startsWith('```')) {
       break;
     }
     // Si c'est une vraie phrase de contenu (pas de narration évidente), on démarre

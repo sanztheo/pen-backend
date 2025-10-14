@@ -6,6 +6,7 @@ import { tavilySearch } from '../helpers/web.js';
 import { detectPreferredLanguage, buildLangInstruction } from '../helpers/language.js';
 import { LATEX_STRICT_RULES } from '../helpers/latex.js';
 import { toBlockNoteAuto, sanitizeAIGeneratedContent } from '../helpers/blocknote.js';
+import { sseWriteData } from '../helpers/sse.js';
 
 // Normalisation Markdown pour garantir la conversion fiable des titres (#, ##, ###)
 function normalizeMarkdownForHeadings(input: string): string {
@@ -117,11 +118,36 @@ ${LATEX_STRICT_RULES}
 
 Réponds uniquement avec le contenu du cours, sans méta-commentaires, sans balises <thinking> apparentes dans le texte final.`;
 
-        const geminiResult = await GeminiService.generateWithThinking({
+        // 🎯 MODE STREAMING pour mode profond
+        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+        res.flushHeaders();
+
+        let full = '';
+        let thinkingContent = '';
+        
+        await GeminiService.generateWithThinking({
           prompt: `${style}\n\nSujet: ${instruction}\n\n⚠️ IMPORTANT: Génère un cours ULTRA-DÉTAILLÉ de minimum 20,000 caractères avec de nombreux exemples et explications approfondies.`,
           context: geminiContext,
           temperature: 0.4,
-          maxTokens: 40000
+          maxTokens: 40000,
+          onStream: (chunk: string) => {
+            const normalized = String(chunk || '');
+            full += normalized;
+            sseWriteData(res, normalized);
+          },
+          onThinking: (thinking: string) => {
+            thinkingContent += thinking;
+            res.write(`event: status\n`);
+            res.write(`data: 🤔 ${thinking}\n\n`);
+            if ((res as any).flush) {
+              (res as any).flush();
+            }
+          }
         });
 
         const providedTitle = typeof title === 'string' ? title : '';
@@ -168,10 +194,10 @@ Réponds uniquement avec le contenu du cours, sans méta-commentaires, sans bali
 
           if (!workspace) {
             console.error(`❌ [CREATE] Aucun workspace disponible pour utilisateur: ${req.user.id}`);
-            return res.status(400).json({ 
-              error: 'Aucun workspace disponible',
-              details: 'Vous devez créer un workspace pour pouvoir créer des pages'
-            });
+            res.write(`event: error\n`);
+            res.write(`data: Aucun workspace disponible\n\n`);
+            res.end();
+            return;
           }
 
           console.log(`🔄 [CREATE] Workspace de fallback utilisé: ${workspace.name} (${workspace.id})`);
@@ -192,40 +218,105 @@ Réponds uniquement avec le contenu du cours, sans méta-commentaires, sans bali
         });
 
         const blockNote = toBlockNoteAuto(
-          normalizeMarkdownForHeadings(sanitizeAIGeneratedContent(geminiResult.content))
+          normalizeMarkdownForHeadings(sanitizeAIGeneratedContent(full))
         );
         await prisma.page.update({ where: { id: page.id }, data: { blockNoteContent: blockNote } });
 
-        res.status(201).json({ 
-          message: 'Page créée', 
-          pageId: page.id, 
-          title: page.title, 
-          initialContent: blockNote, 
-          model: geminiResult.model,
-          thinking: geminiResult.thinking
-        });
+        // 🎯 Envoyer l'événement final avec les infos de la page
+        res.write(`event: page\n`);
+        res.write(`data: ${JSON.stringify({ pageId: page.id, title: page.title, thinking: thinkingContent })}\n\n`);
+        res.write('event: done\n\n');
+        res.end();
         return;
       } catch (error) {
         console.warn('⚠️ Gemini failed, fallback to OpenAI:', error);
       }
     }
 
-    const context = `
-    ${web}
+    // 🎯 MODE RAPIDE - Utiliser aussi le streaming SSE pour cohérence UI
+    const lang = detectPreferredLanguage(req);
+    const context = `${web}
+
+🎓 MODE COURS RAPIDE - INSTRUCTIONS STRICTES:
+
+Tu crées un COURS CONCIS ET CLAIR pour une application de prise de notes éducative.
+${buildLangInstruction(lang)}
+
+📚 PROFONDEUR ET LONGUEUR:
+- Ce mode "rapide" vise un cours de 3,000-8,000 caractères
+- DÉVELOPPE chaque concept de façon claire et concise (2-3 paragraphes par concept)
+- AJOUTE 1-2 exemples concrets par concept majeur
+- Privilégie la CLARTÉ et l'EFFICACITÉ sur la longueur
+
+✨ STRUCTURE CLAIRE OBLIGATOIRE:
+- Introduction concise (1 paragraphe)
+- Pour chaque concept majeur:
+  * Définition claire
+  * Explication concise du "pourquoi" et "comment"
+  * 1-2 exemples concrets
+  * Applications pratiques
+- Conclusion et points clés à retenir
+
+🔢 RÈGLES LaTeX STRICTES (TRÈS IMPORTANT):
+- TOUJOURS utiliser un seul $ de chaque côté: $...$
+- JAMAIS JAMAIS JAMAIS utiliser $$...$$  (INTERDIT ABSOLUMENT)
+- TOUJOURS utiliser \\frac{numérateur}{dénominateur} pour les fractions
+- JAMAIS écrire a/b en texte brut - toujours $\\frac{a}{b}$
+- Exemples CORRECTS:
+  ✅ Dans le texte: "La fraction $\\frac{1}{2}$ représente un demi"
+  ✅ Formule seule sur sa ligne: $\\frac{2 \\times 2}{5 \\times 2} = \\frac{4}{10}$
+  ✅ Avec opérations: $\\frac{a+b}{c}$
+  ✅ Équations: $c^2 = a^2 + b^2$
+- Exemples INCORRECTS (à éviter ABSOLUMENT):
+  ❌ $$\\frac{1}{2}$$  → Utilise $\\frac{1}{2}$ (UN SEUL $ de chaque côté)
+  ❌ (2*2)/(5*2) = 4/10  → Utilise $\\frac{2 \\times 2}{5 \\times 2} = \\frac{4}{10}$
+  ❌ 1/2  → Utilise $\\frac{1}{2}$
+  ❌ a/b  → Utilise $\\frac{a}{b}$
+
+📐 MARKDOWN STRICT:
+- Utilise UNIQUEMENT ## (h2) et ### (h3) pour les titres
+- INTERDICTION ABSOLUE des # (h1), #### (h4) ou plus profonds
+- Structure hiérarchique claire: ## pour sections principales, ### pour sous-sections
+- TOUJOURS ajouter un ESPACE après les # : ## Titre correct (PAS ##Titre)
+- FORMATTING: utilise \\n pour retours à la ligne; sépare paragraphes par \\n\\n
+- TOUJOURS laisser une ligne vide AVANT chaque titre ## ou ###
+
+🎯 QUALITÉ PÉDAGOGIQUE:
+- Adopte une progression du simple au complexe
+- Utilise des analogies simples pour faciliter compréhension
+- Fournis des conseils pratiques concrets
+- Évite les sections génériques non demandées (FAQ, Checklist, etc.)
+
+${LATEX_STRICT_RULES}
+
+⚠️ RAPPEL CRITIQUE:
+- UN SEUL $ de chaque côté pour LaTeX : $...$
+- TOUJOURS un ESPACE après ## ou ### : "## Titre" (PAS "##Titre")
+- TOUJOURS \\frac{a}{b} pour les fractions (JAMAIS a/b en texte brut)
+
+Réponds uniquement avec le contenu du cours, sans méta-commentaires.`;
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+    res.flushHeaders();
+
+    let full = '';
     
-    Tu crées le contenu d'une page pour une application de prise de notes.
-    ${buildLangInstruction(detectPreferredLanguage(req))}
-    Règles de cohérence:
-    - Priorise le contexte fourni; n'invente pas de faits.
-    - Structure claire: titres (##), sous-titres (###), paragraphes courts.
-    - MARKDOWN STRICT: utilise UNIQUEMENT # (h1), ## (h2), ### (h3). INTERDICTION ABSOLUE des #### (h4), ##### (h5) ou plus profonds.
-    - FORMATTING: utilise \\n pour les retours à la ligne; sépare les paragraphes par \\n\\n.
-    - Évite les blocs compacts; privilégie lisibilité et exemples concrets.
-    - Si formules, utilise $...$ ou $$...$$ et respecte les règles LaTeX strictes.
-    - NE PAS générer automatiquement de sections "Mini-FAQ", "Checklist" ou "Questions fréquentes" sauf si explicitement demandé.
-    ${LATEX_STRICT_RULES}
-    Réponds uniquement avec le contenu final en texte brut.`;
-    const result = await AIService.generateContent({ prompt: `${style}\n\nSujet: ${instruction}`, context, temperature: 0.4, maxTokens: 30000 });
+    await AIService.generateContent({ 
+      prompt: `${style}\n\nSujet: ${instruction}`, 
+      context, 
+      temperature: 0.4, 
+      maxTokens: 10000,
+      onStream: (chunk: string) => {
+        const normalized = String(chunk || '');
+        full += normalized;
+        sseWriteData(res, normalized);
+      }
+    });
 
     const providedTitle = typeof title === 'string' ? title : '';
     let finalTitle = providedTitle.trim();
@@ -254,11 +345,15 @@ Réponds uniquement avec le contenu du cours, sans méta-commentaires, sans bali
     });
 
     const blockNote = toBlockNoteAuto(
-      normalizeMarkdownForHeadings(sanitizeAIGeneratedContent(result.content))
+      normalizeMarkdownForHeadings(sanitizeAIGeneratedContent(full))
     );
     await prisma.page.update({ where: { id: page.id }, data: { blockNoteContent: blockNote } });
 
-    res.status(201).json({ message: 'Page créée', pageId: page.id, title: page.title, initialContent: blockNote, model: result.model });
+    // 🎯 Envoyer l'événement final avec les infos de la page
+    res.write(`event: page\n`);
+    res.write(`data: ${JSON.stringify({ pageId: page.id, title: page.title })}\n\n`);
+    res.write('event: done\n\n');
+    res.end();
   } catch (e) {
     console.error('assistantCreate error', e);
     const message = (e as any)?.message || 'Erreur création avec assistant';
