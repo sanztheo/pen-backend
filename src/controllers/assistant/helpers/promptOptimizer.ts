@@ -283,7 +283,7 @@ function getRoleDefinition(mode: 'ask' | 'search' | 'create'): string {
     case 'search':
       return 'Tu es un assistant IA expert spécialisé dans la recherche et l\'analyse d\'informations. Tu explores les sources fournies pour donner des réponses complètes et documentées.';
     case 'create':
-      return 'Tu es un assistant IA expert spécialisé dans la création de contenu structuré. Tu génères du contenu original, bien organisé et adapté aux besoins spécifiés.';
+      return '🎓 Tu es un assistant IA expert spécialisé dans la création de COURS DÉTAILLÉS et de contenu pédagogique. Tu es un professeur passionné qui sait transmettre les connaissances de manière claire, structurée et approfondie. Tu génères du contenu original, extrêmement bien détaillé, avec de nombreux exemples concrets et des explications progressives.';
     default:
       return 'Tu es un assistant IA expert et professionnel.';
   }
@@ -295,10 +295,38 @@ function getBehaviorRules(mode: 'ask' | 'search' | 'create'): string {
   const modeSpecificRules = {
     ask: 'Explique directement en racontant de manière conversationnelle, comme si tu partageais tes connaissances avec un ami curieux.',
     search: 'Raconte ce que tu as trouvé dans les sources en tissant naturellement les informations dans un récit cohérent et engageant.',
-    create: 'Développe tes idées naturellement en expliquant ton raisonnement et en guidant la réflexion avec un style personnel et accessible.'
+    create: `📚 CRÉATION DE COURS DÉTAILLÉS - RÈGLES PÉDAGOGIQUES:
+
+1. PROFONDEUR ET DÉTAIL:
+   - Développe CHAQUE concept avec au moins 3-4 paragraphes complets
+   - N'hésite JAMAIS à être trop détaillé - c'est un cours, pas un résumé
+   - Explique les "pourquoi" et les "comment" de chaque notion
+   - Anticipe les questions que l'étudiant pourrait se poser
+
+2. PROGRESSION PÉDAGOGIQUE:
+   - Commence par les bases et construis progressivement
+   - Relie chaque nouveau concept aux notions précédentes
+   - Utilise des transitions explicites: "Maintenant que nous avons vu X, intéressons-nous à Y"
+
+3. EXEMPLES ET ILLUSTRATIONS:
+   - Fournis au moins 2-3 exemples concrets par concept majeur
+   - Varie les types d'exemples (simples, complexes, contre-exemples)
+   - Utilise des analogies pour rendre les concepts abstraits plus accessibles
+
+4. APPLICATIONS PRATIQUES:
+   - Montre comment chaque concept s'applique dans la vraie vie
+   - Propose des exercices ou des mises en situation
+   - Fournis des solutions détaillées quand tu proposes des exercices
+
+5. POINTS CLÉS ET PIÈGES:
+   - Mets en évidence les notions essentielles à retenir
+   - Signale les erreurs courantes et comment les éviter
+   - Ajoute des "astuces" pour mieux comprendre ou mémoriser
+
+Ton objectif: créer un cours si complet que l'étudiant n'ait besoin d'aucune autre ressource pour maîtriser le sujet.`
   };
 
-  return `${commonRules} ${modeSpecificRules[mode]}`;
+  return `${commonRules}\n\n${modeSpecificRules[mode]}`;
 }
 
 function getTechnicalRules(analysis: QueryAnalysis): string {
@@ -309,7 +337,7 @@ function getTechnicalRules(analysis: QueryAnalysis): string {
   }
 
   if (analysis.mathIntent) {
-    rules += ` Intègre les formules mathématiques naturellement dans tes phrases avec $..$ (inline) et $$..$$  (display). ${LATEX_STRICT_RULES}`;
+    rules += ` Intègre les formules mathématiques naturellement dans tes phrases avec $...$ UNIQUEMENT (JAMAIS $$...$$). ${LATEX_STRICT_RULES}`;
   }
 
   return rules;
@@ -396,12 +424,12 @@ function getResponseGuidelines(analysis: QueryAnalysis): string {
   const lengthGuide = {
     brief: 'Réponse brève (1-2 phrases) et directe',
     standard: 'Réponse concise mais complète (100-300 mots)',
-    detailed: 'Réponse détaillée et structurée (200-500 mots)',
-    comprehensive: 'Réponse complète et approfondie (300-800 mots)'
+    detailed: 'Réponse TRÈS détaillée et pédagogique (500-1500 mots minimum) - Développe chaque concept en profondeur',
+    comprehensive: 'Réponse EXTRÊMEMENT complète et approfondie (1500-3000 mots minimum) - Cours complet avec exemples multiples'
   };
 
   const langInstruction = buildLangInstruction({ code: analysis.language, name: analysis.language });
-  
+
   return `${langInstruction}
 LONGUEUR: ${lengthGuide[analysis.responseLength]}
 FORMAT OBLIGATOIRE: Réponse conversationnelle en paragraphes fluides, JAMAIS de listes à puces
@@ -436,19 +464,19 @@ function getOptimalMaxTokens(responseLength: QueryAnalysis['responseLength'], ha
     return 50000;
   }
 
-  // 🚀 Limites adaptées pour gpt-5-nano (400k contexte, 128k output max)
+  // 🎓 Limites AUGMENTÉES pour la création de cours détaillés (gpt-5-nano: 400k contexte, 128k output max)
   const tokenLimits = {
-    brief: 500,      // Plus généreux pour des réponses de qualité
-    standard: 2000,   // Réponses détaillées par défaut
-    detailed: 8000,   // Analyses approfondies
-    comprehensive: 20000  // Réponses très complètes avec gros contexte
+    brief: 500,        // Plus généreux pour des réponses de qualité
+    standard: 2000,     // Réponses détaillées par défaut
+    detailed: 16000,    // 🎓 DOUBLÉ: Cours détaillés avec exemples (8k → 16k)
+    comprehensive: 32000  // 🎓 AUGMENTÉ: Cours très complets (20k → 32k)
   };
 
   const baseTokens = tokenLimits[responseLength];
 
   // 🧠 THINKING: Augmenter significantly pour thinking chain
   if (hasThinking) {
-    const thinkingTokens = Math.min(baseTokens * 2, 40000); // Cap à 40k pour thinking
+    const thinkingTokens = Math.min(baseTokens * 2, 50000); // Cap à 50k pour thinking (augmenté de 40k)
     console.log(`💭 [THINKING] Tokens augmentés pour thinking chain: ${baseTokens} → ${thinkingTokens}`);
     return thinkingTokens;
   }

@@ -265,14 +265,17 @@ export function toBlockNote(content: string): any[] {
       continue;
     }
 
-    // Check for headings (## and ###)
-    if (/^#{2,3}\s+/.test(line)) {
-      const level = line.startsWith('###') ? 3 : 2;
-      const text = line.replace(/^#{2,3}\s+/, '');
-      blocks.push({ 
-        type: 'heading', 
-        content: parseInlineContent(text), 
-        props: { level } 
+    // Check for headings (# , ## and ###)
+    if (/^#{1,3}\s+/.test(line)) {
+      let level = 2; // Default to h2
+      if (line.startsWith('###')) level = 3;
+      else if (line.startsWith('##')) level = 2;
+      else if (line.startsWith('#')) level = 2; // Convert h1 to h2
+      const text = line.replace(/^#{1,3}\s+/, '');
+      blocks.push({
+        type: 'heading',
+        content: parseInlineContent(text),
+        props: { level }
       });
       continue;
     }

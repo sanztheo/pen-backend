@@ -25,18 +25,6 @@ export interface GeminiResult {
 export class GeminiService {
   private static genAI: GoogleGenerativeAI | null = null;
 
-  /**
-   * Formater le texte comme OpenAI (convertir \\n en vrais retours à la ligne)
-   */
-  private static formatText(text: string): string {
-    if (!text) return '';
-    return text
-      .replace(/\\\\n/g, '\n')  // Convertir \\n littéral en vrai retour à la ligne
-      .replace(/\r\n/g, '\n')   // Normaliser les retours Windows
-      .replace(/\n{3,}/g, '\n\n') // Max 2 retours consécutifs
-      .trim();
-  }
-
   static isConfigured(): boolean {
     return !!process.env.GEMINI_API_KEY;
   }
@@ -52,7 +40,7 @@ export class GeminiService {
   }
 
   /**
-   * Générer du contenu avec Gemini 2.5 Flash Lite en thinking mode
+   * Génération avec Gemini 2.5 Flash en mode thinking TOUJOURS activé
    */
   static async generateWithThinking(options: GeminiOptions): Promise<GeminiResult> {
     if (!this.isConfigured()) {
@@ -65,7 +53,7 @@ export class GeminiService {
       throw new Error('Requête annulée');
     }
 
-    console.log('🧠 [Gemini] Génération avec thinking mode...', {
+    console.log('🧠 [Gemini] Génération avec thinking mode ACTIVÉ...', {
       prompt: options.prompt.substring(0, 100) + '...',
       maxTokens: options.maxTokens,
       temperature: options.temperature,
@@ -75,61 +63,108 @@ export class GeminiService {
 
     try {
       const genAI = this.getClient();
-      // Modèle par défaut: Gemini 2.5 Flash Lite (simulate Thinking via prompts)
-      // Note: le suffixe "-thinking-exp" n'est pas disponible pour 2.5 flash lite via v1beta → 404.
-      // On force donc gemini-2.5-flash-lite par défaut, surcharge possible via GEMINI_THINKING_MODEL.
       const THINKING_MODEL = process.env.GEMINI_THINKING_MODEL || 'gemini-2.5-flash-lite';
-      const model = genAI.getGenerativeModel({ 
+
+      // 🎯 Configuration avec thinking TOUJOURS activé
+      const model = genAI.getGenerativeModel({
         model: THINKING_MODEL,
         generationConfig: {
-          // Autoriser de grands outputs en mode profond (limiter à 30k pour marge provider)
-          maxOutputTokens: Math.min(Math.max(options.maxTokens || 8192, 12000), 30000),
-          temperature: options.temperature || 0.7,
+          maxOutputTokens: Math.min(Math.max(options.maxTokens || 20000, 20000), 40000),
+          temperature: options.temperature || 0.4,
         }
       });
 
-      // Construire le prompt avec le contexte
-      const messages = [
-        ...(options.context ? [`Contexte système: ${options.context}`] : []),
-        `Requête utilisateur: ${options.prompt}`,
-        '',
-        'Instructions spéciales:',
-        '- Commence par une réflexion approfondie dans tes balises <thinking>',
-        '- Analyse le sujet, explore différentes approches, considère les nuances',
-        '- Ensuite, fournis une réponse détaillée et structurée',
-        '- Utilise SYSTÉMATIQUEMENT \\\\n pour les retours à la ligne',
-        '- Sépare chaque paragraphe par \\\\n\\\\n',
-        '- Structure ton contenu avec des titres (##) et sous-titres (###)',
-        '',
-        'Règles LaTeX strictes (très important):',
-        '- Toute formule doit être dans $...$ (inline) ou $$...$$ (display).',
-        '- Le contenu entre $...$ ou $$...$$ est MATH UNIQUEMENT, pas de texte comme "Donc," ou "où".',
-        '- Les explications en français doivent être à l’extérieur, séparées par —.',
-        '- N’écris JAMAIS "$$Donc, ...$$". Écris "Donc, $$...$$".',
-        '- N’écris JAMAIS $$... — où c ...$$ À L’INTÉRIEUR. Le tiret et le texte doivent être en dehors des $$...$$.',
-        '',
-        'FORMAT DE SORTIE RECOMMANDÉ (JSONL compact, une ligne par bloc):',
-        '- Écris chaque bloc sur UNE SEULE LIGNE JSON sans espaces inutiles.',
-        '- Schéma: {"t":"h|p|lx|li","c":"texte","d":niveau|1|0|"ul"|"ol"}',
-        '- t=h (heading), d=2 ou 3; t=p (paragraphe); t=lx (latex), d=1 pour display $$...$$ sinon 0 pour inline $...$; t=li (list item), d="ul" ou "ol".',
-        '- Exemple:',
-        '{"t":"h","c":"Titre","d":2}',
-        '{"t":"p","c":"Paragraphe"}',
-        '{"t":"lx","c":"c^2=a^2+b^2","d":1}',
-        '{"t":"li","c":"élément 1","d":"ul"}',
-        '- Si tu ne peux pas garantir le JSONL, reviens au texte normal, mais respecte strictement LaTeX.'
-      ];
+      // Construire le prompt avec instructions détaillées ET exemples concrets
+      const systemInstructions = `
+Tu es un professeur expert qui crée des COURS ULTRA-DÉTAILLÉS pour étudiants universitaires.
 
-      const fullPrompt = messages.join('\n');
+📚 OBJECTIF: Cours de 25,000-35,000 caractères minimum avec explications approfondies.
+
+📐 RÈGLES DE FORMATAGE CRITIQUES:
+
+1. MARKDOWN:
+   - Utilise ## pour les titres principaux
+   - Utilise ### pour les sous-titres
+   - JAMAIS de # (h1) ou #### (h4+)
+
+2. LaTeX (TRÈS IMPORTANT):
+   - TOUJOURS un seul $ de chaque côté: $...$
+   - JAMAIS $$...$$
+   - TOUJOURS \\frac{a}{b} pour les fractions
+
+3. ESPACEMENT (CRITIQUE):
+   - TOUJOURS un espace après le gras: **texte** suivant
+   - JAMAIS: **texte**suivant
+   - TOUJOURS: **texte** suivant
+
+---
+
+📖 EXEMPLES À SUIVRE EXACTEMENT:
+
+EXEMPLE 1 - Formatage correct d'un paragraphe avec LaTeX:
+
+## Addition de Fractions
+
+L'addition de fractions nécessite un dénominateur commun. Pour additionner $\\frac{a}{b}$ et $\\frac{c}{d}$, on cherche un dénominateur commun $m$.
+
+On transforme chaque fraction en utilisant ce dénominateur. La première fraction devient $\\frac{a \\times k_1}{b \\times k_1} = \\frac{a'}{m}$ et la seconde devient $\\frac{c \\times k_2}{d \\times k_2} = \\frac{c'}{m}$.
+
+Ensuite, on additionne les numérateurs pour obtenir $\\frac{a' + c'}{m}$.
+
+EXEMPLE 2 - Formatage correct avec texte gras et espacement:
+
+### Terminologie Importante
+
+Les nombres que l'on additionne sont appelés **termes** ou **summands** en anglais. Le résultat de l'addition est appelé **somme** ou **total**.
+
+Il est essentiel de bien comprendre ces termes pour suivre les explications mathématiques. Par exemple, dans l'addition $5 + 3 = 8$, les termes sont $5$ et $3$, tandis que la somme est $8$.
+
+EXEMPLE 3 - Liste avec espacement correct:
+
+### Propriétés de l'Addition
+
+L'addition possède plusieurs propriétés fondamentales :
+
+- **Commutativité** : L'ordre des termes ne change pas la somme. On a $a + b = b + a$ pour tous nombres $a$ et $b$.
+
+- **Associativité** : Le groupement des termes ne change pas la somme. On a $(a + b) + c = a + (b + c)$ pour tous $a$, $b$ et $c$.
+
+- **Élément neutre** : Le nombre zéro est l'élément neutre de l'addition. On a $a + 0 = a$ pour tout nombre $a$.
+
+---
+
+🎯 STRUCTURE REQUISE POUR TON COURS:
+
+1. Introduction (3-4 paragraphes)
+2. Fondements théoriques (5-6 paragraphes)
+3. Pour CHAQUE concept:
+   - Définition claire (2 paragraphes)
+   - Explication détaillée (4-5 paragraphes)
+   - 4-5 exemples concrets avec solutions
+   - Applications pratiques (3 paragraphes)
+   - Pièges et erreurs courantes (2-3 paragraphes)
+4. Exercices progressifs avec solutions complètes
+5. Conclusion et perspectives
+
+⚠️ RAPPEL: Suis EXACTEMENT le formatage des exemples ci-dessus. Minimum 25,000 caractères.
+`;
+
+      const fullPrompt = [
+        ...(options.context ? [options.context] : []),
+        '',
+        systemInstructions,
+        '',
+        options.prompt,
+        '',
+        '⚠️ IMPORTANT: Génère un cours ULTRA-DÉTAILLÉ de minimum 25,000 caractères avec de nombreux exemples et explications approfondies.'
+      ].join('\n');
 
       // Mode streaming
       if (options.onStream) {
         const result = await model.generateContentStream(fullPrompt);
 
-        let fullContent = '';
-        let thinking = '';
-        let inThinking = false;
-        let thinkingBuffer = '';
+        let thinkingParts: string[] = [];
+        let contentParts: string[] = [];
 
         try {
           for await (const chunk of result.stream) {
@@ -138,69 +173,37 @@ export class GeminiService {
               throw new Error('Requête annulée');
             }
 
-            const chunkText = chunk.text();
-            if (chunkText) {
-              fullContent += chunkText;
+            // 🎯 NOUVEAU: Utiliser l'API parts correctement
+            if (chunk.candidates && chunk.candidates[0]?.content?.parts) {
+              for (const part of chunk.candidates[0].content.parts) {
+                // Vérifier si c'est du thinking ou du contenu
+                const partData = part as any;
 
-              // Traiter le chunk pour détecter et séparer thinking du contenu normal
-              let processedContent = fullContent;
-              
-              // Si on détecte <thinking> mais pas encore en mode thinking
-              if (!inThinking && processedContent.includes('<thinking>')) {
-                const thinkingStartIndex = processedContent.indexOf('<thinking>');
-                
-                // Envoyer tout ce qui précède <thinking> comme contenu normal
-                const beforeThinking = processedContent.substring(0, thinkingStartIndex);
-                if (beforeThinking && options.onStream) {
-                  options.onStream(beforeThinking);
-                }
-                
-                inThinking = true;
-                thinkingBuffer = processedContent.substring(thinkingStartIndex + 10);
-              }
-              
-              if (inThinking) {
-                // En mode thinking, accumuler dans le buffer
-                if (!thinkingBuffer.includes(chunkText)) {
-                  thinkingBuffer += chunkText;
-                }
-                
-                // Chercher la fin du thinking
-                if (thinkingBuffer.includes('</thinking>')) {
-                  const endIndex = thinkingBuffer.indexOf('</thinking>');
-                  thinking = thinkingBuffer.substring(0, endIndex);
-                  
-                  // Envoyer le thinking complet
-                  if (options.onThinking && thinking) {
-                    options.onThinking(thinking);
+                if (partData.thought) {
+                  // C'est du thinking
+                  const thinkingText = part.text || '';
+                  if (thinkingText) {
+                    thinkingParts.push(thinkingText);
+                    if (options.onThinking) {
+                      options.onThinking(thinkingText);
+                    }
                   }
-                  
-                  inThinking = false;
-                  
-                  // Reprendre le streaming normal après </thinking>
-                  const remainingText = thinkingBuffer.substring(endIndex + 12);
-                  if (remainingText && options.onStream) {
-                    options.onStream(remainingText);
-                  }
-                  
-                  thinkingBuffer = '';
                 } else {
-                  // Thinking en cours, envoyer les nouveaux morceaux
-                  if (options.onThinking && chunkText) {
-                    options.onThinking(chunkText);
+                  // C'est du contenu réel
+                  const contentText = part.text || '';
+                  if (contentText) {
+                    contentParts.push(contentText);
+                    if (options.onStream) {
+                      options.onStream(contentText);
+                    }
                   }
-                }
-              } else if (!processedContent.includes('<thinking>')) {
-                // Pas de thinking, envoyer directement le contenu
-                if (options.onStream && chunkText) {
-                  options.onStream(chunkText);
                 }
               }
             }
           }
         } catch (error) {
           if (error instanceof Error && (
-            error.name === 'AbortError' || 
+            error.name === 'AbortError' ||
             error.message.includes('aborted')
           )) {
             console.log('🚫 [Gemini] Requête annulée avec succès');
@@ -209,37 +212,18 @@ export class GeminiService {
           throw error;
         }
 
-        // Nettoyer le contenu final (retirer les balises thinking)
-        let cleanContent = fullContent;
-        if (cleanContent.includes('<thinking>') && cleanContent.includes('</thinking>')) {
-          const thinkingStart = cleanContent.indexOf('<thinking>');
-          const thinkingEnd = cleanContent.indexOf('</thinking>') + 12;
-          cleanContent = cleanContent.substring(0, thinkingStart) + cleanContent.substring(thinkingEnd);
-        }
-
-        // Formater le contenu comme OpenAI (convertir \\n en vrais retours à la ligne)
-        cleanContent = cleanContent
-          .replace(/\\\\n/g, '\n')  // Convertir \\n littéral en vrai retour à la ligne
-          .replace(/\r\n/g, '\n')   // Normaliser les retours Windows
-          .replace(/\n{3,}/g, '\n\n') // Max 2 retours consécutifs
-          .trim();
-
-        // Formater aussi le thinking
-        thinking = thinking
-          .replace(/\\\\n/g, '\n')
-          .replace(/\r\n/g, '\n')
-          .replace(/\n{3,}/g, '\n\n')
-          .trim();
+        const thinking = thinkingParts.join('').trim();
+        const content = contentParts.join('').trim();
 
         const responseTime = Date.now() - startTime;
         console.log(`✅ [Gemini] Streaming terminé en ${responseTime}ms`, {
-          contentLength: cleanContent.length,
+          contentLength: content.length,
           thinkingLength: thinking.length
         });
 
         return {
-          content: cleanContent.trim(),
-          thinking: thinking.trim(),
+          content,
+          thinking,
           model: THINKING_MODEL,
           finishReason: 'completed'
         };
@@ -248,57 +232,46 @@ export class GeminiService {
       // Mode non-streaming
       const result = await model.generateContent(fullPrompt);
       const response = await result.response;
-      const text = response.text();
 
-      // Extraire le thinking et le contenu
-      let thinking = '';
-      let cleanContent = text;
+      let thinkingText = '';
+      let contentText = '';
 
-      if (text.includes('<thinking>') && text.includes('</thinking>')) {
-        const thinkingStart = text.indexOf('<thinking>') + 10;
-        const thinkingEnd = text.indexOf('</thinking>');
-        
-        if (thinkingStart < thinkingEnd) {
-          thinking = text.substring(thinkingStart, thinkingEnd).trim();
-          cleanContent = (text.substring(0, thinkingStart - 10) + text.substring(thinkingEnd + 12)).trim();
+      // 🎯 NOUVEAU: Extraire thinking et content depuis les parts
+      if (response.candidates && response.candidates[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
+          const partData = part as any;
+
+          if (partData.thought) {
+            // C'est du thinking
+            thinkingText += part.text || '';
+          } else {
+            // C'est du contenu réel
+            contentText += part.text || '';
+          }
         }
       }
 
-      // Formater le contenu comme OpenAI (convertir \\n en vrais retours à la ligne)
-      cleanContent = cleanContent
-        .replace(/\\\\n/g, '\n')  // Convertir \\n littéral en vrai retour à la ligne
-        .replace(/\r\n/g, '\n')   // Normaliser les retours Windows
-        .replace(/\n{3,}/g, '\n\n') // Max 2 retours consécutifs
-        .trim();
-
-      // Formater aussi le thinking
-      thinking = thinking
-        .replace(/\\\\n/g, '\n')
-        .replace(/\r\n/g, '\n')
-        .replace(/\n{3,}/g, '\n\n')
-        .trim();
-
       const responseTime = Date.now() - startTime;
       console.log(`✅ [Gemini] Génération terminée en ${responseTime}ms`, {
-        contentLength: cleanContent.length,
-        thinkingLength: thinking.length
+        contentLength: contentText.length,
+        thinkingLength: thinkingText.length
       });
 
       return {
-        content: cleanContent,
-        thinking,
+        content: contentText.trim(),
+        thinking: thinkingText.trim(),
         model: THINKING_MODEL,
         finishReason: 'completed'
       };
 
     } catch (error) {
       const responseTime = Date.now() - startTime;
-      
+
       if (error instanceof Error && (error.name === 'AbortError' || error.message.includes('annulée'))) {
         console.log(`🚫 [Gemini] Requête annulée après ${responseTime}ms`);
         throw new Error('Requête annulée');
       }
-      
+
       console.error(`❌ [Gemini] Erreur après ${responseTime}ms:`, error);
       throw error;
     }
