@@ -243,7 +243,7 @@ router.get('/:id/messages', async (req, res) => {
 router.post('/:id/messages', async (req, res) => {
   try {
     const { id } = req.params;
-    const { role, content, mentions, files, wikipediaSources, mode } = req.body;
+    const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle } = req.body;
     const userId = req.user!.id;
 
     if (!content) {
@@ -273,6 +273,8 @@ router.post('/:id/messages', async (req, res) => {
         files: files || [],
         wikipediaSources: wikipediaSources || [],
         mode: mode || null,
+        pageId: pageId || null,
+        pageTitle: pageTitle || null,
       }
     });
 
