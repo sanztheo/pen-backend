@@ -56,47 +56,73 @@ export const assistantCreate = async (req: Request, res: Response) => {
       try {
         const lang = detectPreferredLanguage(req);
         const geminiContext = `${web}
-        Tu crées le contenu d'une page pour une application de prise de notes.
-        ${buildLangInstruction(lang)}
-        ${style}
-        Règles de cohérence:
-        - Priorise le contexte fourni; n'invente pas de faits.
-        - Structure claire: titres (##), sous-titres (###), paragraphes courts.
-    - MARKDOWN STRICT: utilise UNIQUEMENT # (h1), ## (h2), ### (h3). INTERDICTION ABSOLUE des #### (h4), ##### (h5) ou plus profonds.
-        - FORMATTING: utilise \\n pour les retours à la ligne; sépare les paragraphes par \\n\\n.
-        - Évite les blocs compacts; privilégie lisibilité et exemples concrets.
-        - Si formules, utilise $...$ ou $$...$$ et respecte les règles LaTeX strictes.
-        - NE PAS générer automatiquement de sections "Mini-FAQ", "Checklist" ou "Questions fréquentes" sauf si explicitement demandé.
-        ${LATEX_STRICT_RULES}
-        Réponds uniquement avec le texte final, sans en-tête, sans balises, sans métadonnées.`;
 
-        let geminiResult = await GeminiService.generateWithThinking({
-          prompt: `${style}\n\nSujet: ${instruction}`,
+🎓 MODE COURS ULTRA-DÉTAILLÉ ACTIVÉ - INSTRUCTIONS STRICTES:
+
+Tu crées un COURS COMPLET ET EXHAUSTIF pour une application de prise de notes éducative.
+${buildLangInstruction(lang)}
+
+📚 PROFONDEUR ET LONGUEUR OBLIGATOIRES:
+- Ce mode "profond" EXIGE un cours de MINIMUM 15,000 caractères (objectif: 20,000-30,000 caractères)
+- DÉVELOPPE CHAQUE concept avec au moins 4-5 paragraphes DÉTAILLÉS
+- MULTIPLIE les exemples concrets (au moins 3-4 exemples par concept majeur)
+- AJOUTE des sous-sections approfondies pour CHAQUE point important
+- N'hésite JAMAIS à être trop long - c'est un cours universitaire, pas un résumé !
+
+✨ STRUCTURE DÉTAILLÉE OBLIGATOIRE:
+- Introduction complète (2-3 paragraphes minimum)
+- Contexte historique et/ou théorique quand pertinent
+- Pour chaque concept majeur:
+  * Définition détaillée
+  * Explication approfondie du "pourquoi" et "comment"
+  * 3-4 exemples concrets et variés
+  * Applications pratiques
+  * Cas d'usage réels
+  * Pièges fréquents et comment les éviter
+- Exercices progressifs avec solutions détaillées
+- Conclusion et perspectives d'approfondissement
+
+🔢 RÈGLES LaTeX STRICTES (TRÈS IMPORTANT):
+- TOUJOURS utiliser un seul $ de chaque côté: $...$
+- JAMAIS JAMAIS JAMAIS utiliser $$...$$  (INTERDIT ABSOLUMENT)
+- TOUJOURS utiliser \\frac{numérateur}{dénominateur} pour les fractions
+- JAMAIS écrire a/b en texte brut - toujours $\\frac{a}{b}$
+- Exemples CORRECTS:
+  ✅ Dans le texte: "La fraction $\\frac{1}{2}$ représente un demi"
+  ✅ Formule seule sur sa ligne: $\\frac{2 \\times 2}{5 \\times 2} = \\frac{4}{10}$
+  ✅ Avec opérations: $\\frac{a+b}{c}$
+  ✅ Équations: $c^2 = a^2 + b^2$
+- Exemples INCORRECTS (à éviter ABSOLUMENT):
+  ❌ $$\\frac{1}{2}$$  → Utilise $\\frac{1}{2}$ (UN SEUL $ de chaque côté)
+  ❌ (2*2)/(5*2) = 4/10  → Utilise $\\frac{2 \\times 2}{5 \\times 2} = \\frac{4}{10}$
+  ❌ 1/2  → Utilise $\\frac{1}{2}$
+  ❌ a/b  → Utilise $\\frac{a}{b}$
+
+📐 MARKDOWN STRICT:
+- Utilise UNIQUEMENT ## (h2) et ### (h3) pour les titres
+- INTERDICTION ABSOLUE des # (h1), #### (h4) ou plus profonds
+- Structure hiérarchique claire: ## pour sections principales, ### pour sous-sections
+- FORMATTING: utilise \\n pour retours à la ligne; sépare paragraphes par \\n\\n
+
+🎯 QUALITÉ PÉDAGOGIQUE:
+- Adopte une progression du simple au complexe
+- Relie chaque nouveau concept aux notions précédentes
+- Utilise des analogies et métaphores pour faciliter compréhension
+- Anticipe les questions fréquentes et y réponds
+- Fournis des conseils pratiques et méthodologiques
+
+${LATEX_STRICT_RULES}
+
+⚠️ RAPPEL CRITIQUE: Ce mode "profond" doit produire un cours COMPLET et DÉTAILLÉ de 20,000-30,000 caractères minimum. Ne te limite PAS, développe TOUT en profondeur !
+
+Réponds uniquement avec le contenu du cours, sans méta-commentaires, sans balises <thinking> apparentes dans le texte final.`;
+
+        const geminiResult = await GeminiService.generateWithThinking({
+          prompt: `${style}\n\nSujet: ${instruction}\n\n⚠️ IMPORTANT: Génère un cours ULTRA-DÉTAILLÉ de minimum 20,000 caractères avec de nombreux exemples et explications approfondies.`,
           context: geminiContext,
           temperature: 0.4,
-          maxTokens: 20000
+          maxTokens: 40000
         });
-
-        const MIN_DEEP_CHARS = 12000;
-        let expandedContent = geminiResult.content || '';
-        let deepGuard = 0;
-        while (expandedContent.length < MIN_DEEP_CHARS && deepGuard < 2) {
-          deepGuard++;
-          const continuation = await AIService.generateContent({
-            prompt: `Continue le cours suivant en AJOUTANT de NOUVELLES sections détaillées (sans répéter ce qui existe déjà). Utilise des titres (##) et sous-titres (###), ajoute des exemples concrets, études de cas, bonnes pratiques et pièges fréquents.`,
-            context: `${buildLangInstruction(lang)}
-            Texte existant:${expandedContent}
-            
-            Règles: FORMATAGE avec \\n et séparation des paragraphes; 
-            ne recommence PAS l'introduction;
-            n'ajoute PAS de conclusion prématurée; 
-            pas de redites.`,
-            temperature: 0.4,
-            maxTokens: 20000
-          });
-          expandedContent += `\n\n${continuation.content || ''}`;
-        }
-        geminiResult = { ...geminiResult, content: expandedContent };
 
         const providedTitle = typeof title === 'string' ? title : '';
         let finalTitle = providedTitle.trim();
