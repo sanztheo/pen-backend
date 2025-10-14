@@ -351,7 +351,7 @@ Réponds uniquement avec le contenu du cours, sans méta-commentaires.`;
 
     // 🎯 Envoyer l'événement final avec les infos de la page
     res.write(`event: page\n`);
-    res.write(`data: ${JSON.stringify({ pageId: page.id, title: page.title })}\n\n`);
+    res.write(`data: ${JSON.stringify({ pageId: page.id, title: page.title, projectId: page.projectId })}\n\n`);
     res.write('event: done\n\n');
     res.end();
   } catch (e) {

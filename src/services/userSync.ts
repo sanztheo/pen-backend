@@ -94,7 +94,7 @@ export class UserSyncService {
         console.error(`❌ [USER-SYNC] Erreur lors de la synchronisation de l'utilisateur ${clerkUser.email}:`, error);
         throw error;
       }
-    }, 1, 1000); // Réduire les tentatives car on gère l'erreur manuellement
+    }, 3, 2000); // 3 tentatives avec 2s de délai (pour Neon cold start)
   }
 
   // Récupérer un utilisateur depuis PostgreSQL

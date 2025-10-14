@@ -162,7 +162,7 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
         await prisma.page.update({ where: { id: page.id }, data: { blockNoteContent: blockNote } });
 
         res.write(`event: page\\n`);
-        res.write(`data: ${JSON.stringify({ pageId: page.id, title: page.title, thinking: thinkingContent })}\\n\\n`);
+        res.write(`data: ${JSON.stringify({ pageId: page.id, title: page.title, projectId: page.projectId, thinking: thinkingContent })}\\n\\n`);
         res.write('event: done\\n\\n');
         res.end();
         return;
