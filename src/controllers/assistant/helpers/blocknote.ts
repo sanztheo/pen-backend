@@ -94,32 +94,7 @@ function parseInlineContent(text: string): any[] {
  * Check if a line contains LaTeX formula patterns
  */
 function isLatexLine(line: string): { isLatex: boolean, latex?: string, isDisplay?: boolean } {
-  // Check for display LaTeX ($$...$$)
-  const displayMatch = line.match(/^\$\$(.*)\$\$$/);
-  if (displayMatch) {
-    let latex = displayMatch[1].trim();
-    // Retirer un préfixe/suffixe de texte courant mal placé (ex: "Donc, ")
-    latex = latex.replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, '').replace(/\s*[—-].*$/,'');
-    return { isLatex: true, latex, isDisplay: true };
-  }
-
-  // Check for inline LaTeX that occupies the whole line ($...$)
-  const inlineMatch = line.match(/^\$(.*)\$$/);
-  if (inlineMatch) {
-    let latex = inlineMatch[1].trim();
-    latex = latex.replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, '').replace(/\s*[—-].*$/,'');
-    return { isLatex: true, latex, isDisplay: false };
-  }
-
-  // Heuristique sûre: lignes math avec backslash + mot-clé LaTeX et accolades
-  const mathKeywords = ['\\frac', '\\sum', '\\int', '\\sqrt', '\\lim', '\\alpha', '\\beta', '\\gamma', '\\pi', '\\theta', '\\lambda'];
-  const containsKeyword = mathKeywords.some(keyword => line.includes(keyword));
-  const hasBackslash = line.includes('\\');
-  const hasBraces = line.includes('{') && line.includes('}');
-  if (containsKeyword && hasBackslash && hasBraces) {
-    return { isLatex: true, latex: line.trim(), isDisplay: false };
-  }
-
+  // Désactivé: on ne promeut plus aucune ligne en bloc LaTeX côté backend
   return { isLatex: false };
 }
 
@@ -164,7 +139,14 @@ export function toBlockNote(content: string): any[] {
     return [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }];
   }
 
-  const lines = content.split(/\r?\n/);
+  // Normaliser tous les blocs display vers de l'inline pour empêcher la création de blocs LaTeX
+  // $$...$$  -> $...$
+  // \[...\] -> $...$
+  const normalized = content
+    .replace(/\$\$([\s\S]+?)\$\$/g, (_m, g1) => `$${String(g1).trim()}$`)
+    .replace(/^\\\[\s*([\s\S]*?)\s*\\\]$/gm, (_m, g1) => `$${String(g1).trim()}$`);
+
+  const lines = normalized.split(/\r?\n/);
   const blocks: any[] = [];
   let inBracketDisplay = false;
   let bracketBuffer = '';
@@ -179,37 +161,7 @@ export function toBlockNote(content: string): any[] {
     // Ignorer lignes de narration/meta IA omniprésentes
     if (META_LINE_RE.test(line)) continue;
 
-    // Gestion des blocs display LaTeX avec délimiteurs \[ ... \]
-    if (inBracketDisplay) {
-      // Chercher fin du bloc
-      if (/^\\\]\s*$/.test(line)) {
-        const latex = bracketBuffer.trim()
-          .replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, '')
-          .replace(/\s*[—-].*$/, '');
-        blocks.push({ type: 'latex', props: { latex: `$$${latex}$$` } });
-        inBracketDisplay = false;
-        bracketBuffer = '';
-        continue;
-      }
-      // Accumuler
-      bracketBuffer += (bracketBuffer ? '\n' : '') + line;
-      continue;
-    }
-    // Début d'un bloc \[ ...
-    if (/^\\\[\s*$/.test(line)) {
-      inBracketDisplay = true;
-      bracketBuffer = '';
-      continue;
-    }
-    // Cas \[ ... \] sur une seule ligne
-    const oneLineBracket = line.match(/^\\\[(.+)\\\]$/);
-    if (oneLineBracket) {
-      const latex = oneLineBracket[1].trim()
-        .replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, '')
-        .replace(/\s*[—-].*$/, '');
-      blocks.push({ type: 'latex', props: { latex: `$$${latex}$$` } });
-      continue;
-    }
+    // Désactivation complète des blocs display via \[ ... \]: tout est traité en inline plus haut
 
     // Conversion d'une ligne JSON (JSONL isolé) en bloc BlockNote
     if (line.startsWith('{') && line.endsWith('}')) {
@@ -246,24 +198,9 @@ export function toBlockNote(content: string): any[] {
       } catch {}
     }
 
-    // Priorité 1: lignes mixtes avec $$...$$ inclus → découpage en blocs
-    const mixed = splitMixedDisplayLatex(line);
-    if (mixed && mixed.length > 0) {
-      blocks.push(...mixed);
-      continue;
-    }
+    // Suppression de la conversion automatique des lignes mixtes $$...$$ en blocs
 
-    // Priorité 2: lignes LaTeX pures
-    const latexCheck = isLatexLine(line);
-    if (latexCheck.isLatex && latexCheck.latex) {
-      blocks.push({
-        type: 'latex',
-        props: {
-          latex: latexCheck.isDisplay ? `$$${latexCheck.latex}$$` : `$${latexCheck.latex}$`
-        }
-      });
-      continue;
-    }
+    // Désactivation de la promotion en bloc LaTeX pour toute ligne
 
     // Check for headings (# , ## and ###)
     if (/^#{1,3}\s+/.test(line)) {
@@ -365,14 +302,11 @@ export function toBlockNoteFromJSONL(jsonl: string): any[] {
     }
 
     if (t === 'lx') {
+      // Convertir tout bloc LaTeX JSONL en paragraphe avec inlineLatex
       let latex = String(c || '').trim();
-      // Nettoyage défensif: retirer préfixes français et suffixes après tiret long
       latex = latex.replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, '').replace(/\s*[—-].*$/, '');
-      const display = d === 1 || d === true || String(d).toLowerCase() === 'display';
-      blocks.push({
-        type: 'latex',
-        props: { latex: display ? `$$${latex}$$` : `$${latex}$` }
-      });
+      const inline = `$${latex}$`;
+      blocks.push({ type: 'paragraph', content: parseInlineContent(inline) });
       continue;
     }
 
