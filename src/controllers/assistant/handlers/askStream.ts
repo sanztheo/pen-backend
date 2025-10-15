@@ -59,12 +59,13 @@ export const assistantAskStream = async (req: Request, res: Response) => {
       userId: req.user?.id || 'anonymous'
     });
 
-    DebugLogger.web(`[ASK] Contexte construit - pages: ${contextResult.pages.length}, web: ${contextResult.web.length}`);
+    DebugLogger.web(`[ASK] Contexte construit - pages: ${contextResult.pages.length}, web: ${contextResult.web.length}, rag: ${contextResult.ragContext?.length || 0}`);
 
     const history = ConversationMemory.recentAsText(req.user?.id || 'anonymous', { maxChars: 1200, maxMessages: 8 });
 
     // 🎯 OPTIMISATION COMPLÈTE: Prompt avec troncature intelligente garantie
-    const contextWithWeb = [contextResult.pages, contextResult.web].filter(Boolean).join('\n\n');
+    // 🔥 INCLURE le contexte RAG (fichiers, Wikipedia) si disponible
+    const contextWithWeb = [contextResult.ragContext, contextResult.pages, contextResult.web].filter(Boolean).join('\n\n');
     const optimizedPrompt = optimizePrompt('ask', sanitizedQuery, contextWithWeb, history, req);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
