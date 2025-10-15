@@ -610,6 +610,7 @@ model AIMessage {
   pageId         String?        @map("page_id") @db.Uuid // ID de la page créée
   pageTitle      String?        @map("page_title") @db.VarChar(255) // Titre de la page créée
   projectId      String?        @map("project_id") @db.Uuid // ID du projet de la page créée
+  isPageDeleted  Boolean?       @default(false) @map("is_page_deleted") // Statut de suppression de la page
   
   // Timing
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)

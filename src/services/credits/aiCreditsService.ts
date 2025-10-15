@@ -49,6 +49,7 @@ export class AICreditsService {
         ON CONFLICT ("user_id") 
         DO UPDATE SET 
           "ai_credits_used" = CASE 
+            WHEN "user_limits"."ai_credits_limit" = -1 THEN "user_limits"."ai_credits_used" + ${amount}
             WHEN "user_limits"."ai_credits_used" + ${amount} <= "user_limits"."ai_credits_limit"
             THEN "user_limits"."ai_credits_used" + ${amount}
             ELSE "user_limits"."ai_credits_used"
