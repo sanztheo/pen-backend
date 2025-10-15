@@ -62,6 +62,15 @@ export function startCronJobs() {
       // Log des statistiques de stockage après nettoyage
       const storageStats = await cleanupService.getStorageStats();
       console.log(`📊 [CRON] Statistiques après nettoyage:`, storageStats);
+
+      // 🗑️ Nettoyage des fichiers utilisateur non utilisés depuis 7 jours
+      console.log('\n🗑️ [CRON] Nettoyage des fichiers utilisateur...');
+      const fileStats = await cleanupService.cleanupOldUserFiles(7);
+      console.log(`✅ [CRON] Fichiers utilisateurs nettoyés:`, {
+        filesDeleted: fileStats.count,
+        chunksDeleted: fileStats.chunksDeleted,
+        spaceFreedMB: fileStats.spaceFreedMB.toFixed(2)
+      });
       
     } catch (error) {
       console.error('❌ [CRON] Erreur lors du nettoyage RAG:', error);

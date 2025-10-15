@@ -86,12 +86,15 @@ router.post('/rag/context', async (req: any, res) => {
     // 🔥 NOUVEAU: Construire le contexte des sources pour l'IA
     let sourcesContext = '';
     if (selectedSources) {
-      const { wikipediaSources = [], mentionedPages = [], sourcesScope } = selectedSources;
+      const { wikipediaSources = [], mentionedPages = [], fileSources = [], sourcesScope } = selectedSources;
       if (wikipediaSources.length > 0) {
         sourcesContext += `\nSources Wikipedia sélectionnées: ${wikipediaSources.map((s: { title: string }) => s.title).join(', ')}`;
       }
       if (mentionedPages.length > 0) {
         sourcesContext += `\nPages mentionnées: ${mentionedPages.map((p: { title: string }) => p.title).join(', ')}`;
+      }
+      if (fileSources.length > 0) {
+        sourcesContext += `\nFichiers joints: ${fileSources.map((f: { title: string }) => f.title).join(', ')}`;
       }
       if (sourcesScope) {
         sourcesContext += `\nPortée des sources: ${sourcesScope === 'all' ? 'toutes les sources' : 'sources sélectionnées uniquement'}`;
@@ -103,6 +106,7 @@ router.post('/rag/context', async (req: any, res) => {
     const hasSelectedSources = selectedSources && (
       (selectedSources.wikipediaSources && selectedSources.wikipediaSources.length > 0) ||
       (selectedSources.mentionedPages && selectedSources.mentionedPages.length > 0) ||
+      (selectedSources.fileSources && selectedSources.fileSources.length > 0) || // 🔥 NOUVEAU: Fichiers
       selectedSources.sourcesScope === 'all'
     );
 
@@ -186,24 +190,75 @@ router.post('/rag/context', async (req: any, res) => {
     // 3. Recherche RAG intelligente
     console.log(`🔍 [RAG-DEBUG] Recherche RAG pour userId: ${req.user.id}, workspaceId: ${workspaceId}, query: "${query}"`);
 
-    // 🔥 NOUVEAU: Si des sources Wikipedia sont sélectionnées OU une session active, récupérer leurs IDs RAG
+    // 🔥 NOUVEAU: Si des sources sont sélectionnées, récupérer leurs IDs RAG
     let specificSourceIds: string[] = [];
     let sourcesToProcess = [];
 
-    // Sources explicitement sélectionnées
-    if (selectedSources && selectedSources.wikipediaSources && selectedSources.wikipediaSources.length > 0) {
+    // 🔥 PRIORITÉ 1: Fichiers joints (FORCER leur utilisation UNIQUEMENT)
+    if (selectedSources && selectedSources.fileSources && selectedSources.fileSources.length > 0) {
+      console.log(`🔥 [RAG-FILES] Fichiers joints détectés → UTILISATION FORCÉE UNIQUEMENT`);
+      const { prisma } = await import('../lib/prisma.js');
+      
+      for (const file of selectedSources.fileSources) {
+        try {
+          // Recherche par ID directement (les fichiers ont un ID)
+          const fileRecord = await prisma.rAGSource.findFirst({
+            where: {
+              id: file.id,
+              userId: req.user.id,
+              workspaceId,
+              sourceType: { in: ['PDF', 'TEXT_FILE'] },
+              status: 'COMPLETED'
+            },
+            select: { id: true, title: true }
+          });
+          
+          if (fileRecord) {
+            specificSourceIds.push(fileRecord.id);
+            console.log(`🔥 [RAG-FILES] Fichier "${file.title}" trouvé avec ID: ${fileRecord.id}`);
+          } else {
+            console.warn(`🔥 [RAG-FILES] Fichier "${file.title}" (${file.id}) non trouvé ou non prêt`);
+          }
+        } catch (error) {
+          console.error(`🔥 [RAG-FILES] Erreur recherche fichier "${file.title}":`, error);
+        }
+      }
+      console.log(`🔥 [RAG-FILES] ${specificSourceIds.length} fichier(s) sélectionné(s) → IGNORE SESSION & WIKIPEDIA`);
+    }
+    // PRIORITÉ 2: Sources Wikipedia explicitement sélectionnées
+    else if (selectedSources && selectedSources.wikipediaSources && selectedSources.wikipediaSources.length > 0) {
       sourcesToProcess = selectedSources.wikipediaSources.map((s: { title: string }) => ({ title: s.title }));
       console.log(`🔍 [RAG-DEBUG] Recherche des IDs pour les sources Wikipedia sélectionnées:`, sourcesToProcess.map((s: { title: string }) => s.title));
+      
+      const { prisma } = await import('../lib/prisma.js');
+      for (const source of sourcesToProcess) {
+        try {
+          const sourceRecord = await prisma.rAGSource.findFirst({
+            where: {
+              title: source.title,
+              isGlobal: true,
+              status: 'COMPLETED'
+            },
+            select: { id: true }
+          });
+          if (sourceRecord) {
+            specificSourceIds.push(sourceRecord.id);
+            console.log(`🔍 [RAG-DEBUG] Source "${source.title}" trouvée avec ID: ${sourceRecord.id}`);
+          } else {
+            console.warn(`🔍 [RAG-DEBUG] Source "${source.title}" non trouvée dans la base RAG`);
+          }
+        } catch (error) {
+          console.error(`🔍 [RAG-DEBUG] Erreur recherche source "${source.title}":`, error);
+        }
+      }
+      console.log(`🔍 [RAG-DEBUG] IDs sources finaux:`, specificSourceIds);
     }
-    // Sources de session active
+    // PRIORITÉ 3: Sources de session active (SEULEMENT si aucun fichier ni Wikipedia)
     else if (activeSessionSources && activeSessionSources.length > 0) {
       sourcesToProcess = activeSessionSources;
       console.log(`🔍 [RAG-DEBUG] Recherche des IDs pour les sources de session:`, sourcesToProcess.map(s => s.title));
-    }
-
-    if (sourcesToProcess.length > 0) {
+      
       const { prisma } = await import('../lib/prisma.js');
-
       for (const source of sourcesToProcess) {
         try {
           const sourceRecord = await prisma.rAGSource.findFirst({
@@ -621,6 +676,78 @@ router.post('/upload', upload.array('files', 5), async (req: any, res) => {
   } catch (e) {
     console.error('upload error', e);
     res.status(500).json({ error: 'Erreur upload fichiers' });
+  }
+});
+
+// 🚀 Upload RAG route: process files with intelligent RAG embedding
+router.post('/upload-rag', upload.single('file'), async (req: any, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucun fichier fourni' });
+    }
+
+    const { workspaceId } = req.body;
+    if (!workspaceId) {
+      return res.status(400).json({ error: 'workspaceId requis' });
+    }
+
+    const file = req.file;
+
+    // Validation des formats supportés
+    const supportedMimes = [
+      'application/pdf',
+      'text/plain',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+      'text/csv',
+      'application/json',
+      'text/markdown',
+      'text/html'
+    ];
+
+    if (!supportedMimes.includes(file.mimetype)) {
+      return res.status(400).json({ 
+        error: 'Format non supporté',
+        supportedFormats: supportedMimes
+      });
+    }
+
+    console.log(`📤 [UPLOAD-RAG] Fichier reçu: ${file.originalname} (${file.mimetype}, ${file.size} bytes)`);
+
+    // Traitement RAG
+    const { userFilesRAG } = await import('../services/rag/userFiles.js');
+    
+    const sourceId = await userFilesRAG.processUserFile({
+      buffer: file.buffer,
+      fileName: file.originalname,
+      mimeType: file.mimetype,
+      userId: req.user.id,
+      workspaceId
+    });
+
+    if (!sourceId) {
+      return res.status(500).json({ error: 'Échec du traitement RAG' });
+    }
+
+    res.json({ 
+      success: true, 
+      sources: [{
+        sourceId,
+        title: file.originalname,
+        type: file.mimetype === 'application/pdf' ? 'PDF' : 'TEXT_FILE'
+      }]
+    });
+
+  } catch (error) {
+    console.error('❌ [UPLOAD-RAG] Erreur:', error);
+    res.status(500).json({ 
+      error: 'Erreur traitement fichier RAG',
+      details: error instanceof Error ? error.message : 'Erreur inconnue'
+    });
   }
 });
 
