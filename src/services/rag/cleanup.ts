@@ -240,6 +240,87 @@ export class RAGCleanupService {
       }))
     };
   }
+
+  /**
+   * 🧹 Nettoie les fichiers utilisateur non utilisés depuis X jours
+   * @param maxAgeDays - Age maximum en jours (défaut: 7)
+   * @returns Statistiques de nettoyage
+   */
+  async cleanupOldUserFiles(maxAgeDays: number = 7): Promise<{ count: number; chunksDeleted: number; spaceFreedMB: number }> {
+    const startTime = Date.now();
+    console.log(`🧹 [CLEANUP-FILE] Démarrage nettoyage fichiers utilisateur (age: ${maxAgeDays} jours)`);
+
+    // Calculer la date limite
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - maxAgeDays);
+
+    // Trouver les fichiers anciens
+    const oldFiles = await prisma.rAGSource.findMany({
+      where: {
+        sourceType: { in: ['PDF', 'TEXT_FILE'] },
+        isGlobal: false,
+        OR: [
+          // Fichiers jamais réutilisés et anciens
+          {
+            lastUsedAt: null,
+            createdAt: { lt: cutoffDate }
+          },
+          // Fichiers non utilisés depuis X jours
+          {
+            lastUsedAt: { lt: cutoffDate }
+          }
+        ]
+      },
+      include: {
+        _count: {
+          select: { chunks: true }
+        }
+      }
+    });
+
+    if (oldFiles.length === 0) {
+      console.log(`🧹 [CLEANUP-FILE] Aucun fichier à nettoyer`);
+      return { count: 0, chunksDeleted: 0, spaceFreedMB: 0 };
+    }
+
+    console.log(`🧹 [CLEANUP-FILE] ${oldFiles.length} fichiers à nettoyer`);
+
+    let totalChunksDeleted = 0;
+    let totalSpaceFreed = 0;
+
+    // Supprimer les fichiers et leurs chunks
+    for (const file of oldFiles) {
+      try {
+        const chunksCount = (file as any)._count.chunks;
+        
+        // Supprimer les chunks
+        await prisma.rAGChunk.deleteMany({
+          where: { sourceId: file.id }
+        });
+
+        // Supprimer la source
+        await prisma.rAGSource.delete({
+          where: { id: file.id }
+        });
+
+        totalChunksDeleted += chunksCount;
+        totalSpaceFreed += chunksCount / 1024; // 1KB par chunk approximatif
+
+        console.log(`🗑️ [CLEANUP-FILE] Supprimé: "${file.title}" (${chunksCount} chunks)`);
+      } catch (error) {
+        console.error(`❌ [CLEANUP-FILE] Erreur suppression "${file.title}":`, error);
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`✅ [CLEANUP-FILE] Terminé en ${duration}ms - Fichiers: ${oldFiles.length}, Chunks: ${totalChunksDeleted}, Espace: ${totalSpaceFreed.toFixed(2)}MB`);
+
+    return {
+      count: oldFiles.length,
+      chunksDeleted: totalChunksDeleted,
+      spaceFreedMB: totalSpaceFreed
+    };
+  }
 }
 
 // Instance globale

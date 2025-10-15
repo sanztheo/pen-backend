@@ -127,7 +127,8 @@ export class AssistantHandlerService {
       // Extraire les IDs des sources RAG spécifiques
       const ragSourceIds = [];
       for (const ragSource of ragSources) {
-        const sourceRecord = await prisma.rAGSource.findFirst({
+        // Chercher d'abord dans les sources globales (Wikipedia)
+        let sourceRecord = await prisma.rAGSource.findFirst({
           where: {
             title: ragSource.title,
             isGlobal: true,
@@ -135,6 +136,36 @@ export class AssistantHandlerService {
           },
           select: { id: true }
         });
+
+        // Si pas trouvé et qu'on a un ID explicite, chercher par ID (fichiers utilisateur)
+        if (!sourceRecord && ragSource.id) {
+          sourceRecord = await prisma.rAGSource.findFirst({
+            where: {
+              id: ragSource.id,
+              userId,
+              workspaceId,
+              sourceType: { in: ['PDF', 'TEXT_FILE'] },
+              status: 'COMPLETED'
+            },
+            select: { id: true }
+          });
+        }
+
+        // Si toujours pas trouvé, chercher par titre dans les fichiers utilisateur
+        if (!sourceRecord) {
+          sourceRecord = await prisma.rAGSource.findFirst({
+            where: {
+              title: { contains: ragSource.title },
+              userId,
+              workspaceId,
+              sourceType: { in: ['PDF', 'TEXT_FILE'] },
+              isGlobal: false,
+              status: 'COMPLETED'
+            },
+            select: { id: true }
+          });
+        }
+
         if (sourceRecord) {
           ragSourceIds.push(sourceRecord.id);
         }
