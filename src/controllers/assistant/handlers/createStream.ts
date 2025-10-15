@@ -94,12 +94,13 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
       userId: req.user?.id || 'anonymous'
     });
 
-    DebugLogger.web(`[CREATE] Contexte construit - web: ${contextResult.web.length}`);
+    DebugLogger.web(`[CREATE] Contexte construit - web: ${contextResult.web.length}, rag: ${contextResult.ragContext?.length || 0}`);
 
     if (reflection === 'profond') {
       try {
         // 🎯 OPTIMISATION COMPLÈTE: Prompt avec troncature intelligente garantie pour Gemini
-        const contextWithWeb = [ragContextText, contextResult.web].filter(Boolean).join('\n\n');
+        // 🔥 INCLURE le contexte RAG du HandlerService si disponible
+        const contextWithWeb = [ragContextText, contextResult.ragContext, contextResult.web].filter(Boolean).join('\n\n');
         const optimizedPrompt = optimizePrompt('create', sanitizedInstruction, contextWithWeb, '', req);
 
         res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -172,7 +173,8 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     }
 
     // 🎯 OPTIMISATION COMPLÈTE: Prompt avec troncature intelligente garantie pour OpenAI
-    const contextWithWeb = [ragContextText, contextResult.web].filter(Boolean).join('\n\n');
+    // 🔥 INCLURE le contexte RAG du HandlerService si disponible
+    const contextWithWeb = [ragContextText, contextResult.ragContext, contextResult.web].filter(Boolean).join('\n\n');
     const optimizedPrompt = optimizePrompt('create', sanitizedInstruction, contextWithWeb, '', req);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
