@@ -33,7 +33,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
       prisma.quiz.count({ where: { userId, preset: 'NONE' } }),
       prisma.quizSequence.count({ where: { userId } }),
       prisma.usageRecord.aggregate({
-        where: { userId, resourceType: { in: ['ai_credits', 'openai_request'] } },
+        where: { userId, resourceType: 'ai_action', action: 'ai_deduction' },
         _sum: { quantity: true }
       }).then(result => result._sum.quantity || 0)
     ]);

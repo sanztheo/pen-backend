@@ -246,6 +246,15 @@ router.get('/:id/messages', async (req, res) => {
       const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle, projectId } = req.body;
       const userId = req.user!.id;
 
+    console.log('[DEBUG_MODAL] 📥 Backend - Ajout message:', { 
+      conversationId: id, 
+      role, 
+      pageId, 
+      pageTitle, 
+      projectId,
+      hasPageId: !!pageId
+    });
+
     if (!content) {
       return res.status(400).json({ error: 'Le contenu du message est requis' });
     }
@@ -276,8 +285,17 @@ router.get('/:id/messages', async (req, res) => {
           pageId: pageId || null,
           pageTitle: pageTitle || null,
           projectId: projectId || null,
+          isPageDeleted: false, // 🔥 Initialiser à false lors de la création
         }
       });
+
+    console.log('[DEBUG_MODAL] ✅ Message créé dans la DB:', {
+      messageId: message.id,
+      role: message.role,
+      pageId: message.pageId,
+      pageTitle: message.pageTitle,
+      isPageDeleted: message.isPageDeleted
+    });
 
     // Mettre à jour les métadonnées de la conversation
     await prisma.aIConversation.update({
@@ -294,6 +312,84 @@ router.get('/:id/messages', async (req, res) => {
   } catch (error) {
     console.error('[POST /conversations/:id/messages] error', error);
     res.status(500).json({ error: 'Erreur lors de l\'ajout du message' });
+  }
+});
+
+// 🔄 PATCH /conversations/:conversationId/update-page-status - Mettre à jour le statut de page
+router.patch('/:conversationId/update-page-status', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { oldPageId, pageTitle, newPageId, isPageDeleted, projectId } = req.body;
+    const userId = req.user!.id;
+
+    console.log('[DEBUG_MODAL] 📥 Backend - Requête reçue:', { conversationId, oldPageId, pageTitle, newPageId, isPageDeleted, userId });
+
+    // Vérifier que la conversation appartient à l'utilisateur
+    const conversation = await prisma.aIConversation.findFirst({
+      where: {
+        id: conversationId,
+        userId,
+        isActive: true
+      }
+    });
+
+    if (!conversation) {
+      console.log('[DEBUG_MODAL] ❌ Conversation non trouvée');
+      return res.status(404).json({ error: 'Conversation non trouvée' });
+    }
+
+    console.log('[DEBUG_MODAL] ✅ Conversation trouvée:', conversation.id);
+
+    // Chercher le message par pageTitle OU oldPageId
+    const whereConditions = [];
+    if (oldPageId) whereConditions.push({ pageId: oldPageId });
+    if (pageTitle) whereConditions.push({ pageTitle });
+
+    if (whereConditions.length === 0) {
+      console.log('[DEBUG_MODAL] ❌ Aucun critère de recherche fourni');
+      return res.status(400).json({ error: 'oldPageId ou pageTitle requis' });
+    }
+
+    console.log('[DEBUG_MODAL] 🔍 Recherche du message avec:', whereConditions);
+
+    const message = await prisma.aIMessage.findFirst({
+      where: {
+        conversationId,
+        OR: whereConditions
+      }
+    });
+
+    if (!message) {
+      console.log('[DEBUG_MODAL] ❌ Message non trouvé dans la conversation');
+      return res.status(404).json({ error: 'Message non trouvé' });
+    }
+
+    console.log('[DEBUG_MODAL] ✅ Message trouvé:', { messageId: message.id, currentPageId: message.pageId, currentIsPageDeleted: message.isPageDeleted });
+
+    // Mettre à jour
+    const updateData: any = {};
+    if (newPageId !== undefined) updateData.pageId = newPageId;
+    if (isPageDeleted !== undefined) updateData.isPageDeleted = isPageDeleted;
+    if (projectId !== undefined) updateData.projectId = projectId;
+
+    console.log('[DEBUG_MODAL] 💾 Données à mettre à jour:', updateData);
+
+    const updatedMessage = await prisma.aIMessage.update({
+      where: { id: message.id },
+      data: updateData
+    });
+
+    console.log('[DEBUG_MODAL] ✅ Message mis à jour avec succès:', {
+      messageId: message.id,
+      isPageDeleted: updatedMessage.isPageDeleted,
+      pageId: updatedMessage.pageId,
+      pageTitle: updatedMessage.pageTitle
+    });
+
+    res.json({ success: true, message: updatedMessage });
+  } catch (error) {
+    console.error('[DEBUG_MODAL] ❌ Erreur backend:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour du message' });
   }
 });
 

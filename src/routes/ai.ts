@@ -151,8 +151,8 @@ router.post('/chat', requireAICredits({ cost: 1.0, action: 'openai_proxy' }), as
 
 export default router; 
 
-// --- Proxy OpenAI compatible - Coût: 1.0 crédit ---
-router.post('/proxy/chat/completions', requireAICredits({ cost: 1.0, action: 'openai_proxy' }), async (req, res) => {
+// --- Proxy OpenAI compatible - Coût: 0.25 crédit ---
+router.post('/proxy/chat/completions', requireAICredits({ cost: 0.25, action: 'openai_proxy' }), async (req, res) => {
   try {
     // 🛡️ Validation sécurisée des paramètres OpenAI
     const validationResult = OpenAIProxySchema.safeParse(req.body);
@@ -207,7 +207,7 @@ router.post('/proxy/chat/completions', requireAICredits({ cost: 1.0, action: 'op
     
     // 🔒 AUDIT: Journaliser la consommation proxy
     const userId = (req as any).user?.id;
-    const cost = (req as any).aiCredits?.cost ?? 1.0;
+    const cost = (req as any).aiCredits?.cost ?? 0.25;
     console.log(`🔒 [AUDIT] Proxy OpenAI utilisé: userId=${userId}, cost=${cost}, status=${response.status}`);
     
     res.status(response.status).send(text);
