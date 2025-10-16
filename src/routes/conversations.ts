@@ -243,7 +243,7 @@ router.get('/:id/messages', async (req, res) => {
   router.post('/:id/messages', async (req, res) => {
     try {
       const { id } = req.params;
-      const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle, projectId } = req.body;
+      const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle, projectId, thinking, toolCalls, usedFallback } = req.body;
       const userId = req.user!.id;
 
     console.log('[DEBUG_MODAL] 📥 Backend - Ajout message:', { 
@@ -252,7 +252,9 @@ router.get('/:id/messages', async (req, res) => {
       pageId, 
       pageTitle, 
       projectId,
-      hasPageId: !!pageId
+      hasPageId: !!pageId,
+      hasThinking: !!thinking,
+      hasToolCalls: !!(toolCalls && toolCalls.length > 0)
     });
 
     if (!content) {
@@ -286,6 +288,10 @@ router.get('/:id/messages', async (req, res) => {
           pageTitle: pageTitle || null,
           projectId: projectId || null,
           isPageDeleted: false, // 🔥 Initialiser à false lors de la création
+          // 🔥 NOUVEAU: Function Calling
+          thinking: thinking || null,
+          toolCalls: toolCalls || [],
+          usedFallback: usedFallback || false,
         }
       });
 

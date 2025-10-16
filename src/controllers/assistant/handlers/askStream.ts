@@ -61,13 +61,6 @@ export const assistantAskStream = async (req: Request, res: Response) => {
 
     DebugLogger.web(`[ASK] Contexte construit - pages: ${contextResult.pages.length}, web: ${contextResult.web.length}, rag: ${contextResult.ragContext?.length || 0}`);
 
-    const history = ConversationMemory.recentAsText(req.user?.id || 'anonymous', { maxChars: 1200, maxMessages: 8 });
-
-    // 🎯 OPTIMISATION COMPLÈTE: Prompt avec troncature intelligente garantie
-    // 🔥 INCLURE le contexte RAG (fichiers, Wikipedia) si disponible
-    const contextWithWeb = [contextResult.ragContext, contextResult.pages, contextResult.web].filter(Boolean).join('\n\n');
-    const optimizedPrompt = optimizePrompt('ask', sanitizedQuery, contextWithWeb, history, req);
-
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Connection', 'keep-alive');
@@ -75,6 +68,95 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
     res.flushHeaders();
+
+    // 🔥 NOUVEAU: Mode Function Calling si des sources RAG sont disponibles
+    if (ragSources && ragSources.length > 0) {
+      console.log(`🔧 [ASK] Mode Function Calling activé (${ragSources.length} sources)`);
+
+      const { FunctionCallingService } = await import('../../../services/ai/functionCalling.js');
+
+      let currentThinking = '';
+
+      // 🔥 Envoyer un event status AVANT pour préparer l'UI
+      res.write(`event: status\n`);
+      res.write(`data: 🔧 Analyse des sources...\n\n`);
+
+      try {
+        const result = await FunctionCallingService.generateWithTools({
+          query: sanitizedQuery,
+          availableSources: ragSources.map(s => ({
+            id: s.id || '',
+            title: s.title || '',
+            type: s.type || 'UNKNOWN'
+          })),
+          workspaceId,
+          userId: req.user!.id,
+          useWeb,
+          systemPrompt: 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.',
+          timeoutMs: 5000, // Fallback après 5s
+
+          // Callbacks pour streaming temps réel
+          onThinking: (thinking) => {
+            currentThinking = thinking;
+            res.write(`event: thinking\n`);
+            res.write(`data: ${JSON.stringify({ content: thinking })}\n\n`);
+            res.write(': keepalive\n\n'); // 🔥 Commentaire SSE pour forcer le flush
+          },
+
+          onToolCall: (toolName, args) => {
+            console.log(`📤 [SSE] Envoi event tool_call: ${toolName}`);
+            res.write(`event: tool_call\n`);
+            res.write(`data: ${JSON.stringify({ tool: toolName, args })}\n\n`);
+            res.write(': keepalive\n\n'); // 🔥 Commentaire SSE pour forcer le flush
+            console.log(`📤 [SSE] Event tool_call envoyé`);
+          },
+
+          onToolResult: (toolName, toolResult) => {
+            console.log(`📤 [SSE] Envoi event tool_result: ${toolName}`);
+            const truncated = toolResult.length > 200 ? toolResult.slice(0, 200) + '...' : toolResult;
+            res.write(`event: tool_result\n`);
+            res.write(`data: ${JSON.stringify({ tool: toolName, result: truncated })}\n\n`);
+            res.write(': keepalive\n\n'); // 🔥 Commentaire SSE pour forcer le flush
+            console.log(`📤 [SSE] Event tool_result envoyé`);
+          }
+        });
+
+        // Streamer le contenu final caractère par caractère (effet typewriter)
+        for (const char of result.content) {
+          sseWriteData(res, char);
+          await new Promise(resolve => setTimeout(resolve, 5));
+        }
+
+        // Envoyer les métadonnées pour sauvegarde frontend
+        res.write(`event: metadata\n`);
+        res.write(`data: ${JSON.stringify({
+          toolCalls: result.toolCalls,
+          thinking: currentThinking,
+          usedFallback: result.usedFallback
+        })}\n\n`);
+
+        try {
+          ConversationMemory.addMessage(req.user?.id || 'anonymous', 'user', sanitizedQuery);
+          ConversationMemory.addMessage(req.user?.id || 'anonymous', 'assistant', result.content.trim());
+        } catch { }
+
+        res.write('event: done\n\n');
+        res.end();
+        return;
+
+      } catch (error) {
+        console.error('❌ [FUNCTION-CALLING] Erreur:', error);
+        // Fallback sur système classique ci-dessous
+      }
+    }
+
+    // 🎯 Système classique (si pas de sources RAG ou erreur Function Calling)
+    const history = ConversationMemory.recentAsText(req.user?.id || 'anonymous', { maxChars: 1200, maxMessages: 8 });
+
+    // 🎯 OPTIMISATION COMPLÈTE: Prompt avec troncature intelligente garantie
+    // 🔥 INCLURE le contexte RAG (fichiers, Wikipedia) si disponible
+    const contextWithWeb = [contextResult.ragContext, contextResult.pages, contextResult.web].filter(Boolean).join('\n\n');
+    const optimizedPrompt = optimizePrompt('ask', sanitizedQuery, contextWithWeb, history, req);
 
     let fullAnswer = '';
     await AIService.generateContent({
@@ -88,10 +170,10 @@ export const assistantAskStream = async (req: Request, res: Response) => {
         sseWriteData(res, normalized);
       }
     });
-    try { 
+    try {
       ConversationMemory.addMessage(req.user?.id || 'anonymous', 'user', sanitizedQuery);
       ConversationMemory.addMessage(req.user?.id || 'anonymous', 'assistant', fullAnswer.trim());
-    } catch {}
+    } catch { }
     res.write('event: done\n\n');
     res.end();
   } catch (e) {
