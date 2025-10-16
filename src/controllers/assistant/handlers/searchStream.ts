@@ -90,12 +90,6 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
       userId
     });
 
-    // 🏗️ STRUCTURE: Prompt optimisé
-    const contextWithWeb = [contextResult.pages, contextResult.ragContext, contextResult.web]
-      .filter(Boolean)
-      .join('\n\n');
-    const optimizedPrompt = optimizePrompt('search', sanitizedQuery, contextWithWeb, '', req);
-
     // 📡 SSE Setup
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -105,6 +99,119 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
     res.flushHeaders();
 
+    // 🔥 TWO-PHASE Function Calling si des sources RAG externes sont disponibles
+    if (effectiveRagSources && effectiveRagSources.length > 0) {
+      console.log(`🔧 [SEARCH] Mode Function Calling 2-PHASE activé (${effectiveRagSources.length} sources)`);
+
+      const { FunctionCallingService } = await import('../../../services/ai/functionCalling.js');
+
+      let currentThinking = '';
+      let currentToolCalls: any[] = [];
+
+      try {
+        // 🔥 PHASE 1: Décision des tools + explication streamée
+        console.log(`🔧 [SEARCH-PHASE-1] Démarrage décision tools...`);
+        
+        const toolDecision = await FunctionCallingService.decideAndExecuteTools({
+          query: sanitizedQuery,
+          availableSources: effectiveRagSources.map(s => ({
+            id: s.id || '',
+            title: s.title || '',
+            type: s.type || 'UNKNOWN'
+          })),
+          workspaceId,
+          userId,
+          useWeb,
+          systemPrompt: 'Tu es un assistant IA de recherche intelligent. Réponds de manière claire, précise et structurée.',
+
+          // Callbacks pour streaming temps réel
+          onThinking: (thinkingChunk) => {
+            currentThinking += thinkingChunk;
+            res.write(`event: thinking\n`);
+            res.write(`data: ${JSON.stringify({ content: thinkingChunk })}\n\n`);
+            res.write(': keepalive\n\n');
+          },
+
+          onToolCall: (toolName, args) => {
+            console.log(`📤 [SEARCH-PHASE-1] Envoi event tool_call: ${toolName}`);
+            res.write(`event: tool_call\n`);
+            res.write(`data: ${JSON.stringify({ tool: toolName, args })}\n\n`);
+            res.write(': keepalive\n\n');
+          },
+
+          onToolResult: (toolName, toolResult) => {
+            console.log(`📤 [SEARCH-PHASE-1] Envoi event tool_result: ${toolName}`);
+            const truncated = toolResult.length > 200 ? toolResult.slice(0, 200) + '...' : toolResult;
+            res.write(`event: tool_result\n`);
+            res.write(`data: ${JSON.stringify({ tool: toolName, result: truncated })}\n\n`);
+            res.write(': keepalive\n\n');
+          }
+        });
+
+        currentToolCalls = toolDecision.toolCalls;
+        console.log(`✅ [SEARCH-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés`);
+
+        // 🔥 PHASE 2: Génération réponse finale avec résultats des tools
+        if (toolDecision.shouldUseTools && toolDecision.toolCalls.length > 0) {
+          console.log(`🔧 [SEARCH-PHASE-2] Génération réponse finale...`);
+          
+          const toolResults = FunctionCallingService.buildContextFromToolResults(toolDecision.toolCalls);
+          
+          await FunctionCallingService.generateWithToolResults({
+            query: sanitizedQuery,
+            toolResults,
+            systemPrompt: 'Tu es un assistant IA de recherche intelligent. Réponds de manière claire, précise et structurée.',
+            onStream: (chunk) => {
+              const normalized = formatAIStreamChunk(chunk);
+              sseWriteData(res, normalized);
+            }
+          });
+
+          console.log(`✅ [SEARCH-PHASE-2] Réponse finale streamée`);
+        } else {
+          // Pas de tools utilisés → réponse directe (fallback système classique)
+          console.log(`🔧 [SEARCH-FALLBACK] Pas de tools, utilisation système classique...`);
+          
+          const contextWithWeb = [contextResult.pages, contextResult.ragContext, contextResult.web]
+            .filter(Boolean)
+            .join('\n\n');
+          const optimizedPrompt = optimizePrompt('search', sanitizedQuery, contextWithWeb, '', req);
+
+          await AIService.generateContent({
+            prompt: optimizedPrompt.userMessage,
+            context: optimizedPrompt.systemMessage,
+            temperature: optimizedPrompt.temperature,
+            maxTokens: optimizedPrompt.maxTokens,
+            onStream: (chunk: string) => {
+              const normalized = formatAIStreamChunk(chunk);
+              sseWriteData(res, normalized);
+            }
+          });
+        }
+
+        // Envoyer les métadonnées pour sauvegarde frontend
+        res.write(`event: metadata\n`);
+        res.write(`data: ${JSON.stringify({
+          toolCalls: currentToolCalls,
+          thinking: currentThinking,
+          usedFallback: !toolDecision.shouldUseTools
+        })}\n\n`);
+
+        // 📚 Références finales
+        await sendReferences(res, sourceSelection.selectedPageIds, contextResult.webRefs || [], sanitizedQuery);
+
+        res.write('event: done\n\n');
+        DebugLogger.performance('[SEARCH] Événement done envoyé');
+        res.end();
+        return;
+
+      } catch (error) {
+        console.error('❌ [SEARCH-FUNCTION-CALLING] Erreur:', error);
+        // Fallback sur système classique ci-dessous
+      }
+    }
+
+    // 🎯 Système classique (si pas de sources RAG ou erreur Function Calling)
     // 🔄 Status steps
     const steps = [
       'Analyse la requête et le contexte',
@@ -126,6 +233,11 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     } catch (error) {
       DebugLogger.performance('Erreur status steps:', error);
     }
+
+    const contextWithWeb = [contextResult.pages, contextResult.ragContext, contextResult.web]
+      .filter(Boolean)
+      .join('\n\n');
+    const optimizedPrompt = optimizePrompt('search', sanitizedQuery, contextWithWeb, '', req);
 
     // 🤖 AI Generation
     let fullResponse = '';

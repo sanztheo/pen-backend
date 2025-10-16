@@ -1,13 +1,52 @@
 /**
- * 🔧 FUNCTION CALLING SERVICE
- * Service principal pour gérer les appels OpenAI avec Function Calling
- * Inclut fallback automatique après timeout et callbacks pour streaming temps réel
+ * 🔧 FUNCTION CALLING SERVICE - TWO-PHASE SYSTEM
+ * Phase 1: AI décide des tools + stream explication + exécute tools
+ * Phase 2: AI génère réponse finale avec résultats des tools
  */
 
 import { AIService } from './base.js';
 import { FUNCTION_TOOLS } from './tools/definitions.js';
 import { ToolExecutor, type ToolContext } from './tools/executors.js';
 
+export interface ToolCallRecord {
+  name: string;
+  arguments: any;
+  result: string;
+  timestamp: number;
+}
+
+// 🔥 PHASE 1: Décision et exécution des tools
+export interface DecideToolsOptions {
+  query: string;
+  availableSources: Array<{ id: string; title: string; type: string }>;
+  workspaceId: string;
+  userId: string;
+  useWeb: boolean;
+  systemPrompt: string;
+  onThinking?: (thinking: string) => void;
+  onToolCall?: (toolName: string, args: any) => void;
+  onToolResult?: (toolName: string, result: string) => void;
+}
+
+export interface DecideToolsResult {
+  toolCalls: ToolCallRecord[];
+  thinking: string;
+  shouldUseTools: boolean;
+}
+
+// 🔥 PHASE 2: Génération finale avec résultats
+export interface GenerateWithToolResultsOptions {
+  query: string;
+  toolResults: string;
+  systemPrompt: string;
+  onStream?: (chunk: string) => void;
+}
+
+export interface GenerateWithToolResultsResult {
+  content: string;
+}
+
+// Legacy interface (deprecated, kept for backward compatibility)
 export interface FunctionCallingOptions {
   query: string;
   availableSources: Array<{ id: string; title: string; type: string }>;
@@ -18,14 +57,7 @@ export interface FunctionCallingOptions {
   onThinking?: (thinking: string) => void;
   onToolCall?: (toolName: string, args: any) => void;
   onToolResult?: (toolName: string, result: string) => void;
-  timeoutMs?: number; // Timeout pour fallback (défaut: 5000ms)
-}
-
-export interface ToolCallRecord {
-  name: string;
-  arguments: any;
-  result: string;
-  timestamp: number;
+  timeoutMs?: number;
 }
 
 export interface FunctionCallingResult {
@@ -37,12 +69,11 @@ export interface FunctionCallingResult {
 
 export class FunctionCallingService {
   /**
-   * Génère une réponse en utilisant Function Calling avec tools dynamiques
-   * Fallback automatique vers système classique si timeout dépassé
+   * 🔥 PHASE 1: Décide des tools + stream explication + exécute tools
    */
-  static async generateWithTools(
-    options: FunctionCallingOptions
-  ): Promise<FunctionCallingResult> {
+  static async decideAndExecuteTools(
+    options: DecideToolsOptions
+  ): Promise<DecideToolsResult> {
     const {
       query,
       availableSources,
@@ -52,151 +83,121 @@ export class FunctionCallingService {
       systemPrompt,
       onThinking,
       onToolCall,
-      onToolResult,
-      timeoutMs = 5000
+      onToolResult
     } = options;
 
     const toolCalls: ToolCallRecord[] = [];
     let thinking = '';
     const context: ToolContext = { userId, workspaceId };
 
-    // Construire le prompt initial avec infos sur les sources disponibles
+    console.log(`🔧 [PHASE-1] Décision tools avec ${availableSources.length} sources`);
+
+    // Construire le prompt avec infos sur les sources
     const initialPrompt = this.buildInitialPrompt(query, availableSources, useWeb);
 
-    console.log(`🔧 [FUNCTION-CALLING] Démarrage avec ${availableSources.length} sources, timeout: ${timeoutMs}ms`);
-
-    try {
-      // Démarrer avec timeout pour fallback
-      const resultPromise = this.runWithTools(
-        initialPrompt,
-        systemPrompt,
-        context,
-        toolCalls,
-        (t) => {
-          thinking = t;
-          if (onThinking) onThinking(t);
-        },
-        onToolCall,
-        onToolResult
-      );
-
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('TIMEOUT')), timeoutMs)
-      );
-
-      const content = await Promise.race([resultPromise, timeoutPromise]);
-
-      console.log(`✅ [FUNCTION-CALLING] Terminé avec ${toolCalls.length} tool calls`);
-
-      return { content, toolCalls, thinking, usedFallback: false };
-
-    } catch (error: any) {
-      if (error.message === 'TIMEOUT') {
-        console.log(`⏰ [FUNCTION-CALLING] Timeout ${timeoutMs}ms dépassé → Fallback contexte complet`);
-
-        // FALLBACK: Construire contexte traditionnel
-        const fallbackContext = await this.buildFallbackContext(
-          query,
-          availableSources,
-          context
-        );
-
-        const fallbackContent = await AIService.generateContent({
-          prompt: query,
-          context: fallbackContext,
-          temperature: 0.2,
-          maxTokens: 4000
-        });
-
-        console.log(`✅ [FUNCTION-CALLING] Fallback réussi avec ${toolCalls.length} tool calls préservés`);
-
-        return {
-          content: fallbackContent.content,
-          toolCalls, // 🔥 PRÉSERVER les tool calls déjà exécutés
-          thinking, // 🔥 PRÉSERVER le thinking déjà capturé
-          usedFallback: true
-        };
-      }
-
-      // Autre erreur → propager
-      console.error(`❌ [FUNCTION-CALLING] Erreur:`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Exécute la boucle d'interaction avec l'IA et les tools
-   */
-  private static async runWithTools(
-    prompt: string,
-    systemPrompt: string,
-    context: ToolContext,
-    toolCalls: ToolCallRecord[],
-    onThinking?: (thinking: string) => void,
-    onToolCall?: (toolName: string, args: any) => void,
-    onToolResult?: (toolName: string, result: string) => void
-  ): Promise<string> {
     const openai = AIService.getOpenAI();
 
     const messages: any[] = [
       {
         role: 'system',
-        content: systemPrompt + '\n\nTu as accès à des tools pour chercher des informations. UTILISE-LES systématiquement quand des sources sont disponibles ou quand tu as besoin d\'informations spécifiques. Ne réponds JAMAIS sans avoir d\'abord consulté les sources disponibles via les tools.'
+        content: systemPrompt + '\n\n🔥 IMPORTANT: Avant d\'utiliser les tools, tu DOIS d\'abord expliquer ton raisonnement en texte libre (ex: "Pour répondre à cette question, je vais d\'abord consulter la source disponible..."). Ensuite seulement, tu utilises les tools pour récupérer les informations nécessaires.'
       },
-      { role: 'user', content: prompt }
+      { role: 'user', content: initialPrompt }
     ];
 
-    let iterations = 0;
-    const MAX_ITERATIONS = 5;
-
-    console.log(`🔄 [FUNCTION-CALLING] Démarrage boucle d'interaction (max ${MAX_ITERATIONS} iterations)`);
-
-    while (iterations < MAX_ITERATIONS) {
-      iterations++;
-      console.log(`🔄 [FUNCTION-CALLING] Iteration ${iterations}/${MAX_ITERATIONS}`);
-
-      const response = await openai.chat.completions.create({
+    try {
+      // 🔥 ÉTAPE 1a: D'abord, demander à l'AI d'expliquer (SANS tools pour forcer le texte)
+      console.log(`💭 [PHASE-1a] Génération thinking initial (sans tools)...`);
+      
+      const thinkingStream = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
-        messages,
-        tools: FUNCTION_TOOLS as any,
-        tool_choice: 'auto', // L'IA décide
-        temperature: 0.2
+        messages: [
+          {
+            role: 'system',
+            content: 'Tu es un assistant IA. Explique brièvement (en 1-2 phrases) ce que tu vas faire pour répondre à la question de l\'utilisateur. Ne réponds PAS à la question, explique juste ton plan.'
+          },
+          { role: 'user', content: `Question: ${query}\n\nSources disponibles: ${availableSources.map(s => s.title).join(', ')}\n\nExplique brièvement ce que tu vas faire:` }
+        ],
+        temperature: 0.3,
+        max_tokens: 100,
+        stream: true
       });
 
-      const message = response.choices[0].message;
-      messages.push(message);
-
-      // 🔥 NOUVEAU : Si tool calls détectés → envoyer thinking IMMÉDIAT
-      if (message.tool_calls && message.tool_calls.length > 0) {
-        console.log(`🔧 [FUNCTION-CALLING] ${message.tool_calls.length} tool call(s) à exécuter`);
-        
-        // 🔥 Générer thinking AVANT l'exécution des tools
-        if (onThinking && iterations === 1) {
-          const thinkingMsg = `🤔 Je vais analyser la source pour répondre à votre question...`;
-          console.log(`💭 [FUNCTION-CALLING] Envoi thinking initial: ${thinkingMsg}`);
-          onThinking(thinkingMsg);
+      // Streamer le thinking
+      for await (const chunk of thinkingStream) {
+        const delta = chunk.choices[0]?.delta;
+        if (delta?.content) {
+          thinking += delta.content;
+          if (onThinking) {
+            onThinking(delta.content);
+          }
         }
       }
 
-      // Si thinking/content présent, le capturer (réponse finale)
-      if (message.content) {
-        console.log(`💭 [FUNCTION-CALLING] Contenu final reçu: ${message.content.slice(0, 100)}...`);
-        // Ne pas appeler onThinking ici, c'est la réponse finale
+      console.log(`✅ [PHASE-1a] Thinking généré: ${thinking.length} chars`);
+
+      // 🔥 ÉTAPE 1b: Maintenant, décider des tools (avec tools disponibles)
+      console.log(`🔧 [PHASE-1b] Décision tools...`);
+      
+      const toolStream = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages,
+        tools: FUNCTION_TOOLS as any,
+        tool_choice: 'auto',
+        temperature: 0.2,
+        stream: true
+      });
+
+      let toolCallsPartial: any[] = [];
+      let currentToolCallIndex = -1;
+
+      // Collecter les tool calls
+      for await (const chunk of toolStream) {
+        const delta = chunk.choices[0]?.delta;
+
+        // Collecter les tool calls (ils arrivent en morceaux)
+        if (delta?.tool_calls) {
+          for (const toolCallDelta of delta.tool_calls) {
+            const index = toolCallDelta.index;
+
+            // Nouveau tool call
+            if (index > currentToolCallIndex) {
+              currentToolCallIndex = index;
+              toolCallsPartial[index] = {
+                id: toolCallDelta.id || '',
+                type: 'function',
+                function: {
+                  name: toolCallDelta.function?.name || '',
+                  arguments: toolCallDelta.function?.arguments || ''
+                }
+              };
+            } else {
+              // Continuer à accumuler les arguments
+              if (toolCallDelta.function?.arguments) {
+                toolCallsPartial[index].function.arguments += toolCallDelta.function.arguments;
+              }
+              if (toolCallDelta.function?.name) {
+                toolCallsPartial[index].function.name += toolCallDelta.function.name;
+              }
+            }
+          }
+        }
       }
 
-      // Si pas de tool calls, on a la réponse finale
-      if (!message.tool_calls || message.tool_calls.length === 0) {
-        console.log(`✅ [FUNCTION-CALLING] Réponse finale générée (${iterations} iterations)`);
-        return message.content || 'Pas de réponse générée';
+      // Pas de tool calls → retour vide
+      if (toolCallsPartial.length === 0) {
+        console.log(`✅ [PHASE-1b] Pas de tool calls décidés`);
+        return { toolCalls: [], thinking, shouldUseTools: false };
       }
 
-      for (const toolCall of message.tool_calls) {
-        // TypeScript workaround pour accéder à toolCall.function
-        const toolCallAny = toolCall as any;
-        const toolName = toolCallAny.function.name;
-        const args = JSON.parse(toolCallAny.function.arguments);
+      console.log(`🔧 [PHASE-1b] ${toolCallsPartial.length} tool call(s) à exécuter`);
 
-        console.log(`🔧 [FUNCTION-CALLING] Exécution: ${toolName}`, args);
+      // 🔥 Exécuter les tool calls
+      for (const toolCall of toolCallsPartial) {
+        const toolName = toolCall.function.name;
+        const args = JSON.parse(toolCall.function.arguments);
+
+        console.log(`🔧 [PHASE-1] Exécution: ${toolName}`, args);
 
         if (onToolCall) {
           onToolCall(toolName, args);
@@ -215,20 +216,145 @@ export class FunctionCallingService {
           timestamp: Date.now()
         });
 
-        // Ajouter le résultat du tool à la conversation
-        messages.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          content: result
-        });
-
-        console.log(`✅ [FUNCTION-CALLING] Tool ${toolName} exécuté, résultat: ${result.slice(0, 100)}...`);
+        console.log(`✅ [PHASE-1] Tool ${toolName} exécuté`);
       }
+
+      console.log(`✅ [PHASE-1] Terminé: ${toolCalls.length} tools exécutés, thinking: ${thinking.length} chars`);
+
+      return { toolCalls, thinking, shouldUseTools: true };
+
+    } catch (error) {
+      console.error(`❌ [PHASE-1] Erreur:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 🔥 PHASE 2: Génère réponse finale avec résultats des tools
+   */
+  static async generateWithToolResults(
+    options: GenerateWithToolResultsOptions
+  ): Promise<GenerateWithToolResultsResult> {
+    const { query, toolResults, systemPrompt, onStream } = options;
+
+    console.log(`🔧 [PHASE-2] Génération réponse finale`);
+
+    const phase2SystemPrompt = `${systemPrompt}
+
+Les outils ont déjà été utilisés pour répondre à la question. Leurs résultats sont fournis ci-dessous. Utilise ces résultats pour répondre à la question de l'utilisateur de manière claire, structurée et précise.`;
+
+    const phase2Prompt = `${toolResults}
+
+Question de l'utilisateur: ${query}
+
+Réponds maintenant à la question en utilisant les résultats des outils ci-dessus.`;
+
+    let fullContent = '';
+
+    await AIService.generateContent({
+      prompt: phase2Prompt,
+      context: phase2SystemPrompt,
+      temperature: 0.2,
+      maxTokens: 4000,
+      onStream: (chunk: string) => {
+        fullContent += chunk;
+        if (onStream) {
+          onStream(chunk);
+        }
+      }
+    });
+
+    console.log(`✅ [PHASE-2] Réponse générée: ${fullContent.length} chars`);
+
+    return { content: fullContent };
+  }
+
+  /**
+   * @deprecated Use decideAndExecuteTools + generateWithToolResults instead
+   * Legacy method kept for backward compatibility
+   */
+  static async generateWithTools(
+    options: FunctionCallingOptions
+  ): Promise<FunctionCallingResult> {
+    console.warn('[DEPRECATED] generateWithTools() is deprecated. Use two-phase system instead.');
+    
+    const {
+      query,
+      availableSources,
+      workspaceId,
+      userId,
+      useWeb,
+      systemPrompt,
+      onThinking,
+      onToolCall,
+      onToolResult
+    } = options;
+
+    // Phase 1: Decide and execute tools
+    const toolDecision = await this.decideAndExecuteTools({
+      query,
+      availableSources,
+      workspaceId,
+      userId,
+      useWeb,
+      systemPrompt,
+      onThinking,
+      onToolCall,
+      onToolResult
+    });
+
+    // Phase 2: Generate with tool results
+    if (toolDecision.shouldUseTools) {
+      const toolResults = this.buildContextFromToolResults(toolDecision.toolCalls);
+      const finalResponse = await this.generateWithToolResults({
+        query,
+        toolResults,
+        systemPrompt,
+        onStream: () => {} // No streaming in legacy mode
+      });
+
+      return {
+        content: finalResponse.content,
+        toolCalls: toolDecision.toolCalls,
+        thinking: toolDecision.thinking,
+        usedFallback: false
+      };
     }
 
-    // Si MAX_ITERATIONS atteintes, erreur
-    console.error(`❌ [FUNCTION-CALLING] MAX_ITERATIONS (${MAX_ITERATIONS}) atteintes sans réponse finale`);
-    throw new Error('MAX_ITERATIONS atteintes sans réponse finale');
+    // No tools used, generate directly
+    const fallbackContent = await AIService.generateContent({
+      prompt: query,
+      context: systemPrompt,
+      temperature: 0.2,
+      maxTokens: 4000
+    });
+
+    return {
+      content: fallbackContent.content,
+      toolCalls: [],
+      thinking: toolDecision.thinking,
+      usedFallback: true
+    };
+  }
+
+  /**
+   * 🔥 Helper: Construit le contexte pour Phase 2 à partir des résultats des tools
+   */
+  static buildContextFromToolResults(toolCalls: ToolCallRecord[]): string {
+    if (toolCalls.length === 0) {
+      return '';
+    }
+
+    let context = '📚 Résultats des outils utilisés:\n\n';
+    
+    toolCalls.forEach((tc, i) => {
+      context += `### Outil ${i + 1}: ${tc.name}\n`;
+      context += `**Arguments**: ${JSON.stringify(tc.arguments, null, 2)}\n\n`;
+      context += `**Résultat**:\n${tc.result}\n\n`;
+      context += '---\n\n';
+    });
+
+    return context;
   }
 
   /**
@@ -258,39 +384,5 @@ export class FunctionCallingService {
     return prompt;
   }
 
-  /**
-   * Construit le contexte de fallback (système classique)
-   */
-  private static async buildFallbackContext(
-    query: string,
-    sources: Array<{ id: string }>,
-    context: ToolContext
-  ): Promise<string> {
-    console.log(`🔄 [FALLBACK] Construction contexte RAG classique pour ${sources.length} sources`);
-
-    // Construction contexte RAG classique
-    const { ragSystem } = await import('../rag/index.js');
-
-    const chunks = await ragSystem.intelligentSearch(query, {
-      userId: context.userId,
-      workspaceId: context.workspaceId,
-      limit: 10,
-      specificSourceIds: sources.map(s => s.id)
-    });
-
-    if (chunks.length === 0) {
-      return '';
-    }
-
-    let ragContext = '📚 Sources pertinentes:\n\n';
-    chunks.forEach((chunk, i) => {
-      ragContext += `## Source ${i + 1}: ${chunk.source.title}\n`;
-      ragContext += `${chunk.content}\n\n`;
-    });
-
-    console.log(`✅ [FALLBACK] Contexte RAG construit: ${chunks.length} chunks`);
-
-    return ragContext;
-  }
 }
 

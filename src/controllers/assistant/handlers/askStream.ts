@@ -69,20 +69,20 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
     res.flushHeaders();
 
-    // 🔥 NOUVEAU: Mode Function Calling si des sources RAG sont disponibles
+    // 🔥 TWO-PHASE Function Calling si des sources RAG sont disponibles
     if (ragSources && ragSources.length > 0) {
-      console.log(`🔧 [ASK] Mode Function Calling activé (${ragSources.length} sources)`);
+      console.log(`🔧 [ASK] Mode Function Calling 2-PHASE activé (${ragSources.length} sources)`);
 
       const { FunctionCallingService } = await import('../../../services/ai/functionCalling.js');
 
       let currentThinking = '';
-
-      // 🔥 Envoyer un event status AVANT pour préparer l'UI
-      res.write(`event: status\n`);
-      res.write(`data: 🔧 Analyse des sources...\n\n`);
+      let currentToolCalls: any[] = [];
 
       try {
-        const result = await FunctionCallingService.generateWithTools({
+        // 🔥 PHASE 1: Décision des tools + explication streamée
+        console.log(`🔧 [ASK-PHASE-1] Démarrage décision tools...`);
+        
+        const toolDecision = await FunctionCallingService.decideAndExecuteTools({
           query: sanitizedQuery,
           availableSources: ragSources.map(s => ({
             id: s.id || '',
@@ -93,51 +93,84 @@ export const assistantAskStream = async (req: Request, res: Response) => {
           userId: req.user!.id,
           useWeb,
           systemPrompt: 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.',
-          timeoutMs: 5000, // Fallback après 5s
 
           // Callbacks pour streaming temps réel
-          onThinking: (thinking) => {
-            currentThinking = thinking;
-            res.write(`event: thinking\n`);
-            res.write(`data: ${JSON.stringify({ content: thinking })}\n\n`);
-            res.write(': keepalive\n\n'); // 🔥 Commentaire SSE pour forcer le flush
+          onThinking: (thinkingChunk) => {
+            const timestamp = new Date().toISOString();
+            console.log(`⏰ [${timestamp}] 📤 [ASK-PHASE-1] Envoi event thinking, chunk: ${thinkingChunk.slice(0, 50)}...`);
+            currentThinking += thinkingChunk;
+            res.write(`event: thinking\ndata: ${JSON.stringify({ content: thinkingChunk, timestamp })}\n\n`);
+            if (typeof (res as any).flush === 'function') {
+              (res as any).flush();
+            }
+            console.log(`⏰ [${timestamp}] ✅ [ASK-PHASE-1] Event thinking envoyé + flushed`);
           },
 
           onToolCall: (toolName, args) => {
-            console.log(`📤 [SSE] Envoi event tool_call: ${toolName}`);
-            res.write(`event: tool_call\n`);
-            res.write(`data: ${JSON.stringify({ tool: toolName, args })}\n\n`);
-            res.write(': keepalive\n\n'); // 🔥 Commentaire SSE pour forcer le flush
-            console.log(`📤 [SSE] Event tool_call envoyé`);
+            const timestamp = new Date().toISOString();
+            console.log(`⏰ [${timestamp}] 📤 [ASK-PHASE-1] Envoi event tool_call: ${toolName}`);
+            res.write(`event: tool_call\ndata: ${JSON.stringify({ tool: toolName, args, timestamp })}\n\n`);
+            if (typeof (res as any).flush === 'function') {
+              (res as any).flush();
+            }
           },
 
           onToolResult: (toolName, toolResult) => {
-            console.log(`📤 [SSE] Envoi event tool_result: ${toolName}`);
+            const timestamp = new Date().toISOString();
+            console.log(`⏰ [${timestamp}] 📤 [ASK-PHASE-1] Envoi event tool_result: ${toolName}`);
             const truncated = toolResult.length > 200 ? toolResult.slice(0, 200) + '...' : toolResult;
-            res.write(`event: tool_result\n`);
-            res.write(`data: ${JSON.stringify({ tool: toolName, result: truncated })}\n\n`);
-            res.write(': keepalive\n\n'); // 🔥 Commentaire SSE pour forcer le flush
-            console.log(`📤 [SSE] Event tool_result envoyé`);
+            res.write(`event: tool_result\ndata: ${JSON.stringify({ tool: toolName, result: truncated, timestamp })}\n\n`);
+            if (typeof (res as any).flush === 'function') {
+              (res as any).flush();
+            }
           }
         });
 
-        // Streamer le contenu final caractère par caractère (effet typewriter)
-        for (const char of result.content) {
-          sseWriteData(res, char);
-          await new Promise(resolve => setTimeout(resolve, 5));
+        currentToolCalls = toolDecision.toolCalls;
+        console.log(`✅ [ASK-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés, shouldUseTools: ${toolDecision.shouldUseTools}`);
+
+        // 🔥 PHASE 2: Génération réponse finale avec résultats des tools
+        if (toolDecision.shouldUseTools && toolDecision.toolCalls.length > 0) {
+          console.log(`🔧 [ASK-PHASE-2] Génération réponse finale...`);
+          
+          const toolResults = FunctionCallingService.buildContextFromToolResults(toolDecision.toolCalls);
+          
+          await FunctionCallingService.generateWithToolResults({
+            query: sanitizedQuery,
+            toolResults,
+            systemPrompt: 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.',
+            onStream: (chunk) => {
+              sseWriteData(res, chunk);
+            }
+          });
+
+          console.log(`✅ [ASK-PHASE-2] Réponse finale streamée`);
+        } else {
+          // Pas de tools utilisés → réponse directe (fallback)
+          console.log(`🔧 [ASK-FALLBACK] Pas de tools utilisés, génération directe...`);
+          
+          await AIService.generateContent({
+            prompt: sanitizedQuery,
+            context: 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.',
+            temperature: 0.2,
+            maxTokens: 4000,
+            onStream: (chunk: string) => {
+              sseWriteData(res, chunk);
+            }
+          });
         }
 
         // Envoyer les métadonnées pour sauvegarde frontend
         res.write(`event: metadata\n`);
         res.write(`data: ${JSON.stringify({
-          toolCalls: result.toolCalls,
+          toolCalls: currentToolCalls,
           thinking: currentThinking,
-          usedFallback: result.usedFallback
+          usedFallback: !toolDecision.shouldUseTools
         })}\n\n`);
 
         try {
           ConversationMemory.addMessage(req.user?.id || 'anonymous', 'user', sanitizedQuery);
-          ConversationMemory.addMessage(req.user?.id || 'anonymous', 'assistant', result.content.trim());
+          ConversationMemory.addMessage(req.user?.id || 'anonymous', 'assistant', '');
         } catch { }
 
         res.write('event: done\n\n');
