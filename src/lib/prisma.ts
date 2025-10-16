@@ -4,99 +4,229 @@ declare global {
   var __prisma: PrismaClient | undefined;
 }
 
-// Instance singleton de PrismaClient avec configuration optimisée pour Neon
+// 🎯 Auto-détection environnement (local vs production)
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT === 'production';
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// 🔧 Configuration dynamique selon l'environnement
+const getDatabaseUrl = (): string => {
+  const baseUrl = process.env.DATABASE_URL || '';
+  
+  if (!baseUrl) {
+    throw new Error('❌ DATABASE_URL manquante dans .env');
+  }
+
+  // Paramètres optimisés selon l'environnement
+  const params = new URLSearchParams();
+  
+  if (isProduction) {
+    // 🚀 PRODUCTION: Configuration pour 1000+ utilisateurs simultanés
+    params.set('connection_limit', '50');        // Max 50 connexions par instance
+    params.set('pool_timeout', '20');            // 20s max d'attente pour connexion
+    params.set('connect_timeout', '10');         // 10s timeout connexion initiale
+    params.set('statement_timeout', '30000');    // 30s max par requête SQL
+    params.set('idle_in_transaction_session_timeout', '60000'); // Ferme transactions inactives après 60s
+  } else {
+    // 💻 DÉVELOPPEMENT: Configuration légère
+    params.set('connection_limit', '10');        // 10 connexions suffisent
+    params.set('pool_timeout', '20');
+    params.set('connect_timeout', '10');
+    params.set('statement_timeout', '30000');
+    params.set('idle_in_transaction_session_timeout', '60000');
+  }
+
+  // Construire l'URL finale
+  const hasParams = baseUrl.includes('?');
+  return `${baseUrl}${hasParams ? '&' : '?'}${params.toString()}`;
+};
+
+// 📊 Instance singleton de PrismaClient avec configuration optimisée
 export const prisma = globalThis.__prisma || new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  log: isProduction 
+    ? ['error'] // Production: seulement les erreurs
+    : ['query', 'error', 'warn'], // Dev: tout voir pour debug
+  
   datasources: {
     db: {
-      url: process.env.DATABASE_URL
+      url: getDatabaseUrl()
     }
   },
-  // Configuration pour optimiser les performances avec Neon
+  
   errorFormat: 'minimal',
+  
+  // ⚡ Configuration transactions optimisée
   transactionOptions: {
-    timeout: 30000, // 30s timeout pour les transactions
-    maxWait: 30000, // 30s maximum wait time
-    isolationLevel: 'ReadCommitted'
+    timeout: 30000,           // 30s timeout pour transactions
+    maxWait: 20000,           // 20s max d'attente avant erreur
+    isolationLevel: 'ReadCommitted' // Isolation level équilibré
   }
 });
 
 // En développement, éviter les reconnexions multiples lors des hot reloads
-if (process.env.NODE_ENV === 'development') {
+if (isDevelopment) {
   globalThis.__prisma = prisma;
 }
 
-// 🔄 Fonction pour tester et reconnecter si nécessaire
-export async function ensureConnection() {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    return true;
-  } catch (error: any) {
-    console.warn('⚠️ Reconnexion à la base de données nécessaire:', error.message);
+// 🔄 Fonction de reconnexion intelligente avec retry exponentiel
+export async function ensureConnection(maxRetries = 3): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      await prisma.$disconnect();
-      await prisma.$connect();
       await prisma.$queryRaw`SELECT 1`;
-      console.log('✅ Reconnexion réussie');
+      if (attempt > 1) {
+        console.log(`✅ Reconnexion réussie après ${attempt} tentatives`);
+      }
       return true;
-    } catch (reconnectError: any) {
-      console.error('❌ Échec de reconnexion:', reconnectError.message);
-      return false;
+    } catch (error: any) {
+      const errorMessage = error.message || String(error);
+      
+      // Détecter les erreurs de connexion
+      const isConnectionError = 
+        errorMessage.includes('terminating connection') ||
+        errorMessage.includes('Connection terminated') ||
+        errorMessage.includes('ECONNRESET') ||
+        errorMessage.includes('Connection closed') ||
+        errorMessage.includes('timeout') ||
+        errorMessage.includes('ECONNREFUSED');
+      
+      if (isConnectionError && attempt < maxRetries) {
+        // Backoff exponentiel: 1s, 2s, 4s, etc.
+        const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        console.warn(`⚠️ [Tentative ${attempt}/${maxRetries}] Erreur connexion DB:`, errorMessage);
+        console.log(`🔄 Retry dans ${delayMs}ms...`);
+        
+        // Déconnecter proprement
+        try {
+          await prisma.$disconnect();
+        } catch (disconnectError) {
+          // Ignorer les erreurs de déconnexion
+        }
+        
+        // Attendre avant retry
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        
+        // Reconnecter
+        try {
+          await prisma.$connect();
+        } catch (connectError) {
+          console.warn(`⚠️ Échec reconnexion (tentative ${attempt})`);
+        }
+      } else {
+        console.error(`❌ Erreur DB définitive après ${attempt} tentatives:`, errorMessage);
+        return false;
+      }
     }
+  }
+  
+  return false;
+}
+
+// 💓 Keep-alive automatique pour éviter les timeouts (important en production)
+let keepAliveInterval: NodeJS.Timeout | null = null;
+
+export function startKeepAlive() {
+  if (keepAliveInterval) {
+    console.log('⚠️ Keep-alive déjà actif');
+    return;
+  }
+
+  // Ping la DB toutes les 5 minutes en production, 10 min en dev
+  const intervalMs = isProduction ? 5 * 60 * 1000 : 10 * 60 * 1000;
+  
+  keepAliveInterval = setInterval(async () => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      console.log(`💓 DB keep-alive [${isProduction ? 'PROD' : 'DEV'}]`);
+    } catch (error: any) {
+      console.error('❌ Keep-alive ping failed:', error.message);
+      // Tenter une reconnexion automatique
+      const reconnected = await ensureConnection(2);
+      if (reconnected) {
+        console.log('✅ Keep-alive: reconnexion automatique réussie');
+      }
+    }
+  }, intervalMs);
+
+  console.log(`✅ DB Keep-alive activé (ping toutes les ${intervalMs / 60000} min)`);
+}
+
+export function stopKeepAlive() {
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval);
+    keepAliveInterval = null;
+    console.log('🛑 DB Keep-alive désactivé');
   }
 }
 
-// 🛡️ Gérer proprement la fermeture des connexions pour éviter les fuites
+// 🛡️ Gestion propre de l'arrêt
 let isShuttingDown = false;
 
 const gracefulShutdown = async (signal: string) => {
   if (isShuttingDown) {
-    console.log(`⚠️ ${signal} déjà en cours de traitement, forcer l'arrêt...`);
+    console.log(`⚠️ ${signal} déjà en cours, forcer l'arrêt...`);
     process.exit(1);
   }
   
   isShuttingDown = true;
-  console.log(`🔄 ${signal} reçu, fermeture propre des connexions Prisma...`);
+  console.log(`🔄 ${signal} reçu, fermeture propre...`);
   
   try {
+    // 1. Arrêter le keep-alive
+    stopKeepAlive();
+    
+    // 2. Attendre un peu pour les dernières requêtes
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // 3. Fermer les connexions Prisma
     await prisma.$disconnect();
-    console.log('✅ Connexions Prisma fermées proprement');
+    console.log('✅ Connexions DB fermées proprement');
   } catch (error) {
-    console.error('❌ Erreur lors de la fermeture Prisma:', error);
+    console.error('❌ Erreur lors de la fermeture:', error);
   } finally {
     process.exit(0);
   }
 };
 
-// Capture tous les signaux d'arrêt importants
+// Capturer tous les signaux d'arrêt
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2')); // nodemon
 
 process.on('beforeExit', async (code) => {
   if (!isShuttingDown) {
-    console.log(`🔄 beforeExit (code: ${code}), fermeture des connexions Prisma...`);
+    console.log(`🔄 beforeExit (code: ${code}), fermeture connexions...`);
     await prisma.$disconnect().catch(err => 
       console.warn('⚠️ Erreur fermeture beforeExit:', err)
     );
   }
 });
 
-// Gérer les erreurs non catchées pour éviter les connexions pendantes
+// Gérer les erreurs non catchées
 process.on('uncaughtException', async (error) => {
   console.error('❌ Exception non gérée:', error);
   if (!isShuttingDown) {
+    stopKeepAlive();
     await prisma.$disconnect().catch(() => {});
   }
   process.exit(1);
 });
 
 process.on('unhandledRejection', async (reason, promise) => {
-  console.error('❌ Promise rejetée non gérée:', reason, 'Promise:', promise);
+  console.error('❌ Promise rejetée non gérée:', reason);
   if (!isShuttingDown) {
+    stopKeepAlive();
     await prisma.$disconnect().catch(() => {});
   }
   process.exit(1);
 });
 
-export default prisma; 
+// 📊 Afficher la config au démarrage
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log('🗄️  CONFIGURATION DATABASE PRISMA');
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+console.log(`📍 Environnement: ${isProduction ? '🚀 PRODUCTION' : '💻 DEVELOPMENT'}`);
+console.log(`🔗 Connection Pool: ${isProduction ? '50 connexions max' : '10 connexions max'}`);
+console.log(`⏱️  Timeouts: 30s statement, 60s idle transaction`);
+console.log(`🔄 Auto-retry: Activé (3 tentatives max)`);
+console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+export default prisma;
