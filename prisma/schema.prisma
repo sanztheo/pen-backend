@@ -612,6 +612,11 @@ model AIMessage {
   projectId      String?        @map("project_id") @db.Uuid // ID du projet de la page créée
   isPageDeleted  Boolean?       @default(false) @map("is_page_deleted") // Statut de suppression de la page
   
+  // 🔥 NOUVEAU: Function Calling (tools utilisés par l'IA)
+  thinking       String?        @db.Text // Réflexion de l'IA avant réponse
+  toolCalls      Json?          @default("[]") @map("tool_calls") // Liste des tool calls executés
+  usedFallback   Boolean?       @default(false) @map("used_fallback") // Si fallback contexte utilisé (timeout)
+  
   // Timing
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   
