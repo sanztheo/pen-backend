@@ -35,7 +35,7 @@ import { AuthService } from './services/auth.js';
 import { DatabaseHealthCheck } from './lib/dbHealthCheck.js';
 // import { Logger } from './lib/logger.js'; // ❌ DÉSACTIVÉ - cache les logs console
 import { PrismaPersistence } from './lib/y-prisma.js';
-import { prisma } from './lib/prisma.js';
+import { prisma, startKeepAlive } from './lib/prisma.js';
 import { progressService } from './services/progressService.js';
 import compression from 'compression';
 import { backendConfig, CLIENT_URL } from './utils/config.js';
@@ -473,6 +473,9 @@ server.listen(PORT, async () => {
     if (connectionOk) {
       console.log('🎯 Démarrage des tâches automatiques...');
       startCronJobs();
+      
+      // 💓 Activer le keep-alive DB pour éviter les timeouts
+      startKeepAlive();
     } else {
       console.error('⚠️ Tâches automatiques désactivées - BDD inaccessible');
     }
