@@ -44,7 +44,7 @@ const getDatabaseUrl = (): string => {
 export const prisma = globalThis.__prisma || new PrismaClient({
   log: isProduction 
     ? ['error'] // Production: seulement les erreurs
-    : ['query', 'error', 'warn'], // Dev: tout voir pour debug
+    : ['error', 'warn'], // Dev: erreurs et warnings uniquement (queries cachées)
   
   datasources: {
     db: {
