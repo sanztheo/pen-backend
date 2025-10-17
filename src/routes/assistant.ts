@@ -223,10 +223,11 @@ router.post('/rag/context', async (req: any, res) => {
           console.error(`🔥 [RAG-FILES] Erreur recherche fichier "${file.title}":`, error);
         }
       }
-      console.log(`🔥 [RAG-FILES] ${specificSourceIds.length} fichier(s) sélectionné(s) → IGNORE SESSION & WIKIPEDIA`);
+      console.log(`🔥 [RAG-FILES] ${specificSourceIds.length} fichier(s) sélectionné(s)`);
     }
-    // PRIORITÉ 2: Sources Wikipedia explicitement sélectionnées
-    else if (selectedSources && selectedSources.wikipediaSources && selectedSources.wikipediaSources.length > 0) {
+    
+    // PRIORITÉ 2: Sources Wikipedia explicitement sélectionnées (seulement si aucun fichier trouvé)
+    if (specificSourceIds.length === 0 && selectedSources && selectedSources.wikipediaSources && selectedSources.wikipediaSources.length > 0) {
       sourcesToProcess = selectedSources.wikipediaSources.map((s: { title: string }) => ({ title: s.title }));
       console.log(`🔍 [RAG-DEBUG] Recherche des IDs pour les sources Wikipedia sélectionnées:`, sourcesToProcess.map((s: { title: string }) => s.title));
       
@@ -251,10 +252,11 @@ router.post('/rag/context', async (req: any, res) => {
           console.error(`🔍 [RAG-DEBUG] Erreur recherche source "${source.title}":`, error);
         }
       }
-      console.log(`🔍 [RAG-DEBUG] IDs sources finaux:`, specificSourceIds);
+      console.log(`🔍 [RAG-DEBUG] IDs sources Wikipedia finaux:`, specificSourceIds);
     }
-    // PRIORITÉ 3: Sources de session active (SEULEMENT si aucun fichier ni Wikipedia)
-    else if (activeSessionSources && activeSessionSources.length > 0) {
+    
+    // PRIORITÉ 3: Sources de session active (SEULEMENT si aucun fichier ni Wikipedia trouvé)
+    if (specificSourceIds.length === 0 && activeSessionSources && activeSessionSources.length > 0) {
       sourcesToProcess = activeSessionSources;
       console.log(`🔍 [RAG-DEBUG] Recherche des IDs pour les sources de session:`, sourcesToProcess.map(s => s.title));
       
@@ -276,10 +278,10 @@ router.post('/rag/context', async (req: any, res) => {
             console.warn(`🔍 [RAG-DEBUG] Source "${source.title}" non trouvée dans la base RAG`);
           }
         } catch (error) {
-          console.error(`🔍 [RAG-DEBUG] Erreur recherche source "${source.title}":`, error);
+          console.error(`🔍 [RAG-DEBUG] Erreur recherche source de session "${source.title}":`, error);
         }
       }
-      console.log(`🔍 [RAG-DEBUG] IDs sources finaux:`, specificSourceIds);
+      console.log(`🔍 [RAG-DEBUG] IDs sources de session finaux:`, specificSourceIds);
     }
 
     let searchResults;

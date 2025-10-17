@@ -57,8 +57,8 @@ export class DashboardLayoutService {
       }
 
       return {
-        layout: userLayout.layout as LayoutItem[],
-        visibleCharts: userLayout.visibleCharts as string[]
+        layout: userLayout.layout as unknown as LayoutItem[],
+        visibleCharts: userLayout.visibleCharts as unknown as string[]
       };
     } catch (error) {
       console.error('❌ [DashboardLayoutService] Erreur récupération layout:', error);
@@ -92,8 +92,8 @@ export class DashboardLayoutService {
       console.log(`✅ [DashboardLayoutService] Layout sauvegardé pour user ${userId}`);
 
       return {
-        layout: userLayout.layout as LayoutItem[],
-        visibleCharts: userLayout.visibleCharts as string[]
+        layout: userLayout.layout as unknown as LayoutItem[],
+        visibleCharts: userLayout.visibleCharts as unknown as string[]
       };
     } catch (error) {
       console.error('❌ [DashboardLayoutService] Erreur sauvegarde layout:', error);
