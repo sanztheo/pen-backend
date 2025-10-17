@@ -20,6 +20,7 @@ import conversationsRoutes from './routes/conversations.js';
 import quizRoutes from './routes/quiz.js';
 import reorderRoutes from './routes/reorder.js';
 import graphicsRoutes from './routes/graphics.js';
+import dashboardLayoutRoutes from './routes/dashboardLayoutRoutes.js';
 import billingRoutes from './routes/billing.js';
 import limitsRoutes from './routes/limits.js';
 import aiCreditsRoutes from './routes/aiCredits.js';
@@ -82,6 +83,7 @@ app.use('/api/conversations', conversationsRoutes);
 app.use('/api/quiz', quizRoutes);
 app.use('/api/quiz/graphics', graphicsRoutes);
 app.use('/api/reorder', reorderRoutes);
+app.use('/api/dashboard-layout', dashboardLayoutRoutes);
 // 🛡️ SÉCURITÉ: Routes admin supprimées pour éviter les vulnérabilités
 app.use('/api/billing', billingRoutes);
 app.use('/api/limits', limitsRoutes);
