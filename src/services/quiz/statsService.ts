@@ -1,5 +1,27 @@
 import { prisma } from '../../lib/prisma';
 
+/**
+ * Helper pour calculer la date de début selon la période
+ */
+function getStartDate(period: 'week' | 'month' | 'year'): Date {
+  const now = new Date();
+  const startDate = new Date();
+
+  switch (period) {
+    case 'week':
+      startDate.setDate(now.getDate() - 7);
+      break;
+    case 'month':
+      startDate.setMonth(now.getMonth() - 1);
+      break;
+    case 'year':
+      startDate.setFullYear(now.getFullYear() - 1);
+      break;
+  }
+
+  return startDate;
+}
+
 export interface AdvancedQuizStats {
   userId: string;
   totalQuizzes: number;
@@ -85,9 +107,17 @@ export class StatsService {
   /**
    * Récupère les statistiques avancées complètes d'un utilisateur
    */
-  static async getAdvancedUserStats(userId: string): Promise<AdvancedQuizStats> {
+  static async getAdvancedUserStats(
+    userId: string,
+    period: 'week' | 'month' | 'year' = 'month'
+  ): Promise<AdvancedQuizStats> {
+    const startDate = getStartDate(period);
+    
     const allQuizzes = await prisma.quiz.findMany({
-      where: { userId },
+      where: { 
+        userId,
+        createdAt: { gte: startDate }
+      },
       include: { result: true },
       orderBy: { completedAt: 'desc' }
     });
@@ -184,11 +214,17 @@ export class StatsService {
   /**
    * Analyse la performance par matière/spécialité
    */
-  static async getSubjectBreakdown(userId: string): Promise<SubjectPerformance[]> {
+  static async getSubjectBreakdown(
+    userId: string,
+    period: 'week' | 'month' | 'year' = 'month'
+  ): Promise<SubjectPerformance[]> {
+    const startDate = getStartDate(period);
+    
     const quizzes = await prisma.quiz.findMany({
       where: {
         userId,
-        isCompleted: true
+        isCompleted: true,
+        createdAt: { gte: startDate }
       },
       include: { result: true },
       orderBy: { completedAt: 'desc' }
@@ -258,11 +294,17 @@ export class StatsService {
   /**
    * Analyse la performance par niveau de difficulté
    */
-  static async getDifficultyAnalysis(userId: string): Promise<DifficultyAnalysis> {
+  static async getDifficultyAnalysis(
+    userId: string,
+    period: 'week' | 'month' | 'year' = 'month'
+  ): Promise<DifficultyAnalysis> {
+    const startDate = getStartDate(period);
+    
     const quizzes = await prisma.quiz.findMany({
       where: {
         userId,
-        isCompleted: true
+        isCompleted: true,
+        createdAt: { gte: startDate }
       },
       include: { result: true }
     });
@@ -285,11 +327,17 @@ export class StatsService {
   /**
    * Analyse le temps passé
    */
-  static async getTimeAnalytics(userId: string): Promise<TimeAnalytics> {
+  static async getTimeAnalytics(
+    userId: string,
+    period: 'week' | 'month' | 'year' = 'month'
+  ): Promise<TimeAnalytics> {
+    const startDate = getStartDate(period);
+    
     const quizzes = await prisma.quiz.findMany({
       where: {
         userId,
-        isCompleted: true
+        isCompleted: true,
+        createdAt: { gte: startDate }
       },
       include: { result: true }
     });
@@ -353,12 +401,18 @@ export class StatsService {
   /**
    * Stats sur les pages sources utilisées
    */
-  static async getPageSourcesUsage(userId: string): Promise<PageSourceUsage[]> {
+  static async getPageSourcesUsage(
+    userId: string,
+    period: 'week' | 'month' | 'year' = 'month'
+  ): Promise<PageSourceUsage[]> {
+    const startDate = getStartDate(period);
+    
     const quizzes = await prisma.quiz.findMany({
       where: {
         userId,
         isCompleted: true,
-        hasDocuments: true
+        hasDocuments: true,
+        createdAt: { gte: startDate }
       },
       include: { result: true }
     });
@@ -366,8 +420,15 @@ export class StatsService {
     const pageUsageMap = new Map<string, any[]>();
 
     quizzes.forEach(quiz => {
-      const sourceDocuments = (quiz.sourceDocuments as any) || {};
-      const pages = sourceDocuments.pages || [];
+      const sourceDocuments = (quiz.sourceDocuments as any);
+      
+      // sourceDocuments peut être soit un tableau directement, soit un objet avec une propriété pages
+      let pages = [];
+      if (Array.isArray(sourceDocuments)) {
+        pages = sourceDocuments;
+      } else if (sourceDocuments && Array.isArray(sourceDocuments.pages)) {
+        pages = sourceDocuments.pages;
+      }
 
       pages.forEach((page: any) => {
         const pageId = page.id || page.pageId || 'unknown';
@@ -407,11 +468,17 @@ export class StatsService {
   /**
    * Stats sur les types de questions
    */
-  static async getQuestionTypeStats(userId: string): Promise<QuestionTypeStats[]> {
+  static async getQuestionTypeStats(
+    userId: string,
+    period: 'week' | 'month' | 'year' = 'month'
+  ): Promise<QuestionTypeStats[]> {
+    const startDate = getStartDate(period);
+    
     const quizzes = await prisma.quiz.findMany({
       where: {
         userId,
-        isCompleted: true
+        isCompleted: true,
+        createdAt: { gte: startDate }
       },
       include: { result: true }
     });

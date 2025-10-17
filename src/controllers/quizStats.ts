@@ -373,7 +373,7 @@ export class QuizStatsController {
 
       const period = (req.query.period as 'week' | 'month' | 'year') || 'month';
 
-      // Récupérer toutes les stats en parallèle
+      // Récupérer toutes les stats en parallèle avec filtrage par période
       const [
         advanced,
         progression,
@@ -383,13 +383,13 @@ export class QuizStatsController {
         sources,
         questionTypes
       ] = await Promise.all([
-        StatsService.getAdvancedUserStats(userId),
+        StatsService.getAdvancedUserStats(userId, period),
         StatsService.getProgressionOverTime(userId, period),
-        StatsService.getSubjectBreakdown(userId),
-        StatsService.getDifficultyAnalysis(userId),
-        StatsService.getTimeAnalytics(userId),
-        StatsService.getPageSourcesUsage(userId),
-        StatsService.getQuestionTypeStats(userId)
+        StatsService.getSubjectBreakdown(userId, period),
+        StatsService.getDifficultyAnalysis(userId, period),
+        StatsService.getTimeAnalytics(userId, period),
+        StatsService.getPageSourcesUsage(userId, period),
+        StatsService.getQuestionTypeStats(userId, period)
       ]);
 
       res.status(200).json({
