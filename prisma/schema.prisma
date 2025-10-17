@@ -37,6 +37,8 @@ model User {
   ragSessions           RAGSession[]
   // 💬 AI Conversations
   aiConversations       AIConversation[]
+  // 📊 Quiz Dashboard Layout
+  dashboardLayout       UserDashboardLayout?
 
   @@map("users")
 }
@@ -247,6 +249,10 @@ model Quiz {
   hasDocuments        Boolean          @default(false) @map("has_documents")
   sourceDocuments     Json?            @map("source_documents")
   status              String?          @default("ready") @db.VarChar(20)
+  targetGrade         Float?           @map("target_grade")
+  timeLimit           Int?             @map("time_limit")
+  difficulty          String?          @db.VarChar(20)
+  questionTypes       Json?            @map("question_types")
   result              QuizResult?
   template            QuizTemplate?    @relation(fields: [templateId], references: [id])
   user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -696,4 +702,17 @@ enum RAGSourceStatus {
 enum AIMessageRole {
   USER
   ASSISTANT
+}
+
+// 📊 Quiz Dashboard Layout - Sauvegarde de la disposition personnalisée
+model UserDashboardLayout {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @unique @map("user_id") @db.VarChar(255)
+  layout        Json     @default("[]")
+  visibleCharts Json     @default("[]") @map("visible_charts")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_dashboard_layouts")
 }

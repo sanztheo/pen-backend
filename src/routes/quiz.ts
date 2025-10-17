@@ -5,6 +5,7 @@ import { authenticateToken } from '../middlewares/auth.js';
 import { requireCustomQuizLimits, requirePresetSequenceLimits } from '../middlewares/requireQuizLimits.js';
 import { requireAICredits } from '../middlewares/requireAICredits.js';
 import { requirePremiumPlan } from '../middlewares/requirePremiumPlan.js';
+import quizStatsRouter from './quizStats.js';
 
 const router = Router();
 
@@ -93,10 +94,7 @@ router.post('/analyze-workspace', (req, res) => {
   });
 });
 
-router.get('/statistics', (req, res) => {
-  res.status(501).json({ 
-    message: 'Statistiques détaillées disponibles dans une version future' 
-  });
-});
+// Routes de statistiques détaillées
+router.use('/statistics', quizStatsRouter);
 
 export default router; 
