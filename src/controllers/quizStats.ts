@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { StatsService } from '../services/quiz/statsService';
-import { DashboardLayoutService } from '../services/quiz/dashboardLayoutService';
+import { StatsService } from '../services/quiz/statsService.js';
+import { DashboardLayoutService } from '../services/quiz/dashboardLayoutService.js';
 
 /**
  * Contrôleur pour les statistiques de quiz

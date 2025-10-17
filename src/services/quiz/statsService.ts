@@ -1,4 +1,4 @@
-import { prisma } from '../../lib/prisma';
+import { prisma } from '../../lib/prisma.js';
 
 /**
  * Helper pour calculer la date de début selon la période
