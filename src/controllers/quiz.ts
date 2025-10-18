@@ -443,6 +443,18 @@ export class QuizController {
       for await (const event of generator) {
         const eventData = JSON.stringify(event);
         res.write(`data: ${eventData}\n\n`);
+
+        // Quand la correction est terminée, marquer le quiz comme complété
+        if (event.type === 'completion' && event.finalResult) {
+          console.log('✅ [SUBMIT-QUIZ] Correction complétée, marquage du quiz comme isCompleted');
+          await prisma.quiz.update({
+            where: { id: quizId },
+            data: {
+              isCompleted: true,
+              updatedAt: new Date()
+            }
+          });
+        }
       }
 
       res.end();
