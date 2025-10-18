@@ -4,6 +4,7 @@ import { SchoolLevel, QuestionType, LyceeSpecialty } from '../services/quiz/type
 import { OpenAIAssistantService } from '../services/quiz/assistant/index.js';
 import { prisma } from '../lib/prisma.js';
 import { v4 as uuidv4 } from 'uuid';
+import { Question, UserAnswer, QuizCorrectionRequest } from '../services/quiz/types.js';
 
 // Stockage temporaire des sessions de streaming
 const streamingSessions = new Map<string, {
@@ -797,5 +798,233 @@ export class QuizStreamingController {
     // Fermer la connexion SSE
     sendSSE('end', { message: 'Génération terminée' });
     res.end();
+  }
+
+  /**
+   * POST /api/quiz/submit-and-correct-stream - Soumet et corrige un quiz avec streaming
+   */
+  static async submitAndCorrectStream(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        return;
+      }
+
+      const { quizId, answers, sourceDocuments } = req.body;
+
+      if (!quizId || !Array.isArray(answers)) {
+        res.status(400).json({ 
+          error: 'Paramètres manquants: quizId et answers requis' 
+        });
+        return;
+      }
+
+      // Récupérer le quiz et valider ownership
+      const quiz = await prisma.quiz.findFirst({
+        where: {
+          id: quizId,
+          userId
+        }
+      });
+
+      if (!quiz) {
+        res.status(404).json({ error: 'Quiz non trouvé' });
+        return;
+      }
+
+      // Configuration SSE
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Cache-Control',
+      });
+
+      // Fonction pour envoyer des événements SSE
+      const sendSSE = (event: string, data: any) => {
+        res.write(`event: ${event}\n`);
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+        if (typeof res.flush === 'function') {
+          res.flush();
+        }
+      };
+
+      try {
+        // Signaler le début de la correction
+        sendSSE('correction-started', {
+          quizId,
+          message: 'Correction en cours...'
+        });
+
+        console.log(`🚀 [CORRECTION-STREAMING] Début correction quiz ${quizId}`);
+
+        // Récupérer les questions du quiz
+        const questions = (Array.isArray(quiz.questions) ? quiz.questions : []) as unknown as Question[];
+        
+        // Convertir les answers du frontend en UserAnswer[]
+        const userAnswers: UserAnswer[] = answers.map((ans: any) => ({
+          questionId: ans.questionId,
+          answer: ans.answer,
+          timeSpent: ans.timeSpent || 0
+        }));
+
+        // Construire la requête de correction
+        const correctionRequest: QuizCorrectionRequest = {
+          quizId,
+          userId,
+          userAnswers,
+          submittedAt: new Date(),
+          preset: (quiz as any).preset || 'NONE',
+          specificSubject: (quiz as any).specificSubject,
+          schoolLevel: quiz.schoolLevel as SchoolLevel || SchoolLevel.COLLEGE,
+          hasDocuments: !!sourceDocuments && sourceDocuments.length > 0,
+          sourceDocuments,
+          coursesOnly: false,
+          workspaceContent: []
+        };
+
+        // Utiliser le générateur de correction streaming
+        const correctionGenerator = await import('../services/quiz/generators/correctionGenerator.js');
+        const generator = correctionGenerator.CorrectionGenerator.correctQuizStreaming(
+          questions,
+          userAnswers,
+          correctionRequest
+        );
+
+        // Itérer sur les événements du générateur
+        for await (const event of generator) {
+          if (event.type === 'closed-questions') {
+            console.log(`✅ [CORRECTION-STREAMING] ${event.correction?.length || 0} questions fermées corrigées`);
+            sendSSE('closed-questions-corrected', {
+              corrections: event.correction,
+              count: event.correction?.length || 0
+            });
+          } else if (event.type === 'open-question') {
+            console.log(`✅ [CORRECTION-STREAMING] Question ouverte ${event.questionNumber}/${event.totalOpenQuestions} corrigée`);
+            sendSSE('open-question-corrected', {
+              questionNumber: event.questionNumber,
+              totalOpenQuestions: event.totalOpenQuestions,
+              correction: event.correction
+            });
+          } else if (event.type === 'completion') {
+            console.log(`🎉 [CORRECTION-STREAMING] Correction terminée`);
+            
+            // Sauvegarder le résultat en base de données
+            if (event.finalResult) {
+              await prisma.quiz.update({
+                where: { id: quizId },
+                data: {
+                  isCompleted: true,
+                  updatedAt: new Date()
+                }
+              });
+
+              // Envoyer l'analyse détaillée IA
+              sendSSE('ai-analysis', {
+                summary: event.finalResult.aiCorrection?.globalFeedback || '',
+                strengths: event.finalResult.aiCorrection?.strengths || [],
+                weaknesses: event.finalResult.aiCorrection?.weaknesses || [],
+                recommendations: event.finalResult.aiCorrection?.recommendations || [],
+                personalizedTips: event.finalResult.metadata?.personalizedTips || []
+              });
+            }
+
+            sendSSE('correction-completed', {
+              quizId,
+              result: event.finalResult
+            });
+          }
+        }
+
+      } catch (error) {
+        console.error('❌ [CORRECTION-STREAMING] Erreur génération:', error);
+        
+        sendSSE('error', {
+          message: 'Erreur lors de la correction du quiz',
+          details: error instanceof Error ? error.message : 'Erreur inconnue'
+        });
+      }
+
+      // Fermer la connexion SSE
+      sendSSE('end', { message: 'Correction terminée' });
+      res.end();
+
+    } catch (error) {
+      console.error('❌ [CORRECTION-STREAMING] Erreur contrôleur:', error);
+      
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: 'Erreur lors de l\'initialisation du streaming de correction',
+          details: error instanceof Error ? error.message : 'Erreur inconnue'
+        });
+      }
+    }
+  }
+
+  /**
+   * POST /api/quiz/retake/:quizId - Crée une nouvelle tentative d'un quiz existant
+   */
+  static async retakeQuiz(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { quizId } = req.params;
+
+      if (!userId || !quizId) {
+        res.status(401).json({ error: 'Utilisateur non authentifié ou quiz ID manquant' });
+        return;
+      }
+
+      // Récupérer le quiz original
+      const originalQuiz = await prisma.quiz.findFirst({
+        where: {
+          id: quizId,
+          userId
+        }
+      });
+
+      if (!originalQuiz) {
+        res.status(404).json({ error: 'Quiz non trouvé' });
+        return;
+      }
+
+      console.log(`🔄 [RETAKE] Création d'une nouvelle tentative pour le quiz ${quizId}`);
+
+      // Créer une nouvelle tentative (copie du quiz avec les mêmes questions)
+      const newAttempt = await prisma.quiz.create({
+        data: {
+          userId,
+          title: originalQuiz.title,
+          schoolLevel: originalQuiz.schoolLevel,
+          questions: originalQuiz.questions as any,
+          isCompleted: false,
+          preset: originalQuiz.preset,
+          selectedSpecialties: originalQuiz.selectedSpecialties,
+          higherEdField: originalQuiz.higherEdField,
+          status: 'ready', // Les questions existent déjà
+          // Stocker les infos de retake dans questionTypes (Json)
+          questionTypes: {
+            ...(originalQuiz.questionTypes as any),
+            retakeOf: quizId, // Référence à la première tentative
+            attemptNumber: ((originalQuiz.questionTypes as any)?.attemptNumber || 1) + 1
+          } as any
+        }
+      });
+
+      console.log(`✅ [RETAKE] Nouvelle tentative créée: ${newAttempt.id}`);
+
+      res.status(200).json({
+        success: true,
+        data: newAttempt
+      });
+
+    } catch (error) {
+      console.error('❌ [RETAKE] Erreur création tentative:', error);
+      res.status(500).json({
+        error: 'Erreur lors de la création d\'une nouvelle tentative',
+        details: error instanceof Error ? error.message : 'Erreur inconnue'
+      });
+    }
   }
 }

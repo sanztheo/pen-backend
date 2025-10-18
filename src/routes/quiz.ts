@@ -41,6 +41,12 @@ router.post('/context-rag', QuizController.buildQuizRAGContext);
 router.get('/:id', QuizController.getQuiz);
 router.post('/:id/submit', QuizController.submitQuiz);
 
+// ===== NOUVELLE ROUTE POUR CORRECTION STREAMING =====
+router.post('/submit-and-correct-stream', QuizStreamingController.submitAndCorrectStream);
+
+// ===== NOUVELLE ROUTE POUR RETAKE (refaire un quiz) =====
+router.post('/retake/:quizId', QuizStreamingController.retakeQuiz);
+
 // ===== NOUVELLE ROUTE POUR CORRECTION RAPIDE =====
 router.post('/save-fast-correction', QuizController.saveFastCorrection);
 
