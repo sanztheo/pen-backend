@@ -520,6 +520,153 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
   }
 
   /**
+   * 🚀 MÉTHODE STREAMING : Corrige un quiz avec streaming des corrections
+   * Yield les corrections progressivement au fur et à mesure
+   */
+  static async *correctQuizStreaming(
+    questions: Question[],
+    userAnswers: UserAnswer[],
+    request: QuizCorrectionRequest
+  ): AsyncGenerator<{
+    type: 'closed-questions' | 'open-question' | 'completion';
+    questionNumber?: number;
+    totalOpenQuestions?: number;
+    correction?: any;
+    finalResult?: QuizCorrectionResult;
+  }> {
+    const startTime = Date.now();
+
+    try {
+      // 🚀 ÉTAPE 1 : Correction automatique des questions fermées (QCM, Vrai/Faux, Matching)
+      const autoCorrections = this.correctClosedQuestions(questions, userAnswers);
+      console.log(`⚡ [HYBRID-STREAMING] Correction automatique : ${autoCorrections.length} questions fermées traitées`);
+
+      // Générer les suggestions IA pour les questions fermées qui ont des points partiels/zéro
+      const closedWithSuggestions = await this.generateSuggestionsForClosedQuestions(
+        autoCorrections,
+        questions,
+        request
+      );
+
+      // Yielder toutes les questions fermées d'un coup
+      yield {
+        type: 'closed-questions',
+        correction: closedWithSuggestions
+      };
+
+      // 🧠 ÉTAPE 2 : Identifier les questions ouvertes qui nécessitent l'IA
+      const openQuestions = questions.filter(q => q.type === 'OPEN_QUESTION');
+      console.log(`🤖 [HYBRID-STREAMING] Questions ouvertes nécessitant l'IA : ${openQuestions.length}`);
+      
+      let aiCorrections: any[] = [];
+      
+      // Si on a des questions ouvertes, corriger une par une
+      if (openQuestions.length > 0) {
+        for (let i = 0; i < openQuestions.length; i++) {
+          try {
+            const openQuestion = openQuestions[i];
+            const userAnswer = userAnswers.find(ua => ua.questionId === openQuestion.id);
+            
+            console.log(`🧠 [STREAMING] Correction question ouverte ${i + 1}/${openQuestions.length}`);
+            
+            // Corriger cette question ouverte spécifique
+            const singleQuestionCorrection = await this.correctSingleOpenQuestion(
+              openQuestion,
+              userAnswer,
+              request
+            );
+
+            aiCorrections.push(singleQuestionCorrection);
+
+            // Yielder la correction pour affichage progressif
+            yield {
+              type: 'open-question',
+              questionNumber: i + 1,
+              totalOpenQuestions: openQuestions.length,
+              correction: singleQuestionCorrection
+            };
+
+            console.log(`✅ [STREAMING] Question ouverte ${i + 1} corrigée et envoyée`);
+          } catch (error) {
+            console.error(`❌ [STREAMING] Erreur correction question ouverte ${i + 1}:`, error);
+            // Continuer avec la question suivante
+          }
+        }
+      } else {
+        console.log(`⚡ [HYBRID-STREAMING] Aucune question ouverte - correction 100% automatique !`);
+      }
+
+      // 🔗 ÉTAPE 3 : Combiner les corrections automatiques + IA
+      const allCorrections = [...closedWithSuggestions, ...aiCorrections];
+      console.log(`🎯 [HYBRID-STREAMING] TOTAL: ${allCorrections.length} questions corrigées (${closedWithSuggestions.length} auto + ${aiCorrections.length} IA)`);
+
+      // Tri des corrections par ordre des questions originales
+      const sortedCorrections = allCorrections.sort((a, b) => {
+        const indexA = questions.findIndex(q => q.id === a.questionId);
+        const indexB = questions.findIndex(q => q.id === b.questionId);
+        return indexA - indexB;
+      });
+
+      // Calculer les scores finaux
+      const { realTotalScore, realMaxScore, realPercentage, realAdaptedGrade } = this.recalculateScores(sortedCorrections);
+
+      console.log(`🔢 SCORES FINAUX HYBRIDES STREAMING :
+        - Score total : ${realTotalScore}/${realMaxScore}
+        - Pourcentage : ${realPercentage.toFixed(2)}%
+        - Note sur 20 : ${realAdaptedGrade.toFixed(2)}/20
+        - Correction automatique: ${closedWithSuggestions.length} questions
+        - Correction IA: ${aiCorrections.length} questions`);
+
+      // 🧠 ÉTAPE 4 : Générer l'analyse détaillée IA
+      console.log('🧠 [STREAMING] Génération de l\'analyse détaillée IA...');
+      const detailedAnalysis = await this.generateDetailedAnalysis(
+        questions,
+        sortedCorrections,
+        request,
+        realTotalScore,
+        realMaxScore,
+        realPercentage
+      );
+
+      // Construction du résultat final hybride avec analyse
+      const correctionResult: QuizCorrectionResult = {
+        quizId: request.quizId,
+        totalScore: realTotalScore,
+        maxScore: realMaxScore,
+        percentage: Math.round(realPercentage * 100) / 100,
+        adaptedGrade: Math.round(realAdaptedGrade * 100) / 100,
+        gradeScale: '20',
+        questionResults: sortedCorrections,
+        aiCorrection: {
+          globalFeedback: detailedAnalysis.summary,
+          strengths: detailedAnalysis.strengths,
+          weaknesses: detailedAnalysis.weaknesses,
+          recommendations: detailedAnalysis.recommendations
+        },
+        metadata: {
+          correctedAt: new Date(),
+          aiModel: AIService.getDefaultModel() || 'unknown',
+          correctionTime: Date.now() - startTime,
+          personalizedTips: detailedAnalysis.personalizedTips
+        }
+      };
+
+      // Yielder le résultat final complet
+      yield {
+        type: 'completion',
+        finalResult: correctionResult
+      };
+
+      // 🐛 [DEBUG] Sauvegarder le résultat final complet
+      this.saveDebugData(questions, userAnswers, request, '', '', correctionResult);
+
+    } catch (error) {
+      console.error('Erreur correction quiz streaming:', error);
+      throw new Error(`Échec de la correction du quiz: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+    }
+  }
+
+  /**
    * Helper : Extrait les points forts depuis les corrections
    */
   private static extractStrengthsFromCorrections(corrections: any[]): string[] {
@@ -1132,5 +1279,241 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || 'Con
       realPercentage,
       realAdaptedGrade
     };
+  }
+
+  /**
+   * Génère des suggestions IA pour les questions fermées incorrectes
+   */
+  private static async generateSuggestionsForClosedQuestions(
+    autoCorrections: any[],
+    questions: Question[],
+    request: QuizCorrectionRequest
+  ): Promise<any[]> {
+    // Questions qui nécessitent une suggestion (pas parfait)
+    const questionsNeedingSuggestions = autoCorrections.filter(
+      c => c.score < c.maxScore
+    );
+
+    if (questionsNeedingSuggestions.length === 0) {
+      return autoCorrections; // Toutes les réponses sont parfaites
+    }
+
+    console.log(`💡 [SUGGESTIONS] Génération suggestions IA pour ${questionsNeedingSuggestions.length} questions fermées incorrectes`);
+
+    try {
+      // Construire un prompt pour les suggestions
+      const suggestionsPrompt = `Tu es un tuteur pédagogue. Pour chaque question fermée mal répondue ci-dessous, fournis UNE COURTE SUGGESTION (max 50 mots) pour aider l'élève.
+
+Format: {"questionId": "id", "suggestion": "votre conseil"}
+
+Questions:
+${questionsNeedingSuggestions.map(qr => {
+  const question = questions.find(q => q.id === qr.questionId);
+  return `ID: ${qr.questionId}
+Question: ${question?.question}
+Réponse élève: ${qr.userAnswer}
+Bonne réponse: ${qr.correctAnswer}`;
+}).join('\n---\n')}
+
+Réponds UNIQUEMENT en JSON array valide.`;
+
+      const result = await AIService.generateContent({
+        prompt: suggestionsPrompt,
+        maxTokens: Math.min(questionsNeedingSuggestions.length * 150, 3000),
+        temperature: 0.5,
+        model: AIService.getDefaultModel()
+      });
+
+      const suggestionsData = JsonUtils.extractJsonFromText(result.content);
+      const suggestionsMap = new Map();
+      
+      if (Array.isArray(suggestionsData)) {
+        suggestionsData.forEach((item: any) => {
+          if (item.questionId && item.suggestion) {
+            suggestionsMap.set(item.questionId, item.suggestion);
+          }
+        });
+      }
+
+      // Fusionner les suggestions avec les corrections
+      return autoCorrections.map(correction => ({
+        ...correction,
+        suggestion: suggestionsMap.get(correction.questionId)
+      }));
+    } catch (error) {
+      console.error('❌ Erreur génération suggestions:', error);
+      // Retourner sans suggestions si erreur
+      return autoCorrections;
+    }
+  }
+
+  /**
+   * Corrige une seule question ouverte avec l'IA
+   */
+  private static async correctSingleOpenQuestion(
+    question: OpenQuestion,
+    userAnswer: UserAnswer | undefined,
+    request: QuizCorrectionRequest
+  ): Promise<any> {
+    const basePrompt = this.buildSingleOpenQuestionPrompt(question, userAnswer, request);
+
+    const result = await AIService.generateContent({
+      prompt: basePrompt,
+      maxTokens: 1500,
+      temperature: 0.3,
+      model: AIService.getDefaultModel()
+    });
+
+    const correctionData = JsonUtils.extractJsonFromText(result.content);
+
+    return {
+      questionId: question.id,
+      userAnswer: userAnswer?.answer || 'Pas de réponse',
+      correctAnswer: question.expectedAnswer || '',
+      score: Number(correctionData.score) || 0,
+      maxScore: question.points || 1,
+      isCorrect: (Number(correctionData.score) || 0) === (question.points || 1),
+      explanation: correctionData.explanation || '',
+      suggestion: correctionData.suggestion || ''
+    };
+  }
+
+  /**
+   * Construit le prompt pour corriger une seule question ouverte
+   */
+  private static buildSingleOpenQuestionPrompt(
+    question: OpenQuestion,
+    userAnswer: UserAnswer | undefined,
+    request: QuizCorrectionRequest
+  ): string {
+    let basePrompt = `Tu es un correcteur expert. Corrige cette question ouverte avec rigueur académique.
+
+QUESTION :
+${question.question}
+
+NIVEAU : ${request.schoolLevel}
+POINTS POSSIBLES : ${question.points || 1}
+DIFFICULTÉ : ${question.difficulty || 'moyen'}
+
+RÉPONSE ATTENDUE :
+${question.expectedAnswer || 'Réponse libre à évaluer'}
+
+RÉPONSE DE L'ÉLÈVE :
+${userAnswer?.answer || 'Pas de réponse fournie'}`;
+
+    // Ajouter le contexte des cours si disponible
+    if (request.coursesOnly && request.workspaceContent && request.workspaceContent.length > 0) {
+      const workspaceInfo = request.workspaceContent.map(ws => ({
+        workspace: ws.workspaceName,
+        topics: ws.contentSummary.mainTopics.join(', '),
+        content: ws.extractedContent.slice(0, 2).map((c: any) => c.content).join('\n\n')
+      }));
+      
+      basePrompt += `
+
+CONTENU DES COURS DE RÉFÉRENCE :
+${workspaceInfo.map(ws => `
+Workspace: ${ws.workspace}
+Sujets: ${ws.topics}
+Contenu:
+${ws.content}
+`).join('\n---\n')}
+
+CONSIGNES : Base ta correction STRICTEMENT sur le contenu fourni.`;
+    }
+
+    basePrompt += `
+
+STRUCTURE JSON REQUISE :
+{
+  "score": <nombre entre 0 et ${question.points || 1}>,
+  "isCorrect": <boolean>,
+  "explanation": "Explication de la correction",
+  "suggestion": "Conseil pour l'élève si réponse imparfaite"
+}
+
+Réponds UNIQUEMENT en JSON valide.`;
+
+    return basePrompt;
+  }
+
+  /**
+   * Génère une analyse détaillée IA après correction
+   */
+  private static async generateDetailedAnalysis(
+    questions: Question[],
+    corrections: any[],
+    request: QuizCorrectionRequest,
+    totalScore: number,
+    maxScore: number,
+    percentage: number
+  ): Promise<{
+    summary: string;
+    strengths: string[];
+    weaknesses: string[];
+    recommendations: string[];
+    personalizedTips: string[];
+  }> {
+    try {
+      console.log('🧠 [ANALYSIS] Génération analyse IA détaillée...');
+
+      const correctAnswers = corrections.filter(c => c.score === c.maxScore).length;
+      const partialAnswers = corrections.filter(c => c.score > 0 && c.score < c.maxScore).length;
+      const incorrectAnswers = corrections.filter(c => c.score === 0).length;
+
+      const analysisPrompt = `Tu es un tuteur pédagogue expert. Génère une analyse détaillée et personnalisée du quiz basée sur les résultats suivants:
+
+RÉSULTATS DU QUIZ:
+- Score: ${totalScore}/${maxScore} (${percentage.toFixed(1)}%)
+- Questions correctes: ${correctAnswers}/${questions.length}
+- Questions partielles: ${partialAnswers}/${questions.length}
+- Questions incorrectes: ${incorrectAnswers}/${questions.length}
+- Niveau scolaire: ${request.schoolLevel}
+- Sujet: ${request.specificSubject || 'général'}
+
+DÉTAIL DES RÉPONSES:
+${corrections.map((c, i) => `
+Q${i + 1} (${c.isCorrect ? '✓' : '✗'}, ${c.score}/${c.maxScore} pts):
+- Réponse élève: ${c.userAnswer}
+- Réponse correcte: ${c.correctAnswer}
+- Explication: ${c.explanation}
+`).join('\n')}
+
+Génère une analyse JSON avec:
+1. "summary": Un résumé personnalisé (2-3 phrases) basé sur la performance globale
+2. "strengths": 3-4 points forts observés dans les réponses
+3. "weaknesses": 3-4 axes d'amélioration identifiés
+4. "recommendations": 4-5 recommandations concrètes et personnalisées pour progresser
+5. "personalizedTips": 2-3 conseils spécifiques basés sur les erreurs commises
+
+Format JSON STRICT requis.`;
+
+      const result = await AIService.generateContent({
+        prompt: analysisPrompt,
+        maxTokens: 2500,
+        temperature: 0.7,
+        model: AIService.getDefaultModel()
+      });
+
+      console.log('🧠 [ANALYSIS] Réponse IA reçue, parsing...');
+      const analysisData = JsonUtils.extractJsonFromText(result.content);
+
+      return {
+        summary: analysisData.summary || 'Analyse non disponible',
+        strengths: Array.isArray(analysisData.strengths) ? analysisData.strengths : [],
+        weaknesses: Array.isArray(analysisData.weaknesses) ? analysisData.weaknesses : [],
+        recommendations: Array.isArray(analysisData.recommendations) ? analysisData.recommendations : [],
+        personalizedTips: Array.isArray(analysisData.personalizedTips) ? analysisData.personalizedTips : []
+      };
+    } catch (error) {
+      console.error('❌ [ANALYSIS] Erreur génération analyse:', error);
+      return {
+        summary: 'Analyse en cours...',
+        strengths: [],
+        weaknesses: [],
+        recommendations: [],
+        personalizedTips: []
+      };
+    }
   }
 } 

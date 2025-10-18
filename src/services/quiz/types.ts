@@ -367,6 +367,7 @@ export interface QuizCorrectionResult {
     correctedAt: Date;
     aiModel: string;
     correctionTime: number;
+    personalizedTips?: string[];
   };
 }
 
