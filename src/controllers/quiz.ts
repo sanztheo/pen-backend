@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import { QuizService } from '../services/quiz/quizService.js';
-import { SchoolLevel, QuestionType } from '../services/quiz/types.js';
+import { SchoolLevel, QuestionType, Question, UserAnswer } from '../services/quiz/types.js';
 import { documentSearchService } from '../services/quiz/documentSearchService.js';
 import { OpenAIAssistantService } from '../services/quiz/assistant/index.js';
 import { prisma } from '../lib/prisma.js';
+import { CorrectionGenerator } from '../services/quiz/generators/correctionGenerator.js';
 
 // 🛡️ Fonction utilitaire pour valider sourceDocuments
 const validateSourceDocuments = (sourceDocuments: any): { valid: boolean; error?: string; details?: any } => {
@@ -365,7 +366,7 @@ export class QuizController {
   }
 
   /**
-   * POST /api/quiz/:id/submit - Soumet un quiz pour correction
+   * POST /api/quiz/:id/submit - Soumet un quiz pour correction (utilise maintenant le streaming)
    */
   static async submitQuiz(req: Request, res: Response): Promise<void> {
     try {
@@ -398,19 +399,53 @@ export class QuizController {
         return;
       }
 
-      const submissionData = {
+      // ✅ Utiliser le streaming pour la correction (similaire à submitAndCorrectStream)
+      console.log('📝 [SUBMIT-QUIZ] Requête de correction via submitQuiz (redirection vers streaming)');
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      // Utiliser le même service de streaming que l'endpoint dédié
+      const quiz = await prisma.quiz.findFirst({
+        where: {
+          id: quizId,
+          userId: userId
+        }
+      });
+
+      if (!quiz) {
+        res.status(404).json({ error: 'Quiz non trouvé' });
+        return;
+      }
+
+      const correctionRequest: any = {
         quizId,
         userId,
-        answers
+        preset: (quiz as any).preset,
+        specificSubject: null,
+        schoolLevel: quiz.schoolLevel as any,
+        hasDocuments: hasDocuments || false,
+        sourceDocuments: sourceDocuments || [],
+        coursesOnly: false,
+        workspaceContent: [],
+        userAnswers: answers,
+        submittedAt: new Date()
       };
 
-      const quizResult = await QuizService.submitQuiz(quizId, userId, answers, sourceDocuments, hasDocuments);
+      // Démarrer le streaming de correction
+      const generator = CorrectionGenerator.correctQuizStreaming(
+        quiz.questions as unknown as Question[],
+        answers,
+        correctionRequest
+      );
 
-      res.status(200).json({
-        success: true,
-        message: 'Quiz soumis et corrigé avec succès',
-        result: quizResult
-      });
+      // Envoyer les événements
+      for await (const event of generator) {
+        const eventData = JSON.stringify(event);
+        res.write(`data: ${eventData}\n\n`);
+      }
+
+      res.end();
 
     } catch (error) {
       console.error('Erreur soumission quiz:', error);
