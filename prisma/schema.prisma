@@ -352,6 +352,8 @@ model UserLimits {
   customQuizzesLimit   Int      @default(5) @map("custom_quizzes_limit")
   presetSequencesUsed  Int      @default(0) @map("preset_sequences_used")
   presetSequencesLimit Int      @default(1) @map("preset_sequences_limit")
+  historyQuizzesLimit  Int      @default(5) @map("history_quizzes_limit")
+  statsChartsLimit     String[] @default(["progression-area", "difficulty-radar"]) @map("stats_charts_limit")
   lastResetAt          DateTime @default(now()) @map("last_reset_at") @db.Timestamptz(6)
   resetType            String   @default("monthly") @map("reset_type") @db.VarChar(20)
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
