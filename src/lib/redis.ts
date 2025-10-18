@@ -75,7 +75,8 @@ export const invalidateUserLimitsCache = async (userId: string) => {
 };
 
 /**
- * Cache Workspace avec TTL 10 minutes
+ * Cache Workspace avec TTL 1 heure
+ * Optimisé pour usage mono-utilisateur sans collaboration
  */
 export const cacheWorkspace = async (workspaceId: string) => {
   try {
@@ -91,7 +92,7 @@ export const cacheWorkspace = async (workspaceId: string) => {
     const workspace = await prisma.workspace.findFirst({ where: { id: workspaceId } });
 
     if (workspace) {
-      await redis.setex(cacheKey, 600, JSON.stringify(workspace)); // 10min TTL
+      await redis.setex(cacheKey, 3600, JSON.stringify(workspace)); // 1h TTL
     }
 
     return workspace;
@@ -102,7 +103,8 @@ export const cacheWorkspace = async (workspaceId: string) => {
 };
 
 /**
- * Cache Project avec TTL 10 minutes
+ * Cache Project avec TTL 1 heure
+ * Optimisé pour usage mono-utilisateur sans collaboration
  */
 export const cacheProject = async (projectId: string, userId: string) => {
   try {
@@ -121,7 +123,7 @@ export const cacheProject = async (projectId: string, userId: string) => {
     });
 
     if (project) {
-      await redis.setex(cacheKey, 600, JSON.stringify(project)); // 10min TTL
+      await redis.setex(cacheKey, 3600, JSON.stringify(project)); // 1h TTL
     }
 
     return project;
@@ -195,8 +197,9 @@ export const clearUserCache = async (userId: string) => {
 };
 
 /**
- * Cache BlockNote Content avec TTL 2 minutes
- * TTL court car le contenu est édité fréquemment
+ * Cache BlockNote Content avec TTL 24 heures
+ * TTL long car invalidation automatique à chaque sauvegarde (pas de collaboration)
+ * Performance optimale: données en cache jusqu'à modification utilisateur
  */
 export const cacheBlockNoteContent = async (pageId: string) => {
   try {
@@ -219,8 +222,8 @@ export const cacheBlockNoteContent = async (pageId: string) => {
     } as any);
 
     if (page) {
-      // TTL 2min (120s) car contenu éditable fréquemment
-      await redis.setex(cacheKey, 120, JSON.stringify(page));
+      // TTL 24h (86400s) - invalidé à chaque sauvegarde WebSocket
+      await redis.setex(cacheKey, 86400, JSON.stringify(page));
     }
 
     return page;
@@ -250,8 +253,28 @@ export const invalidateBlockNoteCache = async (pageId: string) => {
 };
 
 /**
- * Cache Active RAG Session avec TTL 5 minutes
- * TTL court car session change fréquemment
+ * 🔧 Helper: Reconvertir les dates après désérialisation JSON
+ * JSON.parse() convertit les dates en strings, on doit les reconvertir en Date
+ */
+const deserializeRAGSession = (session: any) => {
+  if (!session) return null;
+
+  return {
+    ...session,
+    createdAt: session.createdAt ? new Date(session.createdAt) : null,
+    updatedAt: session.updatedAt ? new Date(session.updatedAt) : null,
+    lastQueryAt: session.lastQueryAt ? new Date(session.lastQueryAt) : null,
+    sourcesUsed: session.sourcesUsed?.map((source: any) => ({
+      ...source,
+      createdAt: source.createdAt ? new Date(source.createdAt) : null,
+      updatedAt: source.updatedAt ? new Date(source.updatedAt) : null
+    })) || []
+  };
+};
+
+/**
+ * Cache Active RAG Session avec TTL 15 minutes
+ * Optimisé pour usage mono-utilisateur (invalidation lors des updates)
  */
 export const cacheActiveRAGSession = async (userId: string, workspaceId: string) => {
   try {
@@ -260,7 +283,8 @@ export const cacheActiveRAGSession = async (userId: string, workspaceId: string)
 
     if (cached) {
       console.log(`✅ [REDIS-CACHE] RAG Session HIT: ${userId}/${workspaceId}`);
-      return JSON.parse(cached);
+      const parsedSession = JSON.parse(cached);
+      return deserializeRAGSession(parsedSession); // 🔧 FIX: Reconvertir les dates
     }
 
     console.log(`❌ [REDIS-CACHE] RAG Session MISS: ${userId}/${workspaceId}`);
@@ -277,7 +301,7 @@ export const cacheActiveRAGSession = async (userId: string, workspaceId: string)
     });
 
     if (session) {
-      await redis.setex(cacheKey, 300, JSON.stringify(session)); // 5min TTL
+      await redis.setex(cacheKey, 900, JSON.stringify(session)); // 15min TTL
     }
 
     return session;

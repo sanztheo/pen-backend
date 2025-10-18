@@ -425,7 +425,12 @@ export class SessionMemorySystem {
       const session = await cacheActiveRAGSession(userId, workspaceId);
 
       if (session) {
-        console.log(`✅ [SESSION-DEBUG] Session active trouvée: ${session.id}, sources: ${session.sourcesUsed?.length || 0}, lastQueryAt: ${session.lastQueryAt?.toISOString()}`);
+        // 🔧 FIX: Sécurité défensive - convertir lastQueryAt en Date si c'est une string
+        const lastQueryAtStr = session.lastQueryAt instanceof Date
+          ? session.lastQueryAt.toISOString()
+          : (session.lastQueryAt ? new Date(session.lastQueryAt).toISOString() : 'null');
+
+        console.log(`✅ [SESSION-DEBUG] Session active trouvée: ${session.id}, sources: ${session.sourcesUsed?.length || 0}, lastQueryAt: ${lastQueryAtStr}`);
       } else {
         console.log(`❌ [SESSION-DEBUG] Aucune session active trouvée dans les dernières 24h`);
       }
