@@ -175,6 +175,18 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
             if (typeof (res as any).flush === 'function') {
               (res as any).flush();
             }
+          },
+
+          // 🔥 NEW: Thinking intermédiaire entre les requêtes
+          onIntermediateThinking: (thinkingChunk) => {
+            const timestamp = new Date().toISOString();
+            console.log(`⏰ [${timestamp}] 📤 [SEARCH-PHASE-1] Envoi event intermediate_thinking, chunk: ${thinkingChunk.slice(0, 50)}...`);
+            currentThinking += thinkingChunk;
+            res.write(`event: intermediate_thinking\ndata: ${JSON.stringify({ content: thinkingChunk, timestamp })}\n\n`);
+            if (typeof (res as any).flush === 'function') {
+              (res as any).flush();
+            }
+            console.log(`⏰ [${timestamp}] ✅ [SEARCH-PHASE-1] Event intermediate_thinking envoyé + flushed`);
           }
         });
 

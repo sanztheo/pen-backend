@@ -27,6 +27,7 @@ export interface DecideToolsOptions {
   onThinking?: (thinking: string) => void;
   onToolCall?: (toolName: string, args: any) => void;
   onToolResult?: (toolName: string, result: string) => void;
+  onIntermediateThinking?: (chunk: string) => void; // 🔥 NEW: Thinking entre les tools
 }
 
 export interface DecideToolsResult {
@@ -87,7 +88,8 @@ export class FunctionCallingService {
       isSearch = false,
       onThinking,
       onToolCall,
-      onToolResult
+      onToolResult,
+      onIntermediateThinking
     } = options;
 
     const toolCalls: ToolCallRecord[] = [];
@@ -294,20 +296,35 @@ export class FunctionCallingService {
           });
         }
 
-        // 🔥 EN MODE SEARCH: Forcer une requête DIFFÉRENTE à la prochaine itération
-        if (isSearch && toolLoopCount < maxToolLoops) {
-          const previousQueries = toolCalls
-            .slice(-toolResultsForThisLoop.length) // Les derniers tools exécutés
-            .map(tc => tc.arguments?.query)
-            .filter(q => q);
-          
-          if (previousQueries.length > 0) {
-            const differentQueryInstruction = `\n\n⚠️ IMPORTANT - Requête suivante DIFFÉRENTE:\nLa requête précédente était: "${previousQueries[0]}"\nTa PROCHAINE requête doit être COMPLÈTEMENT DIFFÉRENTE. Pose une question sur un aspect différent du même sujet (exemples, détails, contexte, applications, théorie, etc.).\nNE FAIS PAS la même requête deux fois.`;
-            
-            initialMessages.push({
-              role: 'assistant',
-              content: `Bien reçu. Je vais continuer l'exploration avec une requête DIFFÉRENTE et COMPLÉMENTAIRE.${differentQueryInstruction}`
+        // 🔥 MODE SEARCH: Génération THINKING intermédiaire APRÈS chaque tool result
+        // Cela permettra à l'IA de réfléchir avant le prochain appel
+        if (isSearch && onIntermediateThinking && toolLoopCount < maxToolLoops && toolResultsForThisLoop.length > 0) {
+          console.log(`🔧 [INTERMEDIATE-THINKING-LOOP-${toolLoopCount}] Génération thinking après tools...`);
+          try {
+            const intermediateThinkingStream = await openai.chat.completions.create({
+              model: 'gpt-4o-mini',
+              messages: [
+                ...initialMessages,
+                {
+                  role: 'user',
+                  content: 'Réfléchis à la prochaine requête COMPLÈTEMENT DIFFÉRENTE pour continuer l\'exploration. Qu\'est-ce que tu dois chercher ensuite pour approfondir la compréhension du sujet?'
+                }
+              ],
+              temperature: 0.3,
+              stream: true
             });
+
+            for await (const chunk of intermediateThinkingStream) {
+              const delta = chunk.choices[0]?.delta;
+              if (delta?.content) {
+                onIntermediateThinking(delta.content);
+              }
+            }
+
+            console.log(`✅ [INTERMEDIATE-THINKING-LOOP-${toolLoopCount}] Thinking intermédiaire généré`);
+          } catch (error) {
+            console.warn(`⚠️ [INTERMEDIATE-THINKING] Erreur génération thinking intermédiaire:`, error);
+            // Ne pas bloquer le flux si la thinking échoue
           }
         }
 
