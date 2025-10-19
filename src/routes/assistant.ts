@@ -318,6 +318,25 @@ router.post('/rag/context', async (req: any, res) => {
     }
     console.log(`🔍 [RAG-DEBUG] Résultats trouvés: ${searchResults.length}`);
 
+    // 🔥 FILTRER SELON sourcesScope
+    const { sourcesScope } = selectedSources || {};
+    console.log(`🔍 [RAG-DEBUG] sourcesScope: ${sourcesScope}`);
+    
+    // Si mode "custom" (pas "Toutes les sources"), ne retourner QUE les sources explicitement mentionnées
+    if (sourcesScope === 'custom' && selectedSources) {
+      const { wikipediaSources = [], mentionedPages = [], fileSources = [] } = selectedSources;
+      const mentionedTitles = new Set([
+        ...wikipediaSources.map(s => s.title),
+        ...mentionedPages.map(p => p.title),
+        ...fileSources.map(f => f.title)
+      ]);
+      
+      // Filtrer: garder SEULEMENT les sources mentionnées
+      const filteredResults = searchResults.filter(r => mentionedTitles.has(r.source.title));
+      console.log(`🔍 [RAG-DEBUG] Filtrage sourcesScope='custom': ${searchResults.length} -> ${filteredResults.length} sources`);
+      searchResults = filteredResults;
+    }
+
     // 4. Construire le contexte optimisé
     const optimizedContext = await ragSystem.buildOptimizedContext(query, searchResults);
 

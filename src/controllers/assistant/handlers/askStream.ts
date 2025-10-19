@@ -18,13 +18,6 @@ import { indexAndPreparePagesForAI } from '../helpers/pageIndexing.js';
 
 export const assistantAskStream = async (req: Request, res: Response) => {
   try {
-    // 🔍 DEBUG: Log EVERYTHING from the frontend request
-    console.log(`\n\n🔍 [ASK-DEBUG-START] ========== DÉBUT REQUÊTE ASK ==========`);
-    console.log(`📨 [ASK-DEBUG] Body reçu du frontend:`, JSON.stringify(req.body, null, 2));
-    console.log(`📨 [ASK-DEBUG] pageIds reçus: ${JSON.stringify((req.body as any)?.pageIds)}`);
-    console.log(`📨 [ASK-DEBUG] ragSources reçus: ${JSON.stringify((req.body as any)?.ragSources)}`);
-    console.log(`📨 [ASK-DEBUG] sourcesScope reçu: ${(req.body as any)?.sourcesScope}`);
-    
     // 🔍 Validation et parsing unifié avec le nouveau service
     const { request, errors } = AssistantHandlerService.parseRequest(req);
     if (errors.length > 0) {
@@ -32,6 +25,14 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     }
 
     const { query, workspaceId, pageIds, useWeb, ragSources } = request;
+
+    // 🔍 DEBUG COMPLET DU FRONTEND
+    console.log(`\n\n🔍 [ASK-DEBUG-FRONTEND] ========== REQUÊTE DU FRONTEND ==========`);
+    console.log(`📨 pageIds reçus: ${JSON.stringify(pageIds)} (${pageIds.length})`);
+    console.log(`📨 ragSources reçus: ${JSON.stringify(ragSources)} (${ragSources.length})`);
+    console.log(`📨 sourcesScope reçu: ${(req.body as any)?.sourcesScope}`);
+    console.log(`📨 query: "${query.slice(0, 50)}..."`);
+    console.log(`🔍 [ASK-DEBUG-FRONTEND] ========== FIN REQUÊTE ==========\n`);
 
     // 🔍 Debug unifié avec le nouveau système
     DebugLogger.web(`[ASK] useWeb reçu: ${useWeb} (type: ${typeof useWeb})`);
