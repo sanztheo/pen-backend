@@ -210,7 +210,7 @@ export class UserNotesRAGSystem {
     sourceId: string,
     chunks: RAGChunkInput[]
   ): Promise<void> {
-    const { embeddingService } = await import('./index.js');
+    const { ragSystem } = await import('./index.js');
 
     try {
       console.log(`🧠 [USER-NOTES] Génération embeddings pour ${chunks.length} chunks...`);
@@ -221,21 +221,21 @@ export class UserNotesRAGSystem {
         const chunk = chunks[i];
 
         // Générer embedding
-        const embedding = await embeddingService.generateEmbedding(chunk.cleanContent);
+        const embedding = await ragSystem.embeddingService.generateEmbedding(chunk.cleanContent || chunk.content);
 
         chunksBatch.push({
           sourceId,
           chunkIndex: i,
           content: chunk.content,
-          cleanContent: chunk.cleanContent,
+          cleanContent: chunk.cleanContent || chunk.content,
           embedding: JSON.stringify(embedding),
-          tokenCount: chunk.tokenCount,
+          tokenCount: chunk.tokenCount || Math.ceil(chunk.content.length / 4),
           pageNumber: chunk.pageNumber,
           sectionTitle: chunk.sectionTitle,
           startOffset: chunk.startOffset,
           endOffset: chunk.endOffset,
-          quality: chunk.quality,
-          language: chunk.language,
+          quality: chunk.quality || 1.0,
+          language: chunk.language || 'en',
           createdAt: new Date()
         });
       }
