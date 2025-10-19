@@ -2,7 +2,6 @@ import express from 'express';
 import { Webhook } from 'svix';
 import { prisma } from '../lib/prisma.js';
 import { createClerkClient } from '@clerk/backend';
-import { SubscriptionNotificationService } from '../services/subscriptionNotification.js';
 
 /**
  * 🎯 WEBHOOK CLERK SIMPLIFIÉ
@@ -295,15 +294,6 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
         limits: isPremium ? 'PREMIUM' : 'FREE'
       });
 
-      // 📢 Notifier le client
-      const notificationService = SubscriptionNotificationService.getInstance();
-      notificationService.notifySubscriptionChange(userId, {
-        oldPlan: 'free_user', // À améliorer: lire l'ancien plan depuis DB
-        newPlan: plan,
-        status: 'active',
-        reason: isPremium ? 'upgrade' : 'downgrade'
-      });
-
       // Marquer comme traité
       if (eventId) {
         await prisma.webhookEvent.create({
@@ -413,17 +403,6 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
         console.log(`✅ [Webhook] Premium ended → free_user appliqué`);
       } else {
         console.log(`⏭️ [Webhook] Free plan ended, ignoré`);
-      }
-
-      // 📢 Notifier le client si c'était un premium
-      if (planSlug === 'premium') {
-        const notificationService = SubscriptionNotificationService.getInstance();
-        notificationService.notifySubscriptionChange(userId, {
-          oldPlan: 'premium',
-          newPlan: 'free_user',
-          status: 'active',
-          reason: 'ended'
-        });
       }
 
       if (eventId) {
