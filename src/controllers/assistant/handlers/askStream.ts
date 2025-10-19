@@ -14,6 +14,7 @@ import { DebugLogger } from '../config/debug.js';
 import { ValidationUtils } from '../utils/validation.js';
 import { AssistantHandlerService } from '../services/HandlerService.js';
 import { prisma } from '../../../lib/prisma.js';
+import { indexAndPreparePagesForAI } from '../helpers/pageIndexing.js';
 
 export const assistantAskStream = async (req: Request, res: Response) => {
   try {
@@ -91,78 +92,26 @@ export const assistantAskStream = async (req: Request, res: Response) => {
       const { FunctionCallingService } = await import('../../../services/ai/functionCalling.js');
 
       // 🔥 Convertir les pages mentionnées en sources RAG pour l'IA
-      let sourcesForAI = ragSources ? ragSources.map(s => ({
-        id: s.id || '',
-        title: s.title || '',
-        type: s.type || 'UNKNOWN'
-      })) : [];
-
-      // Si pages spécifiquement mentionnées, les ajouter aux sources pour que l'IA les utilise
+      // IMPORTANT: Si des pages spécifiques sont mentionnées, utiliser SEULEMENT ces pages
+      // Pas les sources RAG externes
+      let sourcesForAI: any[] = [];
+      
+      // Vérifier d'abord s'il y a des pages spécifiquement mentionnées
+      // (hasSpecificPages est déjà déclaré à la ligne 82)
+      
       if (hasSpecificPages && contextResult.pageObjects && Array.isArray(contextResult.pageObjects) && contextResult.pageObjects.length > 0) {
-        console.log(`📖 [ASK] Ajout des ${contextResult.pageObjects.length} pages mentionnées aux sources pour l'IA`);
+        console.log(`📖 [ASK] Pages spécifiques détectées - utiliser SEULEMENT ces pages, pas les sources RAG`);
         
         // Pour chaque page, s'assurer qu'une RAGSource existe
-        const { userPagesRAG } = await import('../../../services/rag/userPages.js');
-        const pageContents = await Promise.all(
-          contextResult.pageObjects.map(async (p: any) => {
-            try {
-              // Récupérer le contenu de la page
-              const pageData = await prisma.page.findUnique({
-                where: { id: p.id },
-                select: { title: true, blockNoteContent: true, updatedAt: true }
-              });
-              
-              if (pageData) {
-                let textContent = pageData.title || '';
-                try {
-                  if (pageData.blockNoteContent) {
-                    const content = typeof pageData.blockNoteContent === 'string'
-                      ? JSON.parse(pageData.blockNoteContent)
-                      : pageData.blockNoteContent;
-                    if (content && Array.isArray(content)) {
-                      const textParts = content
-                        .filter((block: any) => block?.type === 'paragraph' && block?.content)
-                        .map((block: any) =>
-                          Array.isArray(block.content)
-                            ? block.content.map((item: any) => item?.text || '').join('')
-                            : ''
-                        )
-                        .filter(Boolean);
-                      if (textParts.length > 0) {
-                        textContent = (pageData.title || '') + '\n\n' + textParts.join('\n\n');
-                      }
-                    }
-                  }
-                } catch (e) {
-                  console.log(`⚠️ Erreur extraction contenu page: ${e}`);
-                }
-                
-                // Indexer la page si pas déjà fait
-                const ragSourceId = await userPagesRAG.processUserPage({
-                  id: p.id,
-                  title: pageData.title || 'Sans titre',
-                  content: textContent,
-                  userId,
-                  workspaceId,
-                  updatedAt: pageData.updatedAt
-                });
-                
-                return { 
-                  id: ragSourceId || p.id,  // Retourner le RAGSource.id ou Page.id en fallback
-                  title: pageData.title || p.title || 'Page sans titre',
-                  type: 'WORKSPACE_PAGE'
-                };
-              }
-              return { id: p.id, title: p.title, type: 'WORKSPACE_PAGE' };
-            } catch (error) {
-              console.log(`⚠️ Erreur traitement page "${p.title}": ${error}`);
-              return { id: p.id, title: p.title, type: 'WORKSPACE_PAGE' };
-            }
-          })
-        );
-        
-        const mentionedPagesSources = pageContents.filter(Boolean);
-        sourcesForAI = [...mentionedPagesSources, ...sourcesForAI];
+        sourcesForAI = await indexAndPreparePagesForAI(contextResult.pageObjects, userId, workspaceId);
+      } else if (ragSources && ragSources.length > 0) {
+        // Si PAS de pages spécifiques, utiliser les sources RAG externes
+        console.log(`🔧 [ASK] Pas de pages spécifiques - utiliser les sources RAG externes`);
+        sourcesForAI = ragSources.map(s => ({
+          id: s.id || '',
+          title: s.title || '',
+          type: s.type || 'UNKNOWN'
+        }));
       }
 
       let currentThinking = '';
