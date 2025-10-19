@@ -12,6 +12,7 @@ import { sanitizeUserInput, analyzeQuery, optimizePrompt } from '../helpers/prom
 import { AssistantHandlerService } from '../services/HandlerService.js';
 import { SourceSelectionService } from '../services/SourceSelectionService.js';
 import { DebugLogger } from '../config/debug.js';
+import { indexAndPreparePagesForAI } from '../helpers/pageIndexing.js';
 
 export const assistantSearchStream = async (req: Request, res: Response) => {
   try {
@@ -100,85 +101,35 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     res.flushHeaders();
 
     // 🔥 TWO-PHASE Function Calling si des sources RAG externes sont disponibles
-    if (effectiveRagSources && effectiveRagSources.length > 0) {
-      console.log(`🔧 [SEARCH] Mode Function Calling 2-PHASE activé (${effectiveRagSources.length} sources)`);
+    // Utiliser sourceSelection.ragSources au lieu d'effectiveRagSources (qui n'est pas filtré correctement)
+    if ((sourceSelection.ragSources && sourceSelection.ragSources.length > 0) || 
+        (sourceSelection.selectedPageIds && sourceSelection.selectedPageIds.length > 0)) {
+      console.log(`🔧 [SEARCH] Mode Function Calling activé - Pages: ${sourceSelection.selectedPageIds.length}, RAG: ${sourceSelection.ragSources.length}`);
 
       const { FunctionCallingService } = await import('../../../services/ai/functionCalling.js');
 
-      // 🔥 Convertir les pages mentionnées en sources RAG pour l'IA
-      let sourcesForAI = effectiveRagSources.map(s => ({
-        id: s.id || '',
-        title: s.title || '',
-        type: s.type || 'UNKNOWN'
-      }));
+      // 🔥 IMPORTANT: Logique d'exclusivité - UNE SEULE SOURCE À LA FOIS
+      // Si l'utilisateur a sélectionné des pages spécifiquement sélectionnées, utiliser SEULEMENT ces pages
+      // Si l'utilisateur a sélectionné des sources RAG, utiliser SEULEMENT ces sources
+      // Ne JAMAIS mélanger les deux!
+      let sourcesForAI: any[] = [];
 
-      // Si pages spécifiquement sélectionnées, les ajouter aux sources pour que l'IA les utilise
+      // Vérifier d'abord s'il y a des pages spécifiquement sélectionnées
       const hasSpecificPages = sourceSelection.selectedPageIds && sourceSelection.selectedPageIds.length > 0;
+      
       if (hasSpecificPages && contextResult.pageObjects && Array.isArray(contextResult.pageObjects) && contextResult.pageObjects.length > 0) {
-        console.log(`📖 [SEARCH] Ajout des ${contextResult.pageObjects.length} pages sélectionnées aux sources pour l'IA`);
+        console.log(`📖 [SEARCH] Pages spécifiques détectées - utiliser SEULEMENT ces pages, pas les sources RAG`);
         
-        // Pour chaque page, s'assurer qu'une RAGSource existe
-        const { userPagesRAG } = await import('../../../services/rag/userPages.js');
-        const pageContents = await Promise.all(
-          contextResult.pageObjects.map(async (p: any) => {
-            try {
-              // Récupérer le contenu de la page
-              const pageData = await prisma.page.findUnique({
-                where: { id: p.id },
-                select: { title: true, blockNoteContent: true, updatedAt: true }
-              });
-              
-              if (pageData) {
-                let textContent = pageData.title || '';
-                try {
-                  if (pageData.blockNoteContent) {
-                    const content = typeof pageData.blockNoteContent === 'string'
-                      ? JSON.parse(pageData.blockNoteContent)
-                      : pageData.blockNoteContent;
-                    if (content && Array.isArray(content)) {
-                      const textParts = content
-                        .filter((block: any) => block?.type === 'paragraph' && block?.content)
-                        .map((block: any) =>
-                          Array.isArray(block.content)
-                            ? block.content.map((item: any) => item?.text || '').join('')
-                            : ''
-                        )
-                        .filter(Boolean);
-                      if (textParts.length > 0) {
-                        textContent = (pageData.title || '') + '\n\n' + textParts.join('\n\n');
-                      }
-                    }
-                  }
-                } catch (e) {
-                  console.log(`⚠️ Erreur extraction contenu page: ${e}`);
-                }
-                
-                // Indexer la page si pas déjà fait
-                const ragSourceId = await userPagesRAG.processUserPage({
-                  id: p.id,
-                  title: pageData.title || 'Sans titre',
-                  content: textContent,
-                  userId,
-                  workspaceId,
-                  updatedAt: pageData.updatedAt
-                });
-                
-                return { 
-                  id: ragSourceId || p.id,  // Retourner le RAGSource.id ou Page.id en fallback
-                  title: pageData.title || p.title || 'Page sans titre',
-                  type: 'WORKSPACE_PAGE'
-                };
-              }
-              return { id: p.id, title: p.title, type: 'WORKSPACE_PAGE' };
-            } catch (error) {
-              console.log(`⚠️ Erreur traitement page "${p.title}": ${error}`);
-              return { id: p.id, title: p.title, type: 'WORKSPACE_PAGE' };
-            }
-          })
-        );
-        
-        const selectedPagesSources = pageContents.filter(Boolean);
-        sourcesForAI = [...selectedPagesSources, ...sourcesForAI];
+        // Utiliser le helper pour indexer et préparer les pages
+        sourcesForAI = await indexAndPreparePagesForAI(contextResult.pageObjects, userId, workspaceId);
+      } else if (sourceSelection.ragSources && sourceSelection.ragSources.length > 0) {
+        // Si PAS de pages spécifiques, utiliser les sources RAG externes
+        console.log(`🔧 [SEARCH] Pas de pages spécifiques - utiliser les sources RAG externes`);
+        sourcesForAI = sourceSelection.ragSources.map(s => ({
+          id: s.id || '',
+          title: s.title || '',
+          type: s.type || 'UNKNOWN'
+        }));
       }
 
       let currentThinking = '';
