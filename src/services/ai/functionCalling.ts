@@ -153,13 +153,13 @@ export class FunctionCallingService {
         {
           role: 'system',
           content: systemPrompt + (isSearch 
-            ? '\n\n🔧 MODE RECHERCHE APPROFONDIE:\nTu dois utiliser les tools PLUSIEURS FOIS pour explorer le sujet en détail. Utilise "read_rag_source" avec différentes requêtes pour comprendre le sujet sous tous les angles. Tu peux consulter la même source plusieurs fois avec des questions différentes.\n\nPour chaque source/page disponible, appelle "read_rag_source" PLUSIEURS FOIS avec l\'ID et différentes questions pour récupérer des informations complètes et variées AVANT de répondre.\n\nN\'utilise tes connaissances que pour compléter les informations, pas pour remplacer les sources.'
-            : '\n\n🔧 IMPORTANT: Tu as accès à plusieurs tools. Tu DOIS les utiliser pour lire les sources et pages mentionnées.\n\nPour chaque source/page disponible, appelle "read_rag_source" avec l\'ID et la question pour récupérer le contenu pertinent AVANT de répondre.\n\nN\'utilise tes connaissances que pour compléter les informations, pas pour remplacer les sources.')
+            ? '\n\n🔧 MODE RECHERCHE APPROFONDIE:\nTu DOIS utiliser "read_rag_source" PLUSIEURS FOIS avec des REQUÊTES DIFFÉRENTES pour explorer le sujet en détail.\n\nExemples de requêtes variées:\n- Première: Question générale ou résumé\n- Deuxième: Détails spécifiques, exemples, ou contexte historique\n- Troisième: Cas d\'usage, applications, ou implications\n- Etc.\n\nNE FAIS PAS deux fois la même requête. À chaque appel, pose une question NOUVELLE et COMPLÉMENTAIRE.\n\nRécupère des informations complètes et variées AVANT de répondre.\nN\'utilise tes connaissances que pour compléter les informations, pas pour remplacer les sources.'
+            : '\n\n🔧 IMPORTANT: Tu as accès à plusieurs tools. Tu DOIS les utiliser pour lire les sources et pages mentionnées.\n\nPour chaque source/page, appelle "read_rag_source" une seule fois avec une question claire et pertinente.\n\nN\'utilise tes connaissances que pour compléter les informations, pas pour remplacer les sources.')
         },
         {
           role: 'user',
           content: `${sourcesContext}${workspacePagesStr}\n\nQuestion de l'utilisateur: "${query}"\n\n${isSearch 
-            ? 'Fais une recherche APPROFONDIE: Utilise les tools disponibles PLUSIEURS FOIS pour lire les sources/pages mentionnées sous différents angles, puis réponds de manière exhaustive et détaillée.'
+            ? 'MODE RECHERCHE: Explore le sujet en profondeur. Appelle "read_rag_source" PLUSIEURS FOIS avec des questions DIFFÉRENTES et VARIÉES pour chaque source. Récupère des informations sous différents angles. Puis réponds de manière exhaustive et détaillée.'
             : 'Utilise les tools disponibles pour lire les sources/pages mentionnées, puis réponds à la question.'}`
         }
       ];
@@ -292,6 +292,23 @@ export class FunctionCallingService {
             tool_call_id: toolResult.tool_call_id,
             content: toolResult.content
           });
+        }
+
+        // 🔥 EN MODE SEARCH: Forcer une requête DIFFÉRENTE à la prochaine itération
+        if (isSearch && toolLoopCount < maxToolLoops) {
+          const previousQueries = toolCalls
+            .slice(-toolResultsForThisLoop.length) // Les derniers tools exécutés
+            .map(tc => tc.arguments?.query)
+            .filter(q => q);
+          
+          if (previousQueries.length > 0) {
+            const differentQueryInstruction = `\n\n⚠️ IMPORTANT - Requête suivante DIFFÉRENTE:\nLa requête précédente était: "${previousQueries[0]}"\nTa PROCHAINE requête doit être COMPLÈTEMENT DIFFÉRENTE. Pose une question sur un aspect différent du même sujet (exemples, détails, contexte, applications, théorie, etc.).\nNE FAIS PAS la même requête deux fois.`;
+            
+            initialMessages.push({
+              role: 'assistant',
+              content: `Bien reçu. Je vais continuer l'exploration avec une requête DIFFÉRENTE et COMPLÉMENTAIRE.${differentQueryInstruction}`
+            });
+          }
         }
 
         console.log(`✅ [PHASE-1-LOOP-${toolLoopCount}] Fin de la boucle, révision si plus de tools nécessaires...`);
