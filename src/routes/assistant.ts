@@ -326,9 +326,9 @@ router.post('/rag/context', async (req: any, res) => {
     if (sourcesScope === 'custom' && selectedSources) {
       const { wikipediaSources = [], mentionedPages = [], fileSources = [] } = selectedSources;
       const mentionedTitles = new Set([
-        ...wikipediaSources.map(s => s.title),
-        ...mentionedPages.map(p => p.title),
-        ...fileSources.map(f => f.title)
+        ...wikipediaSources.map((s: any) => s.title),
+        ...mentionedPages.map((p: any) => p.title),
+        ...fileSources.map((f: any) => f.title)
       ]);
       
       // Filtrer: garder SEULEMENT les sources mentionnées

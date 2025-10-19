@@ -19,6 +19,9 @@ export interface RAGChunkInput {
   startOffset?: number;
   endOffset?: number;
   quality?: number;
+  cleanContent?: string;
+  tokenCount?: number;
+  language?: string;
 }
 
 export interface RAGSearchOptions {
