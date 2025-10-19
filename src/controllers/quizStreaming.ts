@@ -870,6 +870,9 @@ export class QuizStreamingController {
           timeSpent: ans.timeSpent || 0
         }));
 
+        // Tracker toutes les corrections pour la sauvegarde
+        const allCorrections: any[] = [];
+
         // Construire la requête de correction
         const correctionRequest: QuizCorrectionRequest = {
           quizId,
@@ -898,12 +901,20 @@ export class QuizStreamingController {
         for await (const event of generator) {
           if (event.type === 'closed-questions') {
             console.log(`✅ [CORRECTION-STREAMING] ${event.correction?.length || 0} questions fermées corrigées`);
+            // Accumuler les corrections
+            if (event.correction && Array.isArray(event.correction)) {
+              allCorrections.push(...event.correction);
+            }
             sendSSE('closed-questions-corrected', {
               corrections: event.correction,
               count: event.correction?.length || 0
             });
           } else if (event.type === 'open-question') {
             console.log(`✅ [CORRECTION-STREAMING] Question ouverte ${event.questionNumber}/${event.totalOpenQuestions} corrigée`);
+            // Accumuler la correction
+            if (event.correction) {
+              allCorrections.push(event.correction);
+            }
             sendSSE('open-question-corrected', {
               questionNumber: event.questionNumber,
               totalOpenQuestions: event.totalOpenQuestions,
@@ -914,13 +925,35 @@ export class QuizStreamingController {
             
             // Sauvegarder le résultat en base de données
             if (event.finalResult) {
-              await prisma.quiz.update({
-                where: { id: quizId },
-                data: {
-                  isCompleted: true,
-                  updatedAt: new Date()
-                }
+              // Utiliser une transaction pour garantir la cohérence
+              await prisma.$transaction(async (tx) => {
+                // Marquer le quiz comme terminé
+                await tx.quiz.update({
+                  where: { id: quizId },
+                  data: {
+                    isCompleted: true,
+                    completedAt: new Date(),
+                    updatedAt: new Date()
+                  }
+                });
+
+                // Créer le résultat du quiz
+                await tx.quizResult.create({
+                  data: {
+                    quizId,
+                    totalScore: event.finalResult!.totalScore || 0,
+                    maxScore: event.finalResult!.maxScore || 1,
+                    percentage: event.finalResult!.percentage || 0,
+                    adaptedGrade: event.finalResult!.adaptedGrade || 0,
+                    gradeScale: event.finalResult!.gradeScale || '/20',
+                    detailedScoring: allCorrections, // Utiliser toutes les corrections accumulées
+                    aiCorrection: event.finalResult!.aiCorrection as any,
+                    recommendations: event.finalResult!.aiCorrection?.recommendations as any
+                  }
+                });
               });
+
+              console.log(`✅ [CORRECTION-STREAMING] Quiz et résultats sauvegardés en DB`);
 
               // Envoyer l'analyse détaillée IA
               sendSSE('ai-analysis', {
