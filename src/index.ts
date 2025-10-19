@@ -38,6 +38,7 @@ import { DatabaseHealthCheck } from './lib/dbHealthCheck.js';
 import { PrismaPersistence } from './lib/y-prisma.js';
 import { prisma, startKeepAlive } from './lib/prisma.js';
 import { progressService } from './services/progressService.js';
+import { SubscriptionNotificationService } from './services/subscriptionNotification.js';
 import compression from 'compression';
 import { backendConfig, CLIENT_URL } from './utils/config.js';
 
@@ -448,6 +449,52 @@ const setupYjsWebSocket = (server: http.Server) => {
             }
         }).catch(error => {
             console.log('[WS] ❌ Erreur auth progression:', error);
+            socket.destroy();
+        });
+    } else if (url.pathname.startsWith('/ws/subscription/')) {
+        // Route pour les notifications de changement de subscription
+        if (!token) {
+            console.log('[WS] ❌ Token manquant pour subscription - connexion rejetée');
+            socket.destroy();
+            return;
+        }
+        
+        // Extraire l'userId depuis l'URL
+        const pathSegments = url.pathname.split('/').filter(Boolean);
+        const subscriptionIndex = pathSegments.indexOf('subscription');
+        const userId = subscriptionIndex >= 0 && subscriptionIndex + 1 < pathSegments.length 
+            ? pathSegments[subscriptionIndex + 1] 
+            : null;
+            
+        if (!userId) {
+            console.log('[WS] ❌ UserId manquant pour subscription');
+            socket.destroy();
+            return;
+        }
+        
+        authenticateTokenWS(token).then(user => {
+            // Vérifier que l'utilisateur connecté correspond à celui dont on écoute les notifications
+            if (user && user.id === userId) {
+                console.log(`[WS] ✅ Subscription WebSocket - user: ${user.id}`);
+                wss.handleUpgrade(request, socket, head, (ws) => {
+                    // Enregistrer la connexion dans le service de notification
+                    const notificationService = SubscriptionNotificationService.getInstance();
+                    notificationService.registerConnection(userId, ws);
+                    
+                    // Envoyer confirmation de connexion
+                    ws.send(JSON.stringify({
+                        type: 'connected',
+                        userId,
+                        timestamp: Date.now(),
+                        message: 'Connexion subscription établie'
+                    }));
+                });
+            } else {
+                console.log('[WS] ❌ Subscription authentication échouée ou userId mismatch');
+                socket.destroy();
+            }
+        }).catch(error => {
+            console.log('[WS] ❌ Erreur auth subscription:', error);
             socket.destroy();
         });
     } else {

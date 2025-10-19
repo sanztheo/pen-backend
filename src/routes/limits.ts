@@ -35,7 +35,9 @@ router.get('/', authenticateToken, async (req, res) => {
           projectsLimit: -1,
           pagesLimit: isPremium ? -1 : 20,
           customQuizzesLimit: isPremium ? -1 : 5,
-          presetSequencesLimit: isPremium ? -1 : 1
+          presetSequencesLimit: isPremium ? -1 : 1,
+          pagesSelectionLimit: isPremium ? 30 : 2,
+          questionsPerQuizLimit: isPremium ? 40 : 10
         },
         create: {
           userId,
@@ -46,6 +48,9 @@ router.get('/', authenticateToken, async (req, res) => {
           pagesLimit: isPremium ? -1 : 20,
           customQuizzesLimit: isPremium ? -1 : 5,
           presetSequencesLimit: isPremium ? -1 : 1,
+          pagesSelectionLimit: isPremium ? 30 : 2,
+          questionsPerQuizLimit: isPremium ? 40 : 10,
+          advancedQuizzesLimit: 10,
           // Usage par défaut à 0
           aiCreditsUsed: 0,
           workspacesUsed: 0,
@@ -53,6 +58,7 @@ router.get('/', authenticateToken, async (req, res) => {
           pagesUsed: 0,
           customQuizzesUsed: 0,
           presetSequencesUsed: 0,
+          advancedQuizzesUsed: 0,
         }
       });
     }
@@ -94,12 +100,16 @@ router.put('/sync', authenticateToken, async (req, res) => {
         pagesLimit: isPremium ? -1 : 20,
         customQuizzesLimit: isPremium ? -1 : 5,
         presetSequencesLimit: isPremium ? -1 : 1,
+        pagesSelectionLimit: isPremium ? 30 : 2,
+        questionsPerQuizLimit: isPremium ? 40 : 10,
+        advancedQuizzesLimit: 10,
         aiCreditsUsed: 0,
         workspacesUsed: 0,
         projectsUsed: 0,
         pagesUsed: 0,
         customQuizzesUsed: 0,
         presetSequencesUsed: 0,
+        advancedQuizzesUsed: 0,
       },
       update: {
         aiCreditsLimit: isPremium ? -1 : 50,
@@ -108,6 +118,8 @@ router.put('/sync', authenticateToken, async (req, res) => {
         pagesLimit: isPremium ? -1 : 20,
         customQuizzesLimit: isPremium ? -1 : 5,
         presetSequencesLimit: isPremium ? -1 : 1,
+        pagesSelectionLimit: isPremium ? 30 : 2,
+        questionsPerQuizLimit: isPremium ? 40 : 10,
       }
     });
 

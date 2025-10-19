@@ -216,6 +216,52 @@ export class FuturaRssService {
   }
 
   /**
+   * Vérifie si un article est une promotion/offre
+   * @param article Article à vérifier
+   * @returns true si l'article est une promotion
+   */
+  private static isPromotionalArticle(article: any): boolean {
+    const title = (article.title || '').toLowerCase();
+    const description = (article.description || '').toLowerCase();
+    const contentSnippet = (article.contentSnippet || '').toLowerCase();
+    const content = (article.content || '').toLowerCase();
+    
+    // Keywords de promotion
+    const promotionalKeywords = [
+      'promo', 'économisez', 'économiser', 'réduction', 'offre', 'offres limitées',
+      'jusqu\'à', 'rabais', 'soldes', 'bons plans', 'bon plan', 'deal',
+      'achetez', 'acheter', 'comparatif', 'vente', 'achats',
+      'sponsorisé', 'sponsor', 'publicité', 'partenaire',
+      'vpn', 'antivirus', 'cyber', 'sécurité vpn',
+      'surfshark', 'cyberghost', 'expressvpn', 'nordvpn',
+      'code promo', 'coupon', 'rabais',
+      'ici', 'amazon', 'allociné', 'numerama'
+    ];
+    
+    const combinedText = `${title} ${description} ${contentSnippet} ${content}`;
+    
+    // Vérifier si plusieurs keywords de promotion sont présents
+    const matchingKeywords = promotionalKeywords.filter(keyword => 
+      combinedText.includes(keyword)
+    );
+    
+    // Si 2+ keywords trouvés, c'est probablement une promotion
+    if (matchingKeywords.length >= 2) {
+      console.log(`⚠️ Article promotionnel détecté: "${title.substring(0, 50)}..." (keywords: ${matchingKeywords.join(', ')})`);
+      return true;
+    }
+    
+    // Pattern stricte pour les promotions évidentes
+    const promotionalPattern = /^(surfshark|cyberghost|expressvpn|nordvpn|vpn).*(vs|versus|comparaison|économisez|réduction|promo)/i;
+    if (promotionalPattern.test(title)) {
+      console.log(`⚠️ Article promotionnel détecté (pattern): "${title}"`);
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
    * Fetch un article scientifique aléatoire depuis Futura Sciences RSS
    * @returns Un article aléatoire parmi les 10 derniers ou null en cas d'erreur
    */
@@ -229,12 +275,21 @@ export class FuturaRssService {
         return null;
       }
 
-      // Prendre un article au hasard parmi les 10 derniers
-      const availableArticles = feed.items.slice(0, 10);
-      const randomIndex = Math.floor(Math.random() * availableArticles.length);
-      const latestItem = availableArticles[randomIndex];
+      // Filtrer les articles promotionnels
+      const validArticles = feed.items
+        .slice(0, 30) // Vérifier les 30 premiers articles
+        .filter(item => !this.isPromotionalArticle(item));
 
-      console.log(`🎲 Article aléatoire sélectionné: ${randomIndex + 1}/${availableArticles.length}`);
+      if (validArticles.length === 0) {
+        console.warn('⚠️ Tous les articles disponibles sont des promotions, en prenant un quand même');
+        validArticles.push(feed.items[0]);
+      }
+
+      // Prendre un article au hasard parmi les articles valides
+      const randomIndex = Math.floor(Math.random() * validArticles.length);
+      const latestItem = validArticles[randomIndex];
+
+      console.log(`🎲 Article non-promotionnel sélectionné: ${randomIndex + 1}/${validArticles.length}`);
 
       // Extraire l'image depuis l'enclosure ou le contenu
       let imageUrl = latestItem.enclosure?.url;
@@ -328,6 +383,10 @@ export class FuturaRssService {
       });
 
       console.log('✅ Daily article saved to database:', savedArticle.id);
+      
+      // Nettoyer les anciens articles après avoir sauvegardé le nouveau
+      await this.cleanupOldArticles();
+      
       return savedArticle;
     } catch (error) {
       console.error('❌ Error saving daily article:', error);
@@ -398,13 +457,13 @@ export class FuturaRssService {
    */
   static async cleanupOldArticles() {
     try {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
       const deleted = await prisma.dailyArticle.deleteMany({
         where: {
           fetchedAt: {
-            lt: thirtyDaysAgo
+            lt: sevenDaysAgo
           }
         }
       });

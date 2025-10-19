@@ -2,13 +2,15 @@ import express from 'express';
 import { Webhook } from 'svix';
 import { prisma } from '../lib/prisma.js';
 import { createClerkClient } from '@clerk/backend';
+import { SubscriptionNotificationService } from '../services/subscriptionNotification.js';
 
 /**
  * 🎯 WEBHOOK CLERK SIMPLIFIÉ
  *
  * Principe : Juste écouter et appliquer ce que Clerk nous dit
  * - subscriptionItem.active → Appliquer le plan actif
- * - subscriptionItem.ended → IGNORER (ancien plan qui se termine)
+ * - subscriptionItem.canceled → Plan annulé mais actif jusqu'à fin période
+ * - subscriptionItem.ended → Plan complètement terminé, retour au free
  * - user.created/updated → Sync user
  */
 
@@ -70,14 +72,25 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
       userId = data.id;
     }
 
-    // Pour subscriptionItem.*, chercher dans payer
+    // Pour subscriptionItem.*, chercher le userId dans plusieurs chemins possibles
     if (!userId && type?.includes('subscriptionItem')) {
+      // Essayer plusieurs chemins selon la structure de l'event
       const candidates = [
         data?.payer?.user_id,
         data?.payer_id,
+        data?.userId,
+        data?.user_id,
       ].filter(Boolean);
 
       userId = candidates.find((id: any) => typeof id === 'string' && id.startsWith('user_'));
+      
+      if (!userId) {
+        console.warn(`⚠️ [Webhook] Impossible d'extraire userId de subscriptionItem.`, {
+          type,
+          keys: Object.keys(data || {}),
+          payer: data?.payer,
+        });
+      }
     }
 
     if (!userId) {
@@ -125,6 +138,9 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
     if (type === 'user.created' || type === 'user.updated') {
       // S'assurer que la subscription existe (free par défaut)
       const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      
       await prisma.userSubscription.upsert({
         where: { userId },
         update: {}, // Ne rien changer si existe déjà
@@ -133,7 +149,7 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
           plan: 'free_user',
           status: 'active',
           currentPeriodStart: now,
-          currentPeriodEnd: new Date(now.setMonth(now.getMonth() + 1)),
+          currentPeriodEnd: periodEnd,
         }
       });
 
@@ -205,6 +221,9 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
 
       // Appliquer directement ce que Clerk nous dit
       const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      
       await prisma.userSubscription.upsert({
         where: { userId },
         update: {
@@ -217,7 +236,7 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
           plan: plan as any,
           status: 'active',
           currentPeriodStart: now,
-          currentPeriodEnd: new Date(now.setMonth(now.getMonth() + 1)),
+          currentPeriodEnd: periodEnd,
         }
       });
 
@@ -276,6 +295,15 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
         limits: isPremium ? 'PREMIUM' : 'FREE'
       });
 
+      // 📢 Notifier le client
+      const notificationService = SubscriptionNotificationService.getInstance();
+      notificationService.notifySubscriptionChange(userId, {
+        oldPlan: 'free_user', // À améliorer: lire l'ancien plan depuis DB
+        newPlan: plan,
+        status: 'active',
+        reason: isPremium ? 'upgrade' : 'downgrade'
+      });
+
       // Marquer comme traité
       if (eventId) {
         await prisma.webhookEvent.create({
@@ -315,11 +343,14 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
       // Si c'est le premium qui se termine → Retour au free
       if (planSlug === 'premium') {
         const now = new Date();
+        const periodEnd = new Date(now);
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+        
         await prisma.userSubscription.upsert({
           where: { userId },
           update: {
             plan: 'free_user',
-            status: 'ended',
+            status: 'active',
             updatedAt: new Date(),
           },
           create: {
@@ -327,7 +358,7 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
             plan: 'free_user',
             status: 'active',
             currentPeriodStart: now,
-            currentPeriodEnd: new Date(now.setMonth(now.getMonth() + 1)),
+            currentPeriodEnd: periodEnd,
           }
         });
 
@@ -349,11 +380,11 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
           update: {
             aiCreditsLimit: 50,
             workspacesLimit: 2,
-            projectsLimit: 4,
+            projectsLimit: -1,
             customQuizzesLimit: 5,
             presetSequencesLimit: 1,
             historyQuizzesLimit: 5,
-            statsChartsLimit: ['progression-area', 'time-analytics-line'],
+            statsChartsLimit: ['progression-area', 'difficulty-radar'],
             workspacesUsed: workspacesCount,
             projectsUsed: projectsCount,
             customQuizzesUsed: customQuizzesCount,
@@ -364,11 +395,11 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
             userId,
             aiCreditsLimit: 50,
             workspacesLimit: 2,
-            projectsLimit: 4,
+            projectsLimit: -1,
             customQuizzesLimit: 5,
             presetSequencesLimit: 1,
             historyQuizzesLimit: 5,
-            statsChartsLimit: ['progression-area', 'time-analytics-line'],
+            statsChartsLimit: ['progression-area', 'difficulty-radar'],
             aiCreditsUsed: Math.max(0, aiCreditsUsed),
             workspacesUsed: workspacesCount,
             projectsUsed: projectsCount,
@@ -382,6 +413,17 @@ export const clerkWebhookHandler: express.RequestHandler = async (req, res) => {
         console.log(`✅ [Webhook] Premium ended → free_user appliqué`);
       } else {
         console.log(`⏭️ [Webhook] Free plan ended, ignoré`);
+      }
+
+      // 📢 Notifier le client si c'était un premium
+      if (planSlug === 'premium') {
+        const notificationService = SubscriptionNotificationService.getInstance();
+        notificationService.notifySubscriptionChange(userId, {
+          oldPlan: 'premium',
+          newPlan: 'free_user',
+          status: 'active',
+          reason: 'ended'
+        });
       }
 
       if (eventId) {
