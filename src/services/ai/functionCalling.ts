@@ -23,6 +23,7 @@ export interface DecideToolsOptions {
   userId: string;
   useWeb: boolean;
   systemPrompt: string;
+  isSearch?: boolean;  // 🔥 Flag pour Search mode - permet plus de tools
   onThinking?: (thinking: string) => void;
   onToolCall?: (toolName: string, args: any) => void;
   onToolResult?: (toolName: string, result: string) => void;
@@ -54,6 +55,7 @@ export interface FunctionCallingOptions {
   userId: string;
   useWeb: boolean;
   systemPrompt: string;
+  isSearch?: boolean;  // 🔥 Flag pour Search mode
   onThinking?: (thinking: string) => void;
   onToolCall?: (toolName: string, args: any) => void;
   onToolResult?: (toolName: string, result: string) => void;
@@ -82,6 +84,7 @@ export class FunctionCallingService {
       userId,
       useWeb,
       systemPrompt,
+      isSearch = false,
       onThinking,
       onToolCall,
       onToolResult
@@ -149,17 +152,21 @@ export class FunctionCallingService {
       const initialMessages: any[] = [
         {
           role: 'system',
-          content: systemPrompt + '\n\n🔧 IMPORTANT: Tu as accès à plusieurs tools. Tu DOIS les utiliser pour lire les sources et pages mentionnées. \n\nPour chaque source/page disponible, appelle "read_rag_source" avec l\'ID et la question pour récupérer le contenu pertinent AVANT de répondre.\n\nN\'utilise tes connaissances que pour compléter les informations, pas pour remplacer les sources.'
+          content: systemPrompt + (isSearch 
+            ? '\n\n🔧 MODE RECHERCHE APPROFONDIE:\nTu dois utiliser les tools PLUSIEURS FOIS pour explorer le sujet en détail. Utilise "read_rag_source" avec différentes requêtes pour comprendre le sujet sous tous les angles. Tu peux consulter la même source plusieurs fois avec des questions différentes.\n\nPour chaque source/page disponible, appelle "read_rag_source" PLUSIEURS FOIS avec l\'ID et différentes questions pour récupérer des informations complètes et variées AVANT de répondre.\n\nN\'utilise tes connaissances que pour compléter les informations, pas pour remplacer les sources.'
+            : '\n\n🔧 IMPORTANT: Tu as accès à plusieurs tools. Tu DOIS les utiliser pour lire les sources et pages mentionnées.\n\nPour chaque source/page disponible, appelle "read_rag_source" avec l\'ID et la question pour récupérer le contenu pertinent AVANT de répondre.\n\nN\'utilise tes connaissances que pour compléter les informations, pas pour remplacer les sources.')
         },
         {
           role: 'user',
-          content: `${sourcesContext}${workspacePagesStr}\n\nQuestion de l'utilisateur: "${query}"\n\nUtilise les tools disponibles pour lire les sources/pages mentionnées, puis réponds à la question.`
+          content: `${sourcesContext}${workspacePagesStr}\n\nQuestion de l'utilisateur: "${query}"\n\n${isSearch 
+            ? 'Fais une recherche APPROFONDIE: Utilise les tools disponibles PLUSIEURS FOIS pour lire les sources/pages mentionnées sous différents angles, puis réponds de manière exhaustive et détaillée.'
+            : 'Utilise les tools disponibles pour lire les sources/pages mentionnées, puis réponds à la question.'}`
         }
       ];
 
       let continueLoop = true;
       let toolLoopCount = 0;
-      const maxToolLoops = 5; // Éviter les boucles infinies
+      const maxToolLoops = isSearch ? 8 : 5; // Plus de loops pour Search (recherche approfondie)
 
       while (continueLoop && toolLoopCount < maxToolLoops) {
         toolLoopCount++;
@@ -434,7 +441,8 @@ Réponds maintenant à la question en utilisant les résultats des outils ci-des
   private static buildInitialPrompt(
     query: string,
     sources: Array<{ id: string; title: string; type: string }>,
-    useWeb: boolean
+    useWeb: boolean,
+    isSearch: boolean = false
   ): string {
     let prompt = `Question de l'utilisateur: ${query}\n\n`;
 
@@ -443,14 +451,24 @@ Réponds maintenant à la question en utilisant les résultats des outils ci-des
       sources.forEach((s, i) => {
         prompt += `${i + 1}. "${s.title}" (ID: ${s.id}, Type: ${s.type})\n`;
       });
-      prompt += '\n⚠️ IMPORTANT: Tu DOIS utiliser le tool read_rag_source pour lire ces sources avant de répondre.\n\n';
+      
+      if (isSearch) {
+        prompt += '\n⚠️ IMPORTANT MODE RECHERCHE APPROFONDIE:\n';
+        prompt += '- Tu peux utiliser le tool read_rag_source PLUSIEURS FOIS pour lire différents passages d\'une même source\n';
+        prompt += '- Cherche à comprendre le sujet en profondeur et varié\n';
+        prompt += '- Tu peux consulter la tool list_available_sources pour explorer toutes les options\n\n';
+      } else {
+        prompt += '\n⚠️ IMPORTANT: Tu DOIS utiliser le tool read_rag_source pour lire ces sources avant de répondre.\n\n';
+      }
     }
 
     if (useWeb) {
       prompt += '🌐 Tu peux aussi utiliser le tool search_web si nécessaire pour des informations externes ou récentes.\n\n';
     }
 
-    prompt += 'Maintenant, utilise les tools disponibles pour chercher les informations nécessaires, puis réponds à la question de manière complète et précise.';
+    prompt += isSearch 
+      ? 'Fais une recherche APPROFONDIE en utilisant les tools disponibles pour chercher les informations les plus complètes et détaillées, puis réponds de manière exhaustive.'
+      : 'Maintenant, utilise les tools disponibles pour chercher les informations nécessaires, puis réponds à la question de manière complète et précise.';
 
     return prompt;
   }

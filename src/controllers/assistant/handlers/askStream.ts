@@ -18,6 +18,13 @@ import { indexAndPreparePagesForAI } from '../helpers/pageIndexing.js';
 
 export const assistantAskStream = async (req: Request, res: Response) => {
   try {
+    // 🔍 DEBUG: Log EVERYTHING from the frontend request
+    console.log(`\n\n🔍 [ASK-DEBUG-START] ========== DÉBUT REQUÊTE ASK ==========`);
+    console.log(`📨 [ASK-DEBUG] Body reçu du frontend:`, JSON.stringify(req.body, null, 2));
+    console.log(`📨 [ASK-DEBUG] pageIds reçus: ${JSON.stringify((req.body as any)?.pageIds)}`);
+    console.log(`📨 [ASK-DEBUG] ragSources reçus: ${JSON.stringify((req.body as any)?.ragSources)}`);
+    console.log(`📨 [ASK-DEBUG] sourcesScope reçu: ${(req.body as any)?.sourcesScope}`);
+    
     // 🔍 Validation et parsing unifié avec le nouveau service
     const { request, errors } = AssistantHandlerService.parseRequest(req);
     if (errors.length > 0) {
@@ -37,18 +44,27 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     // 🧠 RAG: Gestion intelligente des sources avec validation unifiée
     let contextPageIds: string[] = [];
 
-    // Si nous avons des sources RAG externes (Wikipedia), ne pas utiliser les pages workspace
-    if (ragSources && ragSources.length > 0) {
-      DebugLogger.rag('[ASK] Mode RAG externe détecté, pas d\'utilisation des pages workspace');
-      contextPageIds = []; // Pas de pages workspace
-    } else if (workspaceId && pageIds.length > 0) {
+    // 🔥 PRIORITÉ: Pages mentionnées > Sources RAG externes
+    // Les pages workspace mentionnées ont TOUJOURS la priorité
+    if (workspaceId && pageIds.length > 0) {
       // 🚀 Validation UUID avec le service unifié
       contextPageIds = ValidationUtils.validatePageIds(pageIds);
 
       if (contextPageIds.length !== pageIds.length) {
         DebugLogger.rag(`IDs invalides filtrés: ${pageIds.length - contextPageIds.length} IDs ignorés`);
       }
+      console.log(`✅ [ASK-DEBUG] Pages mentionnées trouvées: ${contextPageIds.length} - ${JSON.stringify(contextPageIds)}`);
+    } 
+    // Seulement si PAS de pages mentionnées, utiliser les sources RAG externes
+    else if (ragSources && ragSources.length > 0) {
+      DebugLogger.rag('[ASK] Pas de pages mentionnées - Mode RAG externe détecté');
+      contextPageIds = []; // Pas de pages workspace
+      console.log(`⚠️ [ASK-DEBUG] Pas de pages mentionnées, utilisation ragSources: ${ragSources.length}`);
     }
+    
+    console.log(`📊 [ASK-DEBUG] contextPageIds après logique: ${JSON.stringify(contextPageIds)}`);
+    console.log(`📊 [ASK-DEBUG] ragSources après logique: ${JSON.stringify(ragSources)}`);
+    console.log(`📊 [ASK-DEBUG] hasSpecificPages: ${contextPageIds.length > 0}`);
 
     // 🚀 Construction contexte avec le service unifié
     DebugLogger.web(`[ASK] Déclenchement recherche web - useWeb: ${useWeb}`);
@@ -113,6 +129,8 @@ export const assistantAskStream = async (req: Request, res: Response) => {
           type: s.type || 'UNKNOWN'
         }));
       }
+      
+      console.log(`\n🔍 [ASK-DEBUG] sourcesForAI FINAL avant FunctionCalling: ${JSON.stringify(sourcesForAI, null, 2)}\n`);
 
       let currentThinking = '';
       let currentToolCalls: any[] = [];
@@ -128,6 +146,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
           userId: req.user!.id,
           useWeb,
           systemPrompt: 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.',
+          isSearch: false,  // 🔥 Flag pour Ask - réponse plus courte
 
           // Callbacks pour streaming temps réel
           onThinking: (thinkingChunk) => {
