@@ -879,8 +879,9 @@ export class QuizStreamingController {
           preset: (quiz as any).preset || 'NONE',
           specificSubject: (quiz as any).specificSubject,
           schoolLevel: quiz.schoolLevel as SchoolLevel || SchoolLevel.COLLEGE,
-          hasDocuments: !!sourceDocuments && sourceDocuments.length > 0,
-          sourceDocuments,
+          // Utiliser les sourceDocuments du quiz (pour la cohérence) ou ceux du body en fallback
+          hasDocuments: quiz.hasDocuments || (!!sourceDocuments && sourceDocuments.length > 0),
+          sourceDocuments: (quiz.sourceDocuments as any) || sourceDocuments || [],
           coursesOnly: false,
           workspaceContent: []
         };
