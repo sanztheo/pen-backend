@@ -225,26 +225,34 @@ export class FunctionCallingService {
           }
         }
 
+        // 🔧 Modifier les tool calls pour le mode SEARCH: forcer UN SEUL tool par itération
+        let toolCallsForThisIteration = toolCallsForThisLoop;
+        
+        if (isSearch && toolCallsForThisLoop.length > 1) {
+          console.log(`🔧 [SEARCH-MODE] Limitation à 1 tool au lieu de ${toolCallsForThisLoop.length}`);
+          // En mode Search, prendre seulement le PREMIER tool et ignorer les autres pour cette itération
+          // Les autres seront décidés dans les itérations suivantes
+          toolCallsForThisIteration = [toolCallsForThisLoop[0]];
+        }
+
+        console.log(`🔧 [PHASE-1-LOOP-${toolLoopCount}] ${toolCallsForThisIteration.length} tool call(s) à exécuter`);
+
         // Pas de tool calls → fin de la boucle
-        if (toolCallsForThisLoop.length === 0) {
+        if (toolCallsForThisIteration.length === 0) {
           console.log(`✅ [PHASE-1-LOOP-${toolLoopCount}] Aucun tool call, fin de la boucle agentic`);
           continueLoop = false;
           break;
         }
 
-        console.log(`🔧 [PHASE-1-LOOP-${toolLoopCount}] ${toolCallsForThisLoop.length} tool call(s) à exécuter`);
-
         // Ajouter le message de l'assistant à l'historique
         initialMessages.push({
           role: 'assistant',
           content: assistantContent || null,
-          tool_calls: toolCallsForThisLoop
+          tool_calls: toolCallsForThisIteration
         });
 
         // 🔥 Exécuter chaque tool call ET stream progressivement
-        const toolResultsForThisLoop: any[] = [];
-
-        for (const toolCall of toolCallsForThisLoop) {
+        for (const toolCall of toolCallsForThisIteration) {
           const toolName = toolCall.function.name;
           const args = JSON.parse(toolCall.function.arguments);
 
@@ -276,57 +284,48 @@ export class FunctionCallingService {
             timestamp: Date.now()
           });
 
-          // Garder le résultat pour la prochaine itération
-          toolResultsForThisLoop.push({
-            type: 'tool',
+          // ✅ AJOUTER le résultat aux messages IMMÉDIATEMENT (un par un)
+          initialMessages.push({
+            role: 'tool',
             tool_call_id: toolCall.id,
             content: result
           });
 
           console.log(`✅ [PHASE-1-LOOP-${toolLoopCount}] Tool ${toolName} exécuté`);
-        }
 
-        // Ajouter les résultats des tools à l'historique pour la prochaine itération
-        // IMPORTANT: Format OpenAI - role: 'tool' avec tool_call_id
-        for (const toolResult of toolResultsForThisLoop) {
-          initialMessages.push({
-            role: 'tool',
-            tool_call_id: toolResult.tool_call_id,
-            content: toolResult.content
-          });
-        }
+          // 🔥 MODE SEARCH: Générer THINKING intermédiaire APRÈS CHAQUE tool individuellement
+          if (isSearch && onIntermediateThinking && toolLoopCount < maxToolLoops) {
+            console.log(`🔧 [INTERMEDIATE-THINKING] Génération après tool: ${toolName}...`);
+            try {
+              // Les messages incluent déjà le résultat du tool courant
+              const intermediateThinkingStream = await openai.chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: [
+                  ...initialMessages,
+                  {
+                    role: 'user',
+                    content: 'Réfléchis à ta prochaine requête COMPLÈTEMENT DIFFÉRENTE pour continuer l\'exploration. Qu\'est-ce que tu dois chercher ensuite?'
+                  }
+                ],
+                temperature: 0.3,
+                stream: true
+              });
 
-        // 🔥 MODE SEARCH: Génération THINKING intermédiaire APRÈS chaque tool result
-        // Cela permettra à l'IA de réfléchir avant le prochain appel
-        if (isSearch && onIntermediateThinking && toolLoopCount < maxToolLoops && toolResultsForThisLoop.length > 0) {
-          console.log(`🔧 [INTERMEDIATE-THINKING-LOOP-${toolLoopCount}] Génération thinking après tools...`);
-          try {
-            const intermediateThinkingStream = await openai.chat.completions.create({
-              model: 'gpt-4o-mini',
-              messages: [
-                ...initialMessages,
-                {
-                  role: 'user',
-                  content: 'Réfléchis à la prochaine requête COMPLÈTEMENT DIFFÉRENTE pour continuer l\'exploration. Qu\'est-ce que tu dois chercher ensuite pour approfondir la compréhension du sujet?'
+              for await (const chunk of intermediateThinkingStream) {
+                const delta = chunk.choices[0]?.delta;
+                if (delta?.content) {
+                  onIntermediateThinking(delta.content);
                 }
-              ],
-              temperature: 0.3,
-              stream: true
-            });
-
-            for await (const chunk of intermediateThinkingStream) {
-              const delta = chunk.choices[0]?.delta;
-              if (delta?.content) {
-                onIntermediateThinking(delta.content);
               }
-            }
 
-            console.log(`✅ [INTERMEDIATE-THINKING-LOOP-${toolLoopCount}] Thinking intermédiaire généré`);
-          } catch (error) {
-            console.warn(`⚠️ [INTERMEDIATE-THINKING] Erreur génération thinking intermédiaire:`, error);
-            // Ne pas bloquer le flux si la thinking échoue
+              console.log(`✅ [INTERMEDIATE-THINKING] Généré après: ${toolName}`);
+            } catch (error) {
+              console.warn(`⚠️ [INTERMEDIATE-THINKING] Erreur après ${toolName}:`, error);
+            }
           }
         }
+
+        // ✅ Les résultats sont déjà ajoutés individuellement dans la boucle ci-dessus
 
         console.log(`✅ [PHASE-1-LOOP-${toolLoopCount}] Fin de la boucle, révision si plus de tools nécessaires...`);
       }
