@@ -20,6 +20,7 @@ export interface HandlerRequest {
 
 export interface ContextResult {
   pages: string;
+  pageObjects?: Array<{ id: string; title: string }>;
   web: string;
   webRefs?: Array<{ title?: string; url?: string }>;
   ragContext?: string;
@@ -74,6 +75,24 @@ export class AssistantHandlerService {
       ? await buildPagesContextChunked(workspaceId, effectivePageIds, 10, query, 12)
       : '';
 
+    // 🆕 Récupérer les objets Page réels pour la conversion RAG
+    let pageObjects: Array<{ id: string; title: string }> = [];
+    if (effectivePageIds.length > 0) {
+      try {
+        const { prisma } = await import('../../../lib/prisma.js');
+        const pages = await prisma.page.findMany({
+          where: {
+            id: { in: effectivePageIds },
+            isArchived: false
+          },
+          select: { id: true, title: true }
+        });
+        pageObjects = pages;
+      } catch (error) {
+        DebugLogger.rag(`[${mode.toUpperCase()}] Erreur récupération objets pages:`, error);
+      }
+    }
+
     // Recherche web selon le mode
     let webContext = '';
     let webRefs: Array<{ title?: string; url?: string }> = [];
@@ -105,6 +124,7 @@ export class AssistantHandlerService {
 
     return {
       pages: pageContext,
+      pageObjects,
       web: webContext,
       webRefs: mode === 'search' ? webRefs : undefined,
       ragContext: ragContext || undefined

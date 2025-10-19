@@ -69,7 +69,8 @@ export interface FunctionCallingResult {
 
 export class FunctionCallingService {
   /**
-   * 🔥 PHASE 1: Décide des tools + stream explication + exécute tools
+   * 🔥 PHASE 1: Boucle agentic - L'IA décide quels tools utiliser
+   * Streaming progressif de chaque tool call et résultat
    */
   static async decideAndExecuteTools(
     options: DecideToolsOptions
@@ -90,33 +91,38 @@ export class FunctionCallingService {
     let thinking = '';
     const context: ToolContext = { userId, workspaceId };
 
-    console.log(`🔧 [PHASE-1] Décision tools avec ${availableSources.length} sources`);
-
-    // Construire le prompt avec infos sur les sources
-    const initialPrompt = this.buildInitialPrompt(query, availableSources, useWeb);
+    console.log(`🔧 [PHASE-1] Boucle agentic avec ${availableSources.length} sources disponibles`);
 
     const openai = AIService.getOpenAI();
-
-    const messages: any[] = [
-      {
-        role: 'system',
-        content: systemPrompt + '\n\n🔥 IMPORTANT: Avant d\'utiliser les tools, tu DOIS d\'abord expliquer ton raisonnement en texte libre (ex: "Pour répondre à cette question, je vais d\'abord consulter la source disponible..."). Ensuite seulement, tu utilises les tools pour récupérer les informations nécessaires.'
-      },
-      { role: 'user', content: initialPrompt }
-    ];
+    
+    // Petite pause pour laisser les événements SSE se propager
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
     try {
-      // 🔥 ÉTAPE 1a: D'abord, demander à l'AI d'expliquer (SANS tools pour forcer le texte)
-      console.log(`💭 [PHASE-1a] Génération thinking initial (sans tools)...`);
+      // 🔥 ÉTAPE 1: D'abord, demander à l'AI d'expliquer son plan (thinking)
+      console.log(`💭 [PHASE-1] Génération thinking initial...`);
       
+      const sourcesContext = availableSources.length > 0 
+        ? `Sources disponibles:\n${availableSources.map((s, i) => `${i+1}. "${s.title}" (ID: ${s.id}, Type: ${s.type})`).join('\n')}`
+        : 'Aucune source spécifique disponible';
+
+      // 🔥 Vérifier s'il y a des pages workspace mentionnées
+      const hasWorkspacePages = availableSources.some(s => s.type === 'WORKSPACE_PAGE');
+      const workspacePagesStr = hasWorkspacePages 
+        ? '\n\n⚠️ IMPORTANT: Tu DOIS utiliser le tool "read_rag_source" pour lire les pages mentionnées AVANT de répondre!'
+        : '';
+
       const thinkingStream = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: 'Tu es un assistant IA. Explique brièvement (en 1-2 phrases) ce que tu vas faire pour répondre à la question de l\'utilisateur. Ne réponds PAS à la question, explique juste ton plan.'
+            content: 'Tu es un assistant IA expert. Explique brièvement (en 1-2 phrases) ta stratégie pour répondre à la question en utilisant les outils disponibles.'
           },
-          { role: 'user', content: `Question: ${query}\n\nSources disponibles: ${availableSources.map(s => s.title).join(', ')}\n\nExplique brièvement ce que tu vas faire:` }
+          {
+            role: 'user',
+            content: `Question: "${query}"\n\n${sourcesContext}${workspacePagesStr}\n\nQuelle est ta stratégie?`
+          }
         ],
         temperature: 0.3,
         max_tokens: 100,
@@ -134,97 +140,162 @@ export class FunctionCallingService {
         }
       }
 
-      console.log(`✅ [PHASE-1a] Thinking généré: ${thinking.length} chars`);
-
-      // 🔥 ÉTAPE 1b: Maintenant, décider des tools (avec tools disponibles)
-      console.log(`🔧 [PHASE-1b] Décision tools...`);
+      console.log(`✅ [PHASE-1] Thinking généré: ${thinking.length} chars`);
       
-      const toolStream = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages,
-        tools: FUNCTION_TOOLS as any,
-        tool_choice: 'auto',
-        temperature: 0.2,
-        stream: true
-      });
+      // Attendre un peu avant la boucle de tools
+      await sleep(150);
 
-      let toolCallsPartial: any[] = [];
-      let currentToolCallIndex = -1;
+      // 🔥 ÉTAPE 2: Boucle agentic - L'IA décide les tools à utiliser
+      const initialMessages: any[] = [
+        {
+          role: 'system',
+          content: systemPrompt + '\n\n🔧 IMPORTANT: Tu as accès à plusieurs tools. Tu DOIS les utiliser pour lire les sources et pages mentionnées. \n\nPour chaque source/page disponible, appelle "read_rag_source" avec l\'ID et la question pour récupérer le contenu pertinent AVANT de répondre.\n\nN\'utilise tes connaissances que pour compléter les informations, pas pour remplacer les sources.'
+        },
+        {
+          role: 'user',
+          content: `${sourcesContext}${workspacePagesStr}\n\nQuestion de l'utilisateur: "${query}"\n\nUtilise les tools disponibles pour lire les sources/pages mentionnées, puis réponds à la question.`
+        }
+      ];
 
-      // Collecter les tool calls
-      for await (const chunk of toolStream) {
-        const delta = chunk.choices[0]?.delta;
+      let continueLoop = true;
+      let toolLoopCount = 0;
+      const maxToolLoops = 5; // Éviter les boucles infinies
 
-        // Collecter les tool calls (ils arrivent en morceaux)
-        if (delta?.tool_calls) {
-          for (const toolCallDelta of delta.tool_calls) {
-            const index = toolCallDelta.index;
+      while (continueLoop && toolLoopCount < maxToolLoops) {
+        toolLoopCount++;
+        console.log(`🔧 [PHASE-1-LOOP-${toolLoopCount}] Appel OpenAI avec tools...`);
 
-            // Nouveau tool call
-            if (index > currentToolCallIndex) {
-              currentToolCallIndex = index;
-              toolCallsPartial[index] = {
-                id: toolCallDelta.id || '',
-                type: 'function',
-                function: {
-                  name: toolCallDelta.function?.name || '',
-                  arguments: toolCallDelta.function?.arguments || ''
+        // Appeler OpenAI pour décider les tools
+        const toolStream = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: initialMessages,
+          tools: FUNCTION_TOOLS as any,
+          tool_choice: 'auto',
+          temperature: 0.2,
+          stream: true
+        });
+
+        let toolCallsForThisLoop: any[] = [];
+        let currentToolCallIndex = -1;
+        let assistantContent = '';
+
+        // Collecter les tool calls et contenu du streaming
+        for await (const chunk of toolStream) {
+          const delta = chunk.choices[0]?.delta;
+          
+          if (delta?.content) {
+            assistantContent += delta.content;
+          }
+
+          // Collecter les tool calls (ils arrivent en morceaux)
+          if (delta?.tool_calls) {
+            for (const toolCallDelta of delta.tool_calls) {
+              const index = toolCallDelta.index;
+
+              // Nouveau tool call
+              if (index > currentToolCallIndex) {
+                currentToolCallIndex = index;
+                toolCallsForThisLoop[index] = {
+                  id: toolCallDelta.id || '',
+                  type: 'function',
+                  function: {
+                    name: toolCallDelta.function?.name || '',
+                    arguments: toolCallDelta.function?.arguments || ''
+                  }
+                };
+              } else {
+                // Continuer à accumuler les arguments
+                if (toolCallDelta.function?.arguments) {
+                  toolCallsForThisLoop[index].function.arguments += toolCallDelta.function.arguments;
                 }
-              };
-            } else {
-              // Continuer à accumuler les arguments
-              if (toolCallDelta.function?.arguments) {
-                toolCallsPartial[index].function.arguments += toolCallDelta.function.arguments;
-              }
-              if (toolCallDelta.function?.name) {
-                toolCallsPartial[index].function.name += toolCallDelta.function.name;
+                if (toolCallDelta.function?.name) {
+                  toolCallsForThisLoop[index].function.name += toolCallDelta.function.name;
+                }
               }
             }
           }
         }
-      }
 
-      // Pas de tool calls → retour vide
-      if (toolCallsPartial.length === 0) {
-        console.log(`✅ [PHASE-1b] Pas de tool calls décidés`);
-        return { toolCalls: [], thinking, shouldUseTools: false };
-      }
-
-      console.log(`🔧 [PHASE-1b] ${toolCallsPartial.length} tool call(s) à exécuter`);
-
-      // 🔥 Exécuter les tool calls
-      for (const toolCall of toolCallsPartial) {
-        const toolName = toolCall.function.name;
-        const args = JSON.parse(toolCall.function.arguments);
-
-        console.log(`🔧 [PHASE-1] Exécution: ${toolName}`, args);
-
-        if (onToolCall) {
-          onToolCall(toolName, args);
+        // Pas de tool calls → fin de la boucle
+        if (toolCallsForThisLoop.length === 0) {
+          console.log(`✅ [PHASE-1-LOOP-${toolLoopCount}] Aucun tool call, fin de la boucle agentic`);
+          continueLoop = false;
+          break;
         }
 
-        const result = await ToolExecutor.executeToolCall(toolName, args, context);
+        console.log(`🔧 [PHASE-1-LOOP-${toolLoopCount}] ${toolCallsForThisLoop.length} tool call(s) à exécuter`);
 
-        if (onToolResult) {
-          onToolResult(toolName, result);
-        }
-
-        toolCalls.push({
-          name: toolName,
-          arguments: args,
-          result,
-          timestamp: Date.now()
+        // Ajouter le message de l'assistant à l'historique
+        initialMessages.push({
+          role: 'assistant',
+          content: assistantContent || null,
+          tool_calls: toolCallsForThisLoop
         });
 
-        console.log(`✅ [PHASE-1] Tool ${toolName} exécuté`);
+        // 🔥 Exécuter chaque tool call ET stream progressivement
+        const toolResultsForThisLoop: any[] = [];
+
+        for (const toolCall of toolCallsForThisLoop) {
+          const toolName = toolCall.function.name;
+          const args = JSON.parse(toolCall.function.arguments);
+
+          console.log(`🔧 [PHASE-1-LOOP-${toolLoopCount}] Exécution: ${toolName}`);
+
+          // Stream l'appel du tool
+          if (onToolCall) {
+            onToolCall(toolName, args);
+          }
+          
+          // Attendre un peu pour que l'événement tool_call soit bien reçu
+          await sleep(50);
+
+          // Exécuter le tool
+          const result = await ToolExecutor.executeToolCall(toolName, args, context);
+
+          // Stream le résultat du tool
+          if (onToolResult) {
+            onToolResult(toolName, result);
+          }
+          
+          // Attendre un peu après chaque résultat
+          await sleep(50);
+
+          toolCalls.push({
+            name: toolName,
+            arguments: args,
+            result,
+            timestamp: Date.now()
+          });
+
+          // Garder le résultat pour la prochaine itération
+          toolResultsForThisLoop.push({
+            type: 'tool',
+            tool_call_id: toolCall.id,
+            content: result
+          });
+
+          console.log(`✅ [PHASE-1-LOOP-${toolLoopCount}] Tool ${toolName} exécuté`);
+        }
+
+        // Ajouter les résultats des tools à l'historique pour la prochaine itération
+        // IMPORTANT: Format OpenAI - role: 'tool' avec tool_call_id
+        for (const toolResult of toolResultsForThisLoop) {
+          initialMessages.push({
+            role: 'tool',
+            tool_call_id: toolResult.tool_call_id,
+            content: toolResult.content
+          });
+        }
+
+        console.log(`✅ [PHASE-1-LOOP-${toolLoopCount}] Fin de la boucle, révision si plus de tools nécessaires...`);
       }
 
-      console.log(`✅ [PHASE-1] Terminé: ${toolCalls.length} tools exécutés, thinking: ${thinking.length} chars`);
+      console.log(`✅ [PHASE-1] Boucle agentic terminée: ${toolCalls.length} tools exécutés au total`);
 
-      return { toolCalls, thinking, shouldUseTools: true };
+      return { toolCalls, thinking, shouldUseTools: toolCalls.length > 0 };
 
     } catch (error) {
-      console.error(`❌ [PHASE-1] Erreur:`, error);
+      console.error(`❌ [PHASE-1] Erreur boucle agentic:`, error);
       throw error;
     }
   }

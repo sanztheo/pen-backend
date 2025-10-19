@@ -105,20 +105,92 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
 
       const { FunctionCallingService } = await import('../../../services/ai/functionCalling.js');
 
+      // 🔥 Convertir les pages mentionnées en sources RAG pour l'IA
+      let sourcesForAI = effectiveRagSources.map(s => ({
+        id: s.id || '',
+        title: s.title || '',
+        type: s.type || 'UNKNOWN'
+      }));
+
+      // Si pages spécifiquement sélectionnées, les ajouter aux sources pour que l'IA les utilise
+      const hasSpecificPages = sourceSelection.selectedPageIds && sourceSelection.selectedPageIds.length > 0;
+      if (hasSpecificPages && contextResult.pageObjects && Array.isArray(contextResult.pageObjects) && contextResult.pageObjects.length > 0) {
+        console.log(`📖 [SEARCH] Ajout des ${contextResult.pageObjects.length} pages sélectionnées aux sources pour l'IA`);
+        
+        // Pour chaque page, s'assurer qu'une RAGSource existe
+        const { userPagesRAG } = await import('../../../services/rag/userPages.js');
+        const pageContents = await Promise.all(
+          contextResult.pageObjects.map(async (p: any) => {
+            try {
+              // Récupérer le contenu de la page
+              const pageData = await prisma.page.findUnique({
+                where: { id: p.id },
+                select: { title: true, blockNoteContent: true, updatedAt: true }
+              });
+              
+              if (pageData) {
+                let textContent = pageData.title || '';
+                try {
+                  if (pageData.blockNoteContent) {
+                    const content = typeof pageData.blockNoteContent === 'string'
+                      ? JSON.parse(pageData.blockNoteContent)
+                      : pageData.blockNoteContent;
+                    if (content && Array.isArray(content)) {
+                      const textParts = content
+                        .filter((block: any) => block?.type === 'paragraph' && block?.content)
+                        .map((block: any) =>
+                          Array.isArray(block.content)
+                            ? block.content.map((item: any) => item?.text || '').join('')
+                            : ''
+                        )
+                        .filter(Boolean);
+                      if (textParts.length > 0) {
+                        textContent = (pageData.title || '') + '\n\n' + textParts.join('\n\n');
+                      }
+                    }
+                  }
+                } catch (e) {
+                  console.log(`⚠️ Erreur extraction contenu page: ${e}`);
+                }
+                
+                // Indexer la page si pas déjà fait
+                const ragSourceId = await userPagesRAG.processUserPage({
+                  id: p.id,
+                  title: pageData.title || 'Sans titre',
+                  content: textContent,
+                  userId,
+                  workspaceId,
+                  updatedAt: pageData.updatedAt
+                });
+                
+                return { 
+                  id: ragSourceId || p.id,  // Retourner le RAGSource.id ou Page.id en fallback
+                  title: pageData.title || p.title || 'Page sans titre',
+                  type: 'WORKSPACE_PAGE'
+                };
+              }
+              return { id: p.id, title: p.title, type: 'WORKSPACE_PAGE' };
+            } catch (error) {
+              console.log(`⚠️ Erreur traitement page "${p.title}": ${error}`);
+              return { id: p.id, title: p.title, type: 'WORKSPACE_PAGE' };
+            }
+          })
+        );
+        
+        const selectedPagesSources = pageContents.filter(Boolean);
+        sourcesForAI = [...selectedPagesSources, ...sourcesForAI];
+      }
+
       let currentThinking = '';
       let currentToolCalls: any[] = [];
 
       try {
         // 🔥 PHASE 1: Décision des tools + explication streamée
-        console.log(`🔧 [SEARCH-PHASE-1] Démarrage décision tools...`);
+        console.log(`🔧 [SEARCH-PHASE-1] Démarrage décision tools avec ${sourcesForAI.length} sources...`);
         
         const toolDecision = await FunctionCallingService.decideAndExecuteTools({
           query: sanitizedQuery,
-          availableSources: effectiveRagSources.map(s => ({
-            id: s.id || '',
-            title: s.title || '',
-            type: s.type || 'UNKNOWN'
-          })),
+          availableSources: sourcesForAI,
           workspaceId,
           userId,
           useWeb,

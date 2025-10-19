@@ -13,6 +13,7 @@ import { sanitizeUserInput, analyzeQuery, optimizePrompt } from '../helpers/prom
 import { DebugLogger } from '../config/debug.js';
 import { ValidationUtils } from '../utils/validation.js';
 import { AssistantHandlerService } from '../services/HandlerService.js';
+import { prisma } from '../../../lib/prisma.js';
 
 export const assistantAskStream = async (req: Request, res: Response) => {
   try {
@@ -30,6 +31,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
 
     // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
     const sanitizedQuery = sanitizeUserInput(query);
+    const userId = req.user?.id || 'anonymous';
 
     // 🧠 RAG: Gestion intelligente des sources avec validation unifiée
     let contextPageIds: string[] = [];
@@ -61,6 +63,10 @@ export const assistantAskStream = async (req: Request, res: Response) => {
 
     DebugLogger.web(`[ASK] Contexte construit - pages: ${contextResult.pages.length}, web: ${contextResult.web.length}, rag: ${contextResult.ragContext?.length || 0}`);
 
+    // 🔧 Extraction sourcesScope du body
+    const sourcesScope = (req.body as any)?.sourcesScope || 'custom';
+    DebugLogger.rag(`[ASK] sourcesScope: ${sourcesScope}, pageIds: ${pageIds.length}`);
+
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Connection', 'keep-alive');
@@ -69,26 +75,106 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
     res.flushHeaders();
 
-    // 🔥 TWO-PHASE Function Calling si des sources RAG sont disponibles
-    if (ragSources && ragSources.length > 0) {
-      console.log(`🔧 [ASK] Mode Function Calling 2-PHASE activé (${ragSources.length} sources)`);
+    // 🔥 TWO-PHASE Function Calling SEULEMENT si:
+    // 1. Mode "Toutes les sources" (sourcesScope='all') OU
+    // 2. Pages spécifiquement mentionnées OU
+    // 3. Sources RAG disponibles (Wikipedia, fichiers, etc)
+    const hasSpecificPages = contextPageIds.length > 0;
+    const shouldUseFunctionCalling = 
+      (sourcesScope === 'all' && ragSources && ragSources.length > 0) ||
+      hasSpecificPages ||
+      (contextPageIds.length === 0 && ragSources && ragSources.length > 0);
+    
+    if (shouldUseFunctionCalling) {
+      console.log(`🔧 [ASK] Function Calling activé - Pages mentionnées: ${hasSpecificPages}, Mode: ${sourcesScope}`);
 
       const { FunctionCallingService } = await import('../../../services/ai/functionCalling.js');
+
+      // 🔥 Convertir les pages mentionnées en sources RAG pour l'IA
+      let sourcesForAI = ragSources ? ragSources.map(s => ({
+        id: s.id || '',
+        title: s.title || '',
+        type: s.type || 'UNKNOWN'
+      })) : [];
+
+      // Si pages spécifiquement mentionnées, les ajouter aux sources pour que l'IA les utilise
+      if (hasSpecificPages && contextResult.pageObjects && Array.isArray(contextResult.pageObjects) && contextResult.pageObjects.length > 0) {
+        console.log(`📖 [ASK] Ajout des ${contextResult.pageObjects.length} pages mentionnées aux sources pour l'IA`);
+        
+        // Pour chaque page, s'assurer qu'une RAGSource existe
+        const { userPagesRAG } = await import('../../../services/rag/userPages.js');
+        const pageContents = await Promise.all(
+          contextResult.pageObjects.map(async (p: any) => {
+            try {
+              // Récupérer le contenu de la page
+              const pageData = await prisma.page.findUnique({
+                where: { id: p.id },
+                select: { title: true, blockNoteContent: true, updatedAt: true }
+              });
+              
+              if (pageData) {
+                let textContent = pageData.title || '';
+                try {
+                  if (pageData.blockNoteContent) {
+                    const content = typeof pageData.blockNoteContent === 'string'
+                      ? JSON.parse(pageData.blockNoteContent)
+                      : pageData.blockNoteContent;
+                    if (content && Array.isArray(content)) {
+                      const textParts = content
+                        .filter((block: any) => block?.type === 'paragraph' && block?.content)
+                        .map((block: any) =>
+                          Array.isArray(block.content)
+                            ? block.content.map((item: any) => item?.text || '').join('')
+                            : ''
+                        )
+                        .filter(Boolean);
+                      if (textParts.length > 0) {
+                        textContent = (pageData.title || '') + '\n\n' + textParts.join('\n\n');
+                      }
+                    }
+                  }
+                } catch (e) {
+                  console.log(`⚠️ Erreur extraction contenu page: ${e}`);
+                }
+                
+                // Indexer la page si pas déjà fait
+                const ragSourceId = await userPagesRAG.processUserPage({
+                  id: p.id,
+                  title: pageData.title || 'Sans titre',
+                  content: textContent,
+                  userId,
+                  workspaceId,
+                  updatedAt: pageData.updatedAt
+                });
+                
+                return { 
+                  id: ragSourceId || p.id,  // Retourner le RAGSource.id ou Page.id en fallback
+                  title: pageData.title || p.title || 'Page sans titre',
+                  type: 'WORKSPACE_PAGE'
+                };
+              }
+              return { id: p.id, title: p.title, type: 'WORKSPACE_PAGE' };
+            } catch (error) {
+              console.log(`⚠️ Erreur traitement page "${p.title}": ${error}`);
+              return { id: p.id, title: p.title, type: 'WORKSPACE_PAGE' };
+            }
+          })
+        );
+        
+        const mentionedPagesSources = pageContents.filter(Boolean);
+        sourcesForAI = [...mentionedPagesSources, ...sourcesForAI];
+      }
 
       let currentThinking = '';
       let currentToolCalls: any[] = [];
 
       try {
         // 🔥 PHASE 1: Décision des tools + explication streamée
-        console.log(`🔧 [ASK-PHASE-1] Démarrage décision tools...`);
+        console.log(`🔧 [ASK-PHASE-1] Démarrage décision tools avec ${sourcesForAI.length} sources...`);
         
         const toolDecision = await FunctionCallingService.decideAndExecuteTools({
           query: sanitizedQuery,
-          availableSources: ragSources.map(s => ({
-            id: s.id || '',
-            title: s.title || '',
-            type: s.type || 'UNKNOWN'
-          })),
+          availableSources: sourcesForAI,
           workspaceId,
           userId: req.user!.id,
           useWeb,
