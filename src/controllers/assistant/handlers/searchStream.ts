@@ -181,7 +181,7 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           onIntermediateThinking: (thinkingChunk) => {
             const timestamp = new Date().toISOString();
             console.log(`⏰ [${timestamp}] 📤 [SEARCH-PHASE-1] Envoi event intermediate_thinking, chunk: ${thinkingChunk.slice(0, 50)}...`);
-            currentThinking += thinkingChunk;
+            // 🔥 NE PAS accumuler dans currentThinking - c'est séparé du thinking initial!
             res.write(`event: intermediate_thinking\ndata: ${JSON.stringify({ content: thinkingChunk, timestamp })}\n\n`);
             if (typeof (res as any).flush === 'function') {
               (res as any).flush();
