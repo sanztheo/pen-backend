@@ -31,6 +31,14 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
 
     const { query, workspaceId, pageIds, useWeb, ragSources } = request;
 
+    // 🔍 DEBUG COMPLET DU FRONTEND
+    console.log(`\n\n🔍 [SEARCH-DEBUG-FRONTEND] ========== REQUÊTE DU FRONTEND ==========`);
+    console.log(`📨 pageIds reçus: ${JSON.stringify(pageIds)} (${pageIds.length})`);
+    console.log(`📨 ragSources reçus: ${JSON.stringify(ragSources)} (${ragSources.length})`);
+    console.log(`📨 sourcesScope reçu: ${(req.body as any)?.sourcesScope}`);
+    console.log(`📨 query: "${query.slice(0, 50)}..."`);
+    console.log(`🔍 [SEARCH-DEBUG-FRONTEND] ========== FIN REQUÊTE ==========\n`);
+
     // 🔍 Debug unifié avec le nouveau système
     DebugLogger.web(`[SEARCH] useWeb reçu: ${useWeb} (type: ${typeof useWeb})`);
     DebugLogger.rag(`[SEARCH] ENTRÉE - workspaceId: ${workspaceId}, pageIds: ${pageIds.length}, ragSources: ${ragSources.length}`);
