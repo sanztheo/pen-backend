@@ -496,6 +496,172 @@ export class QuizLimitsService {
   }
 
   /**
+   * Vérifier si un utilisateur peut créer un quiz avancé (>30 questions ET >10 pages)
+   * @param userId - ID de l'utilisateur
+   * @param questionCount - Nombre de questions
+   * @param pagesCount - Nombre de pages sélectionnées
+   */
+  static async canCreateAdvancedQuiz(
+    userId: string,
+    questionCount: number,
+    pagesCount: number
+  ): Promise<QuizLimitResult> {
+    SecureLogger.debug(`🎯 [QUIZ-LIMITS] Vérification limite quiz avancés`, {
+      userId,
+      questionCount,
+      pagesCount
+    });
+
+    // Vérifier si c'est un quiz avancé (>30 questions ET >10 pages)
+    const isAdvanced = questionCount > 30 && pagesCount > 10;
+    if (!isAdvanced) {
+      return {
+        success: true,
+        limitReached: false,
+        message: 'Quiz non-avancé, aucune limite spéciale',
+      };
+    }
+
+    try {
+      const userLimits = await prisma.userLimits.findUnique({
+        where: { userId },
+      });
+
+      if (!userLimits) {
+        SecureLogger.debug(`📝 [QUIZ-LIMITS] Création nouvelles limites utilisateur`, { userId });
+        await prisma.userLimits.create({
+          data: {
+            userId,
+            advancedQuizzesLimit: 10,
+          },
+        });
+
+        return {
+          success: true,
+          limitReached: false,
+          message: 'Quiz avancé autorisé',
+        };
+      }
+
+      // Vérifier et reset si nécessaire (24h après premier quiz avancé)
+      const now = new Date();
+      if (userLimits.advancedQuizzesResetAt) {
+        const hoursSinceReset = (now.getTime() - userLimits.advancedQuizzesResetAt.getTime()) / (1000 * 60 * 60);
+
+        if (hoursSinceReset >= 24) {
+          SecureLogger.debug(`🔄 [QUIZ-LIMITS] Reset automatique quiz avancés`, {
+            userId,
+            hoursSinceReset
+          });
+
+          await prisma.userLimits.update({
+            where: { userId },
+            data: {
+              advancedQuizzesUsed: 0,
+              advancedQuizzesResetAt: null,
+            },
+          });
+
+          return {
+            success: true,
+            limitReached: false,
+            message: 'Quiz avancé autorisé (reset automatique effectué)',
+          };
+        }
+      }
+
+      // Vérifier la limite
+      if (userLimits.advancedQuizzesUsed >= userLimits.advancedQuizzesLimit) {
+        const hoursUntilReset = userLimits.advancedQuizzesResetAt
+          ? Math.max(0, 24 - ((now.getTime() - userLimits.advancedQuizzesResetAt.getTime()) / (1000 * 60 * 60)))
+          : 0;
+
+        return {
+          success: false,
+          limitReached: true,
+          message: `Limite de ${userLimits.advancedQuizzesLimit} quiz avancés par jour atteinte. Réessayez dans ${Math.ceil(hoursUntilReset)}h.`,
+        };
+      }
+
+      return {
+        success: true,
+        limitReached: false,
+        message: 'Quiz avancé autorisé',
+      };
+
+    } catch (error) {
+      SecureLogger.error('Erreur lors de la vérification des limites quiz avancés', error);
+      return {
+        success: false,
+        limitReached: false,
+        message: 'Erreur lors de la vérification des limites',
+      };
+    }
+  }
+
+  /**
+   * Déduire un quiz avancé (incrémenter le compteur)
+   * @param userId - ID de l'utilisateur
+   */
+  static async deductAdvancedQuiz(userId: string): Promise<QuizLimitResult> {
+    SecureLogger.debug(`🚀 [QUIZ-LIMITS] Déduction quiz avancé`, { userId });
+
+    try {
+      const now = new Date();
+
+      // Récupérer les limites actuelles
+      const userLimits = await prisma.userLimits.findUnique({
+        where: { userId },
+      });
+
+      if (!userLimits) {
+        return {
+          success: false,
+          limitReached: false,
+          message: 'Limites utilisateur introuvables',
+        };
+      }
+
+      // Mettre à jour le compteur et définir resetAt si c'est le premier
+      await prisma.userLimits.update({
+        where: { userId },
+        data: {
+          advancedQuizzesUsed: userLimits.advancedQuizzesUsed + 1,
+          advancedQuizzesResetAt: userLimits.advancedQuizzesResetAt || now,
+        },
+      });
+
+      const remaining = userLimits.advancedQuizzesLimit - (userLimits.advancedQuizzesUsed + 1);
+
+      SecureLogger.debug(`✅ [QUIZ-LIMITS] Quiz avancé déduit`, {
+        userId,
+        newUsage: userLimits.advancedQuizzesUsed + 1,
+        remaining
+      });
+
+      // Enregistrer l'utilisation
+      await this.recordQuizUsage(userId, 'advanced_quiz', 1, {
+        type: 'advanced_quiz_creation'
+      });
+
+      return {
+        success: true,
+        remainingQuizzes: remaining,
+        limitReached: false,
+        message: 'Quiz avancé déduit avec succès',
+      };
+
+    } catch (error) {
+      SecureLogger.error('❌ Erreur lors de la déduction quiz avancé', error);
+      return {
+        success: false,
+        limitReached: false,
+        message: 'Erreur lors de la déduction',
+      };
+    }
+  }
+
+  /**
    * Enregistrer une utilisation de quiz dans les logs
    * @param userId - ID de l'utilisateur
    * @param resourceType - Type de ressource

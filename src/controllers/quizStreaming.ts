@@ -5,6 +5,7 @@ import { OpenAIAssistantService } from '../services/quiz/assistant/index.js';
 import { prisma } from '../lib/prisma.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Question, UserAnswer, QuizCorrectionRequest } from '../services/quiz/types.js';
+import { QuizLimitsService } from '../services/credits/quizLimitsService.js';
 
 // Stockage temporaire des sessions de streaming
 const streamingSessions = new Map<string, {
@@ -146,6 +147,30 @@ export class QuizStreamingController {
       if (questionCount < 1 || questionCount > 100) {
         res.status(400).json({ error: 'Le nombre de questions doit être entre 1 et 100' });
         return;
+      }
+
+      // 🔐 Vérification des limites de quiz avancés (>30 questions ET >10 pages)
+      const pagesCount = pageProjectIds?.length || 0;
+      if (questionCount > 30 && pagesCount > 10) {
+        console.log(`🎯 [STREAMING] Quiz avancé détecté: ${questionCount} questions, ${pagesCount} pages`);
+
+        const advancedQuizCheck = await QuizLimitsService.canCreateAdvancedQuiz(
+          userId,
+          questionCount,
+          pagesCount
+        );
+
+        if (!advancedQuizCheck.success || advancedQuizCheck.limitReached) {
+          console.log(`❌ [STREAMING] Limite quiz avancés atteinte:`, advancedQuizCheck.message);
+          res.status(429).json({
+            error: 'Limite de quiz avancés atteinte',
+            message: advancedQuizCheck.message,
+            limitType: 'advancedQuiz'
+          });
+          return;
+        }
+
+        console.log(`✅ [STREAMING] Quiz avancé autorisé, limite OK`);
       }
 
       console.log(`🚀 [STREAMING] Début génération streaming pour ${questionCount} questions`);
@@ -341,6 +366,17 @@ export class QuizStreamingController {
             questions: generatedQuestions as any
           }
         });
+
+        // 🔐 Déduire un quiz avancé si applicable (>30 questions ET >10 pages)
+        if (questionCount > 30 && pagesCount > 10) {
+          console.log(`🎯 [STREAMING] Déduction quiz avancé pour utilisateur ${userId}`);
+          const deductResult = await QuizLimitsService.deductAdvancedQuiz(userId);
+          if (deductResult.success) {
+            console.log(`✅ [STREAMING] Quiz avancé déduit, restants: ${deductResult.remainingQuizzes}`);
+          } else {
+            console.warn(`⚠️ [STREAMING] Échec déduction quiz avancé:`, deductResult.message);
+          }
+        }
 
         // Envoyer l'événement de fin
         sendSSE('quiz-completed', {

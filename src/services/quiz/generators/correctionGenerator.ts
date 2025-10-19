@@ -1386,12 +1386,18 @@ Réponds UNIQUEMENT en JSON array valide.`;
     userAnswer: UserAnswer | undefined,
     request: QuizCorrectionRequest
   ): string {
-    let basePrompt = `Tu es un correcteur expert. Corrige cette question ouverte avec rigueur académique.
+    // Obtenir les directives adaptées au niveau
+    const levelDirectives = this.getLevelSpecificDirectives(request.schoolLevel);
+    
+    let basePrompt = `Tu es un correcteur expert adapté au niveau ${request.schoolLevel}. Corrige cette question ouverte avec rigueur académique.
+
+${levelDirectives}
 
 QUESTION :
 ${question.question}
 
 NIVEAU : ${request.schoolLevel}
+MATIÈRE : ${request.specificSubject || 'Générale'}
 POINTS POSSIBLES : ${question.points || 1}
 DIFFICULTÉ : ${question.difficulty || 'moyen'}
 
@@ -1461,7 +1467,15 @@ Réponds UNIQUEMENT en JSON valide.`;
       const partialAnswers = corrections.filter(c => c.score > 0 && c.score < c.maxScore).length;
       const incorrectAnswers = corrections.filter(c => c.score === 0).length;
 
+      // Obtenir les directives et le contexte adaptés au niveau
+      const levelDirectives = this.getLevelSpecificDirectives(request.schoolLevel);
+      const analysisContext = this.getAnalysisContextForLevel(request.schoolLevel);
+
       const analysisPrompt = `Tu es un tuteur pédagogue expert. Génère une analyse détaillée et personnalisée du quiz basée sur les résultats suivants:
+
+${levelDirectives}
+
+${analysisContext}
 
 RÉSULTATS DU QUIZ:
 - Score: ${totalScore}/${maxScore} (${percentage.toFixed(1)}%)
@@ -1514,6 +1528,146 @@ Format JSON STRICT requis.`;
         recommendations: [],
         personalizedTips: []
       };
+    }
+  }
+
+  /**
+   * Helper pour obtenir les directives adaptées au niveau scolaire
+   */
+  private static getLevelSpecificDirectives(schoolLevel: string): string {
+    switch (schoolLevel) {
+      case '6ème':
+        return `📚 COLLÈGE - NIVEAU 6ème
+- Explications SIMPLES et CLAIRES avec un vocabulaire adapté
+- Décompose chaque étape de la résolution (étape 1, 2, 3...)
+- Évite le jargon technique complexe
+- Valorise l'effort même si la réponse n'est pas parfaite
+- Montre concrètement pourquoi la réponse est correcte/incorrecte`;
+
+      case '5ème':
+        return `📚 COLLÈGE - NIVEAU 5ème
+- Explications structurées avec étapes logiques
+- Introduce progressivement la rigueur mathématique/scientifique
+- Utilise des exemples concrets
+- Explique les concepts fondamentaux
+- Encourage le raisonnement méthodique`;
+
+      case '4ème':
+        return `📚 COLLÈGE - NIVEAU 4ème
+- Explications analytiques avec justifications détaillées
+- Introduis les propriétés et théorèmes appropriés
+- Montre le raisonnement logique derrière chaque étape
+- Utilise un vocabulaire académique plus précis
+- Établis des liens avec les concepts préalables`;
+
+      case '3ème':
+        return `📚 COLLÈGE - NIVEAU 3ème (Préparation Brevet)
+- Explications rigoureuses et structurées
+- Démontre pourquoi chaque étape est correcte
+- Utilise la terminologie académique appropriée
+- Applique les théorèmes et propriétés pertinents
+- Prépare aux attentes du niveau lycée`;
+
+      case '2nde':
+        return `📖 LYCÉE - NIVEAU 2nde
+- Explications analytiques et rigoureuses
+- Détaille le raisonnement mathématique/scientifique complet
+- Utilise la notation académique appropriée
+- Démontre les étapes intermédiaires importantes
+- Connecte aux concepts d'année antérieures si nécessaire`;
+
+      case '1ère':
+        return `📖 LYCÉE - NIVEAU 1ère
+- Explications techniques avec rigueur académique
+- Approfondit les concepts et leur théorie sous-jacente
+- Utilise les méthodes spécifiques au programme
+- Démontre la justification complète
+- Compare avec les approches alternatives si pertinent`;
+
+      case 'Terminale':
+        return `📖 LYCÉE - NIVEAU Terminale (Préparation Bac)
+- Explications approfondies avec rigueur mathématique/scientifique complète
+- Analyse critique de la réponse
+- Démontre tous les éléments clés et leurs justifications
+- Utilise le formalisme académique exact
+- Anticipe les pièges/erreurs courants aux épreuves du Bac`;
+
+      case 'PARTIELS':
+        return `🎓 ÉTUDES SUPÉRIEURES - Contrôles/Partiels
+- Explications APPROFONDIES et ANALYTIQUES avec rigueur académique absolue
+- Approche théorique rigoureuse avec démonstrations
+- Notation mathématique/scientifique complète et formelle
+- Analyse critique des concepts et hypothèses
+- Références implicites au cursus académique supérieur
+- Démontre la maîtrise complète du sujet`;
+
+      default:
+        return `Tu es un correcteur générique.
+- Explications claires et structurées
+- Justifie chaque étape
+- Utilise un langage approprié au contexte`;
+    }
+  }
+
+  /**
+   * Helper pour obtenir le contexte d'analyse adapté au niveau scolaire
+   */
+  private static getAnalysisContextForLevel(schoolLevel: string): string {
+    switch (schoolLevel) {
+      case '6ème':
+        return `Pour le niveau 6ème, l'analyse doit être simple et claire.
+- Focalise sur les concepts essentiels abordés.
+- Évalue la compréhension des notions de base.
+- Identifie les points de confiance et de doute.
+- Propose des pistes pour une meilleure maîtrise.`;
+      case '5ème':
+        return `Pour le niveau 5ème, l'analyse doit être progressive.
+- Décompose les étapes de la résolution.
+- Identifie les erreurs de raisonnement.
+- Propose des exercices pour consolider.
+- Encourage le raisonnement méthodique.`;
+      case '4ème':
+        return `Pour le niveau 4ème, l'analyse doit être analytique.
+- Justifie chaque étape de la démonstration.
+- Identifie les propriétés et théorèmes utilisés.
+- Détaille le raisonnement logique.
+- Propose des exercices pour approfondir.`;
+      case '3ème':
+        return `Pour le niveau 3ème, l'analyse doit être rigoureuse.
+- Démontre pourquoi chaque étape est correcte.
+- Utilise la terminologie académique.
+- Applique les théorèmes et propriétés.
+- Prépare aux attentes du niveau lycée.`;
+      case '2nde':
+        return `Pour le niveau 2nde, l'analyse doit être détaillée.
+- Détaille le raisonnement mathématique/scientifique.
+- Utilise la notation académique.
+- Démontre les étapes intermédiaires.
+- Connecte aux concepts d'année antérieure.`;
+      case '1ère':
+        return `Pour le niveau 1ère, l'analyse doit être approfondie.
+- Approfondit les concepts et leur théorie.
+- Utilise les méthodes spécifiques.
+- Démontre la justification complète.
+- Compare avec les approches alternatives.`;
+      case 'Terminale':
+        return `Pour le niveau Terminale, l'analyse doit être approfondie et critique.
+- Analyse critique la réponse.
+- Démontre tous les éléments clés.
+- Utilise le formalisme académique.
+- Anticipe les pièges/erreurs.`;
+      case 'PARTIELS':
+        return `Pour les contrôles/partiels, l'analyse doit être approfondie et théorique.
+- Approche théorique rigoureuse.
+- Notation mathématique/scientifique complète.
+- Analyse critique des concepts.
+- Références implicites.`;
+      default:
+        return `Pour un niveau générique, l'analyse doit être claire et structurée.
+- Focalise sur les concepts essentiels.
+- Évalue la compréhension.
+- Identifie les points de confiance.
+- Propose des pistes pour progresser.`;
     }
   }
 } 
