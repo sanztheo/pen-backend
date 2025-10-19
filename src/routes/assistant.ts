@@ -638,6 +638,54 @@ router.post('/user-pages/rag-process', async (req: any, res) => {
   }
 });
 
+// 📝 Endpoint pour indexer les notes utilisateur en tant que source RAG
+router.post('/rag/index-notes', async (req: any, res) => {
+  try {
+    const { userNotesRAGSystem } = await import('../services/rag/userNotes.js');
+    const { content, title } = req.body;
+    const userId = req.user?.id;
+    const workspaceId = req.body.workspaceId;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+    }
+
+    if (!content || !title) {
+      return res.status(400).json({ error: 'Contenu et titre des notes requis' });
+    }
+
+    console.log(`📝 [NOTES-RAG] Indexation des notes: "${title}" pour userId: ${userId}`);
+
+    // Traiter la note pour l'indexation RAG
+    const sourceId = await userNotesRAGSystem.processUserNote({
+      userId,
+      workspaceId: workspaceId || 'default',
+      title,
+      content,
+      updatedAt: new Date()
+    });
+
+    if (!sourceId) {
+      return res.status(400).json({ 
+        error: 'Impossible d\'indexer les notes', 
+        details: 'Le contenu est probablement trop court ou invalide' 
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      sourceId,
+      message: `Notes "${title}" indexées avec succès`
+    });
+  } catch (error) {
+    console.error('❌ Erreur indexation notes:', error);
+    res.status(500).json({ 
+      error: 'Erreur lors de l\'indexation des notes',
+      details: error instanceof Error ? error.message : 'Erreur inconnue'
+    });
+  }
+});
+
 // Upload route: parse pdf/txt and return extracted text (not persisted)
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 router.post('/upload', upload.array('files', 5), async (req: any, res) => {

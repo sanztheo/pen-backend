@@ -23,6 +23,15 @@ export class ToolExecutor {
 
     try {
       switch (toolName) {
+        case 'list_available_sources':
+          return await this.listAvailableSources(args, context);
+
+        case 'select_relevant_sources':
+          return await this.selectRelevantSources(args, context);
+
+        case 'check_sources_rag_status':
+          return await this.checkSourcesRagStatus(args, context);
+
         case 'read_rag_source':
           return await this.readRAGSource(args, context);
 
@@ -44,6 +53,206 @@ export class ToolExecutor {
     } catch (error) {
       console.error(`❌ [TOOL-CALL] Erreur ${toolName}:`, error);
       return `Erreur lors de l'exécution du tool ${toolName}: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
+    }
+  }
+
+  /**
+   * Liste toutes les sources RAG disponibles pour l'utilisateur
+   */
+  private static async listAvailableSources(
+    args: { workspaceId: string; limit?: number },
+    context: ToolContext
+  ): Promise<string> {
+    const { workspaceId, limit = 20 } = args;
+
+    console.log(`📋 [LIST-SOURCES] Listing sources pour workspace: ${workspaceId}`);
+
+    try {
+      const sources = await prisma.rAGSource.findMany({
+        where: {
+          workspaceId,
+          userId: context.userId
+        },
+        select: {
+          id: true,
+          title: true,
+          sourceType: true,
+          totalChunks: true,
+          lastUsedAt: true,
+          status: true
+        },
+        take: Math.min(limit, 50),
+        orderBy: { lastUsedAt: 'desc' }
+      });
+
+      if (sources.length === 0) {
+        return `Aucune source RAG trouvée dans ce workspace`;
+      }
+
+      let result = `📋 Sources RAG disponibles (${sources.length} source(s)):\n\n`;
+
+      sources.forEach((source, i) => {
+        const statusEmoji = source.status === 'COMPLETED' ? '✅' : source.status === 'PROCESSING' ? '⏳' : '❌';
+        const lastUsed = source.lastUsedAt 
+          ? new Date(source.lastUsedAt).toLocaleDateString('fr-FR')
+          : 'Jamais';
+        
+        result += `${i + 1}. [${statusEmoji}] ${source.title}\n`;
+        result += `   Type: ${source.sourceType}\n`;
+        result += `   Chunks: ${source.totalChunks}\n`;
+        result += `   ID: ${source.id}\n`;
+        result += `   Dernière utilisation: ${lastUsed}\n\n`;
+      });
+
+      console.log(`✅ [LIST-SOURCES] ${sources.length} sources listées`);
+
+      return result;
+    } catch (error) {
+      console.error(`❌ [LIST-SOURCES] Erreur:`, error);
+      return `Erreur lors de la récupération des sources: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
+    }
+  }
+
+  /**
+   * IA sélectionne les sources pertinentes (utilise function calling d'OpenAI)
+   */
+  private static async selectRelevantSources(
+    args: { question: string; availableSources: any[]; maxResults?: number },
+    context: ToolContext
+  ): Promise<string> {
+    const { question, availableSources, maxResults = 5 } = args;
+
+    console.log(`🎯 [SELECT-SOURCES] Sélection sources pour: "${question}"`);
+
+    try {
+      const { AIService } = await import('../base.js');
+      const openai = AIService.getOpenAI();
+
+      // Créer la liste des sources avec leurs informations
+      const sourcesInfo = availableSources.map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        type: s.sourceType
+      }));
+
+      const systemPrompt = `Tu es un expert en sélection de sources. Analyze la question et sélectionne UNIQUEMENT les sources directement pertinentes.
+      
+RÈGLES:
+- Sélectionne UN MAXIMUM de ${maxResults} sources
+- Rejette les sources non-pertinentes
+- Priorise les sources complètes (status COMPLETED) et avec chunks
+- Si aucune source n'est pertinente, retourne une liste vide
+
+RÉPONSE: Retourne UNIQUEMENT un JSON valide, sans aucun texte:
+{
+  "selected_source_ids": ["id1", "id2"]
+}`;
+
+      const userPrompt = `Question: "${question}"
+
+Sources disponibles:
+${JSON.stringify(sourcesInfo, null, 2)}
+
+Sélectionne les sources pertinentes (max ${maxResults}):`;
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 200,
+        response_format: { type: 'json_object' }
+      });
+
+      const content = response.choices[0]?.message?.content || '{}';
+      const selection = JSON.parse(content);
+      const selectedIds = selection.selected_source_ids || [];
+
+      // Valider que les IDs existent dans la liste disponible
+      const validIds = selectedIds.filter((id: string) =>
+        availableSources.some((s: any) => s.id === id)
+      );
+
+      if (validIds.length === 0) {
+        return `Aucune source pertinente trouvée pour cette question`;
+      }
+
+      let result = `✅ Sources sélectionnées (${validIds.length}):\n\n`;
+      validIds.forEach((id: string, i: number) => {
+        const source = availableSources.find((s: any) => s.id === id);
+        result += `${i + 1}. ${source.title} (${source.sourceType})\n`;
+      });
+
+      console.log(`✅ [SELECT-SOURCES] ${validIds.length} sources sélectionnées`);
+
+      return result;
+    } catch (error) {
+      console.error(`❌ [SELECT-SOURCES] Erreur:`, error);
+      return `Erreur lors de la sélection des sources: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
+    }
+  }
+
+  /**
+   * Vérifie le statut RAG des sources (lesquelles ont chunks vs lesquelles besoin de RAG)
+   */
+  private static async checkSourcesRagStatus(
+    args: { sourceIds: string[] },
+    context: ToolContext
+  ): Promise<string> {
+    const { sourceIds } = args;
+
+    console.log(`🔍 [CHECK-RAG-STATUS] Vérification de ${sourceIds.length} sources`);
+
+    try {
+      const sources = await prisma.rAGSource.findMany({
+        where: { id: { in: sourceIds } },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          totalChunks: true
+        }
+      });
+
+      const sourcesWithChunks: any[] = [];
+      const sourcesNeedingRAG: any[] = [];
+
+      sources.forEach(source => {
+        if (source.status === 'COMPLETED' && source.totalChunks > 0) {
+          sourcesWithChunks.push(source);
+        } else {
+          sourcesNeedingRAG.push(source);
+        }
+      });
+
+      let result = `🔍 Statut RAG des sources:\n\n`;
+
+      if (sourcesWithChunks.length > 0) {
+        result += `✅ Sources indexées (${sourcesWithChunks.length}):\n`;
+        sourcesWithChunks.forEach((s, i) => {
+          result += `${i + 1}. ${s.title} (${s.totalChunks} chunks)\n`;
+        });
+        result += '\n';
+      }
+
+      if (sourcesNeedingRAG.length > 0) {
+        result += `⏳ Sources nécessitant RAG (${sourcesNeedingRAG.length}):\n`;
+        sourcesNeedingRAG.forEach((s, i) => {
+          result += `${i + 1}. ${s.title} (Statut: ${s.status})\n`;
+        });
+        result += '\n';
+      }
+
+      result += `📊 Résumé: ${sourcesWithChunks.length} indexées, ${sourcesNeedingRAG.length} à indexer\n`;
+
+      console.log(`✅ [CHECK-RAG-STATUS] Vérification complétée`);
+
+      return result;
+    } catch (error) {
+      console.error(`❌ [CHECK-RAG-STATUS] Erreur:`, error);
+      return `Erreur lors de la vérification du statut: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
     }
   }
 

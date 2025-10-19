@@ -7,6 +7,78 @@ export const FUNCTION_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "list_available_sources",
+      description: "Liste toutes les sources RAG disponibles pour l'utilisateur (pages, fichiers, notes, Wikipedia). Retourne les informations essentielles pour décider quelles sources utiliser.",
+      parameters: {
+        type: "object",
+        properties: {
+          workspaceId: { 
+            type: "string", 
+            description: "UUID du workspace (fourni dans le contexte)" 
+          },
+          limit: { 
+            type: "number", 
+            description: "Nombre maximum de sources à lister (par défaut: 20, max: 50)" 
+          }
+        },
+        required: ["workspaceId"]
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "select_relevant_sources",
+      description: "IA sélectionne les sources pertinentes pour répondre à une question spécifique. Utilise la fonction select_sources_tool avec les IDs sélectionnés.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: { 
+            type: "string", 
+            description: "La question de l'utilisateur" 
+          },
+          availableSources: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                title: { type: "string" },
+                sourceType: { type: "string" }
+              }
+            },
+            description: "Liste des sources disponibles (obtenue via list_available_sources)"
+          },
+          maxResults: { 
+            type: "number", 
+            description: "Nombre maximum de sources à sélectionner (par défaut: 5)" 
+          }
+        },
+        required: ["question", "availableSources"]
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "check_sources_rag_status",
+      description: "Vérifie le statut RAG des sources sélectionnées (lesquelles ont des chunks indexés vs lesquelles besoin de RAG).",
+      parameters: {
+        type: "object",
+        properties: {
+          sourceIds: { 
+            type: "array",
+            items: { type: "string" },
+            description: "Array d'IDs de sources à vérifier" 
+          }
+        },
+        required: ["sourceIds"]
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "read_rag_source",
       description: "Lit le contenu d'une source RAG spécifique (PDF, fichier texte, Wikipedia). Retourne les chunks les plus pertinents pour répondre à la question. UTILISE CE TOOL si l'utilisateur a joint un fichier ou mentionné une source Wikipedia spécifique.",
       parameters: {
@@ -44,8 +116,8 @@ export const FUNCTION_TOOLS = [
           sourceTypes: { 
             type: "array", 
             items: { 
-              type: "string", 
-              enum: ["PDF", "TEXT_FILE", "WIKIPEDIA", "WORKSPACE_PAGE"] 
+              type: "string",
+              enum: ["PDF", "TEXT_FILE", "WIKIPEDIA", "WORKSPACE_PAGE", "USER_NOTES"] 
             },
             description: "Types de sources à inclure dans la recherche (optionnel, par défaut: tous)" 
           },

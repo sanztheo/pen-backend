@@ -697,6 +697,7 @@ enum RAGSourceType {
   WEB_PAGE
   WORKSPACE_PAGE
   TEXT_FILE
+  USER_NOTES
 }
 
 enum RAGSourceStatus {
