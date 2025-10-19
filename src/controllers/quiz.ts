@@ -424,8 +424,9 @@ export class QuizController {
         preset: (quiz as any).preset,
         specificSubject: null,
         schoolLevel: quiz.schoolLevel as any,
-        hasDocuments: hasDocuments || false,
-        sourceDocuments: sourceDocuments || [],
+        // Utiliser les sourceDocuments du quiz pour la cohérence
+        hasDocuments: quiz.hasDocuments || hasDocuments || false,
+        sourceDocuments: (quiz.sourceDocuments as any) || sourceDocuments || [],
         coursesOnly: false,
         workspaceContent: [],
         userAnswers: answers,
