@@ -152,18 +152,15 @@ export const assistantAskStream = async (req: Request, res: Response) => {
           // Callbacks pour streaming temps réel
           onThinking: (thinkingChunk) => {
             const timestamp = new Date().toISOString();
-            console.log(`⏰ [${timestamp}] 📤 [ASK-PHASE-1] Envoi event thinking, chunk: ${thinkingChunk.slice(0, 50)}...`);
             currentThinking += thinkingChunk;
             res.write(`event: thinking\ndata: ${JSON.stringify({ content: thinkingChunk, timestamp })}\n\n`);
             if (typeof (res as any).flush === 'function') {
               (res as any).flush();
             }
-            console.log(`⏰ [${timestamp}] ✅ [ASK-PHASE-1] Event thinking envoyé + flushed`);
           },
 
           onToolCall: (toolName, args) => {
             const timestamp = new Date().toISOString();
-            console.log(`⏰ [${timestamp}] 📤 [ASK-PHASE-1] Envoi event tool_call: ${toolName}`);
             res.write(`event: tool_call\ndata: ${JSON.stringify({ tool: toolName, args, timestamp })}\n\n`);
             if (typeof (res as any).flush === 'function') {
               (res as any).flush();
@@ -172,7 +169,6 @@ export const assistantAskStream = async (req: Request, res: Response) => {
 
           onToolResult: (toolName, toolResult) => {
             const timestamp = new Date().toISOString();
-            console.log(`⏰ [${timestamp}] 📤 [ASK-PHASE-1] Envoi event tool_result: ${toolName}`);
             const truncated = toolResult.length > 200 ? toolResult.slice(0, 200) + '...' : toolResult;
             res.write(`event: tool_result\ndata: ${JSON.stringify({ tool: toolName, result: truncated, timestamp })}\n\n`);
             if (typeof (res as any).flush === 'function') {
