@@ -136,6 +136,11 @@ export class FunctionCallingService {
         ? '\n\n⚠️ IMPORTANT: Tu DOIS utiliser le tool "read_rag_source" pour lire les pages mentionnées AVANT de répondre!'
         : '';
 
+      // 🔥 NEW: Add useWeb instruction if user enabled web search
+      const useWebStr = useWeb 
+        ? '\n\n🌐 IMPORTANT: L\'utilisateur a ACTIVÉ la recherche web. Tu DOIS inclure "search_web" comme dernier tool du plan!'
+        : '';
+
       const firstThinkingPrompt = isSearch
         ? `Tu dois créer un plan JSON structuré pour explorer un sujet en profondeur.
 
@@ -164,7 +169,8 @@ RÈGLES:
 - Commence PAR lister les sources si scope='all' ou "Toutes mes sources"
 - CHAQUE tool doit être différent et complémentaire
 - totalIterations: 1-8
-- Seulement search_web si sources RAG insuffisantes
+- Si tu utilises check_sources_rag_status, tu dois d'abord avoir les IDs des sources
+- Seulement search_web si sources RAG insuffisantes${useWebStr}
 
 Le JSON DOIT avoir cette structure EXACTE:
 {
@@ -205,7 +211,7 @@ RÈGLES (Ask Mode - réponse simple):
 - totalIterations DOIT être 1
 - Si l'utilisateur dit "parle-moi de mes sources" → list_available_sources
 - Sinon, utilise read_rag_source directement
-- search_web SEULEMENT si aucune source RAG ne correspond
+- search_web SEULEMENT si aucune source RAG ne correspond${useWebStr}
 
 Le JSON DOIT avoir cette structure EXACTE:
 {
@@ -351,22 +357,62 @@ Génère le plan JSON MAINTENANT. AUCUN texte avant ou après le JSON.`;
         const nextIterationIdx = iterationIdx + 1;
         if (nextIterationIdx < totalIterations && onIntermediateThinking) {
           const nextToolStep = validatedToolSequence[nextIterationIdx];
+          
+          // 🔥 CRITICAL: Si nextToolStep n'existe pas (plan a été modifié), arrêter la boucle
+          if (!nextToolStep) {
+            console.log(`⏹️ [PHASE-1-ITER-${iterationIdx + 1}] Pas de tool suivant après modification du plan, fin de la boucle`);
+            break;
+          }
+          
           console.log(`🧠 [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Génération des arguments pour ${nextToolStep.toolName}...`);
           
           try {
-            const intermediateThinkingPrompt = `Basé sur les résultats précédents et ta stratégie, décide maintenant de la requête pour l'étape ${nextIterationIdx + 1}.
+            // 🔥 NEW: Build tool execution history
+            const executedTools = toolCalls.map((tc, idx) => `${idx + 1}. ${tc.name}`).join('\n');
+            const remainingTools = validatedToolSequence.slice(iterationIdx + 1).map(t => `- ${t.toolName}`).join('\n');
+            
+            // 🔥 NEW: Add useWeb flag and web instruction
+            const webInstruction = useWeb 
+              ? `\n🌐 IMPORTANT: L'utilisateur a ACTIVÉ la recherche web. Si aucun outil n'a encore appelé search_web, tu DOIS le proposer dans "modifiedToolSequence"!`
+              : '';
+            
+            const intermediateThinkingPrompt = `Basé sur les résultats précédents et ta stratégie, décide maintenant si tu dois continuer ou arrêter l'exploration.
+
+⚠️ CONTEXTE ORIGINAL: La question de l'utilisateur est: "${query}"
+
+📋 HISTORIQUE DES TOOLS EXÉCUTÉS:
+${executedTools || 'Aucun tool exécuté pour le moment'}
+
+📋 OUTILS RESTANTS DANS LE PLAN:
+${remainingTools || 'Aucun tool restant dans le plan initial'}
+
+IMPORTANT: 
+- Si les résultats précédents NE SONT PAS pertinents pour répondre à cette question, tu DOIS arrêter et mettre "shouldContinue": false!
+- SI tu détectes que le plan actuel ne convient pas, tu peux le MODIFIER en proposant "modifiedToolSequence" avec une nouvelle liste de tools
+- Par exemple, si les sources RAG n'ont rien d'intéressant, tu peux sauter directement à search_web!${webInstruction}
 
 Tu DOIS répondre en JSON STRICT sans texte additionnel:
 {
-  "thinking": "<ta réflexion sur ce qu'il faut chercher ensuite>",
+  "thinking": "<ta réflexion: les résultats précédents sont-ils pertinents pour: ${query}? Le plan doit-il être modifié? Dois-je continuer ou arrêter?>",
+  "shouldContinue": true ou false,
+  "modifiedToolSequence": [
+    {"step": 1, "toolName": "search_web", "description": "Rechercher directement sur le web"},
+    ...autre tools si besoin
+  ],
   "toolArguments": {
-    "query": "<la requête spécifique pour ${nextToolStep.toolName}>",
+    "query": "<la requête spécifique pour le PROCHAIN tool>",
     "sourceId": "<optionnel>"
   },
   "nextToolName": "${nextToolStep.toolName}"
 }
 
-Sois spécifique et basé sur les résultats précédents.`;
+RÈGLES:
+- Si les résultats sont DÉJÀ pertinents et suffisants → "shouldContinue": false, "modifiedToolSequence": []
+- Si les résultats ne correspondent PAS et web est activé → suggère "modifiedToolSequence" avec search_web
+- Si web est activé et aucun search_web n'a été exécuté → propose search_web!
+- Seulement "shouldContinue": true si tu as VRAIMENT besoin d'une autre tool
+- Si tu modifies le plan, mets à jour "modifiedToolSequence" avec les NEW tools
+- Sois spécifique, basé sur les résultats précédents, et toujours aligné avec la question de l'utilisateur.`;
 
             let intermediateThinkingContent = '';
             const intermediateStream = await openai.chat.completions.create({
@@ -396,6 +442,37 @@ Sois spécifique et basé sur les résultats précédents.`;
             // Parser intermediate thinking JSON
             const intermediateParsed = parseJSONFromStream(intermediateThinkingContent);
             if (isIntermediateThinkingOutput(intermediateParsed)) {
+              // 🔥 NEW: Check if AI wants to modify the plan
+              if (intermediateParsed.modifiedToolSequence && intermediateParsed.modifiedToolSequence.length > 0) {
+                console.log(`🔄 [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Plan modifié! Nouvelle séquence:`, intermediateParsed.modifiedToolSequence.map((t: any) => t.toolName).join(' → '));
+                
+                // Remplacer le reste du plan avec le nouveau plan
+                const newSequence = intermediateParsed.modifiedToolSequence;
+                // Supprimer les tools déjà exécutés du nouveau plan
+                for (let i = validatedToolSequence.length - 1; i > iterationIdx; i--) {
+                  validatedToolSequence.pop();
+                }
+                // Ajouter les nouveaux tools
+                for (const newTool of newSequence) {
+                  validatedToolSequence.push(newTool);
+                }
+                console.log(`✅ Nouveau nombre total d'itérations: ${validatedToolSequence.length}`);
+                
+                // 🔥 IMPORTANT: Si on a modifié le plan, on doit CONTINUER même si shouldContinue est false
+                // Sinon on ne va jamais exécuter le nouveau plan!
+              } else if (intermediateParsed.shouldContinue === false) {
+                // 🔥 NEW: Check if AI wants to stop the loop (SEULEMENT si pas de modifiedToolSequence)
+                console.log(`⏹️ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] IA a décidé d'arrêter la boucle`);
+                intermediateThinkingBlocks.push({
+                  iteration: iterationIdx,
+                  thinking: intermediateParsed.thinking,
+                  toolArguments: {},
+                  generatedAt: new Date().toISOString(),
+                  nextToolName: 'STOP'
+                });
+                break; // Arrêter la boucle agentic
+              }
+              
               toolArgs = intermediateParsed.toolArguments || {};
               
               // Sauvegarder le bloc avec l'itération du TOOL ACTUELLEMENT EXÉCUTÉ

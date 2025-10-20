@@ -203,6 +203,11 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
   ): Promise<string> {
     const { sourceIds } = args;
 
+    // 🔥 Handle case where sourceIds is undefined or empty
+    if (!sourceIds || sourceIds.length === 0) {
+      return `❌ Erreur: Aucun ID de source fourni. Veuillez d'abord utiliser "list_available_sources" pour obtenir les IDs, puis passer les IDs à cette fonction.`;
+    }
+
     console.log(`🔍 [CHECK-RAG-STATUS] Vérification de ${sourceIds.length} sources`);
 
     try {

@@ -16,6 +16,12 @@ export interface IntermediateThinkingOutput {
   thinking: string;
   toolArguments: Record<string, any>;
   nextToolName?: string;
+  shouldContinue?: boolean; // 🔥 NEW: Allow AI to decide whether to continue or stop
+  modifiedToolSequence?: Array<{  // 🔥 NEW: Allow AI to modify remaining tool sequence
+    step: number;
+    toolName: string;
+    description: string;
+  }>;
 }
 
 // Stored intermediate thinking block
