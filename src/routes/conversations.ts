@@ -243,7 +243,7 @@ router.get('/:id/messages', async (req, res) => {
   router.post('/:id/messages', async (req, res) => {
     try {
       const { id } = req.params;
-      const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle, projectId, thinking, toolCalls, usedFallback } = req.body;
+      const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle, projectId, thinking, toolCalls, usedFallback, intermediateThinkingBlocks } = req.body;
       const userId = req.user!.id;
 
     console.log('[DEBUG_MODAL] 📥 Backend - Ajout message:', { 
@@ -292,6 +292,7 @@ router.get('/:id/messages', async (req, res) => {
           thinking: thinking || null,
           toolCalls: toolCalls || [],
           usedFallback: usedFallback || false,
+          intermediateThinkingBlocks: intermediateThinkingBlocks || [],
         }
       });
 
