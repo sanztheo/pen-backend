@@ -76,6 +76,7 @@ export interface FunctionCallingResult {
   toolCalls: ToolCallRecord[];
   thinking: string;
   usedFallback: boolean;
+  intermediateThinkingBlocks: IntermediateThinkingBlock[]; // 🔥 NEW: Store blocks
 }
 
 // 🔥 Helper: Parse JSON safely from streamed content
@@ -264,6 +265,9 @@ Génère le plan JSON MAINTENANT. AUCUN texte avant ou après le JSON.`;
         }
       ];
 
+      // 🔥 Déclarer toolArgs AVANT la boucle pour garder les arguments du thinking intermédiaire
+      let toolArgs: any = {};
+
       // Exécuter chaque tool selon le plan
       for (let iterationIdx = 0; iterationIdx < totalIterations; iterationIdx++) {
         const toolStep = validatedToolSequence[iterationIdx];
@@ -271,23 +275,68 @@ Génère le plan JSON MAINTENANT. AUCUN texte avant ou après le JSON.`;
 
         console.log(`🔧 [PHASE-1-ITER-${iterationIdx + 1}/${totalIterations}] Exécution: ${toolStep.toolName} - ${toolStep.description}`);
 
-        let toolArgs: any = {};
+        // 🔥 RÉINITIALISER toolArgs SEULEMENT pour le premier tool
+        if (iterationIdx === 0) {
+          // 🔥 Premier tool: utiliser la question originale + les sources disponibles
+          toolArgs = { query };
+          
+          // Si c'est read_rag_source et que des sources sont disponibles, passer le premier sourceId
+          if (toolStep.toolName === 'read_rag_source' && availableSources.length > 0) {
+            toolArgs.sourceId = availableSources[0].id;
+          }
+        }
+        // Pour les itérations suivantes, toolArgs contient déjà les arguments du thinking précédent
 
-        // 🔥 ÉTAPE 2A: Générer les arguments du tool via intermediate thinking (sauf pour le premier)
-        if (iterationIdx > 0 && onIntermediateThinking) {
-          console.log(`🧠 [INTERMEDIATE-THINKING-${iterationIdx}] Génération des arguments pour ${toolStep.toolName}...`);
+        // 🔥 ÉTAPE 2B: Stream the tool call
+        if (onToolCall) {
+          onToolCall(toolStep.toolName, toolArgs);
+        }
+
+        await sleep(50);
+
+        // 🔥 ÉTAPE 2C: Execute tool
+        const result = await ToolExecutor.executeToolCall(toolStep.toolName, toolArgs, context);
+
+        // Stream tool result
+        if (onToolResult) {
+          onToolResult(toolStep.toolName, result);
+        }
+
+        await sleep(50);
+
+        // Enregistrer le tool call
+        toolCalls.push({
+          name: toolStep.toolName,
+          arguments: toolArgs,
+          result,
+          timestamp: Date.now()
+        });
+
+        // Ajouter à l'historique des messages
+        initialMessages.push({
+          role: 'user',
+          content: `Tool ${toolStep.toolName} résultat:\n${result}`
+        });
+
+        console.log(`✅ [PHASE-1-ITER-${iterationIdx + 1}] Complété: ${toolStep.toolName}`);
+
+        // 🔥 ÉTAPE 2D: Générer les arguments du tool SUIVANT via intermediate thinking (après exécution du tool actuel)
+        const nextIterationIdx = iterationIdx + 1;
+        if (nextIterationIdx < totalIterations && onIntermediateThinking) {
+          const nextToolStep = validatedToolSequence[nextIterationIdx];
+          console.log(`🧠 [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Génération des arguments pour ${nextToolStep.toolName}...`);
           
           try {
-            const intermediateThinkingPrompt = `Basé sur les résultats précédents et ta stratégie, décide maintenant de la requête pour l'étape ${iterationIdx + 1}.
+            const intermediateThinkingPrompt = `Basé sur les résultats précédents et ta stratégie, décide maintenant de la requête pour l'étape ${nextIterationIdx + 1}.
 
 Tu DOIS répondre en JSON STRICT sans texte additionnel:
 {
   "thinking": "<ta réflexion sur ce qu'il faut chercher ensuite>",
   "toolArguments": {
-    "query": "<la requête spécifique pour ${toolStep.toolName}>",
+    "query": "<la requête spécifique pour ${nextToolStep.toolName}>",
     "sourceId": "<optionnel>"
   },
-  "nextToolName": "${toolStep.toolName}"
+  "nextToolName": "${nextToolStep.toolName}"
 }
 
 Sois spécifique et basé sur les résultats précédents.`;
@@ -322,68 +371,27 @@ Sois spécifique et basé sur les résultats précédents.`;
             if (isIntermediateThinkingOutput(intermediateParsed)) {
               toolArgs = intermediateParsed.toolArguments || {};
               
-              // Sauvegarder le bloc
+              // Sauvegarder le bloc avec l'itération du TOOL ACTUELLEMENT EXÉCUTÉ
               intermediateThinkingBlocks.push({
-                iteration: iterationIdx,
+                iteration: iterationIdx,  // 🔥 Itération du tool ACTUEL (après lequel ce thinking est généré)
                 thinking: intermediateParsed.thinking,
                 toolArguments: toolArgs,
                 generatedAt: new Date().toISOString(),
-                nextToolName: toolStep.toolName
+                nextToolName: nextToolStep.toolName  // 🔥 Le PROCHAIN tool
               });
 
-              console.log(`✅ [INTERMEDIATE-THINKING-${iterationIdx}] Arguments extraits:`, toolArgs);
+              console.log(`✅ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Arguments extraits:`, toolArgs);
             } else {
-              console.warn(`⚠️ Invalid intermediate thinking format at iteration ${iterationIdx}`);
+              console.warn(`⚠️ Invalid intermediate thinking format after iteration ${iterationIdx}`);
             }
           } catch (error) {
-            console.warn(`⚠️ [INTERMEDIATE-THINKING-${iterationIdx}] Erreur:`, error);
+            console.warn(`⚠️ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Erreur:`, error);
             // Fallback: utiliser la description comme query
-            toolArgs = { query: toolStep.description };
+            toolArgs = { query: nextToolStep.description };
           }
 
           await sleep(50);
-        } else if (iterationIdx === 0) {
-          // 🔥 Premier tool: utiliser la question originale + les sources disponibles
-          toolArgs = { query };
-          
-          // Si c'est read_rag_source et que des sources sont disponibles, passer le premier sourceId
-          if (toolStep.toolName === 'read_rag_source' && availableSources.length > 0) {
-            toolArgs.sourceId = availableSources[0].id;
-          }
         }
-
-        // 🔥 ÉTAPE 2B: Stream the tool call
-        if (onToolCall) {
-          onToolCall(toolStep.toolName, toolArgs);
-        }
-
-        await sleep(50);
-
-        // 🔥 ÉTAPE 2C: Execute tool
-        const result = await ToolExecutor.executeToolCall(toolStep.toolName, toolArgs, context);
-
-        // Stream tool result
-        if (onToolResult) {
-          onToolResult(toolStep.toolName, result);
-        }
-
-        await sleep(50);
-
-        // Enregistrer le tool call
-        toolCalls.push({
-          name: toolStep.toolName,
-          arguments: toolArgs,
-          result,
-          timestamp: Date.now()
-        });
-
-        // Ajouter à l'historique des messages
-        initialMessages.push({
-          role: 'user',
-          content: `Tool ${toolStep.toolName} résultat:\n${result}`
-        });
-
-        console.log(`✅ [PHASE-1-ITER-${iterationIdx + 1}] Complété: ${toolStep.toolName}`);
       }
 
       console.log(`✅ [PHASE-1] Tous les tools exécutés: ${toolCalls.length} total`);
@@ -489,7 +497,8 @@ Réponds maintenant à la question en utilisant les résultats des outils ci-des
         content: finalResponse.content,
         toolCalls: toolDecision.toolCalls,
         thinking: toolDecision.thinking,
-        usedFallback: false
+        usedFallback: false,
+        intermediateThinkingBlocks: toolDecision.intermediateThinkingBlocks // 🔥 NEW: Include blocks
       };
     }
 
@@ -505,7 +514,8 @@ Réponds maintenant à la question en utilisant les résultats des outils ci-des
       content: fallbackContent.content,
       toolCalls: [],
       thinking: toolDecision.thinking,
-      usedFallback: true
+      usedFallback: true,
+      intermediateThinkingBlocks: [] // 🔥 NEW: Empty array for fallback (no tools used)
     };
   }
 

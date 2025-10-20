@@ -146,7 +146,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
           workspaceId,
           userId: req.user!.id,
           useWeb,
-          systemPrompt: 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.',
+          systemPrompt: `Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.\n\n${LATEX_STRICT_RULES}`,
           isSearch: false,  // 🔥 Flag pour Ask - réponse plus courte
 
           // Callbacks pour streaming temps réel
@@ -189,7 +189,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
           await FunctionCallingService.generateWithToolResults({
             query: sanitizedQuery,
             toolResults,
-            systemPrompt: 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.',
+            systemPrompt: `Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.\n\n${LATEX_STRICT_RULES}`,
             onStream: (chunk) => {
               sseWriteData(res, chunk);
             }
@@ -202,7 +202,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
           
           await AIService.generateContent({
             prompt: sanitizedQuery,
-            context: 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.',
+            context: `Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.\n\n${LATEX_STRICT_RULES}`,
             temperature: 0.2,
             maxTokens: 4000,
             onStream: (chunk: string) => {

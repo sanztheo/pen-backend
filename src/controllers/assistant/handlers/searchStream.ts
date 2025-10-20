@@ -143,7 +143,7 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           workspaceId,
           userId: req.user!.id,
           useWeb,
-          systemPrompt: 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.',
+          systemPrompt: `Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.\n\n${LATEX_STRICT_RULES}`,
           isSearch: true,  // 🔥 Flag pour Search - utilise plus de tools
 
           // Callbacks pour streaming temps réel
@@ -195,7 +195,7 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           await FunctionCallingService.generateWithToolResults({
             query: sanitizedQuery,
             toolResults,
-            systemPrompt: 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée avec plus de détails et de profondeur.',
+            systemPrompt: `Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée avec plus de détails et de profondeur.\n\n${LATEX_STRICT_RULES}`,
             onStream: (chunk) => {
               sseWriteData(res, chunk);
             }
@@ -206,9 +206,15 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           // Pas de tools utilisés → réponse directe (fallback)
           console.log(`🔧 [SEARCH-FALLBACK] Pas de tools utilisés, génération directe...`);
           
+          // 🔥 Enrichir le context avec les règles LaTeX si pertinent
+          let fallbackContext = 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.';
+          if (isMathLatexIntent(sanitizedQuery)) {
+            fallbackContext += '\n\n' + LATEX_STRICT_RULES;
+          }
+          
           await AIService.generateContent({
             prompt: sanitizedQuery,
-            context: 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.',
+            context: fallbackContext,
             temperature: 0.2,
             maxTokens: 4000,
             onStream: (chunk: string) => {
