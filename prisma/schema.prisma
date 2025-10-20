@@ -630,6 +630,9 @@ model AIMessage {
   toolCalls      Json?          @default("[]") @map("tool_calls") // Liste des tool calls executés
   usedFallback   Boolean?       @default(false) @map("used_fallback") // Si fallback contexte utilisé (timeout)
   
+  // 🔥 NOUVEAU: Intermediate thinking blocks with generated arguments
+  intermediateThinkingBlocks Json? @default("[]") @map("intermediate_thinking_blocks") // [{iteration, thinking, toolArguments, generatedAt}]
+  
   // Timing
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   
