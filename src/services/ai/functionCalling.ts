@@ -139,16 +139,32 @@ export class FunctionCallingService {
       const firstThinkingPrompt = isSearch
         ? `Tu dois créer un plan JSON structuré pour explorer un sujet en profondeur.
 
-TOOLS VALIDES DISPONIBLES:
-- read_rag_source: Lire le contenu complet d'une source RAG
-- search_rag_chunks: Chercher des chunks spécifiques dans une source par similarité
-- search_web: Rechercher sur le web (UNIQUEMENT si pas de sources spécifiques mentionnées)
+TOOLS DISPONIBLES (par catégorie):
+📋 LISTER LES SOURCES:
+- list_available_sources: Liste TOUTES les sources disponibles (pages, fichiers, Wikipedia). À APPELER EN PREMIER!
+- list_workspace_pages: Liste les pages du workspace
 
-RÈGLES IMPORTANTES:
-- CHAQUE TOOL DOIT ÊTRE DIFFÉRENT ET COMPLÉMENTAIRE
-- Si des sources spécifiques sont mentionnées: N'UTILISE QUE read_rag_source et search_rag_chunks
-- N'utilise search_web QUE si aucune source spécifique n'est fournie
-- totalIterations DOIT être entre 1 et 8
+🔍 LIRE/CHERCHER DANS LES SOURCES:
+- read_rag_source: Lit le contenu complet d'UNE source RAG
+- select_relevant_sources: Sélectionne les sources pertinentes pour la question
+- search_rag_chunks: Recherche sémantique DANS les sources RAG
+- read_workspace_page: Lit une page spécifique du workspace
+
+🌐 EXTERNES:
+- check_sources_rag_status: Vérifie le statut RAG des sources
+- search_web: Recherche web (dernier recours)
+
+STRATÉGIE RECOMMANDÉE (Search Mode - exploration profonde):
+1. list_available_sources → voir quelles sources existent
+2. select_relevant_sources OU read_rag_source → explorer les sources pertinentes
+3. search_rag_chunks → chercher des chunks spécifiques
+4. search_web OU check_sources_rag_status → vérifier/compléter l'information
+
+RÈGLES:
+- Commence PAR lister les sources si scope='all' ou "Toutes mes sources"
+- CHAQUE tool doit être différent et complémentaire
+- totalIterations: 1-8
+- Seulement search_web si sources RAG insuffisantes
 
 Le JSON DOIT avoir cette structure EXACTE:
 {
@@ -156,8 +172,9 @@ Le JSON DOIT avoir cette structure EXACTE:
     "totalIterations": <nombre>,
     "reasoning": "<ta logique en 1-2 phrases>",
     "toolSequence": [
-      {"step": 1, "toolName": "read_rag_source", "description": "..."},
-      {"step": 2, "toolName": "search_rag_chunks", "description": "..."}
+      {"step": 1, "toolName": "list_available_sources", "description": "Lister les sources disponibles"},
+      {"step": 2, "toolName": "read_rag_source", "description": "..."},
+      {"step": 3, "toolName": "search_rag_chunks", "description": "..."}
     ]
   }
 }
@@ -169,16 +186,26 @@ Question: "${query}"
 Génère le plan JSON MAINTENANT. AUCUN texte avant ou après le JSON.`
         : `Tu dois créer un plan JSON structuré pour répondre à une question.
 
-TOOLS VALIDES DISPONIBLES:
-- read_rag_source: Lire le contenu complet d'une source RAG
-- search_rag_chunks: Chercher des chunks spécifiques dans une source par similarité
-- search_web: Rechercher sur le web (UNIQUEMENT si pas de sources spécifiques mentionnées)
+TOOLS DISPONIBLES (par catégorie):
+📋 LISTER LES SOURCES:
+- list_available_sources: Liste TOUTES les sources disponibles (pages, fichiers, Wikipedia)
+- list_workspace_pages: Liste les pages du workspace
 
-RÈGLES IMPORTANTES:
-- En mode Ask, totalIterations DOIT être 1
-- Utilise UNIQUEMENT les tools disponibles ci-dessus
-- Si des sources spécifiques sont mentionnées: N'UTILISE QUE read_rag_source
-- N'utilise search_web QUE si aucune source spécifique n'est fournie
+🔍 LIRE/CHERCHER DANS LES SOURCES:
+- read_rag_source: Lit le contenu complet d'UNE source RAG
+- select_relevant_sources: Sélectionne les sources pertinentes
+- search_rag_chunks: Recherche sémantique DANS les sources
+- read_workspace_page: Lit une page spécifique
+
+🌐 AUTRES:
+- check_sources_rag_status: Vérifie le statut RAG
+- search_web: Recherche web (dernier recours)
+
+RÈGLES (Ask Mode - réponse simple):
+- totalIterations DOIT être 1
+- Si l'utilisateur dit "parle-moi de mes sources" → list_available_sources
+- Sinon, utilise read_rag_source directement
+- search_web SEULEMENT si aucune source RAG ne correspond
 
 Le JSON DOIT avoir cette structure EXACTE:
 {
@@ -186,7 +213,7 @@ Le JSON DOIT avoir cette structure EXACTE:
     "totalIterations": 1,
     "reasoning": "<ta logique en 1-2 phrases>",
     "toolSequence": [
-      {"step": 1, "toolName": "read_rag_source", "description": "Lire la source pour répondre"}
+      {"step": 1, "toolName": "list_available_sources", "description": "Lister les sources"}
     ]
   }
 }
@@ -241,7 +268,7 @@ Génère le plan JSON MAINTENANT. AUCUN texte avant ou après le JSON.`;
       const { totalIterations, toolSequence } = firstThinkingPlan.plan;
       
       // 🔥 Valider les tools: ne garder que les tools valides
-      const VALID_TOOLS = ['read_rag_source', 'search_rag_chunks', 'search_web'];
+      const VALID_TOOLS = ['list_available_sources', 'select_relevant_sources', 'check_sources_rag_status', 'read_rag_source', 'search_rag_chunks', 'search_web', 'read_workspace_page', 'list_workspace_pages'];
       const validatedToolSequence = toolSequence.filter((t) => VALID_TOOLS.includes(t.toolName));
       
       if (validatedToolSequence.length === 0) {
