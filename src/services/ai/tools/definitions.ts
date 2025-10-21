@@ -28,6 +28,23 @@ export const FUNCTION_TOOLS = [
   {
     type: "function" as const,
     function: {
+      name: "list_global_wikipedia_sources",
+      description: "Liste toutes les sources Wikipedia GLOBALES partagées entre tous les utilisateurs (déjà indexées et disponibles). Utilise ce tool avant de passer au search_web pour vérifier si une Wikipedia pertinente existe déjà.",
+      parameters: {
+        type: "object",
+        properties: {
+          limit: { 
+            type: "number", 
+            description: "Nombre maximum de sources à lister (par défaut: 20, max: 50)" 
+          }
+        },
+        required: []
+      }
+    }
+  },
+  {
+    type: "function" as const,
+    function: {
       name: "select_relevant_sources",
       description: "IA sélectionne les sources pertinentes pour répondre à une question spécifique. Utilise la fonction select_sources_tool avec les IDs sélectionnés.",
       parameters: {

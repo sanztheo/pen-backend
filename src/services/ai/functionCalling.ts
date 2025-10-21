@@ -146,7 +146,8 @@ export class FunctionCallingService {
 
 TOOLS DISPONIBLES (par catégorie):
 📋 LISTER LES SOURCES:
-- list_available_sources: Liste TOUTES les sources disponibles (pages, fichiers, Wikipedia). À APPELER EN PREMIER!
+- list_available_sources: Liste TOUTES les sources disponibles (pages, fichiers, Wikipedia personnelles)
+- list_global_wikipedia_sources: Liste les sources Wikipedia GLOBALES partagées (avant search_web!)
 - list_workspace_pages: Liste les pages du workspace
 
 🔍 LIRE/CHERCHER DANS LES SOURCES:
@@ -160,13 +161,19 @@ TOOLS DISPONIBLES (par catégorie):
 - search_web: Recherche web (dernier recours)
 
 STRATÉGIE RECOMMANDÉE (Search Mode - exploration profonde):
-1. list_available_sources → voir quelles sources existent
-2. select_relevant_sources OU read_rag_source → explorer les sources pertinentes
-3. search_rag_chunks → chercher des chunks spécifiques
-4. search_web OU check_sources_rag_status → vérifier/compléter l'information
+1️⃣ list_available_sources + list_global_wikipedia_sources → Voir TOUTES les sources (personnelles + globales)
+2️⃣ select_relevant_sources OU read_rag_source → Explorer les sources pertinentes trouvées
+3️⃣ search_rag_chunks → Chercher des chunks spécifiques
+4️⃣ search_web OU check_sources_rag_status → Vérifier/compléter l'information
+
+🔥 IMPORTANT:
+- Appelle TOUJOURS list_available_sources ET list_global_wikipedia_sources au début (ensemble!)
+- Si list_available_sources retourne vide → Tu DOIS appeler list_global_wikipedia_sources pour voir les Wikipedia globales
+- N'appelle JAMAIS read_rag_source avec un ID vide! Vérifie d'abord les sources listées.
+- Si aucune source trouvée nulle part → Utilise search_web
 
 RÈGLES:
-- Commence PAR lister les sources si scope='all' ou "Toutes mes sources"
+- Commence PAR lister les sources (personnelles ET globales)
 - CHAQUE tool doit être différent et complémentaire
 - totalIterations: 1-8
 - Si tu utilises check_sources_rag_status, tu dois d'abord avoir les IDs des sources
@@ -178,9 +185,10 @@ Le JSON DOIT avoir cette structure EXACTE:
     "totalIterations": <nombre>,
     "reasoning": "<ta logique en 1-2 phrases>",
     "toolSequence": [
-      {"step": 1, "toolName": "list_available_sources", "description": "Lister les sources disponibles"},
-      {"step": 2, "toolName": "read_rag_source", "description": "..."},
-      {"step": 3, "toolName": "search_rag_chunks", "description": "..."}
+      {"step": 1, "toolName": "list_available_sources", "description": "Lister les sources personnelles"},
+      {"step": 2, "toolName": "list_global_wikipedia_sources", "description": "Lister les Wikipedia globales"},
+      {"step": 3, "toolName": "read_rag_source", "description": "..."},
+      {"step": 4, "toolName": "search_rag_chunks", "description": "..."}
     ]
   }
 }
@@ -195,6 +203,7 @@ Génère le plan JSON MAINTENANT. AUCUN texte avant ou après le JSON.`
 TOOLS DISPONIBLES (par catégorie):
 📋 LISTER LES SOURCES:
 - list_available_sources: Liste TOUTES les sources disponibles (pages, fichiers, Wikipedia)
+- list_global_wikipedia_sources: Liste les sources Wikipedia GLOBALES partagées (avant search_web!)
 - list_workspace_pages: Liste les pages du workspace
 
 🔍 LIRE/CHERCHER DANS LES SOURCES:
@@ -210,7 +219,8 @@ TOOLS DISPONIBLES (par catégorie):
 RÈGLES (Ask Mode - réponse simple):
 - totalIterations DOIT être 1
 - Si l'utilisateur dit "parle-moi de mes sources" → list_available_sources
-- Sinon, utilise read_rag_source directement
+- Sinon: Appelle list_available_sources PUIS list_global_wikipedia_sources pour chercher
+- N'appelle JAMAIS read_rag_source avec un ID vide! Vérifie d'abord les sources.
 - search_web SEULEMENT si aucune source RAG ne correspond${useWebStr}
 
 Le JSON DOIT avoir cette structure EXACTE:
@@ -376,43 +386,90 @@ Génère le plan JSON MAINTENANT. AUCUN texte avant ou après le JSON.`;
               ? `\n🌐 IMPORTANT: L'utilisateur a ACTIVÉ la recherche web. Si aucun outil n'a encore appelé search_web, tu DOIS le proposer dans "modifiedToolSequence"!`
               : '';
             
-            const intermediateThinkingPrompt = `Basé sur les résultats précédents et ta stratégie, décide maintenant si tu dois continuer ou arrêter l'exploration.
+            const intermediateThinkingPrompt = `Tu as reçu des résultats. Analyse-les et décide de la prochaine étape.
 
-⚠️ CONTEXTE ORIGINAL: La question de l'utilisateur est: "${query}"
+⚠️ QUESTION ORIGINALE: "${query}"
 
-📋 HISTORIQUE DES TOOLS EXÉCUTÉS:
-${executedTools || 'Aucun tool exécuté pour le moment'}
+📋 TOOLS DÉJÀ EXÉCUTÉS:
+${executedTools || 'Aucun'}
 
-📋 OUTILS RESTANTS DANS LE PLAN:
-${remainingTools || 'Aucun tool restant dans le plan initial'}
+📋 TOOLS RESTANTS DANS LE PLAN:
+${remainingTools || 'Aucun'}
 
-IMPORTANT: 
-- Si les résultats précédents NE SONT PAS pertinents pour répondre à cette question, tu DOIS arrêter et mettre "shouldContinue": false!
-- SI tu détectes que le plan actuel ne convient pas, tu peux le MODIFIER en proposant "modifiedToolSequence" avec une nouvelle liste de tools
-- Par exemple, si les sources RAG n'ont rien d'intéressant, tu peux sauter directement à search_web!${webInstruction}
+⚠️ CRUCIAL - LIRE LES RÉSULTATS RÉELS:
+ATTENTION! Les résultats précédents sont dans le contexte ci-dessus (Tool X résultat).
+- Si un tool retourne "Aucune source" → C'est RÉEL, il n'y a pas de sources de ce type!
+- Si un tool retourne une liste → COMPTE les sources et sélectionne les MEILLEURES
+- N'INVENTE JAMAIS de sources! Utilise SEULEMENT celles listées dans les résultats précédents
+- Si AUCUN tool n'a trouvé de sources → Tu DOIS appeler le tool SUIVANT dans le plan
 
-Tu DOIS répondre en JSON STRICT sans texte additionnel:
+🧠 STRATÉGIE INTELLIGENTE (PAS STRICTE):
+
+1️⃣ SI des sources Wikipedia GLOBALES ont été LISTÉES mais NON ENCORE LUES:
+   → 🎯 SÉLECTIONNE LES MEILLEURES (2-3 max) pertinentes pour la question
+   → ❌ N'essaie PAS de tout lire! (ex: si 1000 sources, choisis les 3 les plus pertinentes)
+   → 📖 LIS-LES pour extraire les informations clés
+   → APRÈS avoir lu: décide si tu as besoin du web pour complémenter
+
+2️⃣ COMMENT CHOISIR LES MEILLEURES SOURCES?
+   - Lis les TITRES des sources listées
+   - Sélectionne celles qui MATCHENT LE PLUS ta question
+   - Utilise read_rag_source avec les MEILLEURES IDs (pas tous les IDs!)
+   - Par exemple pour "parle-moi des théorèmes":
+     ✅ "Théorème de Thalès" (très pertinent)
+     ✅ "Théorème de Pythagore" (pertinent)
+     ⚠️ "Loi des cosinus" (pertinent mais secondaire - à évaluer)
+
+3️⃣ SI tu as DÉ JÀ LU des sources sélectionnées:
+   → Évalue si la réponse est SUFFISANTE pour la question
+   → ✅ Suffisant? → shouldContinue: false (l'IA générera la réponse finale)
+   → ❌ Incomplet? → Tu peux enrichir OPTIONNELLEMENT avec search_web si web est activé
+
+4️⃣ PHILOSOPHIE:
+   - Les sources locales (Wikipedia globales) = PRIORITÉ (c'est gratuit + rapide)
+   - SÉLECTION INTELLIGENTE: Choisis 2-3 sources max, pas tout
+   - Le web = POUR ENRICHIR, pas remplacer les sources locales
+   - Exemple: Lire les 2 théorèmes principaux dans Wikipedia, puis chercher des cas d'usage modernes sur le web
+
+🌐 WEB STRATEGY:
+- ${useWeb ? '✅ WEB ACTIVÉ: Tu peux utiliser search_web pour COMPLÉMENTER les sources existantes' : '❌ WEB DÉSACTIVÉ: Reste uniquement sur les sources locales'}
+- search_web ne doit pas être la première option, mais un enrichissement optionnel
+- Si sources locales couvrent la question: pas besoin de web!
+
+📊 DÉCISION:
+Retourne un JSON avec:
+- "thinking": Ta réflexion sur les résultats et la prochaine étape
+- "shouldContinue": true SEULEMENT si tu veux vraiment continuer (false = générer la réponse)
+- "modifiedToolSequence": Propose une séquence SEULEMENT si tu veux changer le plan
+- "nextToolName": Le prochain tool si tu veux continuer
+- "toolArguments": Arguments spécifiques pour le prochain tool
+
+EXEMPLES DE DÉCISIONS:
+
+Exemple 1 - Wikipedia listée mais non lue (sélection intelligente):
 {
-  "thinking": "<ta réflexion: les résultats précédents sont-ils pertinents pour: ${query}? Le plan doit-il être modifié? Dois-je continuer ou arrêter?>",
-  "shouldContinue": true ou false,
-  "modifiedToolSequence": [
-    {"step": 1, "toolName": "search_web", "description": "Rechercher directement sur le web"},
-    ...autre tools si besoin
-  ],
-  "toolArguments": {
-    "query": "<la requête spécifique pour le PROCHAIN tool>",
-    "sourceId": "<optionnel>"
-  },
-  "nextToolName": "${nextToolStep.toolName}"
+  "thinking": "J'ai trouvé 3 sources Wikipedia: 'Théorème de Thalès' (23 chunks), 'Théorème de Pythagore' (38 chunks), 'Loi des cosinus' (19 chunks). Pour 'parle-moi des théorèmes', les 2 premières sont les plus essentielles. Je lis les meilleures.",
+  "shouldContinue": true,
+  "nextToolName": "read_rag_source",
+  "toolArguments": {"sourceId": "6f9280e9-a4ba-43ae-8372-698efd22fa84", "query": "${query}"}
 }
 
-RÈGLES:
-- Si les résultats sont DÉJÀ pertinents et suffisants → "shouldContinue": false, "modifiedToolSequence": []
-- Si les résultats ne correspondent PAS et web est activé → suggère "modifiedToolSequence" avec search_web
-- Si web est activé et aucun search_web n'a été exécuté → propose search_web!
-- Seulement "shouldContinue": true si tu as VRAIMENT besoin d'une autre tool
-- Si tu modifies le plan, mets à jour "modifiedToolSequence" avec les NEW tools
-- Sois spécifique, basé sur les résultats précédents, et toujours aligné avec la question de l'utilisateur.`;
+Exemple 2 - Wikipedia lue, info suffisante:
+{
+  "thinking": "J'ai lu les 2 théorèmes principaux (Thalès et Pythagore). Ils couvrent bien les concepts fondamentaux demandés.",
+  "shouldContinue": false,
+  "modifiedToolSequence": []
+}
+
+Exemple 3 - Wikipedia lue partiellement, veut enrichir avec web:
+{
+  "thinking": "J'ai lu Théorème de Thalès et Pythagore. Pour une réponse plus complète sur tous les théorèmes mathématiques, cherchons du web.",
+  "shouldContinue": true,
+  "nextToolName": "search_web",
+  "toolArguments": {"query": "autres théorèmes mathématiques importants"}
+}
+
+Tu DOIS répondre UNIQUEMENT en JSON STRICT:`;
 
             let intermediateThinkingContent = '';
             const intermediateStream = await openai.chat.completions.create({
