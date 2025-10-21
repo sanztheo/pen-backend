@@ -26,6 +26,9 @@ export class ToolExecutor {
         case 'list_available_sources':
           return await this.listAvailableSources(args, context);
 
+        case 'list_global_wikipedia_sources':
+          return await this.listGlobalWikipediaSources(args);
+
         case 'select_relevant_sources':
           return await this.selectRelevantSources(args, context);
 
@@ -114,6 +117,61 @@ export class ToolExecutor {
   }
 
   /**
+   * Liste toutes les sources Wikipedia GLOBALES partagées (déjà indexées)
+   */
+  private static async listGlobalWikipediaSources(
+    args: { limit?: number }
+  ): Promise<string> {
+    const { limit = 20 } = args;
+
+    console.log(`🌍 [LIST-GLOBAL-WIKI] Listing sources Wikipedia globales`);
+
+    try {
+      const wikiSources = await prisma.rAGSource.findMany({
+        where: {
+          isGlobal: true,
+          sourceType: 'WIKIPEDIA',
+          status: 'COMPLETED'  // Seulement les sources complètement indexées
+        },
+        select: {
+          id: true,
+          title: true,
+          sourceType: true,
+          totalChunks: true,
+          lastUsedAt: true,
+          status: true
+        },
+        take: Math.min(limit, 50),
+        orderBy: { lastUsedAt: 'desc' }
+      });
+
+      if (wikiSources.length === 0) {
+        return `🌍 Aucune source Wikipedia globale disponible actuellement`;
+      }
+
+      let result = `🌍 Sources Wikipedia GLOBALES partagées (${wikiSources.length} source(s)):\n\n`;
+
+      wikiSources.forEach((source, i) => {
+        const lastUsed = source.lastUsedAt 
+          ? new Date(source.lastUsedAt).toLocaleDateString('fr-FR')
+          : 'Jamais';
+        
+        result += `${i + 1}. 📚 ${source.title}\n`;
+        result += `   Chunks indexés: ${source.totalChunks}\n`;
+        result += `   ID: ${source.id}\n`;
+        result += `   Dernière utilisation: ${lastUsed}\n\n`;
+      });
+
+      console.log(`✅ [LIST-GLOBAL-WIKI] ${wikiSources.length} sources Wikipedia listées`);
+
+      return result;
+    } catch (error) {
+      console.error(`❌ [LIST-GLOBAL-WIKI] Erreur:`, error);
+      return `Erreur lors de la récupération des sources Wikipedia globales: ${error instanceof Error ? error.message : 'Erreur inconnue'}`;
+    }
+  }
+
+  /**
    * IA sélectionne les sources pertinentes (utilise function calling d'OpenAI)
    */
   private static async selectRelevantSources(
@@ -198,21 +256,24 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
    * Vérifie le statut RAG des sources (lesquelles ont chunks vs lesquelles besoin de RAG)
    */
   private static async checkSourcesRagStatus(
-    args: { sourceIds: string[] },
+    args: { sourceIds?: string[]; sourceId?: string },
     context: ToolContext
   ): Promise<string> {
-    const { sourceIds } = args;
-
-    // 🔥 Handle case where sourceIds is undefined or empty
-    if (!sourceIds || sourceIds.length === 0) {
-      return `❌ Erreur: Aucun ID de source fourni. Veuillez d'abord utiliser "list_available_sources" pour obtenir les IDs, puis passer les IDs à cette fonction.`;
+    // 🔥 Handle both sourceIds (array) and sourceId (string) for compatibility
+    let ids = args.sourceIds || [];
+    if (args.sourceId && !args.sourceIds) {
+      ids = [args.sourceId];
     }
 
-    console.log(`🔍 [CHECK-RAG-STATUS] Vérification de ${sourceIds.length} sources`);
+    if (!ids || ids.length === 0) {
+      return `❌ Erreur: Aucun ID de source fourni. Utilisez "sourceIds" (array) ou "sourceId" (string).`;
+    }
+
+    console.log(`🔍 [CHECK-RAG-STATUS] Vérification de ${ids.length} sources`);
 
     try {
       const sources = await prisma.rAGSource.findMany({
-        where: { id: { in: sourceIds } },
+        where: { id: { in: ids } },
         select: {
           id: true,
           title: true,
