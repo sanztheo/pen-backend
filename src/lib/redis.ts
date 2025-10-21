@@ -393,6 +393,53 @@ export const invalidateQuotaUsageCache = async (quotaKey: string = 'global') => 
 };
 
 /**
+ * Cache Sidebar Content avec TTL 5 minutes
+ * Optimisé pour éviter le rechargement lors du retour depuis PricingPage
+ */
+export const cacheSidebarContent = async (userId: string) => {
+  try {
+    const cacheKey = `sidebar:${userId}`;
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ [REDIS-CACHE] Sidebar HIT: ${userId}`);
+      return JSON.parse(cached);
+    }
+
+    console.log(`❌ [REDIS-CACHE] Sidebar MISS: ${userId}`);
+    return null; // Retourner null si pas en cache
+  } catch (error) {
+    console.error('⚠️ [REDIS] Fallback to DB (cache error):', error);
+    return null;
+  }
+};
+
+/**
+ * Sauvegarder le contenu de la sidebar dans le cache
+ */
+export const saveSidebarContent = async (userId: string, content: any) => {
+  try {
+    const cacheKey = `sidebar:${userId}`;
+    await redis.setex(cacheKey, 300, JSON.stringify(content)); // 5min TTL
+    console.log(`💾 [REDIS-CACHE] Sidebar sauvegardé: ${userId}`);
+  } catch (error) {
+    console.error('⚠️ [REDIS] Erreur sauvegarde sidebar:', error);
+  }
+};
+
+/**
+ * Invalider le cache Sidebar (après création/suppression/modification)
+ */
+export const invalidateSidebarCache = async (userId: string) => {
+  try {
+    await redis.del(`sidebar:${userId}`);
+    console.log(`🗑️ [REDIS-CACHE] Sidebar invalidated: ${userId}`);
+  } catch (error) {
+    console.error('⚠️ [REDIS] Erreur invalidation cache Sidebar:', error);
+  }
+};
+
+/**
  * Health check Redis
  */
 export const redisHealthCheck = async (): Promise<boolean> => {

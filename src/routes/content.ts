@@ -35,12 +35,29 @@ const updatePageSchema = z.object({
 /**
  * GET /api/content
  * Récupère tout le contenu de l'utilisateur (projets + pages)
+ * 🚀 OPTIMISÉ avec REDIS CACHE (5min TTL)
  */
 router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user!.id;
+    const { cacheSidebarContent, saveSidebarContent } = await import('../lib/redis.js');
+
+    // 🚀 Essayer de récupérer depuis le cache Redis
+    const cachedContent = await cacheSidebarContent(userId);
+    if (cachedContent) {
+      console.log('✅ [CONTENT-API] Retour depuis cache Redis');
+      return res.json(cachedContent);
+    }
+
+    // ❌ Pas de cache : récupérer depuis la DB
+    console.log('❌ [CONTENT-API] Cache MISS - récupération DB');
     const content = await SimplifiedContentService.getUserContent(userId);
-    
+
+    // 💾 Sauvegarder dans le cache pour les prochaines requêtes
+    saveSidebarContent(userId, content).catch(err =>
+      console.warn('⚠️ [CONTENT-API] Échec sauvegarde cache:', err)
+    );
+
     res.json(content);
   } catch (error: any) {
     console.error('❌ [CONTENT-API] Erreur récupération contenu:', error);
@@ -126,9 +143,15 @@ router.post('/projects', authenticateToken, async (req, res) => {
   try {
     const userId = req.user!.id;
     const validatedData = createProjectSchema.parse(req.body);
-    
+
     const project = await SimplifiedContentService.createProject(userId, validatedData);
-    
+
+    // 🗑️ Invalider le cache sidebar après création
+    const { invalidateSidebarCache } = await import('../lib/redis.js');
+    invalidateSidebarCache(userId).catch(err =>
+      console.warn('⚠️ [CONTENT-API] Échec invalidation cache:', err)
+    );
+
     res.status(201).json({
       success: true,
       message: 'Projet créé avec succès',
@@ -142,7 +165,7 @@ router.post('/projects', authenticateToken, async (req, res) => {
         details: error.errors
       });
     }
-    
+
     if (error.message.includes('Limite de projets atteinte')) {
       return res.status(403).json({
         success: false,
@@ -151,7 +174,7 @@ router.post('/projects', authenticateToken, async (req, res) => {
         limitType: 'project'
       });
     }
-    
+
     console.error('❌ [CONTENT-API] Erreur création projet:', error);
     res.status(500).json({
       success: false,
@@ -168,9 +191,15 @@ router.post('/pages', authenticateToken, async (req, res) => {
   try {
     const userId = req.user!.id;
     const validatedData = createPageSchema.parse(req.body);
-    
+
     const page = await SimplifiedContentService.createPage(userId, validatedData);
-    
+
+    // 🗑️ Invalider le cache sidebar après création
+    const { invalidateSidebarCache } = await import('../lib/redis.js');
+    invalidateSidebarCache(userId).catch(err =>
+      console.warn('⚠️ [CONTENT-API] Échec invalidation cache:', err)
+    );
+
     res.status(201).json({
       success: true,
       message: 'Page créée avec succès',
@@ -184,7 +213,7 @@ router.post('/pages', authenticateToken, async (req, res) => {
         details: error.errors
       });
     }
-    
+
     console.error('❌ [CONTENT-API] Erreur création page:', error);
     res.status(500).json({
       success: false,
@@ -199,9 +228,10 @@ router.post('/pages', authenticateToken, async (req, res) => {
  */
 router.put('/projects/:id', authenticateToken, async (req, res) => {
   try {
+    const userId = req.user!.id;
     const { id } = req.params;
     const validatedData = updateProjectSchema.parse(req.body);
-    
+
     // Réutiliser la logique existante du contrôleur projet
     const project = await prisma.project.update({
       where: { id },
@@ -220,7 +250,13 @@ router.put('/projects/:id', authenticateToken, async (req, res) => {
         }
       }
     });
-    
+
+    // 🗑️ Invalider le cache sidebar après modification
+    const { invalidateSidebarCache } = await import('../lib/redis.js');
+    invalidateSidebarCache(userId).catch(err =>
+      console.warn('⚠️ [CONTENT-API] Échec invalidation cache:', err)
+    );
+
     res.json({
       success: true,
       message: 'Projet mis à jour avec succès',
@@ -234,7 +270,7 @@ router.put('/projects/:id', authenticateToken, async (req, res) => {
         details: error.errors
       });
     }
-    
+
     console.error('❌ [CONTENT-API] Erreur mise à jour projet:', error);
     res.status(500).json({
       success: false,
@@ -251,9 +287,15 @@ router.delete('/projects/:id', authenticateToken, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    
+
     await SimplifiedContentService.deleteProject(userId, id);
-    
+
+    // 🗑️ Invalider le cache sidebar après suppression
+    const { invalidateSidebarCache } = await import('../lib/redis.js');
+    invalidateSidebarCache(userId).catch(err =>
+      console.warn('⚠️ [CONTENT-API] Échec invalidation cache:', err)
+    );
+
     res.json({
       success: true,
       message: 'Projet supprimé avec succès'
@@ -275,9 +317,15 @@ router.delete('/pages/:id', authenticateToken, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    
+
     await SimplifiedContentService.deletePage(userId, id);
-    
+
+    // 🗑️ Invalider le cache sidebar après suppression
+    const { invalidateSidebarCache } = await import('../lib/redis.js');
+    invalidateSidebarCache(userId).catch(err =>
+      console.warn('⚠️ [CONTENT-API] Échec invalidation cache:', err)
+    );
+
     res.json({
       success: true,
       message: 'Page supprimée avec succès'
@@ -299,26 +347,26 @@ router.patch('/projects/:id/pin', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user!.id;
-    
+
     // Vérifier que le projet appartient à l'utilisateur
     const project = await prisma.project.findFirst({
-      where: { 
-        id, 
-        createdBy: userId 
+      where: {
+        id,
+        createdBy: userId
       }
     });
-    
+
     if (!project) {
       return res.status(404).json({
         success: false,
         error: 'Projet non trouvé'
       });
     }
-    
+
     // Toggle le statut pin
     const updatedProject = await prisma.project.update({
       where: { id },
-      data: { 
+      data: {
         isPinned: !project.isPinned,
         updatedAt: new Date()
       },
@@ -338,7 +386,13 @@ router.patch('/projects/:id/pin', authenticateToken, async (req, res) => {
         }
       }
     });
-    
+
+    // 🗑️ Invalider le cache sidebar après modification
+    const { invalidateSidebarCache } = await import('../lib/redis.js');
+    invalidateSidebarCache(userId).catch(err =>
+      console.warn('⚠️ [CONTENT-API] Échec invalidation cache:', err)
+    );
+
     res.json({
       message: updatedProject.isPinned ? 'Projet épinglé' : 'Projet désépinglé',
       project: updatedProject
@@ -360,26 +414,26 @@ router.patch('/pages/:id/pin', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user!.id;
-    
+
     // Vérifier que la page appartient à l'utilisateur
     const page = await prisma.page.findFirst({
-      where: { 
-        id, 
-        createdBy: userId 
+      where: {
+        id,
+        createdBy: userId
       }
     });
-    
+
     if (!page) {
       return res.status(404).json({
         success: false,
         error: 'Page non trouvée'
       });
     }
-    
+
     // Toggle le statut pin
     const updatedPage = await prisma.page.update({
       where: { id },
-      data: { 
+      data: {
         isPinned: !page.isPinned,
         updatedAt: new Date()
       },
@@ -394,7 +448,13 @@ router.patch('/pages/:id/pin', authenticateToken, async (req, res) => {
         }
       }
     });
-    
+
+    // 🗑️ Invalider le cache sidebar après modification
+    const { invalidateSidebarCache } = await import('../lib/redis.js');
+    invalidateSidebarCache(userId).catch(err =>
+      console.warn('⚠️ [CONTENT-API] Échec invalidation cache:', err)
+    );
+
     res.json({
       message: updatedPage.isPinned ? 'Page épinglée' : 'Page désépinglée',
       page: updatedPage
