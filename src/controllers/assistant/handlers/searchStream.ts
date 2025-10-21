@@ -105,7 +105,7 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     if (shouldUseFunctionCalling) {
       console.log(`🔧 [SEARCH] Function Calling activé - Pages mentionnées: ${hasSpecificPages}, Mode: ${sourcesScope}`);
 
-      const { FunctionCallingService } = await import('../../../services/ai/functionCalling.js');
+      const { FunctionCallingService } = await import('../../../services/ai/functionCalling/index.js');
 
       // 🔥 Convertir les pages mentionnées en sources RAG pour l'IA
       // IMPORTANT: Si des pages spécifiques sont mentionnées, utiliser SEULEMENT ces pages
