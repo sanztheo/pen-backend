@@ -242,6 +242,8 @@ Génère le plan JSON MAINTENANT. AUCUN texte avant ou après le JSON.`;
 
       // 🔥 Déclarer toolArgs AVANT la boucle pour garder les arguments du thinking intermédiaire
       let toolArgs: any = {};
+      // 🔥 NEW: Store extracted sources from tool results for reuse
+      let extractedSources: any[] = [];
 
       // Exécuter chaque tool selon le plan
       for (let iterationIdx = 0; iterationIdx < totalIterations; iterationIdx++) {
@@ -271,6 +273,38 @@ Génère le plan JSON MAINTENANT. AUCUN texte avant ou après le JSON.`;
 
         // 🔥 ÉTAPE 2C: Execute tool
         const result = await ToolExecutor.executeToolCall(toolStep.toolName, toolArgs, context);
+
+        // 🔥 NEW: Extract available sources from list_available_sources or list_global_wikipedia_sources results
+        if ((toolStep.toolName === 'list_available_sources' || toolStep.toolName === 'list_global_wikipedia_sources') && result && !result.startsWith('❌') && !result.startsWith('Aucune')) {
+          try {
+            // Parse source listings from the result (format: "ID: XXX")
+            const sourceMatches = result.match(/ID: ([a-f0-9\-]+)/g);
+            if (sourceMatches) {
+              sourceMatches.forEach((match: string) => {
+                const id = match.replace('ID: ', '');
+                // Parse the title from the line above
+                const lines = result.split('\n');
+                const matchIdx = lines.findIndex(line => line.includes(match));
+                if (matchIdx > 0) {
+                  const titleLine = lines[matchIdx - 3] || '';
+                  const titleMatch = titleLine.match(/\d+\.\s*\[.+?\]\s*(.+)/);
+                  const title = titleMatch ? titleMatch[1] : 'Unknown';
+                  
+                  const typeLineIdx = lines.findIndex((line, idx) => idx > matchIdx - 3 && line.startsWith('   Type:'));
+                  const typeMatch = typeLineIdx >= 0 ? lines[typeLineIdx].match(/Type:\s*(.+)/) : null;
+                  const sourceType = typeMatch ? typeMatch[1].trim() : 'WIKIPEDIA';
+                  
+                  if (!extractedSources.find(s => s.id === id)) {
+                    extractedSources.push({ id, title, sourceType });
+                  }
+                }
+              });
+              console.log(`🔄 [PHASE-1] Extracted ${extractedSources.length} sources from ${toolStep.toolName}`);
+            }
+          } catch (parseError) {
+            console.warn(`⚠️ [PHASE-1] Failed to extract sources from ${toolStep.toolName} result:`, parseError);
+          }
+        }
 
         // Stream tool result
         if (onToolResult) {
@@ -368,6 +402,22 @@ ATTENTION! Les résultats précédents sont dans le contexte ci-dessus (Tool X r
 - search_web ne doit pas être la première option, mais un enrichissement optionnel
 - Si sources locales couvrent la question: pas besoin de web!
 
+🛠️ ARGUMENTS PAR TOOL:
+
+Pour select_relevant_sources:
+  - TOUJOURS inclure: "question": "${query}"
+  - TOUJOURS inclure: "availableSources": Array d'objets {id, title, sourceType} EXTRAITS des résultats précédents
+  - Exemple: {"question": "${query}", "availableSources": [{"id": "123", "title": "...", "sourceType": "WIKIPEDIA"}]}
+
+Pour read_rag_source:
+  - Inclure: "sourceId": L'ID d'une source trouvée
+  - Inclure: "query": "${query}"
+  - Exemple: {"sourceId": "123", "query": "${query}"}
+
+Pour search_rag_chunks:
+  - Inclure: "query": "${query}"
+  - Inclure optionnellement: "sourceIds": Array d'IDs si tu veux chercher dans des sources spécifiques
+
 📊 DÉCISION:
 Retourne un JSON avec:
 - "thinking": Ta réflexion sur les résultats et la prochaine étape
@@ -378,22 +428,37 @@ Retourne un JSON avec:
 
 EXEMPLES DE DÉCISIONS:
 
-Exemple 1 - Wikipedia listée mais non lue (sélection intelligente):
+Exemple 1 - Wikipedia listée avec select_relevant_sources:
 {
-  "thinking": "J'ai trouvé 3 sources Wikipedia: 'Théorème de Thalès' (23 chunks), 'Théorème de Pythagore' (38 chunks), 'Loi des cosinus' (19 chunks). Pour 'parle-moi des théorèmes', les 2 premières sont les plus essentielles. Je lis les meilleures.",
+  "thinking": "J'ai trouvé 3 sources Wikipedia. Je dois les sélectionner intelligemment pour la question 'parle-moi des théorèmes'.",
+  "shouldContinue": true,
+  "nextToolName": "select_relevant_sources",
+  "toolArguments": {
+    "question": "${query}",
+    "availableSources": [
+      {"id": "id1", "title": "Théorème de Thalès", "sourceType": "WIKIPEDIA"},
+      {"id": "id2", "title": "Théorème de Pythagore", "sourceType": "WIKIPEDIA"},
+      {"id": "id3", "title": "Loi des cosinus", "sourceType": "WIKIPEDIA"}
+    ]
+  }
+}
+
+Exemple 2 - Wikipedia listée, lire la meilleure:
+{
+  "thinking": "J'ai listé les sources. Maintenant je lis la meilleure pour 'parle-moi des théorèmes'.",
   "shouldContinue": true,
   "nextToolName": "read_rag_source",
   "toolArguments": {"sourceId": "6f9280e9-a4ba-43ae-8372-698efd22fa84", "query": "${query}"}
 }
 
-Exemple 2 - Wikipedia lue, info suffisante:
+Exemple 3 - Wikipedia lue, info suffisante:
 {
   "thinking": "J'ai lu les 2 théorèmes principaux (Thalès et Pythagore). Ils couvrent bien les concepts fondamentaux demandés.",
   "shouldContinue": false,
   "modifiedToolSequence": []
 }
 
-Exemple 3 - Wikipedia lue partiellement, veut enrichir avec web:
+Exemple 4 - Wikipedia lue partiellement, veut enrichir avec web:
 {
   "thinking": "J'ai lu Théorème de Thalès et Pythagore. Pour une réponse plus complète sur tous les théorèmes mathématiques, cherchons du web.",
   "shouldContinue": true,
@@ -472,6 +537,25 @@ Tu DOIS répondre UNIQUEMENT en JSON STRICT:`;
                 generatedAt: new Date().toISOString(),
                 nextToolName: nextToolStep.toolName  // 🔥 Le PROCHAIN tool
               });
+
+              // 🔥 NEW: Ensure select_relevant_sources has required arguments
+              if (nextToolStep.toolName === 'select_relevant_sources') {
+                // Add question if missing
+                if (!toolArgs.question) {
+                  toolArgs.question = query;
+                  console.log(`🔧 [INTERMEDIATE-THINKING] Added missing 'question' to select_relevant_sources`);
+                }
+                
+                // Add availableSources if missing
+                if (!toolArgs.availableSources || !Array.isArray(toolArgs.availableSources) || toolArgs.availableSources.length === 0) {
+                  if (extractedSources.length > 0) {
+                    toolArgs.availableSources = extractedSources;
+                    console.log(`🔧 [INTERMEDIATE-THINKING] Added extracted sources (${extractedSources.length}) to select_relevant_sources`);
+                  } else {
+                    console.warn(`⚠️ [INTERMEDIATE-THINKING] No extracted sources available for select_relevant_sources`);
+                  }
+                }
+              }
 
               console.log(`✅ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Arguments extraits:`, toolArgs);
             } else {

@@ -243,7 +243,7 @@ router.get('/:id/messages', async (req, res) => {
   router.post('/:id/messages', async (req, res) => {
     try {
       const { id } = req.params;
-      const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle, projectId, thinking, toolCalls, usedFallback, intermediateThinkingBlocks } = req.body;
+      const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle, projectId, thinking, toolCalls, usedFallback, intermediateThinkingBlocks, pageCreationData } = req.body;
       const userId = req.user!.id;
 
     console.log('[DEBUG_MODAL] 📥 Backend - Ajout message:', { 
@@ -254,7 +254,8 @@ router.get('/:id/messages', async (req, res) => {
       projectId,
       hasPageId: !!pageId,
       hasThinking: !!thinking,
-      hasToolCalls: !!(toolCalls && toolCalls.length > 0)
+      hasToolCalls: !!(toolCalls && toolCalls.length > 0),
+      hasPageCreationData: !!pageCreationData
     });
 
     if (!content) {
@@ -293,6 +294,8 @@ router.get('/:id/messages', async (req, res) => {
           toolCalls: toolCalls || [],
           usedFallback: usedFallback || false,
           intermediateThinkingBlocks: intermediateThinkingBlocks || [],
+          // 🔥 NOUVEAU: Données complètes du modal de création
+          pageCreationData: pageCreationData || null,
         }
       });
 
@@ -347,10 +350,29 @@ router.patch('/:conversationId/update-page-status', async (req, res) => {
 
     console.log('[DEBUG_MODAL] ✅ Conversation trouvée:', conversation.id);
 
-    // Chercher le message par pageTitle OU oldPageId
+    // Chercher le message par pageTitle OU oldPageId OU pageCreationData
     const whereConditions = [];
-    if (oldPageId) whereConditions.push({ pageId: oldPageId });
-    if (pageTitle) whereConditions.push({ pageTitle });
+    
+    // Priorité 1: Chercher par pageTitle (ne change jamais)
+    if (pageTitle) {
+      whereConditions.push({ pageTitle });
+    }
+    
+    // Priorité 2: Chercher par oldPageId (peut être déjà null)
+    if (oldPageId) {
+      whereConditions.push({ pageId: oldPageId });
+    }
+    
+    // Priorité 3: Si on a un oldPageId mais que le message a déjà été supprimé,
+    // chercher dans pageCreationData
+    if (oldPageId && !pageTitle) {
+      whereConditions.push({
+        pageCreationData: {
+          path: ['pageId'],
+          equals: oldPageId
+        }
+      });
+    }
 
     if (whereConditions.length === 0) {
       console.log('[DEBUG_MODAL] ❌ Aucun critère de recherche fourni');
@@ -378,6 +400,34 @@ router.patch('/:conversationId/update-page-status', async (req, res) => {
     if (newPageId !== undefined) updateData.pageId = newPageId;
     if (isPageDeleted !== undefined) updateData.isPageDeleted = isPageDeleted;
     if (projectId !== undefined) updateData.projectId = projectId;
+
+    // 🔥 NOUVEAU: Mettre à jour pageCreationData
+    if (message.pageCreationData) {
+      const currentData = message.pageCreationData as any;
+      
+      // Cas 1: Suppression de page
+      if (isPageDeleted === true) {
+        updateData.pageCreationData = {
+          ...currentData,
+          pageId: null, // Important: pageId devient null
+          status: 'deleted',
+          deletedAt: new Date().toISOString()
+        };
+        console.log('[DEBUG_MODAL] 🗑️ Page supprimée - pageCreationData mis à jour');
+      }
+      
+      // Cas 2: Recréation de page
+      if (newPageId && isPageDeleted === false) {
+        updateData.pageCreationData = {
+          ...currentData,
+          pageId: newPageId,
+          status: 'created',
+          deletedAt: null,
+          recreatedAt: new Date().toISOString()
+        };
+        console.log('[DEBUG_MODAL] ✨ Page recréée - pageCreationData mis à jour avec nouveau ID');
+      }
+    }
 
     console.log('[DEBUG_MODAL] 💾 Données à mettre à jour:', updateData);
 
