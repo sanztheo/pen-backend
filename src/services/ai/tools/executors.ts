@@ -180,6 +180,109 @@ export class ToolExecutor {
   ): Promise<string> {
     const { question, availableSources, maxResults = 5 } = args;
 
+    // 🔥 DEFENSIVE: Check if required arguments are provided
+    if (!question || !Array.isArray(availableSources) || availableSources.length === 0) {
+      console.warn(`⚠️ [SELECT-SOURCES] Arguments incomplets:`, { 
+        hasQuestion: !!question, 
+        hasSources: Array.isArray(availableSources), 
+        sourceCount: availableSources?.length || 0 
+      });
+      
+      // 🔥 FALLBACK: Try to fetch sources from database
+      try {
+        const dbSources = await prisma.rAGSource.findMany({
+          where: {
+            workspaceId: context.workspaceId,
+            userId: context.userId
+          },
+          select: {
+            id: true,
+            title: true,
+            sourceType: true,
+            totalChunks: true,
+            status: true
+          },
+          take: 20,
+          orderBy: { lastUsedAt: 'desc' }
+        });
+
+        if (dbSources.length === 0) {
+          return `❌ Erreur: Aucune source disponible à sélectionner`;
+        }
+
+        console.log(`🔄 [SELECT-SOURCES] Utilisation des sources de la BD (${dbSources.length} sources)`);
+        
+        // 🔥 Use all sources if we fetched them from DB
+        const sourcesInfo = dbSources.map((s: any) => ({
+          id: s.id,
+          title: s.title,
+          type: s.sourceType
+        }));
+
+        // 🔥 If question is still missing, use a generic prompt
+        const fallbackQuestion = question || "Sélectionne les sources pertinentes";
+        
+        const { AIService } = await import('../base.js');
+        const openai = AIService.getOpenAI();
+
+        const systemPrompt = `Tu es un expert en sélection de sources. Analyse les sources disponibles et sélectionne UNIQUEMENT les meilleures.
+        
+RÈGLES:
+- Sélectionne UN MAXIMUM de ${maxResults} sources
+- Priorise les sources complètes (status COMPLETED) et avec chunks
+- Si aucune source n'est pertinente, retourne une liste vide
+
+RÉPONSE: Retourne UNIQUEMENT un JSON valide:
+{
+  "selected_source_ids": ["id1", "id2"]
+}`;
+
+        const userPrompt = `Question: "${fallbackQuestion}"
+
+Sources disponibles:
+${JSON.stringify(sourcesInfo, null, 2)}
+
+Sélectionne les sources pertinentes (max ${maxResults}):`;
+
+        const response = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 200,
+          response_format: { type: 'json_object' }
+        });
+
+        const content = response.choices[0]?.message?.content || '{}';
+        const selection = JSON.parse(content);
+        const selectedIds = selection.selected_source_ids || [];
+
+        const validIds = selectedIds.filter((id: string) =>
+          dbSources.some((s: any) => s.id === id)
+        );
+
+        if (validIds.length === 0) {
+          return `Aucune source pertinente trouvée`;
+        }
+
+        let result = `✅ Sources sélectionnées (${validIds.length}):\n\n`;
+        validIds.forEach((id: string, i: number) => {
+          const source = dbSources.find((s: any) => s.id === id);
+          if (source) {
+            result += `${i + 1}. ${source.title} (${source.sourceType})\n`;
+          }
+        });
+
+        console.log(`✅ [SELECT-SOURCES] ${validIds.length} sources sélectionnées (from DB fallback)`);
+        return result;
+      } catch (dbError) {
+        console.error(`❌ [SELECT-SOURCES] Erreur fallback BD:`, dbError);
+        return `❌ Erreur: Arguments invalides et impossible de récupérer les sources depuis la BD`;
+      }
+    }
+
     console.log(`🎯 [SELECT-SOURCES] Sélection sources pour: "${question}"`);
 
     try {
@@ -193,7 +296,7 @@ export class ToolExecutor {
         type: s.sourceType
       }));
 
-      const systemPrompt = `Tu es un expert en sélection de sources. Analyze la question et sélectionne UNIQUEMENT les sources directement pertinentes.
+      const systemPrompt = `Tu es un expert en sélection de sources. Analyse la question et sélectionne UNIQUEMENT les sources directement pertinentes.
       
 RÈGLES:
 - Sélectionne UN MAXIMUM de ${maxResults} sources
@@ -240,7 +343,9 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
       let result = `✅ Sources sélectionnées (${validIds.length}):\n\n`;
       validIds.forEach((id: string, i: number) => {
         const source = availableSources.find((s: any) => s.id === id);
-        result += `${i + 1}. ${source.title} (${source.sourceType})\n`;
+        if (source) {
+          result += `${i + 1}. ${source.title} (${source.sourceType})\n`;
+        }
       });
 
       console.log(`✅ [SELECT-SOURCES] ${validIds.length} sources sélectionnées`);

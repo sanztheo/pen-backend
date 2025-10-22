@@ -625,6 +625,10 @@ model AIMessage {
   projectId      String?        @map("project_id") @db.Uuid // ID du projet de la page créée
   isPageDeleted  Boolean?       @default(false) @map("is_page_deleted") // Statut de suppression de la page
   
+  // 🔥 NOUVEAU: Données complètes de création de page (JSON)
+  // Structure: { pageId, pageTitle, pageContent, projectId, status, isComplete, createdAt, deletedAt, recreatedAt }
+  pageCreationData Json?        @map("page_creation_data") // Données complètes du modal de création
+  
   // 🔥 NOUVEAU: Function Calling (tools utilisés par l'IA)
   thinking       String?        @db.Text // Réflexion de l'IA avant réponse
   toolCalls      Json?          @default("[]") @map("tool_calls") // Liste des tool calls executés
