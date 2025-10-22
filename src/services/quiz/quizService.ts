@@ -112,6 +112,13 @@ export class QuizService {
       });
 
       console.log('✅ Quiz généré et sauvegardé:', savedQuiz.id, sequenceOptions ? '(séquentiel)' : '(normal)');
+
+      // 🗑️ Invalider le cache de l'historique après création du quiz
+      const { invalidateQuizHistoryCache } = await import('../../lib/redis.js');
+      invalidateQuizHistoryCache(request.userId).catch(err =>
+        console.warn('⚠️ [QUIZ-SERVICE] Échec invalidation cache:', err)
+      );
+
       return savedQuiz.id;
 
     } catch (error) {
