@@ -991,6 +991,12 @@ export class QuizStreamingController {
 
               console.log(`✅ [CORRECTION-STREAMING] Quiz et résultats sauvegardés en DB`);
 
+              // 🗑️ Invalider le cache de l'historique après complétion du quiz
+              const { invalidateQuizHistoryCache } = await import('../lib/redis.js');
+              invalidateQuizHistoryCache(userId).catch(err =>
+                console.warn('⚠️ [CORRECTION-STREAMING] Échec invalidation cache:', err)
+              );
+
               // Envoyer l'analyse détaillée IA
               sendSSE('ai-analysis', {
                 summary: event.finalResult.aiCorrection?.globalFeedback || '',

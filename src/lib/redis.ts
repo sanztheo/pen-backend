@@ -440,6 +440,57 @@ export const invalidateSidebarCache = async (userId: string) => {
 };
 
 /**
+ * Cache Quiz History avec TTL 2 minutes
+ * TTL court pour garantir la fraîcheur des données
+ */
+export const cacheQuizHistory = async (userId: string, limit: number, offset: number) => {
+  try {
+    const cacheKey = `quiz-history:${userId}:${limit}:${offset}`;
+    const cached = await redis.get(cacheKey);
+
+    if (cached) {
+      console.log(`✅ [REDIS-CACHE] Quiz History HIT: ${userId} (limit:${limit}, offset:${offset})`);
+      return JSON.parse(cached);
+    }
+
+    console.log(`❌ [REDIS-CACHE] Quiz History MISS: ${userId} (limit:${limit}, offset:${offset})`);
+    return null;
+  } catch (error) {
+    console.error('⚠️ [REDIS] Fallback to DB (cache error):', error);
+    return null;
+  }
+};
+
+/**
+ * Sauvegarder l'historique des quiz dans le cache
+ */
+export const saveQuizHistoryCache = async (userId: string, limit: number, offset: number, history: any) => {
+  try {
+    const cacheKey = `quiz-history:${userId}:${limit}:${offset}`;
+    await redis.setex(cacheKey, 120, JSON.stringify(history)); // 2min TTL
+    console.log(`💾 [REDIS-CACHE] Quiz History sauvegardé: ${userId} (limit:${limit}, offset:${offset})`);
+  } catch (error) {
+    console.error('⚠️ [REDIS] Erreur sauvegarde quiz history:', error);
+  }
+};
+
+/**
+ * Invalider le cache de l'historique des quiz (après création/modification/complétion)
+ */
+export const invalidateQuizHistoryCache = async (userId: string) => {
+  try {
+    // Supprimer toutes les clés d'historique pour cet utilisateur
+    const keys = await redis.keys(`quiz-history:${userId}:*`);
+    if (keys.length > 0) {
+      await redis.del(...keys);
+      console.log(`🗑️ [REDIS-CACHE] Quiz History invalidated: ${userId} (${keys.length} clés supprimées)`);
+    }
+  } catch (error) {
+    console.error('⚠️ [REDIS] Erreur invalidation cache Quiz History:', error);
+  }
+};
+
+/**
  * Health check Redis
  */
 export const redisHealthCheck = async (): Promise<boolean> => {

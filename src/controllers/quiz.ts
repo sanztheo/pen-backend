@@ -501,7 +501,33 @@ export class QuizController {
         return;
       }
 
+      // 🚀 Essayer de récupérer depuis le cache Redis
+      const { cacheQuizHistory, saveQuizHistoryCache } = await import('../lib/redis.js');
+      const cachedHistory = await cacheQuizHistory(userId, parsedLimit, parsedOffset);
+      
+      if (cachedHistory) {
+        console.log('✅ [QUIZ-HISTORY] Retour depuis cache Redis');
+        res.status(200).json({
+          success: true,
+          data: {
+            quizzes: cachedHistory,
+            pagination: {
+              limit: parsedLimit,
+              offset: parsedOffset
+            }
+          }
+        });
+        return;
+      }
+
+      // ❌ Pas de cache : récupérer depuis la DB
+      console.log('❌ [QUIZ-HISTORY] Cache MISS - récupération DB');
       const history = await QuizService.getQuizHistory(userId, parsedLimit, parsedOffset);
+
+      // 💾 Sauvegarder dans le cache pour les prochaines requêtes
+      saveQuizHistoryCache(userId, parsedLimit, parsedOffset, history).catch(err =>
+        console.warn('⚠️ [QUIZ-HISTORY] Échec sauvegarde cache:', err)
+      );
 
       res.status(200).json({
         success: true,
@@ -2397,6 +2423,12 @@ export class QuizController {
       });
 
       console.log(`✅ [FAST-CORRECTION] Résultat sauvegardé et quiz marqué comme terminé: ${savedResult.id}`);
+
+      // 🗑️ Invalider le cache de l'historique après complétion du quiz
+      const { invalidateQuizHistoryCache } = await import('../lib/redis.js');
+      invalidateQuizHistoryCache(userId).catch(err =>
+        console.warn('⚠️ [FAST-CORRECTION] Échec invalidation cache:', err)
+      );
 
       res.status(200).json({
         success: true,
