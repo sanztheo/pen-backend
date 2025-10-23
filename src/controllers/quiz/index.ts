@@ -55,30 +55,42 @@ import { PagesProjectsController } from './content/pagesProjectsController.js';
 import { RAGController } from './content/ragController.js';
 
 /**
+ * Helper function to copy all static methods from a class to a target object
+ */
+function copyStaticMethods(target: any, source: any) {
+  Object.getOwnPropertyNames(source).forEach(key => {
+    if (key !== 'prototype' && key !== 'length' && key !== 'name') {
+      target[key] = source[key];
+    }
+  });
+}
+
+/**
  * Contrôleur unifié exporté pour compatibilité avec l'ancien fichier quiz.ts
  *
- * Utilise Object.assign pour fusionner tous les contrôleurs modulaires
- * en une seule classe accessible via QuizController.methodName()
+ * Fusionne toutes les méthodes statiques des contrôleurs modulaires
+ * en un seul objet accessible via QuizController.methodName()
  */
-export const UnifiedQuizController = Object.assign(
-  {},
-  // Quiz de base
-  BaseQuizController,
-  // Préférences
-  PreferencesController,
-  // Séquences
-  SequenceController,
-  SequenceDebugController,
-  // Documents
-  DocumentController,
-  // Assistant
-  AssistantHealthController,
-  AssistantGenerationController,
-  AssistantCorrectionController,
-  // Contenu
-  PagesProjectsController,
-  RAGController
-);
+const UnifiedQuizControllerObj: any = {};
+
+// Quiz de base
+copyStaticMethods(UnifiedQuizControllerObj, BaseQuizController);
+// Préférences
+copyStaticMethods(UnifiedQuizControllerObj, PreferencesController);
+// Séquences
+copyStaticMethods(UnifiedQuizControllerObj, SequenceController);
+copyStaticMethods(UnifiedQuizControllerObj, SequenceDebugController);
+// Documents
+copyStaticMethods(UnifiedQuizControllerObj, DocumentController);
+// Assistant
+copyStaticMethods(UnifiedQuizControllerObj, AssistantHealthController);
+copyStaticMethods(UnifiedQuizControllerObj, AssistantGenerationController);
+copyStaticMethods(UnifiedQuizControllerObj, AssistantCorrectionController);
+// Contenu
+copyStaticMethods(UnifiedQuizControllerObj, PagesProjectsController);
+copyStaticMethods(UnifiedQuizControllerObj, RAGController);
+
+export const UnifiedQuizController = UnifiedQuizControllerObj;
 
 // Export par défaut pour rétrocompatibilité
 export default UnifiedQuizController;
