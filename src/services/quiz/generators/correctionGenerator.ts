@@ -843,20 +843,33 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
       // Trouver la vraie question pour récupérer le maxScore correct
       const actualQuestion = questions.find(q => q.id === qr.questionId);
       const actualMaxScore = actualQuestion ? actualQuestion.points : Number(qr.maxScore) || 1;
-      
+
       // S'assurer que le score est un nombre valide
       const cleanScore = isNaN(Number(qr.score)) ? 0 : Number(qr.score);
-      
+
+      // 🔧 FIX: Vérifier si l'utilisateur n'a pas répondu
+      const hasNoAnswer = !qr.userAnswer ||
+                          qr.userAnswer === '' ||
+                          qr.userAnswer === 'Pas de réponse' ||
+                          qr.userAnswer === null ||
+                          qr.userAnswer === undefined;
+
+      // Si pas de réponse, forcer score = 0 (même si l'IA a donné des points)
+      let finalScore = hasNoAnswer ? 0 : Math.min(cleanScore, actualMaxScore);
+
+      if (hasNoAnswer && cleanScore > 0) {
+        console.log(`🔧 [FIX-NO-ANSWER] Question ${qr.questionId}: Pas de réponse détectée, score forcé à 0 (IA avait donné ${cleanScore})`);
+      }
+
       // 🔧 FIX CRITIQUE: Si l'IA indique que la réponse est correcte (isCorrect: true),
       // forcer le score à être égal au maxScore pour éviter les points partiels sur des bonnes réponses
-      let finalScore = Math.min(cleanScore, actualMaxScore);
       const aiSaysCorrect = qr.isCorrect === true || qr.isCorrect === 'true';
-      
-      if (aiSaysCorrect && finalScore < actualMaxScore) {
+
+      if (!hasNoAnswer && aiSaysCorrect && finalScore < actualMaxScore) {
         console.log(`🔧 [SCORING-FIX] Question ${qr.questionId}: L'IA dit correct mais score partiel ${finalScore}/${actualMaxScore} → Correction à ${actualMaxScore}/${actualMaxScore}`);
         finalScore = actualMaxScore;
       }
-      
+
       return {
         questionId: qr.questionId,
         userAnswer: qr.userAnswer || '',
@@ -1231,17 +1244,30 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || 'Con
     return exerciseResults?.map((er: any) => {
       const actualExercise = exercises.find(ex => ex.id === er.exerciseId);
       const actualMaxScore = actualExercise ? actualExercise.points : Number(er.maxScore) || 1;
-      
+
       const cleanScore = isNaN(Number(er.score)) ? 0 : Number(er.score);
-      let finalScore = Math.min(cleanScore, actualMaxScore);
-      
+
+      // 🔧 FIX: Vérifier si l'utilisateur n'a pas répondu
+      const hasNoAnswer = !er.userAnswer ||
+                          er.userAnswer === '' ||
+                          er.userAnswer === 'Pas de réponse' ||
+                          er.userAnswer === null ||
+                          er.userAnswer === undefined;
+
+      // Si pas de réponse, forcer score = 0 (même si l'IA a donné des points)
+      let finalScore = hasNoAnswer ? 0 : Math.min(cleanScore, actualMaxScore);
+
+      if (hasNoAnswer && cleanScore > 0) {
+        console.log(`🔧 [FIX-NO-ANSWER] Exercice ${er.exerciseId}: Pas de réponse détectée, score forcé à 0 (IA avait donné ${cleanScore})`);
+      }
+
       // Fix pour les réponses correctes
       const aiSaysCorrect = er.isCorrect === true || er.isCorrect === 'true';
-      if (aiSaysCorrect && finalScore < actualMaxScore) {
+      if (!hasNoAnswer && aiSaysCorrect && finalScore < actualMaxScore) {
         console.log(`🔧 [SUBJECT-SCORING-FIX] Exercice ${er.exerciseId}: L'IA dit correct mais score partiel ${finalScore}/${actualMaxScore} → Correction à ${actualMaxScore}/${actualMaxScore}`);
         finalScore = actualMaxScore;
       }
-      
+
       return {
         exerciseId: er.exerciseId,
         userAnswer: er.userAnswer || '',
@@ -1366,13 +1392,28 @@ Réponds UNIQUEMENT en JSON array valide.`;
 
     const correctionData = JsonUtils.extractJsonFromText(result.content);
 
+    // 🔧 FIX: Vérifier si l'utilisateur n'a pas répondu
+    const hasNoAnswer = !userAnswer?.answer ||
+                        userAnswer.answer === '' ||
+                        userAnswer.answer === 'Pas de réponse' ||
+                        userAnswer.answer === null ||
+                        userAnswer.answer === undefined;
+
+    // Si pas de réponse, forcer score = 0 et isCorrect = false (même si l'IA dit autre chose)
+    const finalScore = hasNoAnswer ? 0 : (Number(correctionData.score) || 0);
+    const maxScore = question.points || 1;
+
+    if (hasNoAnswer && correctionData.score > 0) {
+      console.log(`🔧 [FIX-NO-ANSWER] Question ${question.id}: Pas de réponse détectée, score forcé à 0 (IA avait donné ${correctionData.score})`);
+    }
+
     return {
       questionId: question.id,
       userAnswer: userAnswer?.answer || 'Pas de réponse',
       correctAnswer: question.expectedAnswer || '',
-      score: Number(correctionData.score) || 0,
-      maxScore: question.points || 1,
-      isCorrect: (Number(correctionData.score) || 0) === (question.points || 1),
+      score: finalScore,
+      maxScore,
+      isCorrect: (finalScore === maxScore),
       explanation: correctionData.explanation || '',
       suggestion: correctionData.suggestion || ''
     };
