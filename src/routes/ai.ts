@@ -70,11 +70,14 @@ router.post('/autocomplete', requireAICredits({ cost: 0.3, action: 'specialized_
 // Conforme à la documentation BlockNote: https://www.blocknotejs.org/docs/features/ai/backend-integration
 router.post('/chat', requireAICredits({ cost: 1.0, action: 'openai_proxy' }), async (req, res) => {
   try {
-    const { messages, toolDefinitions } = req.body;
+    const { messages, toolDefinitions, maxTokens, temperature } = req.body;
 
     console.log('🔄 [AI-CHAT] Messages UIMessage reçus:', {
       messagesCount: messages?.length,
       hasToolDefinitions: !!toolDefinitions,
+      maxTokens: maxTokens || 'non fourni',
+      temperature: temperature || 'non fourni',
+      bodyKeys: Object.keys(req.body),
       userId: (req as any).user?.id
     });
 
@@ -100,9 +103,16 @@ router.post('/chat', requireAICredits({ cost: 1.0, action: 'openai_proxy' }), as
     });
 
     // ✅ BlockNote v0.40+: Utiliser convertToModelMessages et toolDefinitionsToToolSet
+    const convertedMessages = convertToModelMessages(messages);
+    console.log('📋 [AI-CHAT] Messages convertis:', {
+      originalCount: messages.length,
+      convertedCount: convertedMessages.length,
+      firstMessage: convertedMessages[0]
+    });
+
     const result = streamText({
       model: openaiProvider(modelName),
-      messages: convertToModelMessages(messages), // Conversion officielle AI SDK
+      messages: convertedMessages, // Conversion officielle AI SDK
       tools: toolDefinitions ? toolDefinitionsToToolSet(toolDefinitions) : undefined,
       toolChoice: toolDefinitions ? 'required' : undefined,
     });
@@ -114,6 +124,10 @@ router.post('/chat', requireAICredits({ cost: 1.0, action: 'openai_proxy' }), as
 
     // ✅ BlockNote v0.40+: Convertir Response en stream Express
     const response = result.toUIMessageStreamResponse();
+    console.log('🌊 [AI-CHAT] Stream response créé:', {
+      hasBody: !!response.body,
+      headers: Array.from(response.headers.entries())
+    });
 
     // Copier les headers de la Response vers Express
     response.headers.forEach((value, key) => {
