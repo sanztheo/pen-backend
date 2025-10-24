@@ -67,6 +67,20 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     console.log(`📊 [ASK-DEBUG] ragSources après logique: ${JSON.stringify(ragSources)}`);
     console.log(`📊 [ASK-DEBUG] hasSpecificPages: ${contextPageIds.length > 0}`);
 
+    // 🔧 Extraction sourcesScope du body AVANT buildContext
+    const sourcesScope = (req.body as any)?.sourcesScope || 'custom';
+    const hasSpecificPagesCheck = contextPageIds.length > 0;
+    const shouldUseFunctionCallingCheck =
+      (sourcesScope === 'all' && ragSources && ragSources.length > 0) ||
+      hasSpecificPagesCheck ||
+      (contextPageIds.length === 0 && ragSources && ragSources.length > 0);
+
+    // 🚀 OPTIMISATION: Ne PAS faire le RAG initial si Function Calling sera utilisé
+    // Le Function Calling fera le RAG via les tools, ce qui est plus rapide
+    const shouldSkipInitialRAG = shouldUseFunctionCallingCheck && ragSources && ragSources.length > 0;
+
+    console.log(`⚡ [ASK-OPTIMIZATION] shouldUseFunctionCalling: ${shouldUseFunctionCallingCheck}, shouldSkipInitialRAG: ${shouldSkipInitialRAG}`);
+
     // 🚀 Construction contexte avec le service unifié
     DebugLogger.web(`[ASK] Déclenchement recherche web - useWeb: ${useWeb}`);
 
@@ -75,14 +89,11 @@ export const assistantAskStream = async (req: Request, res: Response) => {
       workspaceId,
       pageIds: contextPageIds,
       useWeb,
-      ragSources,
+      ragSources: shouldSkipInitialRAG ? [] : ragSources, // 🔥 Skip RAG si Function Calling actif
       userId: req.user?.id || 'anonymous'
     });
 
     DebugLogger.web(`[ASK] Contexte construit - pages: ${contextResult.pages.length}, web: ${contextResult.web.length}, rag: ${contextResult.ragContext?.length || 0}`);
-
-    // 🔧 Extraction sourcesScope du body
-    const sourcesScope = (req.body as any)?.sourcesScope || 'custom';
     DebugLogger.rag(`[ASK] sourcesScope: ${sourcesScope}, pageIds: ${pageIds.length}`);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
