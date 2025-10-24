@@ -3,7 +3,7 @@
  */
 
 // Types communs
-export type { ToolCallRecord } from './common.types.js';
+export type { ToolCallRecord, WikipediaSource } from './common.types.js';
 
 // Types Phase 1
 export type {

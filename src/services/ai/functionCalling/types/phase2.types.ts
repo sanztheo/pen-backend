@@ -2,6 +2,8 @@
  * Types pour la Phase 2 : Génération finale avec résultats
  */
 
+import { WikipediaSource } from './common.types.js';
+
 /**
  * Options pour la Phase 2 : Génération finale avec résultats
  */
@@ -10,6 +12,7 @@ export interface GenerateWithToolResultsOptions {
   toolResults: string;
   systemPrompt: string;
   onStream?: (chunk: string) => void;
+  wikipediaSources?: WikipediaSource[];
 }
 
 /**

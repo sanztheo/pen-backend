@@ -6,6 +6,7 @@
  */
 
 import { AIService } from '../../base.js';
+import { buildWikipediaLicenseFooter } from '../utils/wikipediaExtractor.js';
 import type {
   GenerateWithToolResultsOptions,
   GenerateWithToolResultsResult
@@ -21,7 +22,7 @@ export class Phase2Service {
   static async generateWithToolResults(
     options: GenerateWithToolResultsOptions
   ): Promise<GenerateWithToolResultsResult> {
-    const { query, toolResults, systemPrompt, onStream } = options;
+    const { query, toolResults, systemPrompt, onStream, wikipediaSources } = options;
 
     console.log(`🔧 [PHASE-2] Génération réponse finale`);
 
@@ -49,6 +50,22 @@ Réponds maintenant à la question en utilisant les résultats des outils ci-des
         }
       }
     });
+
+    // 📚 Ajouter le footer de licence Wikipedia si des sources sont présentes
+    if (wikipediaSources && wikipediaSources.length > 0) {
+      const licenseFooter = buildWikipediaLicenseFooter(wikipediaSources);
+
+      if (licenseFooter) {
+        console.log(`📚 [PHASE-2] Ajout footer licence Wikipedia (${wikipediaSources.length} sources)`);
+
+        // Streamer le footer si un callback est fourni
+        if (onStream) {
+          onStream(licenseFooter);
+        }
+
+        fullContent += licenseFooter;
+      }
+    }
 
     console.log(`✅ [PHASE-2] Réponse générée: ${fullContent.length} chars`);
 
