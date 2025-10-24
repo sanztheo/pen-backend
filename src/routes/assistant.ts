@@ -201,7 +201,34 @@ router.post('/rag/context', async (req: any, res) => {
       
       for (const file of selectedSources.fileSources) {
         try {
-          // Recherche par ID directement (les fichiers ont un ID)
+          // 🔍 Validation UUID avant requête Prisma
+          const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(file.id);
+
+          if (!isValidUUID) {
+            console.warn(`🔥 [RAG-FILES] ID invalide pour "${file.title}": ${file.id} - Recherche par titre`);
+
+            // Fallback: Rechercher par titre si l'ID n'est pas un UUID valide
+            const fileRecord = await prisma.rAGSource.findFirst({
+              where: {
+                title: file.title,
+                userId: req.user.id,
+                workspaceId,
+                sourceType: { in: ['PDF', 'TEXT_FILE', 'WIKIPEDIA'] },
+                status: 'COMPLETED'
+              },
+              select: { id: true, title: true }
+            });
+
+            if (fileRecord) {
+              specificSourceIds.push(fileRecord.id);
+              console.log(`🔥 [RAG-FILES] Fichier "${file.title}" trouvé par titre avec ID: ${fileRecord.id}`);
+            } else {
+              console.warn(`🔥 [RAG-FILES] Fichier "${file.title}" non trouvé dans la base`);
+            }
+            continue;
+          }
+
+          // Recherche par ID directement (les fichiers ont un ID UUID valide)
           const fileRecord = await prisma.rAGSource.findFirst({
             where: {
               id: file.id,
@@ -212,7 +239,7 @@ router.post('/rag/context', async (req: any, res) => {
             },
             select: { id: true, title: true }
           });
-          
+
           if (fileRecord) {
             specificSourceIds.push(fileRecord.id);
             console.log(`🔥 [RAG-FILES] Fichier "${file.title}" trouvé avec ID: ${fileRecord.id}`);

@@ -183,13 +183,24 @@ export const assistantAskStream = async (req: Request, res: Response) => {
         // 🔥 PHASE 2: Génération réponse finale avec résultats des tools
         if (toolDecision.shouldUseTools && toolDecision.toolCalls.length > 0) {
           console.log(`🔧 [ASK-PHASE-2] Génération réponse finale...`);
-          
+
           const toolResults = FunctionCallingService.buildContextFromToolResults(toolDecision.toolCalls);
-          
+
+          // 📚 Extraire les sources Wikipedia pour l'attribution de licence
+          const { extractWikipediaSourcesFromToolCalls, extractWikipediaSourcesFromRagSources } = await import('../../../services/ai/functionCalling/utils/wikipediaExtractor.js');
+          let wikipediaSources = await extractWikipediaSourcesFromToolCalls(toolDecision.toolCalls);
+
+          // Si aucune source Wikipedia trouvée via tools, extraire depuis ragSources
+          if (wikipediaSources.length === 0 && ragSources && ragSources.length > 0) {
+            console.log(`📚 [ASK-PHASE-2] Aucune source Wikipedia via tools, extraction depuis ragSources...`);
+            wikipediaSources = await extractWikipediaSourcesFromRagSources(ragSources);
+          }
+
           await FunctionCallingService.generateWithToolResults({
             query: sanitizedQuery,
             toolResults,
             systemPrompt: `Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.\n\n${LATEX_STRICT_RULES}`,
+            wikipediaSources,
             onStream: (chunk) => {
               sseWriteData(res, chunk);
             }
@@ -199,16 +210,35 @@ export const assistantAskStream = async (req: Request, res: Response) => {
         } else {
           // Pas de tools utilisés → réponse directe (fallback)
           console.log(`🔧 [ASK-FALLBACK] Pas de tools utilisés, génération directe...`);
-          
+
+          // 📚 Même en fallback, extraire les sources Wikipedia depuis ragSources pour les licences
+          const { extractWikipediaSourcesFromRagSources, buildWikipediaLicenseFooter } = await import('../../../services/ai/functionCalling/utils/wikipediaExtractor.js');
+          let wikipediaSources: any[] = [];
+          if (ragSources && ragSources.length > 0) {
+            wikipediaSources = await extractWikipediaSourcesFromRagSources(ragSources);
+          }
+
+          let fullAnswer = '';
           await AIService.generateContent({
             prompt: sanitizedQuery,
             context: `Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.\n\n${LATEX_STRICT_RULES}`,
             temperature: 0.2,
             maxTokens: 4000,
             onStream: (chunk: string) => {
+              fullAnswer += chunk;
               sseWriteData(res, chunk);
             }
           });
+
+          // Ajouter le footer de licence Wikipedia si des sources sont présentes
+          if (wikipediaSources.length > 0) {
+            const licenseFooter = buildWikipediaLicenseFooter(wikipediaSources);
+            if (licenseFooter) {
+              console.log(`📚 [ASK-FALLBACK] Ajout footer licence Wikipedia (${wikipediaSources.length} sources)`);
+              sseWriteData(res, licenseFooter);
+              fullAnswer += licenseFooter;
+            }
+          }
         }
 
         // Envoyer les métadonnées pour sauvegarde frontend

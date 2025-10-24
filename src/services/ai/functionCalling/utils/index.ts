@@ -5,3 +5,8 @@
 export { parseJSONFromStream } from './jsonParser.js';
 export { buildContextFromToolResults } from './contextBuilder.js';
 export { buildInitialPrompt } from './promptBuilder.js';
+export {
+  extractWikipediaSourcesFromToolCalls,
+  extractWikipediaSourcesFromRagSources,
+  buildWikipediaLicenseFooter
+} from './wikipediaExtractor.js';

@@ -13,3 +13,12 @@ export interface ToolCallRecord {
   result: string;
   timestamp: number;
 }
+
+/**
+ * Source Wikipedia avec ses métadonnées pour attribution de licence
+ */
+export interface WikipediaSource {
+  title: string;
+  url: string;
+  pageid: number;
+}
