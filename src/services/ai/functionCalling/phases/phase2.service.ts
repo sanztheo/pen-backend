@@ -28,21 +28,49 @@ export class Phase2Service {
 
     const phase2SystemPrompt = `${systemPrompt}
 
-Les outils ont déjà été utilisés pour répondre à la question. Leurs résultats sont fournis ci-dessous. Utilise ces résultats pour répondre à la question de l'utilisateur de manière claire, structurée et précise.`;
+Les outils ont déjà été utilisés pour collecter des informations. Tu dois maintenant générer une réponse COMPLÈTE et DÉTAILLÉE.
+
+📝 OBJECTIF EN MODE RECHERCHE :
+- Fournis une réponse APPROFONDIE qui exploite TOUTES les sources disponibles
+- Ne te contente PAS d'un résumé superficiel
+- Développe les concepts, donne des exemples concrets, explique les applications
+- Structure ta réponse avec des sections claires (titres, sous-titres)
+- Cite les sources lorsque pertinent
+
+🎯 STRUCTURE RECOMMANDÉE :
+1. **Introduction** : Contexte et vue d'ensemble du sujet
+2. **Développement** : Explication détaillée avec sous-sections
+   - Définitions et concepts clés
+   - Propriétés et caractéristiques importantes
+   - Applications pratiques et exemples
+   - Cas d'usage ou contexte historique si pertinent
+3. **Conclusion** : Synthèse et points à retenir
+
+📊 QUALITÉ ATTENDUE :
+- Minimum 300-500 mots pour une réponse complète
+- Utilise des listes à puces, tableaux, ou exemples pour clarifier
+- Évite les réponses vagues ou trop courtes
+- Si plusieurs sources ont été consultées, intègre leurs informations de manière cohérente
+
+⚠️ IMPORTANT :
+- N'invente RIEN : utilise UNIQUEMENT les informations des résultats des outils
+- Si une information est incomplète, indique-le clairement
+- Reste factuel et précis dans tes explications`;
 
     const phase2Prompt = `${toolResults}
 
 Question de l'utilisateur: ${query}
 
-Réponds maintenant à la question en utilisant les résultats des outils ci-dessus.`;
+🎯 GÉNÈRE MAINTENANT UNE RÉPONSE COMPLÈTE ET APPROFONDIE en suivant la structure recommandée ci-dessus.
+Utilise TOUS les résultats des outils pour créer une réponse riche en informations.`;
 
     let fullContent = '';
 
     await AIService.generateContent({
       prompt: phase2Prompt,
       context: phase2SystemPrompt,
-      temperature: 0.2,
-      maxTokens: 4000,
+      temperature: 0.3, // 🔥 Légèrement plus créatif pour des réponses plus riches
+      maxTokens: 6000, // 🔥 Augmenté pour permettre des réponses détaillées (300-500 mots minimum)
       onStream: (chunk: string) => {
         fullContent += chunk;
         if (onStream) {
