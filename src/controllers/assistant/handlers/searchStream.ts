@@ -68,15 +68,14 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
 
     // 🔧 Extraction sourcesScope du body AVANT buildContext
     const sourcesScope = (req.body as any)?.sourcesScope || 'custom';
-    const hasSpecificPagesCheck = contextPageIds.length > 0;
-    const shouldUseFunctionCallingCheck =
-      (sourcesScope === 'all' && ragSources && ragSources.length > 0) ||
-      hasSpecificPagesCheck ||
-      (contextPageIds.length === 0 && ragSources && ragSources.length > 0);
+
+    // 🔥 FIX: En mode search, TOUJOURS activer Function Calling
+    // Le firstThinking décidera lui-même quels tools utiliser
+    const shouldUseFunctionCallingCheck = true;
 
     // 🚀 OPTIMISATION: Ne PAS faire le RAG initial si Function Calling sera utilisé
     // Le Function Calling fera le RAG via les tools, ce qui est plus rapide
-    const shouldSkipInitialRAG = shouldUseFunctionCallingCheck && ragSources && ragSources.length > 0;
+    const shouldSkipInitialRAG = true; // Toujours skip en mode search
 
     console.log(`⚡ [SEARCH-OPTIMIZATION] shouldUseFunctionCalling: ${shouldUseFunctionCallingCheck}, shouldSkipInitialRAG: ${shouldSkipInitialRAG}`);
 
@@ -103,20 +102,17 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
     res.flushHeaders();
 
-    // 🔥 TWO-PHASE Function Calling SEULEMENT si:
-    // 1. Mode "Toutes les sources" (sourcesScope='all') OU
-    // 2. Pages spécifiquement mentionnées OU
-    // 3. Sources RAG disponibles (Wikipedia, fichiers, etc)
-    const hasSpecificPages = contextPageIds.length > 0;
-    const shouldUseFunctionCalling = 
-      (sourcesScope === 'all' && ragSources && ragSources.length > 0) ||
-      hasSpecificPages ||
-      (contextPageIds.length === 0 && ragSources && ragSources.length > 0);
-    
+    // 🔥 TWO-PHASE Function Calling: TOUJOURS activer en mode search
+    // Le firstThinking décidera lui-même quels tools utiliser selon la question
+    const shouldUseFunctionCalling = true;
+
     if (shouldUseFunctionCalling) {
-      console.log(`🔧 [SEARCH] Function Calling activé - Pages mentionnées: ${hasSpecificPages}, Mode: ${sourcesScope}`);
+      console.log(`🔧 [SEARCH] Function Calling activé - sourcesScope: ${sourcesScope}, ragSources: ${ragSources?.length || 0}`);
 
       const { FunctionCallingService } = await import('../../../services/ai/functionCalling/index.js');
+
+      // 🔥 Variable pour savoir si des pages spécifiques ont été mentionnées
+      const hasSpecificPages = contextPageIds.length > 0;
 
       // 🔥 Convertir les pages mentionnées en sources RAG pour l'IA
       // IMPORTANT: Si des pages spécifiques sont mentionnées, utiliser SEULEMENT ces pages

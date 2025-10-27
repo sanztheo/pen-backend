@@ -433,10 +433,16 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
    * Lit une source RAG spécifique et retourne ses chunks pertinents
    */
   private static async readRAGSource(
-    args: { sourceId: string; query: string; limit?: number },
+    args: { sourceId?: string; query: string; limit?: number },
     context: ToolContext
   ): Promise<string> {
     const { sourceId, query, limit = 3 } = args;
+
+    // 🔥 VALIDATION: Vérifier que sourceId est présent
+    if (!sourceId || sourceId === 'undefined' || sourceId === 'null') {
+      console.error(`❌ [READ-RAG-SOURCE] sourceId manquant ou invalide:`, { sourceId, query });
+      return `❌ Erreur: Impossible de lire la source RAG - ID de source manquant ou invalide.\n\nL'IA doit d'abord sélectionner des sources pertinentes avant de les lire.`;
+    }
 
     console.log(`📖 [READ-RAG-SOURCE] sourceId: ${sourceId}, limit: ${limit}`);
 
