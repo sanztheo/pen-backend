@@ -154,7 +154,8 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           workspaceId,
           userId: req.user!.id,
           useWeb,
-          systemPrompt: `Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.\n\n${LATEX_STRICT_RULES}`,
+          systemPrompt: `System: Réponds de manière claire, précise et structurée en tant qu'assistant IA intelligent. 
+          '''${LATEX_STRICT_RULES}'''`,
           isSearch: true,  // 🔥 Flag pour Search - utilise plus de tools
 
           // Callbacks pour streaming temps réel
@@ -216,7 +217,9 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           await FunctionCallingService.generateWithToolResults({
             query: sanitizedQuery,
             toolResults,
-            systemPrompt: `Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée avec plus de détails et de profondeur.\n\n${LATEX_STRICT_RULES}`,
+            systemPrompt: `System: Réponds de façon claire, précise et structurée, en apportant des détails et de la profondeur à tes explications.
+
+'''${LATEX_STRICT_RULES}'''`,
             wikipediaSources,
             onStream: (chunk) => {
               sseWriteData(res, chunk);
@@ -229,7 +232,7 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           console.log(`🔧 [SEARCH-FALLBACK] Pas de tools utilisés, génération directe...`);
 
           // 🔥 Enrichir le context avec les règles LaTeX si pertinent
-          let fallbackContext = 'Tu es un assistant IA intelligent. Réponds de manière claire, précise et structurée.';
+          let fallbackContext = `System: Réponds de manière claire, précise et structurée en tant qu'assistant IA intelligent.`;
           if (isMathLatexIntent(sanitizedQuery)) {
             fallbackContext += '\n\n' + LATEX_STRICT_RULES;
           }
