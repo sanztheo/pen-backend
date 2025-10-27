@@ -302,22 +302,35 @@ export class FuturaRssService {
         }
       }
 
-      // Récupérer le contenu complet depuis la page web
-      const fullContent = await this.fetchFullArticleContent(latestItem.link || '');
+      // 🔥 SOLUTION SIMPLIFIÉE: Utiliser UNIQUEMENT le contenu RSS
+      // Le scraping web de Futura Sciences ne fonctionne plus car ils changent trop souvent leur structure HTML
+      // Le RSS contient une description correcte et fiable (même si courte)
 
-      // Utiliser le contenu complet s'il est disponible, sinon utiliser l'extrait du RSS
-      let cleanContent = fullContent || latestItem.contentSnippet || latestItem.description || '';
+      console.log('📝 Using RSS description (reliable source)');
+      let cleanContent = latestItem.description || latestItem.contentSnippet || '';
 
-      // Si on n'a pas réussi à récupérer le contenu complet, utiliser le contenu du RSS
-      if (!fullContent && latestItem.content) {
-        cleanContent = latestItem.content
-          .replace(/<img[^>]*>/g, '')
-          .replace(/<script[^>]*>.*?<\/script>/gi, '')
-          .replace(/<style[^>]*>.*?<\/style>/gi, '')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-      }
+      // Nettoyer le contenu de la description
+      cleanContent = cleanContent
+        // Nettoyer les entités HTML courantes
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&quot;/g, '"')
+        .replace(/&amp;/g, '&')
+        .replace(/&eacute;/g, 'é')
+        .replace(/&egrave;/g, 'è')
+        .replace(/&agrave;/g, 'à')
+        .replace(/&ccedil;/g, 'ç')
+        .replace(/&ecirc;/g, 'ê')
+        .replace(/&ocirc;/g, 'ô')
+        .replace(/&ucirc;/g, 'û')
+        .replace(/&rsquo;/g, "'")
+        .replace(/&lsquo;/g, "'")
+        .replace(/&rdquo;/g, '"')
+        .replace(/&ldquo;/g, '"')
+        // Normaliser les espaces
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      console.log(`📊 RSS description length: ${cleanContent.length} characters`);
 
       const article: FuturaArticle = {
         title: latestItem.title || 'Article sans titre',
