@@ -149,8 +149,9 @@ export class ToolExecutor {
             ? new Date(source.lastUsedAt).toLocaleDateString('fr-FR')
             : 'Jamais';
 
-          result += `${workspaceSources.length + i + 1}. 📚 ${source.title}\n`;
-          result += `   Chunks indexés: ${source.totalChunks}\n`;
+          result += `${workspaceSources.length + i + 1}. [📚] ${source.title}\n`;
+          result += `   Type: ${source.sourceType}\n`;
+          result += `   Chunks: ${source.totalChunks}\n`;
           result += `   ID: ${source.id}\n`;
           result += `   Dernière utilisation: ${lastUsed}\n\n`;
         });
