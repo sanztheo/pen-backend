@@ -243,7 +243,7 @@ router.get('/:id/messages', async (req, res) => {
   router.post('/:id/messages', async (req, res) => {
     try {
       const { id } = req.params;
-      const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle, projectId, thinking, toolCalls, usedFallback, intermediateThinkingBlocks, pageCreationData } = req.body;
+      const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle, projectId, thinking, toolCalls, usedFallback, intermediateThinkingBlocks, pageCreationData, creditsMode, creditsReflection, creditsHasWeb, creditsHasSources, creditsUsed } = req.body;
       const userId = req.user!.id;
 
     console.log('[DEBUG_MODAL] 📥 Backend - Ajout message:', { 
@@ -296,6 +296,12 @@ router.get('/:id/messages', async (req, res) => {
           intermediateThinkingBlocks: intermediateThinkingBlocks || [],
           // 🔥 NOUVEAU: Données complètes du modal de création
           pageCreationData: pageCreationData || null,
+          // 💰 NOUVEAU: Métadonnées de coût en crédits
+          creditsMode: creditsMode || null,
+          creditsReflection: creditsReflection || null,
+          creditsHasWeb: creditsHasWeb || false,
+          creditsHasSources: creditsHasSources || false,
+          creditsUsed: creditsUsed || null,
         }
       });
 
