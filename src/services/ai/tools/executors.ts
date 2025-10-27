@@ -297,17 +297,20 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
         type: s.sourceType
       }));
 
-      const systemPrompt = `Tu es un expert en sélection de sources. Analyse la question et sélectionne UNIQUEMENT les sources directement pertinentes.
+      const systemPrompt = `Tu es un expert en sélection de sources. Analyse la question et sélectionne les sources potentiellement utiles.
       
 RÈGLES:
 - Sélectionne UN MAXIMUM de ${maxResults} sources
-- Rejette les sources non-pertinentes
-- Priorise les sources complètes (status COMPLETED) et avec chunks
-- Si aucune source n'est pertinente, retourne une liste vide
+- Sois INCLUSIF: sélectionne une source si elle peut être utile même partiellement
+- Priorise les sources directement liées au sujet, mais accepte aussi les sources connexes
+- Si la question mentionne un thème général ("théorèmes"), sélectionne TOUTES les sources sur ce thème
+- Si la question est vague ou mal formulée, interprète-la généreusement
+- Ne retourne une liste vide QUE si AUCUNE source n'a le moindre rapport avec la question
 
 RÉPONSE: Retourne UNIQUEMENT un JSON valide, sans aucun texte:
 {
-  "selected_source_ids": ["id1", "id2"]
+  "selected_source_ids": ["id1", "id2"],
+  "reasoning": "courte explication de ton choix"
 }`;
 
       const userPrompt = `Question: "${question}"
@@ -329,8 +332,14 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
       });
 
       const content = response.choices[0]?.message?.content || '{}';
+      console.log(`🧠 [SELECT-SOURCES] Réponse IA brute:`, content);
+      
       const selection = JSON.parse(content);
       const selectedIds = selection.selected_source_ids || [];
+      const reasoning = selection.reasoning || 'Pas de raisonnement fourni';
+
+      console.log(`🧠 [SELECT-SOURCES] Raisonnement IA: ${reasoning}`);
+      console.log(`🧠 [SELECT-SOURCES] IDs sélectionnés:`, selectedIds);
 
       // Valider que les IDs existent dans la liste disponible
       const validIds = selectedIds.filter((id: string) =>
@@ -338,10 +347,28 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
       );
 
       if (validIds.length === 0) {
-        return `Aucune source pertinente trouvée pour cette question`;
+        console.warn(`⚠️ [SELECT-SOURCES] Aucune source sélectionnée! Sources disponibles:`, sourcesInfo);
+        console.warn(`⚠️ [SELECT-SOURCES] Raisonnement de l'IA: ${reasoning}`);
+        
+        // 🔥 FALLBACK: Si l'IA ne sélectionne rien, prendre toutes les sources
+        const allIds = availableSources.map((s: any) => s.id).slice(0, maxResults);
+        console.log(`🔄 [SELECT-SOURCES] FALLBACK: Sélection automatique de ${allIds.length} sources`);
+        
+        let result = `⚠️ L'IA n'a sélectionné aucune source (Raison: ${reasoning}). Sélection automatique de toutes les sources disponibles:\n\n`;
+        allIds.forEach((id: string, i: number) => {
+          const source = availableSources.find((s: any) => s.id === id);
+          if (source) {
+            result += `${i + 1}. ${source.title} (${source.sourceType})\n`;
+            result += `   ID: ${id}\n\n`;
+          }
+        });
+        
+        return result;
       }
 
-      let result = `✅ Sources sélectionnées (${validIds.length}):\n\n`;
+      let result = `✅ Sources sélectionnées (${validIds.length}):\n`;
+      result += `🧠 Raisonnement: ${reasoning}\n\n`;
+      
       validIds.forEach((id: string, i: number) => {
         const source = availableSources.find((s: any) => s.id === id);
         if (source) {
@@ -350,7 +377,7 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
         }
       });
 
-      console.log(`✅ [SELECT-SOURCES] ${validIds.length} sources sélectionnées`);
+      console.log(`✅ [SELECT-SOURCES] ${validIds.length} sources sélectionnées avec succès`);
 
       return result;
     } catch (error) {
@@ -538,6 +565,12 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
     args: { query: string; maxResults?: number }
   ): Promise<string> {
     const { query, maxResults = 3 } = args;
+
+    // 🔥 VALIDATION: Vérifier que query est bien fourni et valide
+    if (!query || typeof query !== 'string') {
+      console.error(`❌ [SEARCH-WEB] Arguments invalides:`, args);
+      return `❌ Erreur: Le tool search_web nécessite un argument 'query' de type string. Arguments reçus: ${JSON.stringify(args)}`;
+    }
 
     console.log(`🌐 [SEARCH-WEB] query: "${query}", maxResults: ${maxResults}`);
 

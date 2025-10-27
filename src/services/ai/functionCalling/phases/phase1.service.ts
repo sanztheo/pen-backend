@@ -17,6 +17,7 @@ import {
 import { parseJSONFromStream } from '../utils/jsonParser.js';
 import { ToolCallRecord } from '../types/common.types.js';
 import type { DecideToolsOptions, DecideToolsResult } from '../types/phase1.types.js';
+import { CoordinatorService } from '../coordinator.service.js';
 
 /**
  * Service pour la Phase 1 : Décision et exécution des tools
@@ -360,10 +361,16 @@ Les résultats précédents sont consignés dans le contexte ci-dessus (résulta
 
 🧠 STRATÉGIE INTELLIGENTE (PAS STRICTE) :
 
+🎯 **RÈGLE D'OR - OPTIMISATION DES REQUÊTES** :
+   → N'utilise JAMAIS directement la question brute de l'utilisateur si elle est mal formulée
+   → CORRIGE les fautes ("parle mo ide theoremes" → "théorèmes mathématiques")
+   → AMÉLIORE la clarté ("expliquer" → "définition propriétés applications")
+   → AJOUTE des mots-clés pertinents pour de meilleurs résultats
+
 1️⃣ SI des sources Wikipedia GLOBALES ont été LISTÉES mais PAS ENCORE LUES :
    → 🎯 SÉLECTIONNE LES MEILLEURES (2-3 max) pertinentes pour la question
    → ❌ N'essaie PAS de tout lire ! (ex : si 1000 sources, choisis les 3 les plus pertinentes)
-   → 📖 LIS-LES pour extraire les informations clés
+   → 📖 LIS-LES pour extraire les informations clés avec une query OPTIMISÉE
    → APRÈS la lecture : décide si tu as besoin du web pour compléter
 
 2️⃣ COMMENT CHOISIR LES MEILLEURES SOURCES ?
@@ -400,12 +407,24 @@ Pour select_relevant_sources :
 
 Pour read_rag_source :
   - Inclure : "sourceId" : L'ID d'une source trouvée
-  - Inclure : "query" : "${query}"
-  - Exemple : {"sourceId": "123", "query": "${query}"}
+  - Inclure : "query" : Requête de recherche dans la source (string)
+  - 🎯 OPTIMISATION: Tu PEUX reformuler/améliorer la query pour chercher plus efficacement dans la source
+  - Exemple : {"sourceId": "123", "query": "définition et applications du théorème"}
 
 Pour search_rag_chunks :
-  - Inclure : "query": "${query}"
+  - Inclure : "query": Requête de recherche sémantique (string)
+  - 🎯 OPTIMISATION: Tu PEUX reformuler/améliorer la query pour une recherche sémantique plus efficace
   - Inclure optionnellement : "sourceIds": Tableau d'IDs si tu veux chercher dans des sources spécifiques
+
+Pour search_web :
+  - 🔥 ATTENTION: Ce tool prend UNIQUEMENT "query" (string), PAS "question" ni "availableSources" !
+  - Inclure : "query": "chaîne de recherche web" (string)
+  - Inclure optionnellement : "maxResults": nombre de résultats (nombre, par défaut 3)
+  - 🎯 OPTIMISATION DE REQUÊTE: Tu PEUX et DEVRAIS améliorer/reformuler la query pour obtenir de meilleurs résultats
+    * Si la question utilisateur est mal formulée ("parle mo ide theoremes"), corrige-la ("théorèmes mathématiques")
+    * Si la question est vague, rends-la plus précise
+    * Ajoute des mots-clés pertinents pour améliorer les résultats
+  - Exemple : {"query": "théorèmes mathématiques fondamentaux cours", "maxResults": 3}
 
 📊 DÉCISION :
 Après chaque appel d'outil ou édition, valide en 1 à 2 lignes l'adéquation du résultat avec l'étape attendue, et décide si une correction est nécessaire ou si tu poursuis la séquence.
@@ -415,6 +434,13 @@ Retourne STRICTEMENT un objet JSON ayant la structure suivante (les clés doiven
 - "nextToolName" : Indique le prochain outil si shouldContinue est true (string ou null)
 - "toolArguments" : Spécifie les arguments à fournir au prochain outil (objet, structure spécifique selon chaque outil)
 - "modifiedToolSequence" (optionnel) : Tableau avec la séquence d'outils modifiée si tu veux changer le plan (array)
+
+🔥 **RÈGLE DE COHÉRENCE CRITIQUE** :
+- Si ton "thinking" dit "je vais lire les sources" → "nextToolName" DOIT être "read_rag_source"
+- Si ton "thinking" dit "je vais sélectionner" → "nextToolName" DOIT être "select_relevant_sources"
+- Si ton "thinking" dit "je vais chercher sur le web" → "nextToolName" DOIT être "search_web"
+- **INTERDICTION ABSOLUE** de dire une chose dans thinking et faire autre chose dans nextToolName
+- Un Coordinator vérifiera la cohérence et BLOQUERA les incohérences
 
 EXEMPLES DE DÉCISIONS :
 
@@ -448,12 +474,20 @@ Exemple 3 - Wikipedia lue, info suffisante :
   "modifiedToolSequence": []
 }
 
-Exemple 4 - Wikipedia lue partiellement, veut enrichir avec web :
+Exemple 4 - Wikipedia lue partiellement, veut enrichir avec web (avec optimisation de requête) :
 {
-  "thinking": "J'ai lu Théorème de Thalès et Pythagore. Pour une réponse plus complète sur tous les théorèmes mathématiques, cherchons sur le web.",
+  "thinking": "J'ai lu Théorème de Thalès et Pythagore. Pour enrichir avec d'autres théorèmes, je vais chercher sur le web avec une requête optimisée.",
   "shouldContinue": true,
   "nextToolName": "search_web",
-  "toolArguments": {"query": "autres théorèmes mathématiques importants"}
+  "toolArguments": {"query": "principaux théorèmes géométrie algèbre cours mathématiques", "maxResults": 3}
+}
+
+Exemple 5 - Correction d'une requête mal formulée :
+{
+  "thinking": "La question utilisateur 'parle mo ide theoremes' est mal formulée. Je vais chercher avec une requête corrigée et optimisée.",
+  "shouldContinue": true,
+  "nextToolName": "read_rag_source",
+  "toolArguments": {"sourceId": "abc-123", "query": "définition propriétés applications théorèmes mathématiques"}
 }
 
 ## Format de sortie
@@ -508,17 +542,36 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
               if (intermediateParsed.modifiedToolSequence && intermediateParsed.modifiedToolSequence.length > 0) {
                 console.log(`🔄 [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Plan modifié! Nouvelle séquence:`, intermediateParsed.modifiedToolSequence.map((t: any) => t.toolName).join(' → '));
 
-                // Remplacer le reste du plan avec le nouveau plan
-                const newSequence = intermediateParsed.modifiedToolSequence;
-                // Supprimer les tools déjà exécutés du nouveau plan
-                for (let i = validatedToolSequence.length - 1; i > iterationIdx; i--) {
-                  validatedToolSequence.pop();
+                // 🎯 COORDINATOR: Valider la modification de plan
+                const originalPlanNames = validatedToolSequence.slice(iterationIdx + 1).map(t => t.toolName);
+                const modifiedPlanNames = intermediateParsed.modifiedToolSequence.map((t: any) => t.toolName);
+                const lastResult = toolCalls[toolCalls.length - 1]?.result || '';
+                
+                const planValidation = await CoordinatorService.validatePlanModification(
+                  originalPlanNames,
+                  modifiedPlanNames,
+                  lastResult,
+                  intermediateParsed.thinking
+                );
+
+                if (!planValidation.isValid) {
+                  console.warn(`❌ [COORDINATOR] Modification de plan REFUSÉE: ${planValidation.reasoning}`);
+                  console.log(`🔄 [COORDINATOR] Poursuite avec le plan original`);
+                  // Ne pas modifier le plan, continuer avec le plan original
+                } else {
+                  console.log(`✅ [COORDINATOR] Modification de plan VALIDÉE: ${planValidation.reasoning}`);
+                  // Remplacer le reste du plan avec le nouveau plan
+                  const newSequence = intermediateParsed.modifiedToolSequence;
+                  // Supprimer les tools déjà exécutés du nouveau plan
+                  for (let i = validatedToolSequence.length - 1; i > iterationIdx; i--) {
+                    validatedToolSequence.pop();
+                  }
+                  // Ajouter les nouveaux tools
+                  for (const newTool of newSequence) {
+                    validatedToolSequence.push(newTool);
+                  }
+                  console.log(`✅ Nouveau nombre total d'itérations: ${validatedToolSequence.length}`);
                 }
-                // Ajouter les nouveaux tools
-                for (const newTool of newSequence) {
-                  validatedToolSequence.push(newTool);
-                }
-                console.log(`✅ Nouveau nombre total d'itérations: ${validatedToolSequence.length}`);
 
                 // 🔥 IMPORTANT: Si on a modifié le plan, on doit CONTINUER même si shouldContinue est false
                 // Sinon on ne va jamais exécuter le nouveau plan!
@@ -536,6 +589,55 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
               }
 
               toolArgs = intermediateParsed.toolArguments || {};
+
+              // 🎯 COORDINATOR: Valider la cohérence thinking/action AVANT d'exécuter
+              const previousResults = toolCalls.map(tc => tc.result);
+              const coordinatorValidation = await CoordinatorService.validateCoherence({
+                thinking: intermediateParsed.thinking,
+                nextToolName: nextToolStep.toolName,
+                toolArguments: toolArgs,
+                previousToolResults: previousResults,
+                originalPlan: validatedToolSequence.map(t => t.toolName)
+              });
+
+              if (!coordinatorValidation.isValid) {
+                console.warn(`❌ [COORDINATOR] Incohérence détectée: ${coordinatorValidation.reasoning}`);
+                
+                // 🔥 PRIORISATION: Si une correction est disponible, l'appliquer au lieu de bloquer
+                if (coordinatorValidation.correctedToolName) {
+                  console.log(`🔧 [COORDINATOR] Correction AUTO appliquée (type Cursor): ${nextToolStep.toolName} → ${coordinatorValidation.correctedToolName}`);
+                  
+                  // Créer un nouveau step avec le tool corrigé
+                  nextToolStep.toolName = coordinatorValidation.correctedToolName;
+                  nextToolStep.description = `Correction auto: ${coordinatorValidation.reasoning}`;
+                  
+                  if (coordinatorValidation.correctedArguments) {
+                    toolArgs = coordinatorValidation.correctedArguments;
+                    console.log(`🔧 [COORDINATOR] Arguments corrigés:`, toolArgs);
+                  }
+                  
+                  // 🔥 Si le tool corrigé est read_rag_source, vérifier que query est fourni
+                  if (coordinatorValidation.correctedToolName === 'read_rag_source' && !toolArgs.query) {
+                    toolArgs.query = query; // Utiliser la query originale
+                    console.log(`🔧 [COORDINATOR] Query ajoutée pour read_rag_source: ${query}`);
+                  }
+                } else if (coordinatorValidation.shouldBlock) {
+                  // Bloquer SEULEMENT si aucune correction n'est possible
+                  console.error(`🚫 [COORDINATOR] Exécution BLOQUÉE (aucune correction disponible)`);
+                  intermediateThinkingBlocks.push({
+                    iteration: iterationIdx,
+                    thinking: `[COORDINATOR BLOCK] ${coordinatorValidation.reasoning}`,
+                    toolArguments: {},
+                    generatedAt: new Date().toISOString(),
+                    nextToolName: 'BLOCKED'
+                  });
+                  break; // Arrêter la boucle
+                } else {
+                  console.warn(`⚠️ [COORDINATOR] Incohérence détectée mais pas de correction - poursuite`);
+                }
+              } else {
+                console.log(`✅ [COORDINATOR] Plan cohérent: ${coordinatorValidation.reasoning}`);
+              }
 
               // Sauvegarder le bloc avec l'itération du TOOL ACTUELLEMENT EXÉCUTÉ
               intermediateThinkingBlocks.push({
@@ -562,6 +664,26 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
                   } else {
                     console.warn(`⚠️ [INTERMEDIATE-THINKING] No extracted sources available for select_relevant_sources`);
                   }
+                }
+              }
+
+              // 🔥 NEW: Ensure search_web has required 'query' argument (string)
+              if (nextToolStep.toolName === 'search_web') {
+                // Validation: search_web needs 'query' (string), not 'question' or 'availableSources'
+                if (!toolArgs.query || typeof toolArgs.query !== 'string') {
+                  // If IA provided wrong arguments (like 'question' or 'availableSources'), fix it
+                  if (toolArgs.question && typeof toolArgs.question === 'string') {
+                    toolArgs = { query: toolArgs.question, maxResults: toolArgs.maxResults || 3 };
+                    console.log(`🔧 [INTERMEDIATE-THINKING] Fixed search_web arguments: converted 'question' to 'query'`);
+                  } else {
+                    // Fallback: use original query
+                    toolArgs = { query, maxResults: 3 };
+                    console.log(`🔧 [INTERMEDIATE-THINKING] Fixed search_web arguments: using original query`);
+                  }
+                } else {
+                  // Clean up any extra fields that don't belong to search_web
+                  toolArgs = { query: toolArgs.query, maxResults: toolArgs.maxResults || 3 };
+                  console.log(`🔧 [INTERMEDIATE-THINKING] Cleaned search_web arguments`);
                 }
               }
 
