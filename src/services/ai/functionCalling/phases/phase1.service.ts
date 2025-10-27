@@ -127,6 +127,7 @@ Commence par un court checklist (3-7 étapes conceptuelles) de ce que tu vas fai
   "plan": {
     "totalIterations": <entier entre 1 et 8>,
     "reasoning": "<courte explication du choix de séquence>",
+    "optimizedQuery": "<🎯 REFORMULATION OBLIGATOIRE de la query utilisateur pour améliorer les résultats>",
     "toolSequence": [
       {
         "step": <entier>,
@@ -145,6 +146,14 @@ Commence par un court checklist (3-7 étapes conceptuelles) de ce que tu vas fai
   }
 }
 \`\`\`
+
+🎯 **CHAMP OBLIGATOIRE - optimizedQuery** :
+Ce champ DOIT contenir une version reformulée et optimisée de la query utilisateur.
+Cette query optimisée sera utilisée automatiquement pour les premiers tools (list_available_sources, select_relevant_sources, etc.).
+
+Exemple de reformulation :
+- Query utilisateur: "fait une analyse sur le web sur pythagore"
+- optimizedQuery: "Théorème de Pythagore: définition, démonstration mathématique et applications géométriques"
 
 Après avoir réalisé la planification et la séquence, valide que chaque outil est bien justifié dans la séquence et que le schéma de sortie est strictement respecté.
 
@@ -176,7 +185,7 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
           }
         ],
         temperature: 0.3,
-        max_tokens: 500,
+        max_tokens: 800, // 🎯 Augmenté pour permettre optimizedQuery + plan complet
         stream: true,
         response_format: { type: 'json_object' } as any  // 🔥 JSON MODE STRICT
       });
@@ -203,7 +212,18 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
         throw new Error('Invalid first thinking plan format');
       }
 
-      const { totalIterations, toolSequence } = firstThinkingPlan.plan;
+      const { totalIterations, toolSequence, optimizedQuery } = firstThinkingPlan.plan;
+
+      // 🎯 Extraire la query optimisée du plan (ou fallback sur query originale)
+      const queryToUse = optimizedQuery && typeof optimizedQuery === 'string' && optimizedQuery.trim().length > 0
+        ? optimizedQuery
+        : query;
+
+      if (optimizedQuery && optimizedQuery !== query) {
+        console.log(`🎯 [QUERY-OPTIMIZATION] Query reformulée:`);
+        console.log(`   Original: "${query.slice(0, 100)}"`);
+        console.log(`   Optimisée: "${optimizedQuery.slice(0, 100)}"`);
+      }
 
       // 🔥 Valider les tools: ne garder que les tools valides
       const VALID_TOOLS = ['list_available_sources', 'select_relevant_sources', 'check_sources_rag_status', 'read_rag_source', 'search_rag_chunks', 'search_web', 'read_workspace_page', 'list_workspace_pages'];
@@ -244,8 +264,8 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
 
         // 🔥 RÉINITIALISER toolArgs SEULEMENT pour le premier tool
         if (iterationIdx === 0) {
-          // 🔥 Premier tool: utiliser la question originale + les sources disponibles
-          toolArgs = { query };
+          // 🔥 Premier tool: utiliser la query optimisée du plan
+          toolArgs = { query: queryToUse };
 
           // Si c'est read_rag_source et que des sources sont disponibles, passer le premier sourceId
           if (toolStep.toolName === 'read_rag_source' && availableSources.length > 0) {

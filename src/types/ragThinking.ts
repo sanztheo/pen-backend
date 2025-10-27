@@ -3,6 +3,7 @@ export interface FirstThinkingPlan {
   plan: {
     totalIterations: number;
     reasoning: string;
+    optimizedQuery?: string; // 🎯 NOUVEAU: Query reformulée et optimisée pour les premiers tools
     toolSequence: Array<{
       step: number;
       toolName: string;
