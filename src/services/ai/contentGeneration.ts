@@ -315,16 +315,24 @@ export class ContentGenerationService {
    */
   static async generateBlock(type: string, prompt: string, context?: string): Promise<AIGenerationResult> {
     const systemPrompts = {
-      text: `Assistant d'écriture concis. FORMATAGE: \\n pour retours à la ligne. Génère 2-3 phrases maximum. Réponds directement sans intro.`,
-      heading2: `Génère un titre de section. Réponds uniquement avec le titre, SANS guillemets, SANS formatage.`,
-      heading3: `Génère un sous-titre. Réponds uniquement avec le sous-titre, SANS guillemets, SANS formatage.`,
-      list: `Génère une liste à puces courte (3-5 éléments max). FORMATAGE: \\n entre éléments. EXEMPLE: "• Premier élément\\n• Deuxième élément\\n• Troisième élément" Réponds directement.`,
-      quote: `Génère une citation courte et inspirante. Réponds uniquement avec la citation.`,
-      code: `Génère du code concis. Format obligatoire:
-\`\`\`langage
-[code ici]
+      text: `Assistant d'écriture concis. Utilisez '\n' pour les sauts de ligne. Répondez en 2 à 3 phrases maximum. Répondez directement sans introduction.`,
+      heading2: `Génère un titre de section. Réponds uniquement avec le titre, sans guillemets ni formatage.`,
+      heading3: `Génère un sous-titre. Réponds uniquement avec le sous-titre : sans guillemets et sans formatage.`,
+      list: `Génère une liste à puces courte de 3 à 5 éléments maximum.
+FORMATAGE : Utilise « \n » entre chaque élément.
+Réponds directement sous forme de liste à puces.`,
+      quote: `Génère une citation courte et inspirante. Donne uniquement la citation en réponse.`,
+      code: `Génère uniquement du code concis et fonctionnel, sans explication.
+
+Format de sortie obligatoire :
+- Fournis la réponse sous la forme exclusive d'un bloc de code Markdown.
+- Après les trois backticks, écris le nom du langage, puis le code minimal.
+
+Exemple :
+\`\`\`python
+print("Bonjour, monde!")
 \`\`\`
-Pas d'explication. Code minimal et fonctionnel uniquement.`
+`,
     };
 
     const systemPrompt = systemPrompts[type as keyof typeof systemPrompts] || systemPrompts.text;
@@ -378,7 +386,7 @@ Pas d'explication. Code minimal et fonctionnel uniquement.`
 
     return this.generateContent({
       prompt,
-      context: 'Améliore en gardant la longueur similaire. FORMATAGE: \\n pour retours à la ligne. Réponds directement avec le texte amélioré.',
+      context: 'Améliore le texte tout en gardant une longueur similaire. Utilise "\\n" pour chaque retour à la ligne. Réponds uniquement avec le texte amélioré.',
       maxTokens: Math.min(content.length * 1.5 + 100, 1000), // Plus généreux pour de meilleurs résultats
       temperature: 0.6
     });
@@ -396,7 +404,7 @@ Pas d'explication. Code minimal et fonctionnel uniquement.`
 
     return this.generateContent({
       prompt: `Continue ce texte:\n\n${content}`,
-      context: 'Continue naturellement. FORMATAGE: \\n pour retours à la ligne. Réponds directement avec la suite.',
+      context: 'Continue de façon naturelle. FORMATAGE : utilise \\n pour les retours à la ligne. Réponds directement avec la suite.',
       maxTokens: lengthTokens[length],
       temperature: 0.7
     });

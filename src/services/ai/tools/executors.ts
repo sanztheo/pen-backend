@@ -272,6 +272,7 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
           const source = dbSources.find((s: any) => s.id === id);
           if (source) {
             result += `${i + 1}. ${source.title} (${source.sourceType})\n`;
+            result += `   ID: ${id}\n\n`;
           }
         });
 
@@ -345,6 +346,7 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
         const source = availableSources.find((s: any) => s.id === id);
         if (source) {
           result += `${i + 1}. ${source.title} (${source.sourceType})\n`;
+          result += `   ID: ${id}\n\n`;
         }
       });
 
@@ -512,7 +514,8 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
     groupedBySource.forEach((sourceChunks, sourceTitle) => {
       result += `📄 Source: ${sourceTitle}\n`;
       sourceChunks.forEach((chunk, i) => {
-        result += `  ${i + 1}. ${chunk.content.slice(0, 300)}${chunk.content.length > 300 ? '...' : ''}\n`;
+        const content = chunk.content || '';
+        result += `  ${i + 1}. ${content.slice(0, 300)}${content.length > 300 ? '...' : ''}\n`;
       });
       result += '\n';
     });
