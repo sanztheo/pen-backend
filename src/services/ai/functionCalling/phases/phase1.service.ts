@@ -111,6 +111,8 @@ Commence par un court checklist (3-7 étapes conceptuelles) de ce que tu vas fai
 
 # RÈGLES
 - Commence PAR lister les sources (personnelles puis globales)
+- 🎯 **IMPÉRATIF**: Reformule SYSTÉMATIQUEMENT la query utilisateur pour TOUS les outils qui acceptent "query" ou "question"
+- 🎯 **OPTIMISATION QUERIES**: Corrige orthographe, enrichis avec mots-clés, rends précis ce qui est vague
 - CHAQUE outil doit être différent et complémentaire à chaque étape
 - \`totalIterations\` : valeur entre 1 et 8
 - Si tu utilises \`check_sources_rag_status\`, récupère d'abord les IDs des sources
@@ -400,31 +402,53 @@ Les résultats précédents sont consignés dans le contexte ci-dessus (résulta
 
 🛠️ ARGUMENTS PAR OUTIL :
 
+🎯 **RÈGLE D'OR - OPTIMISATION OBLIGATOIRE DES QUERIES** :
+Pour TOUS les outils qui acceptent "query" ou "question", tu DOIS systématiquement améliorer/reformuler la requête utilisateur pour maximiser la pertinence des résultats :
+  ✅ Corriger les fautes d'orthographe et de grammaire
+  ✅ Rendre les requêtes vagues plus précises et ciblées
+  ✅ Ajouter des mots-clés pertinents et contextuels
+  ✅ Structurer la query pour optimiser la recherche sémantique
+  ✅ Traduire ou clarifier les termes ambigus
+
+Exemples de reformulation :
+  ❌ "fait une analyse sur le web sur pythagore"
+  ✅ "Théorème de Pythagore: définition, démonstration mathématique et applications"
+
+  ❌ "parle mo ide theoremes"
+  ✅ "théorèmes mathématiques fondamentaux géométrie algèbre"
+
+  ❌ "c koi la loi newton"
+  ✅ "Lois de Newton mécanique classique physique principes fondamentaux"
+
+Pour list_available_sources :
+  - Inclure : "query": "${query}" (REFORMULÉE ET OPTIMISÉE)
+  - 🔥 IMPÉRATIF: Reformule TOUJOURS la query utilisateur pour améliorer les résultats de recherche
+  - Exemple : {"query": "Théorème de Pythagore applications mathématiques géométrie"}
+
 Pour select_relevant_sources :
-  - TOUJOURS inclure : "question": "${query}"
+  - TOUJOURS inclure : "question": "${query}" (REFORMULÉE ET OPTIMISÉE)
   - TOUJOURS inclure : "availableSources": Tableau d'objets {id, title, sourceType} EXTRATS des résultats précédents
-  - Exemple : {"question": "${query}", "availableSources": [{"id": "123", "title": "...", "sourceType": "WIKIPEDIA"}]}
+  - 🔥 IMPÉRATIF: Optimise la question pour une meilleure sélection de sources
+  - Exemple : {"question": "définition et preuves mathématiques du théorème de Pythagore", "availableSources": [{"id": "123", "title": "...", "sourceType": "WIKIPEDIA"}]}
 
 Pour read_rag_source :
   - Inclure : "sourceId" : L'ID d'une source trouvée
-  - Inclure : "query" : Requête de recherche dans la source (string)
-  - 🎯 OPTIMISATION: Tu PEUX reformuler/améliorer la query pour chercher plus efficacement dans la source
-  - Exemple : {"sourceId": "123", "query": "définition et applications du théorème"}
+  - Inclure : "query" : Requête de recherche dans la source (string REFORMULÉE)
+  - 🔥 IMPÉRATIF: Reformule pour cibler précisément les informations recherchées dans la source
+  - Exemple : {"sourceId": "123", "query": "démonstration mathématique et cas d'usage du théorème"}
 
 Pour search_rag_chunks :
-  - Inclure : "query": Requête de recherche sémantique (string)
-  - 🎯 OPTIMISATION: Tu PEUX reformuler/améliorer la query pour une recherche sémantique plus efficace
+  - Inclure : "query": Requête de recherche sémantique (string REFORMULÉE ET OPTIMISÉE)
+  - 🔥 IMPÉRATIF: Optimise pour une recherche sémantique vectorielle efficace
   - Inclure optionnellement : "sourceIds": Tableau d'IDs si tu veux chercher dans des sources spécifiques
+  - Exemple : {"query": "preuves géométriques triangle rectangle Pythagore", "sourceIds": ["123"]}
 
 Pour search_web :
   - 🔥 ATTENTION: Ce tool prend UNIQUEMENT "query" (string), PAS "question" ni "availableSources" !
-  - Inclure : "query": "chaîne de recherche web" (string)
+  - Inclure : "query": "chaîne de recherche web" (string REFORMULÉE ET ENRICHIE)
   - Inclure optionnellement : "maxResults": nombre de résultats (nombre, par défaut 3)
-  - 🎯 OPTIMISATION DE REQUÊTE: Tu PEUX et DEVRAIS améliorer/reformuler la query pour obtenir de meilleurs résultats
-    * Si la question utilisateur est mal formulée ("parle mo ide theoremes"), corrige-la ("théorèmes mathématiques")
-    * Si la question est vague, rends-la plus précise
-    * Ajoute des mots-clés pertinents pour améliorer les résultats
-  - Exemple : {"query": "théorèmes mathématiques fondamentaux cours", "maxResults": 3}
+  - 🔥 IMPÉRATIF: Reformule et enrichis la query avec mots-clés pertinents pour le web
+  - Exemple : {"query": "Pythagore théorème mathématiques géométrie démonstration applications cours", "maxResults": 3}
 
 📊 DÉCISION :
 Après chaque appel d'outil ou édition, valide en 1 à 2 lignes l'adéquation du résultat avec l'étape attendue, et décide si une correction est nécessaire ou si tu poursuis la séquence.
@@ -444,13 +468,13 @@ Retourne STRICTEMENT un objet JSON ayant la structure suivante (les clés doiven
 
 EXEMPLES DE DÉCISIONS :
 
-Exemple 1 - Wikipedia listée avec select_relevant_sources :
+Exemple 1 - Wikipedia listée avec select_relevant_sources (AVEC REFORMULATION) :
 {
-  "thinking": "J'ai trouvé 3 sources Wikipedia. Je dois les sélectionner intelligemment pour la question 'parle-moi des théorèmes'.",
+  "thinking": "J'ai trouvé 3 sources Wikipedia. Je reformule 'parle-moi des théorèmes' en 'théorèmes mathématiques fondamentaux définitions et applications' pour une meilleure sélection.",
   "shouldContinue": true,
   "nextToolName": "select_relevant_sources",
   "toolArguments": {
-    "question": "${query}",
+    "question": "théorèmes mathématiques fondamentaux définitions et applications",
     "availableSources": [
       {"id": "id1", "title": "Théorème de Thalès", "sourceType": "WIKIPEDIA"},
       {"id": "id2", "title": "Théorème de Pythagore", "sourceType": "WIKIPEDIA"},
@@ -459,12 +483,12 @@ Exemple 1 - Wikipedia listée avec select_relevant_sources :
   }
 }
 
-Exemple 2 - Wikipedia listée, lire la meilleure :
+Exemple 2 - Wikipedia listée, lire la meilleure (AVEC REFORMULATION) :
 {
-  "thinking": "J'ai listé les sources. Maintenant je lis la meilleure pour 'parle-moi des théorèmes'.",
+  "thinking": "J'ai listé les sources. Je lis Pythagore avec une query optimisée pour cibler les informations clés.",
   "shouldContinue": true,
   "nextToolName": "read_rag_source",
-  "toolArguments": {"sourceId": "6f9280e9-a4ba-43ae-8372-698efd22fa84", "query": "${query}"}
+  "toolArguments": {"sourceId": "6f9280e9-a4ba-43ae-8372-698efd22fa84", "query": "démonstration mathématique triangle rectangle applications géométriques"}
 }
 
 Exemple 3 - Wikipedia lue, info suffisante :
@@ -474,17 +498,17 @@ Exemple 3 - Wikipedia lue, info suffisante :
   "modifiedToolSequence": []
 }
 
-Exemple 4 - Wikipedia lue partiellement, veut enrichir avec web (avec optimisation de requête) :
+Exemple 4 - Wikipedia lue partiellement, veut enrichir avec web (AVEC REFORMULATION ENRICHIE) :
 {
-  "thinking": "J'ai lu Théorème de Thalès et Pythagore. Pour enrichir avec d'autres théorèmes, je vais chercher sur le web avec une requête optimisée.",
+  "thinking": "J'ai lu Thalès et Pythagore. Je cherche sur le web avec une query enrichie de mots-clés pour trouver d'autres théorèmes fondamentaux.",
   "shouldContinue": true,
   "nextToolName": "search_web",
-  "toolArguments": {"query": "principaux théorèmes géométrie algèbre cours mathématiques", "maxResults": 3}
+  "toolArguments": {"query": "théorèmes mathématiques fondamentaux géométrie algèbre cours démonstrations", "maxResults": 3}
 }
 
-Exemple 5 - Correction d'une requête mal formulée :
+Exemple 5 - Correction d'une requête mal formulée (REFORMULATION OBLIGATOIRE) :
 {
-  "thinking": "La question utilisateur 'parle mo ide theoremes' est mal formulée. Je vais chercher avec une requête corrigée et optimisée.",
+  "thinking": "La question 'parle mo ide theoremes' est mal formulée. Je la corrige en 'théorèmes mathématiques fondamentaux' pour une recherche efficace.",
   "shouldContinue": true,
   "nextToolName": "read_rag_source",
   "toolArguments": {"sourceId": "abc-123", "query": "définition propriétés applications théorèmes mathématiques"}
