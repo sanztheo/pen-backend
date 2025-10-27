@@ -60,7 +60,7 @@ export class ToolExecutor {
   }
 
   /**
-   * Liste toutes les sources RAG disponibles pour l'utilisateur
+   * Liste toutes les sources RAG disponibles pour l'utilisateur + sources Wikipedia GLOBALES
    */
   private static async listAvailableSources(
     args: { workspaceId: string; limit?: number },
@@ -71,7 +71,8 @@ export class ToolExecutor {
     console.log(`📋 [LIST-SOURCES] Listing sources pour workspace: ${workspaceId}`);
 
     try {
-      const sources = await prisma.rAGSource.findMany({
+      // 🔥 Query 1: Sources du workspace de l'utilisateur
+      const workspaceSources = await prisma.rAGSource.findMany({
         where: {
           workspaceId,
           userId: context.userId
@@ -82,32 +83,80 @@ export class ToolExecutor {
           sourceType: true,
           totalChunks: true,
           lastUsedAt: true,
-          status: true
+          status: true,
+          isGlobal: true
         },
         take: Math.min(limit, 50),
         orderBy: { lastUsedAt: 'desc' }
       });
 
-      if (sources.length === 0) {
-        return `Aucune source RAG trouvée dans ce workspace`;
-      }
-
-      let result = `📋 Sources RAG disponibles (${sources.length} source(s)):\n\n`;
-
-      sources.forEach((source, i) => {
-        const statusEmoji = source.status === 'COMPLETED' ? '✅' : source.status === 'PROCESSING' ? '⏳' : '❌';
-        const lastUsed = source.lastUsedAt 
-          ? new Date(source.lastUsedAt).toLocaleDateString('fr-FR')
-          : 'Jamais';
-        
-        result += `${i + 1}. [${statusEmoji}] ${source.title}\n`;
-        result += `   Type: ${source.sourceType}\n`;
-        result += `   Chunks: ${source.totalChunks}\n`;
-        result += `   ID: ${source.id}\n`;
-        result += `   Dernière utilisation: ${lastUsed}\n\n`;
+      // 🔥 Query 2: Sources Wikipedia GLOBALES partagées
+      const globalWikiSources = await prisma.rAGSource.findMany({
+        where: {
+          isGlobal: true,
+          sourceType: 'WIKIPEDIA',
+          status: 'COMPLETED'
+        },
+        select: {
+          id: true,
+          title: true,
+          sourceType: true,
+          totalChunks: true,
+          lastUsedAt: true,
+          status: true,
+          isGlobal: true
+        },
+        take: 30, // Limiter les sources globales
+        orderBy: { lastUsedAt: 'desc' }
       });
 
-      console.log(`✅ [LIST-SOURCES] ${sources.length} sources listées`);
+      // 🔥 Combiner les deux listes (éviter les doublons)
+      const workspaceIds = new Set(workspaceSources.map(s => s.id));
+      const uniqueGlobalSources = globalWikiSources.filter(s => !workspaceIds.has(s.id));
+
+      const allSources = [...workspaceSources, ...uniqueGlobalSources];
+
+      if (allSources.length === 0) {
+        return `Aucune source RAG trouvée dans ce workspace et aucune source Wikipedia globale disponible`;
+      }
+
+      let result = '';
+
+      // 🔥 Section 1: Sources du workspace
+      if (workspaceSources.length > 0) {
+        result += `📚 Sources de votre workspace (${workspaceSources.length} source(s)):\n\n`;
+
+        workspaceSources.forEach((source, i) => {
+          const statusEmoji = source.status === 'COMPLETED' ? '✅' : source.status === 'PROCESSING' ? '⏳' : '❌';
+          const lastUsed = source.lastUsedAt
+            ? new Date(source.lastUsedAt).toLocaleDateString('fr-FR')
+            : 'Jamais';
+
+          result += `${i + 1}. [${statusEmoji}] ${source.title}\n`;
+          result += `   Type: ${source.sourceType}\n`;
+          result += `   Chunks: ${source.totalChunks}\n`;
+          result += `   ID: ${source.id}\n`;
+          result += `   Dernière utilisation: ${lastUsed}\n\n`;
+        });
+      }
+
+      // 🔥 Section 2: Sources Wikipedia globales
+      if (uniqueGlobalSources.length > 0) {
+        result += `🌍 Sources Wikipedia GLOBALES partagées (${uniqueGlobalSources.length} source(s)):\n\n`;
+
+        uniqueGlobalSources.forEach((source, i) => {
+          const lastUsed = source.lastUsedAt
+            ? new Date(source.lastUsedAt).toLocaleDateString('fr-FR')
+            : 'Jamais';
+
+          result += `${workspaceSources.length + i + 1}. 📚 ${source.title}\n`;
+          result += `   Chunks indexés: ${source.totalChunks}\n`;
+          result += `   ID: ${source.id}\n`;
+          result += `   Dernière utilisation: ${lastUsed}\n\n`;
+        });
+      }
+
+      console.log(`✅ [LIST-SOURCES] ${workspaceSources.length} sources workspace + ${uniqueGlobalSources.length} sources globales = ${allSources.length} total`);
 
       return result;
     } catch (error) {
