@@ -194,6 +194,27 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
         currentToolCalls = toolDecision.toolCalls;
         console.log(`✅ [SEARCH-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés, shouldUseTools: ${toolDecision.shouldUseTools}`);
 
+        // 💰 REMBOURSEMENT CRÉDITS: Si l'IA a utilisé search_web alors que l'utilisateur n'a pas activé le web
+        const usedSearchWeb = toolDecision.toolCalls.some(tc => tc.name === 'search_web');
+        if (usedSearchWeb && !useWeb) {
+          console.log(`💰 [CREDITS-REFUND] L'IA a utilisé search_web sans activation utilisateur - Remboursement de 0.25 crédits`);
+          try {
+            const { AICreditsService } = await import('../../../services/credits/aiCreditsService.js');
+            const refundResult = await AICreditsService.refundCredits(
+              userId,
+              0.25,
+              'search_web_ai_decision'
+            );
+            if (refundResult.success) {
+              console.log(`✅ [CREDITS-REFUND] Remboursement réussi - Nouveau solde: ${refundResult.newBalance}`);
+            } else {
+              console.warn(`⚠️ [CREDITS-REFUND] Échec du remboursement: ${refundResult.error}`);
+            }
+          } catch (refundError) {
+            console.error(`❌ [CREDITS-REFUND] Erreur lors du remboursement:`, refundError);
+          }
+        }
+
         // 🔥 PHASE 2: Génération réponse finale avec résultats des tools
         if (toolDecision.shouldUseTools && toolDecision.toolCalls.length > 0) {
           console.log(`🔧 [SEARCH-PHASE-2] Génération réponse finale...`);
