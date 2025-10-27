@@ -636,7 +636,14 @@ model AIMessage {
   
   // 🔥 NOUVEAU: Intermediate thinking blocks with generated arguments
   intermediateThinkingBlocks Json? @default("[]") @map("intermediate_thinking_blocks") // [{iteration, thinking, toolArguments, generatedAt}]
-  
+
+  // 💰 NOUVEAU: Métadonnées de coût en crédits (pour analytics et audit)
+  creditsMode        String?  @map("credits_mode") @db.VarChar(20) // 'ask', 'search', 'create'
+  creditsReflection  String?  @map("credits_reflection") @db.VarChar(20) // 'rapide', 'profond'
+  creditsHasWeb      Boolean? @default(false) @map("credits_has_web") // Web activé
+  creditsHasSources  Boolean? @default(false) @map("credits_has_sources") // Sources ajoutées
+  creditsUsed        Float?   @map("credits_used") // Coût total calculé (pour référence rapide)
+
   // Timing
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   

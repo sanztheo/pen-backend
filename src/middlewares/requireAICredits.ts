@@ -16,6 +16,7 @@ interface AuthRequest extends Request {
 export interface AICreditsConfig {
   cost?: number;
   action?: string;
+  dynamicCost?: (req: Request) => number; // 💰 NOUVEAU: Calcul dynamique du coût
 }
 
 /**
@@ -39,7 +40,8 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
         return res.status(404).json({ success: false, error: 'Utilisateur non trouvé', code: 'USER_NOT_FOUND' });
       }
 
-      const cost = config.cost ?? 0.5;
+      // 💰 Calculer le coût (dynamique si fourni, sinon fixe)
+      const cost = config.dynamicCost ? config.dynamicCost(req) : (config.cost ?? 0.5);
       const action = config.action || `ai_${req.path.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
       // 1. Vérifier si l'utilisateur peut utiliser l'IA

@@ -12,13 +12,61 @@ const router = Router();
 
 router.use(authenticateToken);
 
-// 🛡️ ROUTES ASSISTANT SÉCURISÉES - Contrôle des crédits IA obligatoire
-router.post('/ask', requireAICredits({ cost: 0.5, action: 'assistant_ask' }), assistantAsk);
-router.post('/search', requireAICredits({ cost: 0.3, action: 'assistant_search' }), assistantSearch);
-router.post('/create', requireAICredits({ cost: 1.0, action: 'assistant_create' }), assistantCreate);
-router.post('/ask/stream', requireAICredits({ cost: 0.5, action: 'assistant_ask_stream' }), assistantAskStream);
-router.post('/search/stream', requireAICredits({ cost: 0.3, action: 'assistant_search_stream' }), assistantSearchStream);
-router.post('/create/stream', requireAICredits({ cost: 1.0, action: 'assistant_create_stream' }), assistantCreateStream);
+/**
+ * 💰 Calcul dynamique du coût en crédits basé sur les paramètres de la requête
+ * Tarification officielle :
+ * - Mode Automatique (ask): 1 crédit
+ * - Mode Recherche (search): 1.5 crédits
+ * - Mode Créer rapide (create + rapide): 1 crédit
+ * - Mode Créer profond (create + profond): 2 crédits
+ * - +0.25 crédit si sources ajoutées (pages/wikipedia/files)
+ * - +0.25 crédit si web activé
+ */
+const calculateDynamicCost = (req: any): number => {
+  const body = req.body || {};
+  const mode = body.mode || 'ask'; // Déduire du endpoint si pas dans body
+  const reflection = body.reflection || 'rapide';
+  const useWeb = body.useWeb === true;
+
+  // Déterminer si des sources sont présentes
+  const hasPages = (body.pageIds && body.pageIds.length > 0) ||
+                   (body.mentioned && body.mentioned.length > 0);
+  const hasFiles = (body.ragSources && body.ragSources.length > 0) ||
+                   (body.files && body.files.length > 0);
+  const hasWikipedia = body.wikipediaSources && body.wikipediaSources.length > 0;
+  const hasSources = hasPages || hasFiles || hasWikipedia;
+
+  let credits = 0;
+
+  // Coût de base selon le mode et la réflexion
+  if (mode === 'ask') {
+    credits = 1;
+  } else if (mode === 'search') {
+    credits = 1.5;
+  } else if (mode === 'create') {
+    credits = reflection === 'profond' ? 2 : 1;
+  }
+
+  // Supplément si des sources sont ajoutées
+  if (hasSources) {
+    credits += 0.25;
+  }
+
+  // Supplément si le web est activé
+  if (useWeb) {
+    credits += 0.25;
+  }
+
+  return credits;
+};
+
+// 🛡️ ROUTES ASSISTANT SÉCURISÉES - Contrôle des crédits IA obligatoire avec tarification dynamique
+router.post('/ask', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_ask' }), assistantAsk);
+router.post('/search', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_search' }), assistantSearch);
+router.post('/create', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_create' }), assistantCreate);
+router.post('/ask/stream', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_ask_stream' }), assistantAskStream);
+router.post('/search/stream', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_search_stream' }), assistantSearchStream);
+router.post('/create/stream', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_create_stream' }), assistantCreateStream);
 router.post('/clear-memory', requireAICredits({ cost: 0.1, action: 'assistant_clear_memory' }), assistantClearMemory);
 
 // Routes Wikipedia
