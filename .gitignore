@@ -5,3 +5,4 @@ logs
 .DS_Store
 *.md
 debug-logs
+.env.example

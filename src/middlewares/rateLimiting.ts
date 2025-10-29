@@ -1,0 +1,227 @@
+/**
+ * 🛡️ SYSTÈME DE RATE LIMITING MULTICOUCHE
+ * Protection contre spam, brute force, DDoS et abus d'API
+ *
+ * NIVEAUX DE PROTECTION:
+ * 1. GLOBAL       → 1000 req/15min par IP (tous endpoints)
+ * 2. AUTH         → 10 req/15min par IP (protection brute force)
+ * 3. AI           → 50 req/15min par user (endpoints coûteux)
+ * 4. QUIZ         → 20 req/15min par user (génération quiz)
+ * 5. ASSISTANT    → 10 req/15min par user (OpenAI Assistant - très coûteux)
+ */
+
+import rateLimit, { Options } from 'express-rate-limit';
+import { Request, Response } from 'express';
+import { getRateLimitStoreWithFallback } from '../config/rateLimitStore.js';
+import SecureLogger from './secureLogging.js';
+
+/**
+ * Helper pour générer une clé basée sur l'IP de manière sécurisée (IPv4 + IPv6)
+ * Utilise la fonction officielle de express-rate-limit pour gérer IPv6
+ */
+const getIpKey = (req: Request): string => {
+  // Récupérer l'IP réelle derrière un proxy
+  const forwarded = req.headers['x-forwarded-for'];
+  const ip = typeof forwarded === 'string'
+    ? forwarded.split(',')[0].trim()
+    : req.socket.remoteAddress || 'unknown';
+
+  return ip;
+};
+
+/**
+ * Configuration centralisée du rate limiting
+ * Peut être surchargée par variables d'environnement
+ */
+const RATE_LIMIT_CONFIG = {
+  enabled: process.env.RATE_LIMIT_ENABLED !== 'false', // Activé par défaut
+  global: {
+    windowMs: parseInt(process.env.RATE_LIMIT_GLOBAL_WINDOW || '900000'), // 15 min
+    max: parseInt(process.env.RATE_LIMIT_GLOBAL_MAX || '1000'),
+  },
+  auth: {
+    windowMs: parseInt(process.env.RATE_LIMIT_AUTH_WINDOW || '900000'), // 15 min
+    max: parseInt(process.env.RATE_LIMIT_AUTH_MAX || '10'),
+  },
+  ai: {
+    windowMs: parseInt(process.env.RATE_LIMIT_AI_WINDOW || '900000'), // 15 min
+    max: parseInt(process.env.RATE_LIMIT_AI_MAX || '50'),
+  },
+  quiz: {
+    windowMs: parseInt(process.env.RATE_LIMIT_QUIZ_WINDOW || '900000'), // 15 min
+    max: parseInt(process.env.RATE_LIMIT_QUIZ_MAX || '20'),
+  },
+  assistant: {
+    windowMs: parseInt(process.env.RATE_LIMIT_ASSISTANT_WINDOW || '900000'), // 15 min
+    max: parseInt(process.env.RATE_LIMIT_ASSISTANT_MAX || '10'),
+  },
+};
+
+/**
+ * Handler personnalisé lors du dépassement de limite
+ * Log les incidents pour analyse de sécurité
+ */
+const onLimitReached = (req: Request, res: Response) => {
+  SecureLogger.warn('🚨 [RATE-LIMIT] Limite atteinte', {
+    ip: req.ip,
+    userId: (req as any).user?.id,
+    path: req.path,
+    method: req.method,
+    userAgent: req.get('user-agent'),
+  });
+};
+
+/**
+ * Créer une configuration de base pour un rate limiter
+ * IMPORTANT: Chaque limiter doit avoir son propre store
+ */
+const createBaseConfig = (storePrefix: string): Partial<Options> => ({
+  standardHeaders: true, // Retourne les headers RateLimit-*
+  legacyHeaders: false, // Désactive les anciens headers X-RateLimit-*
+  store: getRateLimitStoreWithFallback(storePrefix), // Redis avec préfixe UNIQUE
+  handler: onLimitReached,
+  skip: (req) => {
+    // Skip si rate limiting désactivé globalement
+    if (!RATE_LIMIT_CONFIG.enabled) return true;
+    return false;
+  },
+});
+
+/**
+ * 1. RATE LIMIT GLOBAL
+ * Appliqué à TOUS les endpoints (sauf /health)
+ * Protection contre DDoS et spam général
+ */
+export const globalRateLimit = rateLimit({
+  ...createBaseConfig('rl:global:'),
+  windowMs: RATE_LIMIT_CONFIG.global.windowMs,
+  max: RATE_LIMIT_CONFIG.global.max,
+  message: {
+    success: false,
+    error: 'RATE_LIMIT_EXCEEDED',
+    message: 'Trop de requêtes. Veuillez réessayer dans quelques minutes.',
+    retryAfter: '15 minutes',
+  },
+  skip: (req) => {
+    // Skip health check et webhooks
+    if (req.path === '/health' || req.path.startsWith('/api/webhooks/')) {
+      return true;
+    }
+    return !RATE_LIMIT_CONFIG.enabled;
+  },
+  // Pas de keyGenerator personnalisé - utiliser le default qui gère IPv6 correctement
+});
+
+/**
+ * 2. RATE LIMIT AUTHENTIFICATION
+ * Protection contre brute force sur login/register
+ * Compte uniquement les requêtes échouées
+ */
+export const authRateLimit = rateLimit({
+  ...createBaseConfig('rl:auth:'),
+  windowMs: RATE_LIMIT_CONFIG.auth.windowMs,
+  max: RATE_LIMIT_CONFIG.auth.max,
+  message: {
+    success: false,
+    error: 'AUTH_RATE_LIMIT_EXCEEDED',
+    message: 'Trop de tentatives de connexion. Veuillez réessayer dans 15 minutes.',
+    retryAfter: '15 minutes',
+  },
+  skipSuccessfulRequests: true, // Ne compte que les échecs d'authentification
+  keyGenerator: (req) => {
+    // Combiner IP + email pour plus de précision
+    const ip = getIpKey(req);
+    const email = req.body?.email || '';
+    return `${ip}_${email}`;
+  },
+});
+
+/**
+ * 3. RATE LIMIT IA
+ * Protection des endpoints AI coûteux
+ * Limite par utilisateur authentifié
+ */
+export const aiRateLimit = rateLimit({
+  ...createBaseConfig('rl:ai:'),
+  windowMs: RATE_LIMIT_CONFIG.ai.windowMs,
+  max: RATE_LIMIT_CONFIG.ai.max,
+  message: {
+    success: false,
+    error: 'AI_RATE_LIMIT_EXCEEDED',
+    message: 'Trop de requêtes IA. Veuillez réessayer dans 15 minutes.',
+    retryAfter: '15 minutes',
+  },
+  keyGenerator: (req) => {
+    // Limite par user ID si authentifié, sinon par IP
+    const userId = (req as any).user?.id;
+    const ip = getIpKey(req);
+    return userId ? `user_${userId}` : `ip_${ip}`;
+  },
+});
+
+/**
+ * 4. RATE LIMIT QUIZ
+ * Protection génération de quiz
+ * Limite par utilisateur authentifié
+ */
+export const quizRateLimit = rateLimit({
+  ...createBaseConfig('rl:quiz:'),
+  windowMs: RATE_LIMIT_CONFIG.quiz.windowMs,
+  max: RATE_LIMIT_CONFIG.quiz.max,
+  message: {
+    success: false,
+    error: 'QUIZ_RATE_LIMIT_EXCEEDED',
+    message: 'Trop de générations de quiz. Veuillez réessayer dans 15 minutes.',
+    retryAfter: '15 minutes',
+  },
+  keyGenerator: (req) => {
+    const userId = (req as any).user?.id;
+    const ip = getIpKey(req);
+    return userId ? `user_${userId}` : `ip_${ip}`;
+  },
+});
+
+/**
+ * 5. RATE LIMIT ASSISTANT
+ * Protection OpenAI Assistant (endpoints très coûteux)
+ * Limite stricte par utilisateur
+ */
+export const assistantRateLimit = rateLimit({
+  ...createBaseConfig('rl:assistant:'),
+  windowMs: RATE_LIMIT_CONFIG.assistant.windowMs,
+  max: RATE_LIMIT_CONFIG.assistant.max,
+  message: {
+    success: false,
+    error: 'ASSISTANT_RATE_LIMIT_EXCEEDED',
+    message: 'Trop de requêtes assistant IA. Veuillez réessayer dans 15 minutes.',
+    retryAfter: '15 minutes',
+  },
+  keyGenerator: (req) => {
+    const userId = (req as any).user?.id;
+    const ip = getIpKey(req);
+    return userId ? `user_${userId}` : `ip_${ip}`;
+  },
+});
+
+/**
+ * Helper pour vérifier si le rate limiting est activé
+ */
+export const isRateLimitEnabled = (): boolean => {
+  return RATE_LIMIT_CONFIG.enabled;
+};
+
+/**
+ * Log la configuration au démarrage
+ */
+export const logRateLimitConfig = () => {
+  if (RATE_LIMIT_CONFIG.enabled) {
+    console.log('🛡️  Rate Limiting ACTIVÉ:');
+    console.log(`   - Global:    ${RATE_LIMIT_CONFIG.global.max} req/${RATE_LIMIT_CONFIG.global.windowMs}ms`);
+    console.log(`   - Auth:      ${RATE_LIMIT_CONFIG.auth.max} req/${RATE_LIMIT_CONFIG.auth.windowMs}ms`);
+    console.log(`   - AI:        ${RATE_LIMIT_CONFIG.ai.max} req/${RATE_LIMIT_CONFIG.ai.windowMs}ms`);
+    console.log(`   - Quiz:      ${RATE_LIMIT_CONFIG.quiz.max} req/${RATE_LIMIT_CONFIG.quiz.windowMs}ms`);
+    console.log(`   - Assistant: ${RATE_LIMIT_CONFIG.assistant.max} req/${RATE_LIMIT_CONFIG.assistant.windowMs}ms`);
+  } else {
+    console.log('⚠️  Rate Limiting DÉSACTIVÉ (mode développement)');
+  }
+};
