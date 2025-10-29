@@ -1,5 +1,6 @@
 import Parser from 'rss-parser';
 import { prisma } from '../lib/prisma.js';
+import OpenAI from 'openai';
 
 // Types pour les articles RSS
 interface FuturaArticle {
@@ -15,6 +16,14 @@ interface FuturaArticle {
     type: string;
   };
 }
+
+// Cache pour les résultats de détection AI
+const aiDetectionCache = new Map<string, { isPromo: boolean; timestamp: number }>();
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 heures
+
+// Rate limiting pour l'API OpenAI
+let lastAICallTime = 0;
+const MIN_CALL_INTERVAL = 6000; // 6 secondes entre chaque appel (max 10/min)
 
 export class FuturaRssService {
   private static RSS_URL = 'https://www.futura-sciences.com/rss/actualites.xml';
@@ -216,48 +225,148 @@ export class FuturaRssService {
   }
 
   /**
-   * Vérifie si un article est une promotion/offre
+   * Détection AI avec GPT-4o-mini pour les cas limites
+   * @param article Article à analyser
+   * @returns true si l'article est promotionnel
+   */
+  private static async isPromotionalAI(article: any): Promise<boolean> {
+    try {
+      // Vérifier le cache
+      const cacheKey = article.guid || article.link;
+      const cached = aiDetectionCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+        console.log(`📦 Cache hit pour article: ${cacheKey}`);
+        return cached.isPromo;
+      }
+
+      // Rate limiting
+      const now = Date.now();
+      const timeSinceLastCall = now - lastAICallTime;
+      if (timeSinceLastCall < MIN_CALL_INTERVAL) {
+        const waitTime = MIN_CALL_INTERVAL - timeSinceLastCall;
+        console.log(`⏳ Rate limit: attente ${waitTime}ms`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+
+      // Vérifier la clé API
+      if (!process.env.OPENAI_API_KEY) {
+        console.warn('⚠️ OPENAI_API_KEY non configurée, utilisation de la détection par mots-clés uniquement');
+        return false;
+      }
+
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+      const title = article.title || '';
+      const description = article.description || '';
+      const contentSnippet = article.contentSnippet || '';
+
+      lastAICallTime = Date.now();
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'Tu es un classificateur d\'articles. Réponds uniquement "OUI" si l\'article est promotionnel/publicitaire (vente, réduction, code promo, comparatif commercial, bon plan), sinon "NON".'
+          },
+          {
+            role: 'user',
+            content: `Titre: ${title}\nDescription: ${description}\nExtrait: ${contentSnippet}`
+          }
+        ],
+        max_tokens: 10,
+        temperature: 0
+      });
+
+      const result = response.choices[0]?.message?.content?.trim().toUpperCase();
+      const isPromo = result === 'OUI';
+
+      // Mettre en cache
+      aiDetectionCache.set(cacheKey, { isPromo, timestamp: Date.now() });
+
+      console.log(`🤖 AI détection: "${title.substring(0, 40)}..." → ${isPromo ? 'PROMO' : 'OK'}`);
+      return isPromo;
+
+    } catch (error) {
+      console.error('❌ Erreur AI detection:', error);
+      return false; // En cas d'erreur, on considère que ce n'est pas promotionnel
+    }
+  }
+
+  /**
+   * Vérifie si un article est une promotion/offre (détection hybride)
    * @param article Article à vérifier
    * @returns true si l'article est une promotion
    */
-  private static isPromotionalArticle(article: any): boolean {
+  private static async isPromotionalArticle(article: any): Promise<boolean> {
     const title = (article.title || '').toLowerCase();
     const description = (article.description || '').toLowerCase();
     const contentSnippet = (article.contentSnippet || '').toLowerCase();
     const content = (article.content || '').toLowerCase();
-    
-    // Keywords de promotion
-    const promotionalKeywords = [
-      'promo', 'économisez', 'économiser', 'réduction', 'offre', 'offres limitées',
-      'jusqu\'à', 'rabais', 'soldes', 'bons plans', 'bon plan', 'deal',
-      'achetez', 'acheter', 'comparatif', 'vente', 'achats',
-      'sponsorisé', 'sponsor', 'publicité', 'partenaire',
-      'vpn', 'antivirus', 'cyber', 'sécurité vpn',
+
+    // Keywords forts (1 seul suffit pour détection)
+    const strongKeywords = [
+      'rakuten', 'amazon', 'cdiscount', 'fnac', 'darty', 'boulanger',
+      'code promo', 'code promo', 'coupon', 'bon de réduction',
       'surfshark', 'cyberghost', 'expressvpn', 'nordvpn',
-      'code promo', 'coupon', 'rabais',
-      'ici', 'amazon', 'allociné', 'numerama'
+      'sponsorisé', 'sponsor', 'publicité', 'partenariat', 'partenaire'
     ];
-    
+
+    // Keywords faibles (2+ nécessaires pour détection)
+    const weakKeywords = [
+      'promo', 'économisez', 'économiser', 'réduction', 'offre', 'offres limitées',
+      'jusqu\'à', 'rabais', 'soldes', 'bons plans', 'bon plan', 'deal', 'deals',
+      'achetez', 'acheter', 'commander', 'comparatif', 'vente', 'achats',
+      'vpn', 'antivirus', 'cyber', 'sécurité vpn',
+      'prix', 'tarif', 'coûte', 'coût', '€', 'euros',
+      'livraison', 'gratuit', 'moins cher'
+    ];
+
     const combinedText = `${title} ${description} ${contentSnippet} ${content}`;
-    
-    // Vérifier si plusieurs keywords de promotion sont présents
-    const matchingKeywords = promotionalKeywords.filter(keyword => 
+
+    // 1. Détection par keywords forts
+    const matchingStrongKeywords = strongKeywords.filter(keyword =>
       combinedText.includes(keyword)
     );
-    
-    // Si 2+ keywords trouvés, c'est probablement une promotion
-    if (matchingKeywords.length >= 2) {
-      console.log(`⚠️ Article promotionnel détecté: "${title.substring(0, 50)}..." (keywords: ${matchingKeywords.join(', ')})`);
+
+    if (matchingStrongKeywords.length >= 1) {
+      console.log(`⚠️ Article promotionnel (strong): "${title.substring(0, 50)}..." (${matchingStrongKeywords.join(', ')})`);
       return true;
     }
-    
-    // Pattern stricte pour les promotions évidentes
+
+    // 2. Détection par pattern de prix (XX,XX € ou XX.XX €)
+    const pricePattern = /\d+[.,]\d+\s*€/g;
+    const priceMatches = combinedText.match(pricePattern);
+    if (priceMatches && priceMatches.length >= 2) {
+      console.log(`⚠️ Article promotionnel (prix): "${title.substring(0, 50)}..." (${priceMatches.length} prix détectés)`);
+      return true;
+    }
+
+    // 3. Détection par keywords faibles
+    const matchingWeakKeywords = weakKeywords.filter(keyword =>
+      combinedText.includes(keyword)
+    );
+
+    // Si 2+ keywords faibles trouvés, c'est probablement une promotion
+    if (matchingWeakKeywords.length >= 2) {
+      console.log(`⚠️ Article promotionnel (weak): "${title.substring(0, 50)}..." (${matchingWeakKeywords.join(', ')})`);
+      return true;
+    }
+
+    // 4. Cas limite: 1 keyword faible détecté → utiliser l'AI pour confirmation
+    if (matchingWeakKeywords.length === 1) {
+      console.log(`🤔 Article incertain, vérification AI: "${title.substring(0, 50)}..."`);
+      return await this.isPromotionalAI(article);
+    }
+
+    // 5. Pattern stricte pour les promotions évidentes
     const promotionalPattern = /^(surfshark|cyberghost|expressvpn|nordvpn|vpn).*(vs|versus|comparaison|économisez|réduction|promo)/i;
     if (promotionalPattern.test(title)) {
-      console.log(`⚠️ Article promotionnel détecté (pattern): "${title}"`);
+      console.log(`⚠️ Article promotionnel (pattern): "${title}"`);
       return true;
     }
-    
+
+    // Aucun indicateur de promotion détecté
     return false;
   }
 
@@ -275,10 +384,18 @@ export class FuturaRssService {
         return null;
       }
 
-      // Filtrer les articles promotionnels
-      const validArticles = feed.items
-        .slice(0, 30) // Vérifier les 30 premiers articles
-        .filter(item => !this.isPromotionalArticle(item));
+      // Filtrer les articles promotionnels (avec async/await)
+      const first30Articles = feed.items.slice(0, 30);
+      const validArticles: any[] = [];
+
+      for (const item of first30Articles) {
+        const isPromo = await this.isPromotionalArticle(item);
+        if (!isPromo) {
+          validArticles.push(item);
+        }
+      }
+
+      console.log(`✅ ${validArticles.length} articles non-promotionnels trouvés sur ${first30Articles.length}`);
 
       if (validArticles.length === 0) {
         console.warn('⚠️ Tous les articles disponibles sont des promotions, en prenant un quand même');
@@ -289,7 +406,7 @@ export class FuturaRssService {
       const randomIndex = Math.floor(Math.random() * validArticles.length);
       const latestItem = validArticles[randomIndex];
 
-      console.log(`🎲 Article non-promotionnel sélectionné: ${randomIndex + 1}/${validArticles.length}`);
+      console.log(`🎲 Article sélectionné: "${latestItem.title?.substring(0, 80)}..." (${randomIndex + 1}/${validArticles.length})`);
 
       // Extraire l'image depuis l'enclosure ou le contenu
       let imageUrl = latestItem.enclosure?.url;
