@@ -41,6 +41,23 @@ import { progressService } from './services/progressService.js';
 import compression from 'compression';
 import { backendConfig, CLIENT_URL } from './utils/config.js';
 
+// 🛡️ RATE LIMITING IMPORTS
+import {
+  globalRateLimit,
+  authRateLimit,
+  aiRateLimit,
+  quizRateLimit,
+  assistantRateLimit,
+  logRateLimitConfig
+} from './middlewares/rateLimiting.js';
+import {
+  checkWebSocketConnectionLimit,
+  checkWebSocketMessageLimit,
+  cleanupWebSocketTrackers,
+  startWebSocketCleanup,
+  logWebSocketRateLimitConfig
+} from './middlewares/websocketRateLimit.js';
+
 dotenv.config();
 // Logger.init(); // ❌ DÉSACTIVÉ - maintenant console.log s'affiche dans le terminal
 
@@ -56,18 +73,24 @@ app.use(cors({
   credentials: true
 }));
 app.use(compression());
-// Clerk webhook avant json pour body brut
+
+// 🛡️ RATE LIMITING GLOBAL - Appliqué à TOUS les endpoints
+app.use(globalRateLimit);
+
+// Clerk webhook avant json pour body brut (skip rate limit via config)
 app.post('/api/webhooks/clerk', express.raw({ type: 'application/json' }), clerkWebhookHandler);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
-app.use('/api/auth', authRoutes);
+
+// 🛡️ ROUTES AVEC RATE LIMITING SPÉCIFIQUE
+app.use('/api/auth', authRateLimit, authRoutes); // Protection brute force
 app.use('/api/content', contentRoutes); // 🏠 Nouvelle API simplifiée
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/pages', pageRoutes);
-app.use('/api/ai', aiRoutes);
+app.use('/api/ai', aiRateLimit, aiRoutes); // Protection spam IA
 
 // 🤖 Route spéciale pour BlockNote AI - alias direct vers /api/ai/chat
 // BlockNote AI utilise DefaultChatTransport qui appelle /api/chat
@@ -78,9 +101,9 @@ app.post('/api/chat', (req, res, next) => {
   // Passer la requête au router AI
   aiRoutes(req, res, next);
 });
-app.use('/api/assistant', assistantRoutes);
+app.use('/api/assistant', assistantRateLimit, assistantRoutes); // Protection OpenAI Assistant
 app.use('/api/conversations', conversationsRoutes);
-app.use('/api/quiz', quizRoutes);
+app.use('/api/quiz', quizRateLimit, quizRoutes); // Protection génération quiz
 app.use('/api/quiz/graphics', graphicsRoutes);
 app.use('/api/reorder', reorderRoutes);
 app.use('/api/dashboard-layout', dashboardLayoutRoutes);
@@ -299,20 +322,27 @@ const setupYjsWebSocket = (server: http.Server) => {
     // Gérer les messages WebSocket selon le protocole y-websocket
     ws.on('message', (message: Buffer) => {
       try {
+        // 🛡️ RATE LIMITING WEBSOCKET - Vérifier limite de messages
+        if (!checkWebSocketMessageLimit(ws)) {
+          console.log('[WS] ❌ Rate limit messages dépassé, fermeture connexion');
+          ws.close(1008, 'Trop de messages');
+          return;
+        }
+
         const decoder = decoding.createDecoder(new Uint8Array(message));
         const messageType = decoding.readVarUint(decoder);
-        
+
         switch (messageType) {
           case 0: // sync message
             const responseEncoder = encoding.createEncoder();
             encoding.writeVarUint(responseEncoder, 0);
             syncProtocol.readSyncMessage(decoder, responseEncoder, doc!, ws);
-            
+
             if (encoding.length(responseEncoder) > 1) {
               ws.send(encoding.toUint8Array(responseEncoder));
             }
             break;
-            
+
           case 1: // awareness message - just broadcast to other clients
             // Pour l'instant, on ignore les awareness messages
             break;
@@ -328,16 +358,19 @@ const setupYjsWebSocket = (server: http.Server) => {
 
     // Nettoyage à la déconnexion
     ws.on('close', () => {
+      // 🛡️ RATE LIMITING WEBSOCKET - Nettoyer les trackers
+      cleanupWebSocketTrackers(ws);
+
       if (doc) {
         doc.off('update', updateHandler);
       }
-      
+
       // Décrémenter le compteur de connexions
       const connectionCount = (connections.get(pageId) || 1) - 1;
       connections.set(pageId, connectionCount);
-      
+
       console.log(`[Yjs] Déconnexion pour la page: ${pageId} (restant: ${connectionCount})`);
-      
+
       // Si plus personne n'est connecté, supprimer le document de la mémoire
       if (connectionCount <= 0) {
         if (doc) {
@@ -357,9 +390,18 @@ const setupYjsWebSocket = (server: http.Server) => {
   server.on('upgrade', (request, socket, head) => {
     const url = new URL(request.url || '', `http://${request.headers.host}`);
     const token = url.searchParams.get('token');
+    const clientIp = request.socket.remoteAddress || 'unknown';
 
     console.log(`[WS] Tentative de connexion: ${url.pathname}`);
     console.log(`[WS] Token présent: ${!!token}`);
+
+    // 🛡️ RATE LIMITING WEBSOCKET - Vérifier limite de connexions par IP
+    if (!checkWebSocketConnectionLimit(clientIp)) {
+      console.log(`[WS] ❌ Rate limit dépassé pour IP: ${clientIp}`);
+      socket.write('HTTP/1.1 429 Too Many Requests\r\n\r\n');
+      socket.destroy();
+      return;
+    }
 
     if (url.pathname.startsWith('/ws/save/')) {
         // Route de sauvegarde rapide
@@ -465,8 +507,16 @@ const setupYjsWebSocket = (server: http.Server) => {
 server.listen(PORT, async () => {
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(`🚀 Serveur Pen SaaS démarré sur le port ${PORT} en mode ${NODE_ENV}`);
-  console.log(`✨ VERSION: OPTIMIZED-PERF-LOGS - ${new Date().toISOString()}`);
+  console.log(`✨ VERSION: RATE-LIMITED-SECURE - ${new Date().toISOString()}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  // 🛡️ Afficher la configuration du rate limiting
+  logRateLimitConfig();
+  logWebSocketRateLimitConfig();
+
+  // 🛡️ Démarrer le nettoyage périodique des trackers WebSocket
+  startWebSocketCleanup();
+
   setupYjsWebSocket(server);
 
   try {
@@ -475,7 +525,7 @@ server.listen(PORT, async () => {
     if (connectionOk) {
       console.log('🎯 Démarrage des tâches automatiques...');
       startCronJobs();
-      
+
       // 💓 Activer le keep-alive DB pour éviter les timeouts
       startKeepAlive();
     } else {
