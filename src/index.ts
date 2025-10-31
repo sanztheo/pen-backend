@@ -18,6 +18,7 @@ import aiRoutes from './routes/ai.js';
 import assistantRoutes from './routes/assistant.js';
 import conversationsRoutes from './routes/conversations.js';
 import quizRoutes from './routes/quiz.js';
+import { invalidateBlockNoteCache } from './lib/redis.js';
 import reorderRoutes from './routes/reorder.js';
 import graphicsRoutes from './routes/graphics.js';
 import dashboardLayoutRoutes from './routes/dashboardLayoutRoutes.js';
@@ -180,15 +181,25 @@ const setupYjsWebSocket = (server: http.Server) => {
       
       ws.on('message', async (message) => {
         try {
+          // 🛡️ RATE LIMITING - Vérifier limite de messages AVANT traitement
+          if (!checkWebSocketMessageLimit(ws)) {
+            console.log(`[WS] ❌ Rate limit messages dépassé pour page ${pageId}, message ignoré`);
+            ws.send(JSON.stringify({
+              type: 'save-error',
+              error: 'Trop de messages, veuillez ralentir'
+            }));
+            return;
+          }
+
           const data = JSON.parse(message.toString());
           if (data.type === 'save' && data.content) {
             console.log(`[WS] 💾 Sauvegarde reçue pour ${pageId} par user: ${user?.id || 'UNDEFINED'}`);
-            
+
             if (!user) {
               console.error(`[WS] ❌ SÉCURITÉ: Utilisateur non défini pour page ${pageId}`);
-              ws.send(JSON.stringify({ 
-                type: 'save-error', 
-                error: 'Utilisateur non authentifié' 
+              ws.send(JSON.stringify({
+                type: 'save-error',
+                error: 'Utilisateur non authentifié'
               }));
               return;
             }
@@ -229,13 +240,18 @@ const setupYjsWebSocket = (server: http.Server) => {
               // Sauvegarder le contenu BlockNote en base
               await prisma.page.update({
                 where: { id: pageId },
-                data: { 
+                data: {
                   blockNoteContent: data.content, // JSON direct, pas de stringify
                   updatedAt: new Date()
                 }
               });
-              
-              console.log(`[WS] ✅ Page ${pageId} sauvegardée avec succès par user ${user.id}`);
+
+              console.log(`[WS] ✅ SAUVEGARDE DB RÉUSSIE: Page ${pageId} écrite en base de données par user ${user.id}`);
+
+              // 🗑️ INVALIDATION CACHE REDIS: Invalider le cache pour forcer rechargement depuis DB
+              await invalidateBlockNoteCache(pageId);
+              console.log(`[WS] 🗑️ Cache Redis invalidé pour page ${pageId}`);
+
               ws.send(JSON.stringify({ type: 'save-success', timestamp: Date.now() }));
             } catch (dbError) {
               console.error(`[WS] ❌ Erreur sauvegarde DB pour ${pageId}:`, dbError);
