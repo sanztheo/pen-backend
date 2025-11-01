@@ -15,6 +15,7 @@ import { ValidationUtils } from '../utils/validation.js';
 import { AssistantHandlerService } from '../services/HandlerService.js';
 import { prisma } from '../../../lib/prisma.js';
 import { indexAndPreparePagesForAI } from '../helpers/pageIndexing.js';
+import { readPersonalizationFromReq, buildPersonaSnippet } from '../helpers/personalization.js';
 
 export const assistantAskStream = async (req: Request, res: Response) => {
   try {
@@ -148,6 +149,8 @@ export const assistantAskStream = async (req: Request, res: Response) => {
       let currentToolCalls: any[] = [];
 
       try {
+        const persona = await readPersonalizationFromReq(req);
+        const personaSnippet = buildPersonaSnippet(persona, 400);
         // 🔥 PHASE 1: Décision des tools + explication streamée
         console.log(`🔧 [ASK-PHASE-1] Démarrage décision tools avec ${sourcesForAI.length} sources...`);
         
@@ -158,6 +161,8 @@ export const assistantAskStream = async (req: Request, res: Response) => {
           userId: req.user!.id,
           useWeb,
           systemPrompt: `System: Réponds de manière claire, précise et structurée, en tant qu'assistant IA intelligent.
+
+${personaSnippet}
 
 '''${LATEX_STRICT_RULES}'''`,
           isSearch: false,  // 🔥 Flag pour Ask - réponse plus courte
@@ -214,6 +219,8 @@ export const assistantAskStream = async (req: Request, res: Response) => {
             toolResults,
             systemPrompt: `System: Réponds de manière claire, précise et structurée, en tant qu'assistant IA intelligent.
 
+${personaSnippet}
+
 '''${LATEX_STRICT_RULES}'''`,
             wikipediaSources,
             onStream: (chunk) => {
@@ -234,9 +241,13 @@ export const assistantAskStream = async (req: Request, res: Response) => {
           }
 
           let fullAnswer = '';
+          const persona = await readPersonalizationFromReq(req);
+          const personaSnippet = buildPersonaSnippet(persona, 400);
           await AIService.generateContent({
             prompt: sanitizedQuery,
             context: `System: Réponds de manière claire, précise et structurée, en tant qu'assistant IA intelligent.
+
+${personaSnippet}
 
 '''${LATEX_STRICT_RULES}'''`,
             temperature: 0.2,
@@ -288,11 +299,13 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     // 🔥 INCLURE le contexte RAG (fichiers, Wikipedia) si disponible
     const contextWithWeb = [contextResult.ragContext, contextResult.pages, contextResult.web].filter(Boolean).join('\n\n');
     const optimizedPrompt = optimizePrompt('ask', sanitizedQuery, contextWithWeb, history, req);
+    const persona = await readPersonalizationFromReq(req);
+    const personaSnippet = buildPersonaSnippet(persona, 600);
 
     let fullAnswer = '';
     await AIService.generateContent({
       prompt: optimizedPrompt.userMessage,
-      context: optimizedPrompt.systemMessage,
+      context: `${personaSnippet ? personaSnippet + '\n\n' : ''}${optimizedPrompt.systemMessage}`,
       temperature: optimizedPrompt.temperature,
       maxTokens: optimizedPrompt.maxTokens,
       onStream: (chunk: string) => {

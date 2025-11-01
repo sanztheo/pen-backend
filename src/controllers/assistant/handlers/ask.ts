@@ -5,6 +5,7 @@ import { buildPagesContextChunked } from '../helpers/context.js';
 import { tavilySearchRefs } from '../helpers/web.js';
 import { detectPreferredLanguage, buildLangInstruction } from '../helpers/language.js';
 import { formatAIText } from '../helpers/format.js';
+import { readPersonalizationFromReq, buildPersonaSnippet } from '../helpers/personalization.js';
 
 export const assistantAsk = async (req: Request, res: Response) => {
   try {
@@ -29,11 +30,14 @@ RÈGLES STRICTES OBLIGATOIRES:
 - FERMETURE: Chaque accolade {, crochet [, parenthèse ( doit avoir sa fermeture correspondante.
 Consigne de raisonnement: réfléchis étape par étape en interne (reformule la question en 1 phrase, élabore un plan en 2–3 points), puis réponds; NE RÉVÈLE PAS ton raisonnement.`;
 
+    const persona = await readPersonalizationFromReq(req);
+    const personaSnippet = buildPersonaSnippet(persona, 600);
     const context = `${ctx}
 
 ${web}
 
 ${buildLangInstruction(lang)}
+${personaSnippet ? `\n${personaSnippet}` : ''}
 Consignes:
 - Priorise le contexte fourni (workspace + web). En cas de conflit, privilégie le contexte.
 - Si la question vise une information précise, réponds UNIQUEMENT avec cette information en 2–6 phrases claires.

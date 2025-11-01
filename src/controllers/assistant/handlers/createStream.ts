@@ -14,6 +14,7 @@ import { sanitizeUserInput, analyzeQuery, optimizePrompt } from '../helpers/prom
 import { DebugLogger } from '../config/debug.js';
 import { ValidationUtils } from '../utils/validation.js';
 import { AssistantHandlerService } from '../services/HandlerService.js';
+import { readPersonalizationFromReq, buildPersonaSnippet } from '../helpers/personalization.js';
 
 // Normalisation Markdown pour garantir la conversion fiable des titres (#, ##, ###)
 function normalizeMarkdownForHeadings(input: string): string {
@@ -102,6 +103,8 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
         // 🔥 INCLURE le contexte RAG du HandlerService si disponible
         const contextWithWeb = [ragContextText, contextResult.ragContext, contextResult.web].filter(Boolean).join('\n\n');
         const optimizedPrompt = optimizePrompt('create', sanitizedInstruction, contextWithWeb, '', req);
+        const persona = await readPersonalizationFromReq(req);
+        const personaSnippet = buildPersonaSnippet(persona, 600);
 
         res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -115,7 +118,7 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
         let thinkingContent = '';
         await GeminiService.generateWithThinking({
           prompt: optimizedPrompt.userMessage,
-          context: optimizedPrompt.systemMessage,
+          context: `${personaSnippet ? personaSnippet + '\n\n' : ''}${optimizedPrompt.systemMessage}`,
           temperature: optimizedPrompt.temperature,
           maxTokens: optimizedPrompt.maxTokens,
           onStream: (chunk: string) => {
@@ -176,6 +179,8 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     // 🔥 INCLURE le contexte RAG du HandlerService si disponible
     const contextWithWeb = [ragContextText, contextResult.ragContext, contextResult.web].filter(Boolean).join('\n\n');
     const optimizedPrompt = optimizePrompt('create', sanitizedInstruction, contextWithWeb, '', req);
+    const persona = await readPersonalizationFromReq(req);
+    const personaSnippet = buildPersonaSnippet(persona, 600);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -188,7 +193,7 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     let full = '';
     await AIService.generateContent({
       prompt: optimizedPrompt.userMessage,
-      context: optimizedPrompt.systemMessage,
+      context: `${personaSnippet ? personaSnippet + '\n\n' : ''}${optimizedPrompt.systemMessage}`,
       temperature: optimizedPrompt.temperature,
       maxTokens: optimizedPrompt.maxTokens,
       onStream: (chunk: string) => {

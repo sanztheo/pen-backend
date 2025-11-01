@@ -8,6 +8,7 @@ import { buildPagesContextChunked } from '../helpers/context.js';
 import { tavilySearchRefs } from '../helpers/web.js';
 import { titleRelevanceScore } from '../helpers/scoring.js';
 import { formatAIText, formatItalicReferences } from '../helpers/format.js';
+import { readPersonalizationFromReq, buildPersonaSnippet } from '../helpers/personalization.js';
 
 export const assistantSearch = async (req: Request, res: Response) => {
   try {
@@ -91,11 +92,14 @@ MODE FORMULES LaTeX:
 - N'ajoute aucun \section/\subsection ni environnement; pas de texte accentué dans $$ ... $$.
 ${LATEX_STRICT_RULES}`;
 
+    const persona = await readPersonalizationFromReq(req);
+    const personaSnippet = buildPersonaSnippet(persona, 600);
     const context = `${ctx}
 
 ${web}
 
 ${baseGuidelines}
+${personaSnippet ? `\n${personaSnippet}` : ''}
 ${mathMode ? mathGuidelines : ''}`;
 
     const MAX_TOKENS_SEARCH = 30000;
