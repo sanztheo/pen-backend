@@ -639,6 +639,25 @@ export function optimizePrompt(
   // Étape 2: Construction du prompt de base
   const basePrompt = buildOptimizedPrompt(mode, query, context, history, analysis);
 
+  // Étape 2.5: Injecter un bloc <user_profile> depuis les headers si présent (synchrone, sans accès DB)
+  try {
+    const rawPersona = (req?.headers?.['x-user-personalization'] as string) || '';
+    if (rawPersona) {
+      const p = JSON.parse(rawPersona);
+      const rows: string[] = [];
+      if (typeof p?.classe === 'string' && p.classe.trim()) rows.push(`classe: ${p.classe.trim()}`);
+      if (typeof p?.etude === 'string' && p.etude.trim()) rows.push(`etude: ${p.etude.trim()}`);
+      if (typeof p?.filiere === 'string' && p.filiere.trim()) rows.push(`filiere: ${p.filiere.trim()}`);
+      if (typeof p?.presentation === 'string' && p.presentation.trim()) rows.push(`presentation: ${p.presentation.trim()}`);
+      if (rows.length > 0) {
+        const personaXML = `<user_profile priority="high">\n${rows.join('\n')}\n</user_profile>`;
+        basePrompt.systemMessage = `${personaXML}\n\n${basePrompt.systemMessage}`;
+      }
+    }
+  } catch {
+    // ignore parsing issues
+  }
+
   // Étape 3: Vérification et troncature intelligente si nécessaire
   const optimizedUserMessage = ensureResponseCapacity(
     basePrompt.userMessage,

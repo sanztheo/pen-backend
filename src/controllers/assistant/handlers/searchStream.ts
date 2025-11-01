@@ -20,6 +20,7 @@ import { ValidationUtils } from '../utils/validation.js';
 import { AssistantHandlerService } from '../services/HandlerService.js';
 import { prisma } from '../../../lib/prisma.js';
 import { indexAndPreparePagesForAI } from '../helpers/pageIndexing.js';
+import { readPersonalizationFromReq, buildPersonaSnippet } from '../helpers/personalization.js';
 
 export const assistantSearchStream = async (req: Request, res: Response) => {
   try {
@@ -141,6 +142,8 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
       let currentToolCalls: any[] = [];
 
       try {
+        const persona = await readPersonalizationFromReq(req);
+        const personaSnippet = buildPersonaSnippet(persona, 400);
         // 🔥 PHASE 1: Décision des tools + explication streamée
         console.log(`🔧 [SEARCH-PHASE-1] Démarrage décision tools avec ${sourcesForAI.length} sources...`);
         
@@ -150,8 +153,11 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           workspaceId,
           userId: req.user!.id,
           useWeb,
-          systemPrompt: `System: Réponds de manière claire, précise et structurée en tant qu'assistant IA intelligent. 
-          '''${LATEX_STRICT_RULES}'''`,
+          systemPrompt: `System: Réponds de manière claire, précise et structurée en tant qu'assistant IA intelligent.
+
+${personaSnippet}
+
+'''${LATEX_STRICT_RULES}'''`,
           isSearch: true,  // 🔥 Flag pour Search - utilise plus de tools
 
           // Callbacks pour streaming temps réel
@@ -236,6 +242,8 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
             toolResults,
             systemPrompt: `System: Réponds de façon claire, précise et structurée, en apportant des détails et de la profondeur à tes explications.
 
+${personaSnippet}
+
 '''${LATEX_STRICT_RULES}'''`,
             wikipediaSources,
             onStream: (chunk) => {
@@ -250,6 +258,9 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
 
           // 🔥 Enrichir le context avec les règles LaTeX si pertinent
           let fallbackContext = `System: Réponds de manière claire, précise et structurée en tant qu'assistant IA intelligent.`;
+          const persona = await readPersonalizationFromReq(req);
+          const personaSnippet = buildPersonaSnippet(persona, 400);
+          if (personaSnippet) fallbackContext += '\n\n' + personaSnippet;
           if (isMathLatexIntent(sanitizedQuery)) {
             fallbackContext += '\n\n' + LATEX_STRICT_RULES;
           }
@@ -315,11 +326,13 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     // 🔥 INCLURE le contexte RAG (fichiers, Wikipedia) si disponible
     const contextWithWeb = [contextResult.ragContext, contextResult.pages, contextResult.web].filter(Boolean).join('\n\n');
     const optimizedPrompt = optimizePrompt('search', sanitizedQuery, contextWithWeb, history, req);
+    const persona = await readPersonalizationFromReq(req);
+    const personaSnippet = buildPersonaSnippet(persona, 600);
 
     let fullAnswer = '';
     await AIService.generateContent({
       prompt: optimizedPrompt.userMessage,
-      context: optimizedPrompt.systemMessage,
+      context: `${personaSnippet ? personaSnippet + '\n\n' : ''}${optimizedPrompt.systemMessage}`,
       temperature: optimizedPrompt.temperature,
       maxTokens: optimizedPrompt.maxTokens,
       onStream: (chunk: string) => {

@@ -7,6 +7,7 @@ import { detectPreferredLanguage, buildLangInstruction } from '../helpers/langua
 import { LATEX_STRICT_RULES } from '../helpers/latex.js';
 import { toBlockNoteAuto, sanitizeAIGeneratedContent } from '../helpers/blocknote.js';
 import { sseWriteData } from '../helpers/sse.js';
+import { readPersonalizationFromReq, buildPersonaSnippet } from '../helpers/personalization.js';
 
 // Normalisation Markdown pour garantir la conversion fiable des titres (#, ##, ###)
 function normalizeMarkdownForHeadings(input: string): string {
@@ -52,6 +53,8 @@ export const assistantCreate = async (req: Request, res: Response) => {
 
     const web = useWeb ? await tavilySearch(instruction) : '';
     const style = reflection === 'profond' ? 'Développe en détail avec une structure claire.' : 'Rédige de façon concise et claire.';
+    const persona = await readPersonalizationFromReq(req);
+    const personaSnippet = buildPersonaSnippet(persona, 600);
 
     if (reflection === 'profond') {
       try {
@@ -62,6 +65,7 @@ export const assistantCreate = async (req: Request, res: Response) => {
 
 Tu crées un COURS COMPLET ET EXHAUSTIF pour une application de prise de notes éducative.
 ${buildLangInstruction(lang)}
+${personaSnippet ? `\n${personaSnippet}` : ''}
 
 📚 PROFONDEUR ET LONGUEUR OBLIGATOIRES:
 - Ce mode "profond" EXIGE un cours de MINIMUM 15,000 caractères (objectif: 20,000-30,000 caractères)
@@ -241,6 +245,7 @@ Réponds uniquement avec le contenu du cours, sans méta-commentaires, sans bali
 
 Tu crées un COURS CONCIS ET CLAIR pour une application de prise de notes éducative.
 ${buildLangInstruction(lang)}
+${personaSnippet ? `\n${personaSnippet}` : ''}
 
 📚 PROFONDEUR ET LONGUEUR:
 - Ce mode "rapide" vise un cours de 3,000-8,000 caractères

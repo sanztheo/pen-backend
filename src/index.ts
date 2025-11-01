@@ -28,6 +28,7 @@ import aiCreditsRoutes from './routes/aiCredits.js';
 import quizLimitsRoutes from './routes/quizLimits.js';
 import syncLimitsRoutes from './routes/sync-limits.js';
 import updatesRoutes from './routes/updates.js';
+import userRoutes from './routes/user.js';
 import dailyArticleRoutes from './routes/dailyArticle.js';
 import uploadRoutes from './routes/upload.js';
 import { clerkWebhookHandler } from './routes/webhooks.js';
@@ -117,6 +118,7 @@ app.use('/api/sync-limits', syncLimitsRoutes);
 app.use('/api/updates', updatesRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/daily-article', dailyArticleRoutes);
+app.use('/api/user', userRoutes);
 
 app.use('*', (req, res) => res.status(404).json({ error: 'Route non trouvée' }));
 app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
