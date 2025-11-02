@@ -185,7 +185,8 @@ export class UserPagesRAGSystem {
     try {
       console.log(`🗑️ [USER-PAGE] Suppression RAG pour page: ${pageId}`);
 
-      const source = await prisma.rAGSource.findFirst({
+      // Supprimer TOUTES les sources RAG liées à cette page (au cas où plusieurs versions existent)
+      const result = await prisma.rAGSource.deleteMany({
         where: {
           sourceType: 'WORKSPACE_PAGE',
           userId: userId,
@@ -197,17 +198,7 @@ export class UserPagesRAGSystem {
         }
       });
 
-      if (!source) {
-        console.log(`📝 [USER-PAGE] Aucune source RAG trouvée pour: ${pageId}`);
-        return true;
-      }
-
-      // Suppression en cascade (chunks + source)
-      await prisma.rAGSource.delete({
-        where: { id: source.id }
-      });
-
-      console.log(`✅ [USER-PAGE] Source RAG supprimée: ${source.title}`);
+      console.log(`✅ [USER-PAGE] Sources RAG supprimées pour page ${pageId}: ${result.count}`);
       return true;
       
     } catch (error) {

@@ -297,6 +297,14 @@ export class SimplifiedContentService {
       });
       if (!page) throw new Error('Page non trouvée');
 
+      // 🧠 RAG: supprimer la/les sources liées à cette page avant deletion
+      try {
+        const { userPagesRAG } = await import('./rag/userPages.js');
+        await userPagesRAG.removeUserPage(pageId, userId, page.workspaceId);
+      } catch (e) {
+        console.warn('🧠 [RAG] Échec suppression sources (simplifiedContent.deletePage), poursuite de la suppression de la page:', e);
+      }
+
       await prisma.page.delete({ where: { id: pageId } });
       return { success: true };
     } catch (error) {
