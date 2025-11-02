@@ -17,13 +17,13 @@ interface FuturaArticle {
   };
 }
 
-// Cache pour les résultats de détection AI
-const aiDetectionCache = new Map<string, { isPromo: boolean; timestamp: number }>();
+// Cache pour les résultats de validation AI éducative
+const aiValidationCache = new Map<string, { isValid: boolean; score: number; reason: string; timestamp: number }>();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 heures
 
 // Rate limiting pour l'API OpenAI
 let lastAICallTime = 0;
-const MIN_CALL_INTERVAL = 6000; // 6 secondes entre chaque appel (max 10/min)
+const MIN_CALL_INTERVAL = 3000; // 3 secondes entre chaque appel pour gpt-4.1-nano
 
 export class FuturaRssService {
   private static RSS_URL = 'https://www.futura-sciences.com/rss/actualites.xml';
@@ -225,18 +225,18 @@ export class FuturaRssService {
   }
 
   /**
-   * Détection AI avec GPT-4o-mini pour les cas limites
+   * Validation AI de la pertinence éducative d'un article avec gpt-4o-mini
    * @param article Article à analyser
-   * @returns true si l'article est promotionnel
+   * @returns Object avec isValid (pertinence éducative) et score de confiance
    */
-  private static async isPromotionalAI(article: any): Promise<boolean> {
+  private static async validateEducationalRelevanceAI(article: any): Promise<{ isValid: boolean; score: number; reason: string }> {
     try {
       // Vérifier le cache
       const cacheKey = article.guid || article.link;
-      const cached = aiDetectionCache.get(cacheKey);
+      const cached = aiValidationCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-        console.log(`📦 Cache hit pour article: ${cacheKey}`);
-        return cached.isPromo;
+        console.log(`📦 Cache hit pour validation éducative: ${cacheKey.substring(0, 50)}...`);
+        return { isValid: cached.isValid, score: cached.score, reason: cached.reason };
       }
 
       // Rate limiting
@@ -250,8 +250,8 @@ export class FuturaRssService {
 
       // Vérifier la clé API
       if (!process.env.OPENAI_API_KEY) {
-        console.warn('⚠️ OPENAI_API_KEY non configurée, utilisation de la détection par mots-clés uniquement');
-        return false;
+        console.warn('⚠️ OPENAI_API_KEY non configurée, acceptation par défaut avec score faible');
+        return { isValid: true, score: 0.5, reason: 'no_api_key' };
       }
 
       const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -263,116 +263,68 @@ export class FuturaRssService {
       lastAICallTime = Date.now();
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4.1-nano',
         messages: [
           {
             role: 'system',
-            content: 'Tu es un classificateur d\'articles. Réponds uniquement "OUI" si l\'article est promotionnel/publicitaire (vente, réduction, code promo, comparatif commercial, bon plan), sinon "NON".'
+            content: `Tu es un classificateur d'articles scientifiques pour une plateforme éducative (SaaS éducatif).
+Évalue si l'article est pertinent pour l'apprentissage et l'éducation scientifique.
+
+✅ ACCEPTER (score 7-10) - Contenu éducatif et scientifique:
+- Sciences fondamentales: physique, chimie, biologie, astronomie, géologie
+- Technologie et innovation: recherche, découvertes, nouvelles technologies
+- Mathématiques et informatique
+- Santé et médecine: recherche médicale, découvertes scientifiques
+- Environnement et climat: études, recherches, phénomènes naturels
+- Ingénierie et robotique
+- Espace et exploration spatiale
+- Archéologie et paléontologie
+- Histoire des sciences
+
+❌ REJETER (score 0-3) - Contenu non-éducatif:
+- Divertissement: films, séries TV, jeux vidéo, musique pop
+- Culture populaire et célébrités
+- Sport et événements sportifs
+- Actualité politique, faits divers
+- Contenu commercial: promotions, bons plans, comparatifs de prix
+- Télé-réalité et programmes de divertissement
+
+⚠️ ZONE GRISE (score 4-6) - À évaluer selon le contexte éducatif
+
+Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison brève en français"}`
           },
           {
             role: 'user',
             content: `Titre: ${title}\nDescription: ${description}\nExtrait: ${contentSnippet}`
           }
         ],
-        max_tokens: 10,
-        temperature: 0
+        max_tokens: 150,
+        temperature: 0,
+        response_format: { type: 'json_object' }
       });
 
-      const result = response.choices[0]?.message?.content?.trim().toUpperCase();
-      const isPromo = result === 'OUI';
+      const result = JSON.parse(response.choices[0]?.message?.content || '{"valid": false, "score": 0, "reason": "erreur parsing"}');
+      const isValid = result.valid === true && result.score >= 6;
+      const score = result.score / 10; // Normaliser entre 0 et 1
+      const reason = result.reason || 'unknown';
 
       // Mettre en cache
-      aiDetectionCache.set(cacheKey, { isPromo, timestamp: Date.now() });
+      aiValidationCache.set(cacheKey, { isValid, score, reason, timestamp: Date.now() });
 
-      console.log(`🤖 AI détection: "${title.substring(0, 40)}..." → ${isPromo ? 'PROMO' : 'OK'}`);
-      return isPromo;
+      console.log(`🎓 AI validation: "${title.substring(0, 40)}..." → ${isValid ? '✅ VALIDE' : '❌ REJETÉ'} (score: ${result.score}/10, raison: ${reason})`);
+      return { isValid, score, reason };
 
     } catch (error) {
-      console.error('❌ Erreur AI detection:', error);
-      return false; // En cas d'erreur, on considère que ce n'est pas promotionnel
+      console.error('❌ Erreur validation éducative AI:', error);
+      // En cas d'erreur, on rejette l'article par sécurité
+      return { isValid: false, score: 0, reason: 'error_api' };
     }
-  }
-
-  /**
-   * Vérifie si un article est une promotion/offre (détection hybride)
-   * @param article Article à vérifier
-   * @returns true si l'article est une promotion
-   */
-  private static async isPromotionalArticle(article: any): Promise<boolean> {
-    const title = (article.title || '').toLowerCase();
-    const description = (article.description || '').toLowerCase();
-    const contentSnippet = (article.contentSnippet || '').toLowerCase();
-    const content = (article.content || '').toLowerCase();
-
-    // Keywords forts (1 seul suffit pour détection)
-    const strongKeywords = [
-      'rakuten', 'amazon', 'cdiscount', 'fnac', 'darty', 'boulanger',
-      'code promo', 'code promo', 'coupon', 'bon de réduction',
-      'surfshark', 'cyberghost', 'expressvpn', 'nordvpn',
-      'sponsorisé', 'sponsor', 'publicité', 'partenariat', 'partenaire'
-    ];
-
-    // Keywords faibles (2+ nécessaires pour détection)
-    const weakKeywords = [
-      'promo', 'économisez', 'économiser', 'réduction', 'offre', 'offres limitées',
-      'jusqu\'à', 'rabais', 'soldes', 'bons plans', 'bon plan', 'deal', 'deals',
-      'achetez', 'acheter', 'commander', 'comparatif', 'vente', 'achats',
-      'vpn', 'antivirus', 'cyber', 'sécurité vpn',
-      'prix', 'tarif', 'coûte', 'coût', '€', 'euros',
-      'livraison', 'gratuit', 'moins cher'
-    ];
-
-    const combinedText = `${title} ${description} ${contentSnippet} ${content}`;
-
-    // 1. Détection par keywords forts
-    const matchingStrongKeywords = strongKeywords.filter(keyword =>
-      combinedText.includes(keyword)
-    );
-
-    if (matchingStrongKeywords.length >= 1) {
-      console.log(`⚠️ Article promotionnel (strong): "${title.substring(0, 50)}..." (${matchingStrongKeywords.join(', ')})`);
-      return true;
-    }
-
-    // 2. Détection par pattern de prix (XX,XX € ou XX.XX €)
-    const pricePattern = /\d+[.,]\d+\s*€/g;
-    const priceMatches = combinedText.match(pricePattern);
-    if (priceMatches && priceMatches.length >= 2) {
-      console.log(`⚠️ Article promotionnel (prix): "${title.substring(0, 50)}..." (${priceMatches.length} prix détectés)`);
-      return true;
-    }
-
-    // 3. Détection par keywords faibles
-    const matchingWeakKeywords = weakKeywords.filter(keyword =>
-      combinedText.includes(keyword)
-    );
-
-    // Si 2+ keywords faibles trouvés, c'est probablement une promotion
-    if (matchingWeakKeywords.length >= 2) {
-      console.log(`⚠️ Article promotionnel (weak): "${title.substring(0, 50)}..." (${matchingWeakKeywords.join(', ')})`);
-      return true;
-    }
-
-    // 4. Cas limite: 1 keyword faible détecté → utiliser l'AI pour confirmation
-    if (matchingWeakKeywords.length === 1) {
-      console.log(`🤔 Article incertain, vérification AI: "${title.substring(0, 50)}..."`);
-      return await this.isPromotionalAI(article);
-    }
-
-    // 5. Pattern stricte pour les promotions évidentes
-    const promotionalPattern = /^(surfshark|cyberghost|expressvpn|nordvpn|vpn).*(vs|versus|comparaison|économisez|réduction|promo)/i;
-    if (promotionalPattern.test(title)) {
-      console.log(`⚠️ Article promotionnel (pattern): "${title}"`);
-      return true;
-    }
-
-    // Aucun indicateur de promotion détecté
-    return false;
   }
 
   /**
    * Fetch un article scientifique aléatoire depuis Futura Sciences RSS
-   * @returns Un article aléatoire parmi les 10 derniers ou null en cas d'erreur
+   * Utilise l'AI (gpt-4.1-nano) pour valider la pertinence éducative
+   * @returns Un article aléatoire validé par l'AI ou null en cas d'erreur
    */
   static async fetchLatestArticle(): Promise<FuturaArticle | null> {
     try {
@@ -384,29 +336,41 @@ export class FuturaRssService {
         return null;
       }
 
-      // Filtrer les articles promotionnels (avec async/await)
+      // Valider les articles avec l'AI (on teste les 30 premiers)
       const first30Articles = feed.items.slice(0, 30);
-      const validArticles: any[] = [];
+      const validatedArticles: { item: any; score: number; reason: string }[] = [];
+
+      console.log(`🔍 Validation AI de ${first30Articles.length} articles...`);
 
       for (const item of first30Articles) {
-        const isPromo = await this.isPromotionalArticle(item);
-        if (!isPromo) {
-          validArticles.push(item);
+        const validation = await this.validateEducationalRelevanceAI(item);
+        if (validation.isValid) {
+          validatedArticles.push({
+            item,
+            score: validation.score,
+            reason: validation.reason
+          });
         }
       }
 
-      console.log(`✅ ${validArticles.length} articles non-promotionnels trouvés sur ${first30Articles.length}`);
+      console.log(`✅ ${validatedArticles.length} articles éducatifs validés par l'AI sur ${first30Articles.length}`);
 
-      if (validArticles.length === 0) {
-        console.warn('⚠️ Tous les articles disponibles sont des promotions, en prenant un quand même');
-        validArticles.push(feed.items[0]);
+      // Sélectionner un article au hasard parmi les validés (prioriser les meilleurs scores)
+      let selectedArticle;
+      if (validatedArticles.length === 0) {
+        console.warn('⚠️ Aucun article validé par l\'AI, utilisation du premier article disponible');
+        selectedArticle = feed.items[0];
+        console.log(`🎲 Article de secours: "${selectedArticle.title?.substring(0, 80)}..."`);
+      } else {
+        // Trier par score décroissant et prendre un article au hasard parmi les 5 meilleurs
+        validatedArticles.sort((a, b) => b.score - a.score);
+        const topArticles = validatedArticles.slice(0, Math.min(5, validatedArticles.length));
+        const randomIndex = Math.floor(Math.random() * topArticles.length);
+        selectedArticle = topArticles[randomIndex].item;
+        console.log(`🎲 Article sélectionné: "${selectedArticle.title?.substring(0, 80)}..." (score: ${topArticles[randomIndex].score.toFixed(2)}, raison: ${topArticles[randomIndex].reason})`);
       }
 
-      // Prendre un article au hasard parmi les articles valides
-      const randomIndex = Math.floor(Math.random() * validArticles.length);
-      const latestItem = validArticles[randomIndex];
-
-      console.log(`🎲 Article sélectionné: "${latestItem.title?.substring(0, 80)}..." (${randomIndex + 1}/${validArticles.length})`);
+      const latestItem = selectedArticle;
 
       // Extraire l'image depuis l'enclosure ou le contenu
       let imageUrl = latestItem.enclosure?.url;
