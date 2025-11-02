@@ -729,12 +729,24 @@ export const deletePage = async (req: Request, res: Response) => {
     const allDescendantIds = await getAllDescendantPages(id);
     const totalPagesToDelete = 1 + allDescendantIds.length; // 1 pour la page elle-même + ses descendants
 
-    // Supprimer les pages et décrémenter le compteur d'usage
-    await prisma.$transaction(async (tx: any) => {
-      // Supprimer la page (suppression en cascade des enfants grâce au schéma)
-      await tx.page.delete({
-        where: { id: id }
-      });
+  // Supprimer les pages et décrémenter le compteur d'usage
+  await prisma.$transaction(async (tx: any) => {
+    // 🧠 RAG: supprimer la/les sources liées à la page (et descendants) AVANT la suppression
+    try {
+      const { userPagesRAG } = await import('../services/rag/userPages.js');
+      // Racine + descendants (même workspace)
+      const allIds = [id, ...allDescendantIds];
+      for (const pid of allIds) {
+        await userPagesRAG.removeUserPage(pid, req.user!.id, page.workspace.id);
+      }
+    } catch (e) {
+      console.warn('🧠 [RAG] Échec suppression sources liées à la page (continuation):', e);
+    }
+
+    // Supprimer la page (suppression en cascade des enfants grâce au schéma)
+    await tx.page.delete({
+      where: { id: id }
+    });
 
       // Décrémenter le compteur d'usage des pages selon le nombre total supprimé
       await tx.userLimits.update({
