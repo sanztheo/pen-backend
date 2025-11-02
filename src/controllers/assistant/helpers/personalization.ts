@@ -7,6 +7,7 @@ export type Personalization = {
   filiere?: string;
   langue?: string;
   presentation?: string;
+  attente?: string;
 };
 
 const clean = (v: unknown, max = 700) => {
@@ -26,6 +27,7 @@ function parseFromHeader(req: Request): Personalization | null {
     if (obj.filiere !== undefined) p.filiere = clean(obj.filiere, 120);
     if (obj.langue !== undefined) p.langue = clean(obj.langue, 10);
     if (obj.presentation !== undefined) p.presentation = clean(obj.presentation, 700);
+    if (obj.attente !== undefined) p.attente = clean(obj.attente, 500);
     return p;
   } catch {
     return null;
@@ -41,6 +43,7 @@ function parseFromBody(req: Request): Personalization | null {
   if (obj.filiere !== undefined) p.filiere = clean(obj.filiere, 120);
   if (obj.langue !== undefined) p.langue = clean(obj.langue, 10);
   if (obj.presentation !== undefined) p.presentation = clean(obj.presentation, 700);
+  if (obj.attente !== undefined) p.attente = clean(obj.attente, 500);
   return Object.keys(p).length ? p : null;
 }
 
@@ -64,7 +67,8 @@ export async function readPersonalizationFromReq(req: Request): Promise<Personal
       etude: clean(p.etude, 120),
       filiere: clean(p.filiere, 120),
       langue: clean(p.langue, 10),
-      presentation: clean(p.presentation, 700)
+      presentation: clean(p.presentation, 700),
+      attente: clean(p.attente, 500)
     };
   } catch {
     return null;
@@ -83,6 +87,9 @@ export function buildPersonaSnippet(p: Personalization | null | undefined, maxPr
     const pres = p.presentation.length > maxPresentation ? p.presentation.slice(0, maxPresentation) + '…' : p.presentation;
     parts.push(`Présentation: « ${pres} »`);
   }
+  if (p.attente) {
+    parts.push(`Attentes: « ${p.attente} »`);
+  }
   return parts.join('\n');
 }
 
@@ -93,6 +100,7 @@ export function buildPersonaXML(p: Personalization | null | undefined): string {
   if (p.etude) rows.push(`etude: ${p.etude}`);
   if (p.filiere) rows.push(`filiere: ${p.filiere}`);
   if (p.presentation) rows.push(`presentation: ${p.presentation}`);
+  if (p.attente) rows.push(`attente: ${p.attente}`);
   if (rows.length === 0) return '';
   return `<user_profile priority="high">\n${rows.join('\n')}\n</user_profile>`;
 }
