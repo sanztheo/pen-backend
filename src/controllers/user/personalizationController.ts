@@ -7,6 +7,7 @@ type Personalization = {
   filiere?: string;
   langue?: string; // code linguistique, ex: 'fr', 'en'
   presentation?: string;
+  attente?: string;
 };
 
 const sanitize = (v: unknown, max = 700) => {
@@ -23,6 +24,7 @@ const normalizeInput = (body: any): Personalization => {
   if (body.filiere !== undefined) out.filiere = sanitize(body.filiere, 120);
   if (body.langue !== undefined) out.langue = sanitize(body.langue, 10);
   if (body.presentation !== undefined) out.presentation = sanitize(body.presentation, 700);
+  if (body.attente !== undefined) out.attente = sanitize(body.attente, 500);
   return out;
 };
 
