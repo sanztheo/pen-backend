@@ -101,6 +101,9 @@ router.post('/', async (req, res) => {
         files: firstMessage.files || [],
         wikipediaSources: firstMessage.wikipediaSources || [],
         mode: firstMessage.mode || null,
+        // 🌐 Mapper useWeb vers creditsHasWeb pour persistance
+        creditsHasWeb: firstMessage.useWeb || false,
+        creditsHasSources: (firstMessage.mentions?.length > 0 || firstMessage.files?.length > 0 || firstMessage.wikipediaSources?.length > 0) || false,
       }
     });
 
@@ -243,7 +246,7 @@ router.get('/:id/messages', async (req, res) => {
   router.post('/:id/messages', async (req, res) => {
     try {
       const { id } = req.params;
-      const { role, content, mentions, files, wikipediaSources, mode, pageId, pageTitle, projectId, thinking, toolCalls, usedFallback, intermediateThinkingBlocks, pageCreationData, creditsMode, creditsReflection, creditsHasWeb, creditsHasSources, creditsUsed } = req.body;
+      const { role, content, mentions, files, wikipediaSources, useWeb, mode, pageId, pageTitle, projectId, thinking, toolCalls, usedFallback, intermediateThinkingBlocks, pageCreationData, creditsMode, creditsReflection, creditsHasWeb, creditsHasSources, creditsUsed } = req.body;
       const userId = req.user!.id;
 
     console.log('[DEBUG_MODAL] 📥 Backend - Ajout message:', { 
@@ -299,8 +302,9 @@ router.get('/:id/messages', async (req, res) => {
           // 💰 NOUVEAU: Métadonnées de coût en crédits
           creditsMode: creditsMode || null,
           creditsReflection: creditsReflection || null,
-          creditsHasWeb: creditsHasWeb || false,
-          creditsHasSources: creditsHasSources || false,
+          // 🌐 Mapper useWeb vers creditsHasWeb (priorité à creditsHasWeb si fourni pour rétrocompatibilité)
+          creditsHasWeb: creditsHasWeb !== undefined ? creditsHasWeb : (useWeb || false),
+          creditsHasSources: creditsHasSources !== undefined ? creditsHasSources : ((mentions?.length > 0 || files?.length > 0 || wikipediaSources?.length > 0) || false),
           creditsUsed: creditsUsed || null,
         }
       });
