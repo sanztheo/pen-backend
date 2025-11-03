@@ -18,6 +18,7 @@ import { parseJSONFromStream } from '../utils/jsonParser.js';
 import { ToolCallRecord } from '../types/common.types.js';
 import type { DecideToolsOptions, DecideToolsResult } from '../types/phase1.types.js';
 import { CoordinatorService } from '../coordinator.service.js';
+import { ScoringService, type ToolResultScore } from '../scoring.service.js';
 
 /**
  * Service pour la Phase 1 : Décision et exécution des tools
@@ -64,14 +65,64 @@ export class Phase1Service {
         ? `Sources disponibles:\n${availableSources.map((s, i) => `${i+1}. "${s.title}" (ID: ${s.id}, Type: ${s.type})`).join('\n')}`
         : 'Aucune source spécifique disponible';
 
+      // 🎯 CONTEXTE ADAPTATIF: Détecter le scénario pour adapter les instructions
       const hasWorkspacePages = availableSources.some(s => s.type === 'WORKSPACE_PAGE');
-      const workspacePagesStr = hasWorkspacePages
-        ? '\n\n⚠️ IMPORTANT: Tu DOIS utiliser le tool "read_rag_source" pour lire les pages mentionnées AVANT de répondre!'
-        : '';
+      const hasSpecificSources = availableSources.length > 0;
+      const isAllSourceMode = !hasSpecificSources;  // Mode all_source si aucune source spécifique
 
-      // 🔥 NEW: Add useWeb instruction if user enabled web search
+      let contextualInstructions = '';
+
+      // 🎯 SCÉNARIO 1: Page/source unique spécifique
+      if (hasSpecificSources && availableSources.length === 1) {
+        contextualInstructions = `\n\n📌 CONTEXTE: Une source spécifique a été sélectionnée par l'utilisateur.
+
+🎯 STRATÉGIE RECOMMANDÉE (ADAPTATIVE) :
+1. **PRIORITÉ**: Commence par lire cette source avec "read_rag_source" (ID: ${availableSources[0].id})
+2. **ÉVALUATION**: Après lecture, évalue si l'information est suffisante
+3. **SI INSUFFISANT**: Tu peux explorer d'autres sources avec "list_available_sources" ou "search_web" (si activé)
+4. **FLEXIBILITÉ**: La source sélectionnée est prioritaire mais pas exclusive si elle est incomplète
+
+⚠️ NOTE: L'utilisateur a choisi cette source, mais tu peux la compléter si nécessaire.`;
+      }
+      // 🎯 SCÉNARIO 2: Multiple sources spécifiques
+      else if (hasSpecificSources && availableSources.length > 1) {
+        contextualInstructions = `\n\n📌 CONTEXTE: ${availableSources.length} sources spécifiques ont été sélectionnées.
+
+🎯 STRATÉGIE RECOMMANDÉE (ADAPTATIVE) :
+1. **PRIORITÉ**: Lis ces sources sélectionnées avec "read_rag_source" ou "select_relevant_sources"
+2. **OPTIMISATION**: Choisis les plus pertinentes (2-3 max) plutôt que tout lire
+3. **ÉVALUATION**: Après lecture, évalue si l'information couvre la question
+4. **SI INSUFFISANT**: Tu peux compléter avec "search_web" (si activé) ou chercher d'autres sources
+
+⚠️ NOTE: Les sources sélectionnées sont prioritaires mais explorables si incomplètes.`;
+      }
+      // 🎯 SCÉNARIO 3: all_source (exploration libre)
+      else if (isAllSourceMode) {
+        contextualInstructions = `\n\n📌 CONTEXTE: Mode exploration libre (all_source) - Aucune source spécifique.
+
+🎯 STRATÉGIE RECOMMANDÉE (EXPLORATION COMPLÈTE) :
+1. **DÉCOUVERTE**: Commence par lister TOUTES les sources disponibles
+   - Appelle "list_available_sources" pour les sources personnelles
+   - Appelle "list_global_wikipedia_sources" pour les sources Wikipedia globales
+2. **SÉLECTION**: Identifie les sources les plus pertinentes pour la question
+3. **LECTURE**: Lis les 2-3 meilleures sources avec "read_rag_source"
+4. **ENRICHISSEMENT**: Si ${useWeb ? 'web activé, utilise "search_web" pour compléter' : 'besoin, cherche dans d\'autres sources'}
+
+⚠️ NOTE: Mode exploration complète - explore toutes les options disponibles.`;
+      }
+
+      // 🔥 NEW: Add useWeb instruction with adaptive priority
       const useWebStr = useWeb
-        ? '\n\n🌐 IMPORTANT: L\'utilisateur a ACTIVÉ la recherche web. Tu DOIS inclure "search_web" comme dernier tool du plan!'
+        ? `\n\n🌐 RECHERCHE WEB ACTIVÉE:
+${hasSpecificSources
+  ? 'Tu PEUX utiliser "search_web" pour ENRICHIR les sources sélectionnées si nécessaire.'
+  : 'Tu PEUX utiliser "search_web" après avoir exploré les sources locales, ou AVANT si tu penses que le web sera plus pertinent.'
+}
+
+📊 APPROCHE ADAPTATIVE (basée sur les scores) :
+- Si les sources locales donnent un bon score (>0.7) → Web OPTIONNEL
+- Si les sources locales donnent un score moyen (0.4-0.7) → Web RECOMMANDÉ
+- Si les sources locales donnent un score faible (<0.4) → Web FORTEMENT RECOMMANDÉ`
         : '';
 
       const firstThinkingPrompt = isSearch
@@ -157,7 +208,7 @@ Exemple de reformulation :
 
 Après avoir réalisé la planification et la séquence, valide que chaque outil est bien justifié dans la séquence et que le schéma de sortie est strictement respecté.
 
-${sourcesContext}${workspacePagesStr}
+${sourcesContext}${contextualInstructions}${useWebStr}
 
 Question : "${query}"
 
@@ -246,7 +297,7 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
         },
         {
           role: 'user',
-          content: `${sourcesContext}${workspacePagesStr}\n\nQuestion: "${query}"`
+          content: `${sourcesContext}${contextualInstructions}\n\nQuestion: "${query}"`
         }
       ];
 
@@ -323,11 +374,31 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
 
         await sleep(50);
 
-        // Enregistrer le tool call
+        // 🎯 SCORING: Évaluer la qualité du résultat (observe → adjust → continue)
+        const resultScore = await ScoringService.scoreToolResult({
+          toolName: toolStep.toolName,
+          result,
+          query: queryToUse,
+          expectedInfo: toolStep.description,
+          context: {
+            previousScores: toolCalls.map(tc => tc.score).filter(s => s !== undefined) as ToolResultScore[],
+            useWeb,
+            hasSpecificSource: availableSources.length > 0,
+            mode: isSearch ? 'search' : 'ask'
+          }
+        });
+
+        console.log(`📊 [PHASE-1-SCORE] ${toolStep.toolName}: ${resultScore.overallScore.toFixed(2)} (conf=${resultScore.confidence.toFixed(2)}, rel=${resultScore.relevance.toFixed(2)}, comp=${resultScore.completeness.toFixed(2)})`);
+        if (resultScore.suggestions.length > 0) {
+          console.log(`💡 [PHASE-1-SUGGESTIONS]:`, resultScore.suggestions);
+        }
+
+        // Enregistrer le tool call avec son score
         toolCalls.push({
           name: toolStep.toolName,
           arguments: toolArgs,
           result,
+          score: resultScore,  // 🆕 NOUVEAU : score pour audit
           timestamp: Date.now()
         });
 
@@ -338,6 +409,28 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
         });
 
         console.log(`✅ [PHASE-1-ITER-${iterationIdx + 1}] Complété: ${toolStep.toolName}`);
+
+        // 🔄 FEEDBACK LOOP: Ajuster la stratégie en fonction des scores (observe → adjust → continue)
+        const strategyAdjustment = await ScoringService.adjustStrategy(
+          toolCalls.map(tc => ({ name: tc.name, score: tc.score, result: tc.result })),
+          queryToUse,
+          {
+            useWeb,
+            availableSourcesCount: availableSources.length,
+            hasSpecificSource: availableSources.length > 0,
+            mode: isSearch ? 'search' : 'ask'
+          }
+        );
+
+        console.log(`🔄 [STRATEGY-ADJUST] ${strategyAdjustment.reasoning}`);
+        console.log(`   shouldExploreMore: ${strategyAdjustment.shouldExploreMore}, shouldUseWeb: ${strategyAdjustment.shouldUseWeb}, shouldStop: ${strategyAdjustment.shouldStop}`);
+        console.log(`   Priority: ${strategyAdjustment.priority}, Confidence: ${strategyAdjustment.confidence.toFixed(2)}`);
+
+        // Si la stratégie suggère d'arrêter et qu'on a assez d'informations
+        if (strategyAdjustment.shouldStop && strategyAdjustment.confidence > 0.8) {
+          console.log(`⏹️ [STRATEGY-ADJUST] Arrêt recommandé: informations suffisantes (score: ${resultScore.overallScore.toFixed(2)})`);
+          // Ne pas arrêter brutalement, laisser l'IA décider dans le thinking intermédiaire
+        }
 
         // 🔥 ÉTAPE 2D: Générer les arguments du tool SUIVANT via intermediate thinking (après exécution du tool actuel)
         const nextIterationIdx = iterationIdx + 1;
@@ -353,16 +446,36 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
           console.log(`🧠 [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Génération des arguments pour ${nextToolStep.toolName}...`);
 
           try {
-            // 🔥 NEW: Build tool execution history
-            const executedTools = toolCalls.map((tc, idx) => `${idx + 1}. ${tc.name}`).join('\n');
+            // 🔥 NEW: Build tool execution history with scores
+            const executedTools = toolCalls.map((tc, idx) => {
+              const score = tc.score ? ` (score: ${tc.score.overallScore.toFixed(2)})` : '';
+              return `${idx + 1}. ${tc.name}${score}`;
+            }).join('\n');
             const remainingTools = validatedToolSequence.slice(iterationIdx + 1).map(t => `- ${t.toolName}`).join('\n');
 
-            // 🔥 NEW: Add useWeb flag and web instruction
+            // 🎯 FEEDBACK LOOP: Intégrer les recommandations stratégiques dans le prompt
+            const strategyRecommendation = `
+📊 ÉVALUATION DE LA STRATÉGIE ACTUELLE (basée sur les scores) :
+${strategyAdjustment.reasoning}
+
+🎯 RECOMMANDATIONS ADAPTATIVES :
+- Explorer d'autres sources ? ${strategyAdjustment.shouldExploreMore ? '✅ OUI' : '❌ NON'}
+- Utiliser search_web ? ${strategyAdjustment.shouldUseWeb ? '✅ OUI (priorité: ' + strategyAdjustment.priority + ')' : '❌ NON'}
+- Arrêter (info suffisante) ? ${strategyAdjustment.shouldStop ? '✅ OUI (confiance: ' + strategyAdjustment.confidence.toFixed(2) + ')' : '❌ NON'}
+${strategyAdjustment.suggestedTools.length > 0 ? '- Outils suggérés: ' + strategyAdjustment.suggestedTools.join(', ') : ''}
+
+⚠️ NOTE: Ces recommandations sont basées sur l'analyse des résultats. Tu peux les suivre ou les adapter selon le contexte de la question.`;
+
+            // 🔥 NEW: Add useWeb flag and web instruction with adaptive priority
             const webInstruction = useWeb
-              ? `\n🌐 IMPORTANT: L'utilisateur a ACTIVÉ la recherche web. Si aucun outil n'a encore appelé search_web, tu DOIS le proposer dans "modifiedToolSequence"!`
+              ? `\n🌐 RECHERCHE WEB ACTIVÉE: ${strategyAdjustment.shouldUseWeb
+                  ? `La stratégie recommande FORTEMENT d'utiliser search_web (priorité: ${strategyAdjustment.priority})`
+                  : 'La recherche web est disponible si nécessaire pour enrichir'}`
               : '';
 
             const intermediateThinkingPrompt = `Tu as reçu des résultats. Analyse-les et détermine la prochaine étape.
+
+${strategyRecommendation}
 
 Avant toute décision, commence par une checklist concise (3-7 points conceptuels) décrivant les étapes à envisager selon les données reçues.
 
@@ -627,7 +740,9 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
                   thinking: intermediateParsed.thinking,
                   toolArguments: {},
                   generatedAt: new Date().toISOString(),
-                  nextToolName: 'STOP'
+                  nextToolName: 'STOP',
+                  score: resultScore,  // 🆕 Score du résultat du dernier tool
+                  strategyAdjustment: strategyAdjustment.reasoning  // 🆕 Raison de l'arrêt
                 });
                 break; // Arrêter la boucle agentic
               }
@@ -673,7 +788,9 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
                     thinking: `[COORDINATOR BLOCK] ${coordinatorValidation.reasoning}`,
                     toolArguments: {},
                     generatedAt: new Date().toISOString(),
-                    nextToolName: 'BLOCKED'
+                    nextToolName: 'BLOCKED',
+                    score: resultScore,  // 🆕 Score du résultat du dernier tool
+                    strategyAdjustment: 'Exécution bloquée par le Coordinator'  // 🆕 Raison du blocage
                   });
                   break; // Arrêter la boucle
                 } else {
@@ -689,7 +806,9 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
                 thinking: intermediateParsed.thinking,
                 toolArguments: toolArgs,
                 generatedAt: new Date().toISOString(),
-                nextToolName: nextToolStep.toolName  // 🔥 Le PROCHAIN tool
+                nextToolName: nextToolStep.toolName,  // 🔥 Le PROCHAIN tool
+                score: resultScore,  // 🆕 Score du résultat du tool actuel
+                strategyAdjustment: strategyAdjustment.reasoning  // 🆕 Recommandations de stratégie
               });
 
               // 🔥 NEW: Ensure select_relevant_sources has required arguments

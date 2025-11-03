@@ -9,6 +9,7 @@
  */
 
 import { AIService } from '../base.js';
+import { ScoringService } from './scoring.service.js';
 
 export interface CoordinatorInput {
   thinking: string;              // Ce que l'IA dit qu'elle va faire
@@ -191,6 +192,45 @@ Analyse l'incohérence et décide :
         reasoning: `Erreur Coordinator: ${error instanceof Error ? error.message : 'Erreur inconnue'}. Blocage par sécurité.`
       };
     }
+  }
+
+  /**
+   * 🎯 Enrichit la validation avec les scores et recommandations de stratégie
+   *
+   * Cette méthode intègre le feedback loop "observe → adjust → continue"
+   * en utilisant les scores pour détecter des patterns problématiques
+   */
+  static async enrichValidationWithScores(
+    input: CoordinatorInput,
+    averageScore: number,
+    strategyRecommendation: string
+  ): Promise<{ shouldWarn: boolean; warningMessage?: string }> {
+    // Si le score moyen est très faible (<0.3), avertir
+    if (averageScore < 0.3) {
+      return {
+        shouldWarn: true,
+        warningMessage: `Score moyen très faible (${averageScore.toFixed(2)}). Les résultats précédents sont insuffisants. ${strategyRecommendation}`
+      };
+    }
+
+    // Si le score moyen est moyen (<0.6) et que l'IA veut arrêter
+    if (averageScore < 0.6 && input.nextToolName === null) {
+      return {
+        shouldWarn: true,
+        warningMessage: `Score moyen moyen (${averageScore.toFixed(2)}). L'IA veut arrêter mais les résultats sont partiels. Recommandation: continuer l'exploration.`
+      };
+    }
+
+    // Si le score moyen est bon (>0.7), tout va bien
+    if (averageScore > 0.7) {
+      return {
+        shouldWarn: false
+      };
+    }
+
+    return {
+      shouldWarn: false
+    };
   }
 
   /**

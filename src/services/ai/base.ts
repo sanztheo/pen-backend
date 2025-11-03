@@ -1,9 +1,16 @@
 import OpenAI from 'openai';
 
-// Configuration OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// 🔥 LAZY INITIALIZATION: N'initialise OpenAI que quand nécessaire
+let openai: OpenAI | null = null;
+
+function getOpenAIInstance(): OpenAI {
+  if (!openai) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+  }
+  return openai;
+}
 
 const DEFAULT_MODEL = process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL;
 
@@ -52,7 +59,8 @@ export class AIService {
         return false;
       }
 
-      const response = await openai.chat.completions.create({
+      const client = getOpenAIInstance();
+      const response = await client.chat.completions.create({
         model: DEFAULT_MODEL!,
         messages: [
           { role: 'user', content: 'Test de connexion - réponds juste "OK"' }
@@ -73,7 +81,7 @@ export class AIService {
    * Obtenir l'instance OpenAI configurée
    */
   static getOpenAI(): OpenAI {
-    return openai;
+    return getOpenAIInstance();
   }
 
   /**
