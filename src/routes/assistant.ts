@@ -20,13 +20,12 @@ router.use(authenticateToken);
  * - Mode Créer rapide (create + rapide): 1 crédit
  * - Mode Créer profond (create + profond): 2 crédits
  * - +0.25 crédit si sources ajoutées (pages/wikipedia/files)
- * - +0.25 crédit si web activé
+ * - Web activé : GRATUIT (plus de coût supplémentaire)
  */
 const calculateDynamicCost = (req: any): number => {
   const body = req.body || {};
   const mode = body.mode || 'ask'; // Déduire du endpoint si pas dans body
   const reflection = body.reflection || 'rapide';
-  const useWeb = body.useWeb === true;
 
   // Déterminer si des sources sont présentes
   const hasPages = (body.pageIds && body.pageIds.length > 0) ||
@@ -52,10 +51,11 @@ const calculateDynamicCost = (req: any): number => {
     credits += 0.25;
   }
 
-  // Supplément si le web est activé
-  if (useWeb) {
-    credits += 0.25;
-  }
+  // 🔥 WEB GRATUIT: Plus de coût supplémentaire pour useWeb
+  // (Commenté pour référence historique)
+  // if (useWeb) {
+  //   credits += 0.25;
+  // }
 
   return credits;
 };

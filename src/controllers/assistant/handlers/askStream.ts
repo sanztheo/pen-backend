@@ -3,7 +3,7 @@ import { AIService } from '../../../services/ai/index.js';
 import { ConversationMemory } from '../../../services/ai/conversationMemory.js';
 import { detectPreferredLanguage, buildLangInstruction } from '../helpers/language.js';
 import { isMathLatexIntent, LATEX_STRICT_RULES } from '../helpers/latex.js';
-import { tavilySearch } from '../helpers/web.js';
+import { WebSearchService } from '../../../services/ai/webSearch.service.js';
 import { buildPagesContextChunked } from '../helpers/context.js';
 import { sseWriteData } from '../helpers/sse.js';
 import { formatAIStreamChunk } from '../helpers/format.js';

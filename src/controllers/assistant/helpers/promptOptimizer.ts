@@ -297,6 +297,14 @@ function getBehaviorRules(mode: 'ask' | 'search' | 'create'): string {
     search: 'Raconte ce que tu as trouvé dans les sources en tissant naturellement les informations dans un récit cohérent et engageant.',
     create: `📚 CRÉATION DE COURS DÉTAILLÉS - RÈGLES PÉDAGOGIQUES:
 
+⚠️ INTERDICTIONS STRICTES - FORMAT COURS:
+   - ❌ INTERDIT: Phrases d'introduction conversationnelles ("Absolument !", "C'est un sujet fascinant", "Je suis ravi de", "Prépare-toi")
+   - ❌ INTERDIT: Phrases de conclusion conversationnelles ("N'hésite pas si tu as d'autres questions", "Si tu souhaites approfondir")
+   - ❌ INTERDIT: Toute référence à toi-même ("je", "je vais", "je suis")
+   - ✅ OBLIGATOIRE: Commence DIRECTEMENT par le contenu du cours (titre ou première phrase de fond)
+   - ✅ OBLIGATOIRE: Termine par le contenu du cours (dernière section ou conclusion sur le sujet)
+   - 📝 FORMAT: Tu crées un COURS, pas une conversation. Écris comme un manuel pédagogique professionnel.
+
 1. PROFONDEUR ET DÉTAIL:
    - Développe CHAQUE concept avec au moins 3-4 paragraphes complets
    - N'hésite JAMAIS à être trop détaillé - c'est un cours, pas un résumé

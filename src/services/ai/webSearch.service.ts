@@ -263,4 +263,46 @@ export class WebSearchService {
 
     return formatted;
   }
+
+  /**
+   * 🔍 Recherche web avec références séparées (compatible avec tavilySearchRefs)
+   *
+   * @param query Question de recherche
+   * @param maxResults Nombre de résultats (non utilisé avec OpenAI)
+   * @returns Objet avec texte formaté et tableau de références
+   */
+  static async searchWithRefs(
+    query: string,
+    maxResults?: number
+  ): Promise<{ text: string; refs: { title: string; url?: string }[] }> {
+    const result = await this.search({ query, maxResults });
+
+    if (!result.success) {
+      return {
+        text: `❌ Erreur lors de la recherche web: ${result.error || 'Erreur inconnue'}`,
+        refs: []
+      };
+    }
+
+    // Formater le texte
+    let text = result.content;
+
+    // Extraire les références
+    const refs: { title: string; url?: string }[] = [];
+    if (result.sources && result.sources.length > 0) {
+      text += '\n\n📚 **Sources** :\n';
+      result.sources.forEach((source, idx) => {
+        text += `${idx + 1}. [${source.title}](${source.url})\n`;
+        if (source.snippet) {
+          text += `   ${source.snippet}\n`;
+        }
+        refs.push({
+          title: source.title,
+          url: source.url
+        });
+      });
+    }
+
+    return { text, refs };
+  }
 }

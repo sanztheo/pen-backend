@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { AIService } from '../../../services/ai/index.js';
 import { ConversationMemory } from '../../../services/ai/conversationMemory.js';
 import { buildPagesContextChunked } from '../helpers/context.js';
-import { tavilySearchRefs } from '../helpers/web.js';
+import { WebSearchService } from '../../../services/ai/webSearch.service.js';
 import { detectPreferredLanguage, buildLangInstruction } from '../helpers/language.js';
 import { formatAIText } from '../helpers/format.js';
 import { readPersonalizationFromReq, buildPersonaSnippet } from '../helpers/personalization.js';
@@ -16,7 +16,7 @@ export const assistantAsk = async (req: Request, res: Response) => {
     const lang = detectPreferredLanguage(req);
     const [ctx, webWithRefs] = await Promise.all([
       buildPagesContextChunked(workspaceId, pageIds, 8, query, 10),
-      tavilySearchRefs(query)
+      WebSearchService.searchWithRefs(query)
     ]);
     const web = webWithRefs.text;
     const history = ConversationMemory.recentAsText(req.user.id, { maxChars: 1600, maxMessages: 10 });
