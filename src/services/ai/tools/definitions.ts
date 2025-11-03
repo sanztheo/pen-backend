@@ -151,17 +151,13 @@ export const FUNCTION_TOOLS = [
     type: "function" as const,
     function: {
       name: "search_web",
-      description: "Recherche sur le web via Tavily pour obtenir des informations actuelles, récentes ou externes aux sources disponibles. Utilise ce tool SEULEMENT si les sources RAG ne suffisent pas ou pour des informations très récentes.",
+      description: "Recherche sur le web via OpenAI pour obtenir des informations actuelles, récentes ou externes aux sources disponibles. Utilise ce tool SEULEMENT si les sources RAG ne suffisent pas ou pour des informations très récentes.",
       parameters: {
         type: "object",
         properties: {
-          query: { 
-            type: "string", 
-            description: "Requête de recherche web claire et précise" 
-          },
-          maxResults: { 
-            type: "number", 
-            description: "Nombre maximum de résultats web (par défaut: 3, max: 5)" 
+          query: {
+            type: "string",
+            description: "Requête de recherche web claire et précise"
           }
         },
         required: ["query"]
