@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '../../../lib/prisma.js';
+import { WebSearchService } from '../webSearch.service.js';
 
 export interface ToolContext {
   userId: string;
@@ -624,9 +625,8 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
 
     console.log(`🌐 [SEARCH-WEB] query: "${query}", maxResults: ${maxResults}`);
 
-    const { tavilySearch } = await import('../../../controllers/assistant/helpers/web.js');
-
-    const results = await tavilySearch(query);
+    // 🔥 NOUVEAU: Utiliser WebSearchService d'OpenAI (native web search)
+    const results = await WebSearchService.simpleSearch(query, maxResults);
 
     if (!results || results.trim().length === 0) {
       return `Aucun résultat web trouvé pour: "${query}"`;

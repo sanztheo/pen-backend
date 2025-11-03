@@ -32,6 +32,8 @@ export interface IntermediateThinkingBlock {
   toolArguments: Record<string, any>;
   generatedAt: string; // ISO timestamp
   nextToolName?: string;
+  score?: any;  // 🆕 Score du résultat du tool (ToolResultScore) - any pour éviter dépendance circulaire
+  strategyAdjustment?: string;  // 🆕 Recommandations de la stratégie adaptative
 }
 
 // Type guard for JSON validation
