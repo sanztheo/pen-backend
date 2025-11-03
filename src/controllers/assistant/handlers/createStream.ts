@@ -133,6 +133,8 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
 
     let toolResults = '';
     let currentThinking = '';
+    let currentToolCalls: any[] = []; // 🔥 NOUVEAU: Stocker les tool calls pour metadata
+    let intermediateThinkingBlocks: any[] = []; // 🔥 NOUVEAU: Stocker intermediate thinking pour metadata
 
     try {
       const persona = await readPersonalizationFromReq(req);
@@ -193,6 +195,10 @@ ${personaSnippet}
       });
 
       console.log(`✅ [CREATE-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés`);
+
+      // 🔥 Stocker les tool calls et intermediate thinking pour metadata
+      currentToolCalls = toolDecision.toolCalls || [];
+      intermediateThinkingBlocks = toolDecision.intermediateThinkingBlocks || [];
 
       // 🔥 Construire le contexte à partir des résultats des tools
       toolResults = FunctionCallingService.buildContextFromToolResults(toolDecision.toolCalls);
@@ -265,6 +271,16 @@ ${personaSnippet}
 
         res.write(`event: page\n`);
         res.write(`data: ${JSON.stringify({ pageId: page.id, title: page.title, projectId: page.projectId, thinking: thinkingContent })}\n\n`);
+
+        // 🔥 NOUVEAU: Envoyer les métadonnées avec scores pour CREATE mode
+        res.write(`event: metadata\n`);
+        res.write(`data: ${JSON.stringify({
+          toolCalls: currentToolCalls,
+          thinking: currentThinking,
+          usedFallback: false,
+          intermediateThinkingBlocks: intermediateThinkingBlocks
+        })}\n\n`);
+
         res.write('event: done\n\n');
         res.end();
         return;
@@ -322,6 +338,16 @@ ${personaSnippet}
 
     res.write(`event: page\n`);
     res.write(`data: ${JSON.stringify({ pageId: page.id, title: page.title })}\n\n`);
+
+    // 🔥 NOUVEAU: Envoyer les métadonnées avec scores pour CREATE mode
+    res.write(`event: metadata\n`);
+    res.write(`data: ${JSON.stringify({
+      toolCalls: currentToolCalls,
+      thinking: currentThinking,
+      usedFallback: false,
+      intermediateThinkingBlocks: intermediateThinkingBlocks
+    })}\n\n`);
+
     res.write('event: done\n\n');
     res.end();
   } catch (e) {

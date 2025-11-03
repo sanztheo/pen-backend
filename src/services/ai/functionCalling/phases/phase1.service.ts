@@ -306,12 +306,12 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
       // 🔥 NEW: Store extracted sources from tool results for reuse
       let extractedSources: any[] = [];
 
-      // Exécuter chaque tool selon le plan
-      for (let iterationIdx = 0; iterationIdx < totalIterations; iterationIdx++) {
+      // Exécuter chaque tool selon le plan (la séquence peut grandir dynamiquement via improvement logic)
+      for (let iterationIdx = 0; iterationIdx < validatedToolSequence.length; iterationIdx++) {
         const toolStep = validatedToolSequence[iterationIdx];
         if (!toolStep) break;
 
-        console.log(`🔧 [PHASE-1-ITER-${iterationIdx + 1}/${totalIterations}] Exécution: ${toolStep.toolName} - ${toolStep.description}`);
+        console.log(`🔧 [PHASE-1-ITER-${iterationIdx + 1}/${validatedToolSequence.length}] Exécution: ${toolStep.toolName} - ${toolStep.description}`);
 
         // 🔥 RÉINITIALISER toolArgs SEULEMENT pour le premier tool
         if (iterationIdx === 0) {
@@ -426,6 +426,36 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
         console.log(`   shouldExploreMore: ${strategyAdjustment.shouldExploreMore}, shouldUseWeb: ${strategyAdjustment.shouldUseWeb}, shouldStop: ${strategyAdjustment.shouldStop}`);
         console.log(`   Priority: ${strategyAdjustment.priority}, Confidence: ${strategyAdjustment.confidence.toFixed(2)}`);
 
+        // 🔥 NOUVEAU: CURSOR-LIKE IMPROVEMENT - Agir sur les scores faibles (pas juste logger)
+        // Si les scores sont faibles ET que la stratégie recommande fortement d'explorer
+        if (
+          (strategyAdjustment.priority === 'high' || strategyAdjustment.priority === 'critical') &&
+          strategyAdjustment.suggestedTools.length > 0 &&
+          resultScore.overallScore < 0.6
+        ) {
+          console.log(`🔥 [IMPROVEMENT] Score faible détecté (${resultScore.overallScore.toFixed(2)}), ajout de tools pour amélioration...`);
+
+          // Dynamiquement ajouter les tools suggérés à la fin du plan
+          for (const suggestedToolName of strategyAdjustment.suggestedTools) {
+            // Vérifier si le tool n'est pas déjà dans le plan restant
+            const alreadyPlanned = validatedToolSequence
+              .slice(iterationIdx + 1)
+              .some(t => t.toolName === suggestedToolName);
+
+            if (!alreadyPlanned) {
+              validatedToolSequence.push({
+                step: validatedToolSequence.length + 1,
+                toolName: suggestedToolName,
+                description: `Amélioration qualité: ${strategyAdjustment.reasoning}`
+              });
+              console.log(`✅ [IMPROVEMENT] Ajout de "${suggestedToolName}" pour améliorer la qualité`);
+            }
+          }
+
+          // Augmenter totalIterations pour prendre en compte les nouveaux tools
+          console.log(`🔄 [IMPROVEMENT] Nouvelle séquence: ${validatedToolSequence.map(t => t.toolName).join(' → ')}`);
+        }
+
         // Si la stratégie suggère d'arrêter et qu'on a assez d'informations
         if (strategyAdjustment.shouldStop && strategyAdjustment.confidence > 0.8) {
           console.log(`⏹️ [STRATEGY-ADJUST] Arrêt recommandé: informations suffisantes (score: ${resultScore.overallScore.toFixed(2)})`);
@@ -434,7 +464,7 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
 
         // 🔥 ÉTAPE 2D: Générer les arguments du tool SUIVANT via intermediate thinking (après exécution du tool actuel)
         const nextIterationIdx = iterationIdx + 1;
-        if (nextIterationIdx < totalIterations && onIntermediateThinking) {
+        if (nextIterationIdx < validatedToolSequence.length && onIntermediateThinking) {
           const nextToolStep = validatedToolSequence[nextIterationIdx];
 
           // 🔥 CRITICAL: Si nextToolStep n'existe pas (plan a été modifié), arrêter la boucle
@@ -577,11 +607,10 @@ Pour search_rag_chunks :
   - Exemple : {"query": "preuves géométriques triangle rectangle Pythagore", "sourceIds": ["123"]}
 
 Pour search_web :
-  - 🔥 ATTENTION: Ce tool prend UNIQUEMENT "query" (string), PAS "question" ni "availableSources" !
+  - 🔥 ATTENTION: Ce tool prend UNIQUEMENT "query" (string), PAS "question" ni "availableSources" ni "maxResults" !
   - Inclure : "query": "chaîne de recherche web" (string REFORMULÉE ET ENRICHIE)
-  - Inclure optionnellement : "maxResults": nombre de résultats (nombre, par défaut 3)
   - 🔥 IMPÉRATIF: Reformule et enrichis la query avec mots-clés pertinents pour le web
-  - Exemple : {"query": "Pythagore théorème mathématiques géométrie démonstration applications cours", "maxResults": 3}
+  - Exemple : {"query": "Pythagore théorème mathématiques géométrie démonstration applications cours"}
 
 📊 DÉCISION :
 Après chaque appel d'outil ou édition, valide en 1 à 2 lignes l'adéquation du résultat avec l'étape attendue, et décide si une correction est nécessaire ou si tu poursuis la séquence.
@@ -636,7 +665,7 @@ Exemple 4 - Wikipedia lue partiellement, veut enrichir avec web (AVEC REFORMULAT
   "thinking": "J'ai lu Thalès et Pythagore. Je cherche sur le web avec une query enrichie de mots-clés pour trouver d'autres théorèmes fondamentaux.",
   "shouldContinue": true,
   "nextToolName": "search_web",
-  "toolArguments": {"query": "théorèmes mathématiques fondamentaux géométrie algèbre cours démonstrations", "maxResults": 3}
+  "toolArguments": {"query": "théorèmes mathématiques fondamentaux géométrie algèbre cours démonstrations"}
 }
 
 Exemple 5 - Correction d'une requête mal formulée (REFORMULATION OBLIGATOIRE) :
@@ -830,22 +859,22 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
                 }
               }
 
-              // 🔥 NEW: Ensure search_web has required 'query' argument (string)
+              // 🔥 NEW: Ensure search_web has required 'query' argument (string) - NO maxResults (controlled by OpenAI)
               if (nextToolStep.toolName === 'search_web') {
-                // Validation: search_web needs 'query' (string), not 'question' or 'availableSources'
+                // Validation: search_web needs 'query' (string), not 'question' or 'availableSources' or 'maxResults'
                 if (!toolArgs.query || typeof toolArgs.query !== 'string') {
                   // If IA provided wrong arguments (like 'question' or 'availableSources'), fix it
                   if (toolArgs.question && typeof toolArgs.question === 'string') {
-                    toolArgs = { query: toolArgs.question, maxResults: toolArgs.maxResults || 3 };
+                    toolArgs = { query: toolArgs.question };
                     console.log(`🔧 [INTERMEDIATE-THINKING] Fixed search_web arguments: converted 'question' to 'query'`);
                   } else {
                     // Fallback: use original query
-                    toolArgs = { query, maxResults: 3 };
+                    toolArgs = { query };
                     console.log(`🔧 [INTERMEDIATE-THINKING] Fixed search_web arguments: using original query`);
                   }
                 } else {
-                  // Clean up any extra fields that don't belong to search_web
-                  toolArgs = { query: toolArgs.query, maxResults: toolArgs.maxResults || 3 };
+                  // Clean up any extra fields that don't belong to search_web (including maxResults)
+                  toolArgs = { query: toolArgs.query };
                   console.log(`🔧 [INTERMEDIATE-THINKING] Cleaned search_web arguments`);
                 }
               }

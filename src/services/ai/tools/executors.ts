@@ -610,12 +610,12 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
   }
 
   /**
-   * Recherche web via Tavily
+   * Recherche web via OpenAI (native web search)
    */
   private static async searchWeb(
-    args: { query: string; maxResults?: number }
+    args: { query: string }
   ): Promise<string> {
-    const { query, maxResults = 3 } = args;
+    const { query } = args;
 
     // 🔥 VALIDATION: Vérifier que query est bien fourni et valide
     if (!query || typeof query !== 'string') {
@@ -623,10 +623,10 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
       return `❌ Erreur: Le tool search_web nécessite un argument 'query' de type string. Arguments reçus: ${JSON.stringify(args)}`;
     }
 
-    console.log(`🌐 [SEARCH-WEB] query: "${query}", maxResults: ${maxResults}`);
+    console.log(`🌐 [SEARCH-WEB] query: "${query}"`);
 
-    // 🔥 NOUVEAU: Utiliser WebSearchService d'OpenAI (native web search)
-    const results = await WebSearchService.simpleSearch(query, maxResults);
+    // 🔥 NOUVEAU: Utiliser WebSearchService d'OpenAI (native web search - pas de maxResults, contrôlé par OpenAI)
+    const results = await WebSearchService.simpleSearch(query);
 
     if (!results || results.trim().length === 0) {
       return `Aucun résultat web trouvé pour: "${query}"`;
