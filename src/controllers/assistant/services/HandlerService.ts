@@ -4,7 +4,7 @@
  */
 
 import { Request } from 'express';
-import { tavilySearch, tavilySearchRefs } from '../helpers/web.js';
+import { WebSearchService } from '../../../services/ai/webSearch.service.js';
 import { buildPagesContextChunked } from '../helpers/context.js';
 import { DebugLogger } from '../config/debug.js';
 import { ValidationUtils } from '../utils/validation.js';
@@ -101,11 +101,11 @@ export class AssistantHandlerService {
 
     if (useWeb) {
       if (mode === 'search') {
-        const webWithRefs = await tavilySearchRefs(query);
+        const webWithRefs = await WebSearchService.searchWithRefs(query);
         webContext = webWithRefs.text;
         webRefs = webWithRefs.refs || [];
       } else {
-        webContext = await tavilySearch(query);
+        webContext = await WebSearchService.simpleSearch(query, 3);
       }
     }
 

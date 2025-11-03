@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../../../lib/prisma.js';
 import { AIService } from '../../../services/ai/index.js';
 import { GeminiService } from '../../../services/ai/gemini.js';
-import { tavilySearch } from '../helpers/web.js';
+import { WebSearchService } from '../../../services/ai/webSearch.service.js';
 import { detectPreferredLanguage, buildLangInstruction } from '../helpers/language.js';
 import { LATEX_STRICT_RULES } from '../helpers/latex.js';
 import { toBlockNoteAuto, sanitizeAIGeneratedContent } from '../helpers/blocknote.js';
@@ -51,7 +51,7 @@ export const assistantCreate = async (req: Request, res: Response) => {
     
     let workspaceId = initialWorkspaceId;
 
-    const web = useWeb ? await tavilySearch(instruction) : '';
+    const web = useWeb ? await WebSearchService.simpleSearch(instruction, 3) : '';
     const style = reflection === 'profond' ? 'Développe en détail avec une structure claire.' : 'Rédige de façon concise et claire.';
     const persona = await readPersonalizationFromReq(req);
     const personaSnippet = buildPersonaSnippet(persona, 600);

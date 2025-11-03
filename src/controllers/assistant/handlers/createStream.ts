@@ -2,7 +2,6 @@ import { Request, Response } from 'express';
 import { prisma } from '../../../lib/prisma.js';
 import { AIService } from '../../../services/ai/index.js';
 import { GeminiService } from '../../../services/ai/gemini.js';
-import { tavilySearch } from '../helpers/web.js';
 import { detectPreferredLanguage, buildLangInstruction } from '../helpers/language.js';
 import { isMathLatexIntent, LATEX_STRICT_RULES } from '../helpers/latex.js';
 import { sseWriteData } from '../helpers/sse.js';
@@ -53,10 +52,11 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
       title,
       workspaceId,
       projectId,
+      pageIds = [],
       reflection = 'rapide',
       useWeb = true,
-      ragSources = [],
-      ragContext = ''
+      sourcesScope = 'custom',
+      ragSources = []
     } = req.body;
 
     if (!instruction || !workspaceId) {
@@ -65,62 +65,160 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
 
     // 🔍 Debug unifié avec le nouveau système
     DebugLogger.web(`[CREATE] useWeb reçu: ${useWeb} (type: ${typeof useWeb}) - DEFAULT: true`);
-    DebugLogger.rag(`[CREATE] ENTRÉE - workspaceId: ${workspaceId}, ragSources: ${ragSources.length}, reflection: ${reflection}`);
+    DebugLogger.rag(`[CREATE] ENTRÉE - workspaceId: ${workspaceId}, pageIds: ${pageIds.length}, ragSources: ${ragSources.length}, reflection: ${reflection}`);
 
     // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
     const sanitizedInstruction = sanitizeUserInput(instruction);
-    
+
     // 🧠 INTELLIGENCE: Analyse de la requête
     const analysis = analyzeQuery(sanitizedInstruction, req);
+    const userId = req.user?.id || 'anonymous';
 
-    // 🚀 Construction contexte avec les services unifiés
-    let ragContextText = '';
-    if (ragSources && ragSources.length > 0 && ragContext) {
-      DebugLogger.rag(`[CREATE] Utilisation contexte RAG avec ${ragSources.length} sources`);
-      ragContextText = ragContext;
-    } else if (ragSources && ragSources.length > 0) {
-      DebugLogger.rag(`[CREATE] Sources RAG externes détectées - contexte fourni par système RAG`);
-      ragContextText = ''; // Le contexte viendra du système RAG automatiquement
+    // 🧠 RAG: Gestion intelligente des sources avec validation unifiée
+    let contextPageIds: string[] = [];
+
+    // 🔥 PRIORITÉ: Pages mentionnées > Sources RAG externes
+    if (workspaceId && pageIds.length > 0) {
+      contextPageIds = ValidationUtils.validatePageIds(pageIds);
+
+      if (contextPageIds.length !== pageIds.length) {
+        DebugLogger.rag(`IDs invalides filtrés: ${pageIds.length - contextPageIds.length} IDs ignorés`);
+      }
     }
 
-    // 🚀 Construction contexte web avec service unifié
-    DebugLogger.web(`[CREATE] Déclenchement recherche web - useWeb: ${useWeb}`);
+    // 🚀 Configuration SSE headers AVANT la Phase 1
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+    res.flushHeaders();
 
+    // 🔥 PHASE 1: Function Calling pour rassembler l'information
+    console.log(`🔧 [CREATE-PHASE-1] Démarrage avec reflection: ${reflection}`);
+
+    const { FunctionCallingService } = await import('../../../services/ai/functionCalling/index.js');
+    const { indexAndPreparePagesForAI } = await import('../helpers/pageIndexing.js');
+
+    // 🔥 Préparer les sources pour l'IA (comme searchStream.ts)
+    const hasSpecificPages = contextPageIds.length > 0;
+    let sourcesForAI: any[] = [];
+
+    // 🚀 Construction contexte avec le service unifié SEULEMENT pour avoir les pageObjects
     const contextResult = await AssistantHandlerService.buildContextStrategy('create', {
       query: sanitizedInstruction,
       workspaceId,
-      pageIds: [], // CREATE ne prend pas de pages spécifiques
-      useWeb,
-      ragSources,
-      userId: req.user?.id || 'anonymous'
+      pageIds: contextPageIds,
+      useWeb: false, // Pas de web ici, le Function Calling le fera si besoin
+      ragSources: [],
+      userId
     });
 
-    DebugLogger.web(`[CREATE] Contexte construit - web: ${contextResult.web.length}, rag: ${contextResult.ragContext?.length || 0}`);
+    if (hasSpecificPages && contextResult.pageObjects && Array.isArray(contextResult.pageObjects) && contextResult.pageObjects.length > 0) {
+      console.log(`📖 [CREATE] Pages spécifiques détectées - utiliser SEULEMENT ces pages`);
+      sourcesForAI = await indexAndPreparePagesForAI(contextResult.pageObjects, userId, workspaceId);
+    } else if (ragSources && ragSources.length > 0) {
+      console.log(`🔧 [CREATE] Pas de pages spécifiques - utiliser les sources RAG externes`);
+      sourcesForAI = ragSources.map((s: any) => ({
+        id: s.id || '',
+        title: s.title || '',
+        type: s.type || 'UNKNOWN'
+      }));
+    }
+
+    // 🔥 Limites selon reflection: rapide = mode standard (0-2 tools), profond = mode search (3-5+ tools)
+    const useSearchMode = reflection === 'profond';
+    console.log(`🔧 [CREATE] useSearchMode: ${useSearchMode} (reflection: ${reflection})`);
+
+    let toolResults = '';
+    let currentThinking = '';
+
+    try {
+      const persona = await readPersonalizationFromReq(req);
+      const personaSnippet = buildPersonaSnippet(persona, 400);
+
+      const toolDecision = await FunctionCallingService.decideAndExecuteTools({
+        query: sanitizedInstruction,
+        availableSources: sourcesForAI,
+        workspaceId,
+        userId: req.user!.id,
+        useWeb,
+        systemPrompt: `System: Tu dois créer un COURS DÉTAILLÉ et structuré basé sur l'instruction de l'utilisateur.
+
+⚠️ FORMAT COURS - INTERDICTIONS STRICTES:
+- ❌ INTERDIT: Phrases conversationnelles ("Absolument !", "Je suis ravi", "N'hésite pas")
+- ❌ INTERDIT: Références à toi-même ("je", "je vais")
+- ✅ OBLIGATOIRE: Format de cours professionnel uniquement
+
+${personaSnippet}
+
+'''${LATEX_STRICT_RULES}'''`,
+        isSearch: useSearchMode, // 🔥 Profond = plus de tools (comme search), rapide = moins de tools
+
+        // Callbacks pour streaming temps réel
+        onThinking: (thinkingChunk) => {
+          const timestamp = new Date().toISOString();
+          currentThinking += thinkingChunk;
+          res.write(`event: thinking\ndata: ${JSON.stringify({ content: thinkingChunk, timestamp })}\n\n`);
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+        },
+
+        onToolCall: (toolName, args) => {
+          const timestamp = new Date().toISOString();
+          res.write(`event: tool_call\ndata: ${JSON.stringify({ tool: toolName, args, timestamp })}\n\n`);
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+        },
+
+        onToolResult: (toolName, toolResult) => {
+          const timestamp = new Date().toISOString();
+          const truncated = toolResult.length > 200 ? toolResult.slice(0, 200) + '...' : toolResult;
+          res.write(`event: tool_result\ndata: ${JSON.stringify({ tool: toolName, result: truncated, timestamp })}\n\n`);
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+        },
+
+        onIntermediateThinking: (thinkingChunk) => {
+          const timestamp = new Date().toISOString();
+          res.write(`event: intermediate_thinking\ndata: ${JSON.stringify({ content: thinkingChunk, timestamp })}\n\n`);
+          if (typeof (res as any).flush === 'function') {
+            (res as any).flush();
+          }
+        }
+      });
+
+      console.log(`✅ [CREATE-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés`);
+
+      // 🔥 Construire le contexte à partir des résultats des tools
+      toolResults = FunctionCallingService.buildContextFromToolResults(toolDecision.toolCalls);
+
+    } catch (error) {
+      console.error('❌ [CREATE-FUNCTION-CALLING] Erreur:', error);
+      toolResults = ''; // Continuer sans tools en cas d'erreur
+    }
+
+    // 🔥 PHASE 2: Génération de la page avec les résultats des tools
+    console.log(`🔧 [CREATE-PHASE-2] Génération de la page...`);
 
     if (reflection === 'profond') {
       try {
-        // 🎯 OPTIMISATION COMPLÈTE: Prompt avec troncature intelligente garantie pour Gemini
-        // 🔥 INCLURE le contexte RAG du HandlerService si disponible
-        const contextWithWeb = [ragContextText, contextResult.ragContext, contextResult.web].filter(Boolean).join('\n\n');
-        const optimizedPrompt = optimizePrompt('create', sanitizedInstruction, contextWithWeb, '', req);
+        // 🎯 Mode profond: Utiliser Gemini avec thinking
+        const optimizedPrompt = optimizePrompt('create', sanitizedInstruction, toolResults, '', req);
         const persona = await readPersonalizationFromReq(req);
         const personaSnippet = buildPersonaSnippet(persona, 600);
 
-        res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Connection', 'keep-alive');
-        res.setHeader('X-Accel-Buffering', 'no');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
-        res.flushHeaders();
-
         let full = '';
-        let thinkingContent = '';
+        let thinkingContent = currentThinking;
         await GeminiService.generateWithThinking({
           prompt: optimizedPrompt.userMessage,
           context: `${personaSnippet ? personaSnippet + '\n\n' : ''}${optimizedPrompt.systemMessage}`,
           temperature: optimizedPrompt.temperature,
-          maxTokens: optimizedPrompt.maxTokens,
+          maxTokens: 40000, // 🔥 CORRECTION: 40000 pour mode profond CREATE (comme create.ts)
           onStream: (chunk: string) => {
             const normalized = String(chunk || '');
             full += normalized;
@@ -128,8 +226,8 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
           },
           onThinking: (thinking: string) => {
             thinkingContent += thinking;
-            res.write(`event: status\\n`);
-            res.write(`data: 🤔 ${thinking}\\n\\n`);
+            res.write(`event: status\n`);
+            res.write(`data: 🤔 ${thinking}\n\n`);
             if ((res as any).flush) {
               (res as any).flush();
             }
@@ -165,9 +263,9 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
         );
         await prisma.page.update({ where: { id: page.id }, data: { blockNoteContent: blockNote } });
 
-        res.write(`event: page\\n`);
-        res.write(`data: ${JSON.stringify({ pageId: page.id, title: page.title, projectId: page.projectId, thinking: thinkingContent })}\\n\\n`);
-        res.write('event: done\\n\\n');
+        res.write(`event: page\n`);
+        res.write(`data: ${JSON.stringify({ pageId: page.id, title: page.title, projectId: page.projectId, thinking: thinkingContent })}\n\n`);
+        res.write('event: done\n\n');
         res.end();
         return;
       } catch (error) {
@@ -175,20 +273,10 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
       }
     }
 
-    // 🎯 OPTIMISATION COMPLÈTE: Prompt avec troncature intelligente garantie pour OpenAI
-    // 🔥 INCLURE le contexte RAG du HandlerService si disponible
-    const contextWithWeb = [ragContextText, contextResult.ragContext, contextResult.web].filter(Boolean).join('\n\n');
-    const optimizedPrompt = optimizePrompt('create', sanitizedInstruction, contextWithWeb, '', req);
+    // 🎯 Mode rapide: Utiliser OpenAI avec tool results
+    const optimizedPrompt = optimizePrompt('create', sanitizedInstruction, toolResults, '', req);
     const persona = await readPersonalizationFromReq(req);
     const personaSnippet = buildPersonaSnippet(persona, 600);
-
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
-    res.flushHeaders();
 
     let full = '';
     await AIService.generateContent({

@@ -5,7 +5,7 @@ import { selectRelevantPagesWithAssistant } from '../../../services/ai/assistant
 import { detectPreferredLanguage, buildLangInstruction } from '../helpers/language.js';
 import { isMathLatexIntent, LATEX_STRICT_RULES } from '../helpers/latex.js';
 import { buildPagesContextChunked } from '../helpers/context.js';
-import { tavilySearchRefs } from '../helpers/web.js';
+import { WebSearchService } from '../../../services/ai/webSearch.service.js';
 import { titleRelevanceScore } from '../helpers/scoring.js';
 import { formatAIText, formatItalicReferences } from '../helpers/format.js';
 import { readPersonalizationFromReq, buildPersonaSnippet } from '../helpers/personalization.js';
@@ -69,7 +69,7 @@ export const assistantSearch = async (req: Request, res: Response) => {
 
     const [ctx, webWithRefs] = await Promise.all([
       buildPagesContextChunked(workspaceId, selectedIds, 10, query, 12),
-      useWeb ? tavilySearchRefs(query) : Promise.resolve({ text: '', refs: [] })
+      useWeb ? WebSearchService.searchWithRefs(query) : Promise.resolve({ text: '', refs: [] })
     ]);
     console.log('[AssistantSearch] workspaceId=', workspaceId, 'pageIds=', pageIds, 'ctx.len=', ctx.length, 'useWeb=', useWeb, 'web.len=', (webWithRefs.text || '').length, 'web.refs=', (webWithRefs.refs || []).length);
 

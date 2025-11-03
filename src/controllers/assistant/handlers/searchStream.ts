@@ -8,7 +8,7 @@ import { AIService } from '../../../services/ai/index.js';
 import { ConversationMemory } from '../../../services/ai/conversationMemory.js';
 import { detectPreferredLanguage, buildLangInstruction } from '../helpers/language.js';
 import { isMathLatexIntent, LATEX_STRICT_RULES } from '../helpers/latex.js';
-import { tavilySearch } from '../helpers/web.js';
+import { WebSearchService } from '../../../services/ai/webSearch.service.js';
 import { buildPagesContextChunked } from '../helpers/context.js';
 import { sseWriteData } from '../helpers/sse.js';
 import { formatAIStreamChunk } from '../helpers/format.js';
@@ -200,26 +200,21 @@ ${personaSnippet}
         currentToolCalls = toolDecision.toolCalls;
         console.log(`✅ [SEARCH-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés, shouldUseTools: ${toolDecision.shouldUseTools}`);
 
-        // 💰 REMBOURSEMENT CRÉDITS: Si l'IA a utilisé search_web alors que l'utilisateur n'a pas activé le web
-        const usedSearchWeb = toolDecision.toolCalls.some(tc => tc.name === 'search_web');
-        if (usedSearchWeb && !useWeb) {
-          console.log(`💰 [CREDITS-REFUND] L'IA a utilisé search_web sans activation utilisateur - Remboursement de 0.25 crédits`);
-          try {
-            const { AICreditsService } = await import('../../../services/credits/aiCreditsService.js');
-            const refundResult = await AICreditsService.refundCredits(
-              userId,
-              0.25,
-              'search_web_ai_decision'
-            );
-            if (refundResult.success) {
-              console.log(`✅ [CREDITS-REFUND] Remboursement réussi - Nouveau solde: ${refundResult.newBalance}`);
-            } else {
-              console.warn(`⚠️ [CREDITS-REFUND] Échec du remboursement: ${refundResult.error}`);
-            }
-          } catch (refundError) {
-            console.error(`❌ [CREDITS-REFUND] Erreur lors du remboursement:`, refundError);
-          }
-        }
+        // 🔥 WEB GRATUIT: Plus de remboursement nécessaire car le web ne coûte plus de crédits
+        // (Code conservé en commentaire pour référence historique)
+        // const usedSearchWeb = toolDecision.toolCalls.some(tc => tc.name === 'search_web');
+        // if (usedSearchWeb && !useWeb) {
+        //   console.log(`💰 [CREDITS-REFUND] L'IA a utilisé search_web sans activation utilisateur - Remboursement de 0.25 crédits`);
+        //   try {
+        //     const { AICreditsService } = await import('../../../services/credits/aiCreditsService.js');
+        //     const refundResult = await AICreditsService.refundCredits(userId, 0.25, 'search_web_ai_decision');
+        //     if (refundResult.success) {
+        //       console.log(`✅ [CREDITS-REFUND] Remboursement réussi - Nouveau solde: ${refundResult.newBalance}`);
+        //     }
+        //   } catch (refundError) {
+        //     console.error(`❌ [CREDITS-REFUND] Erreur lors du remboursement:`, refundError);
+        //   }
+        // }
 
         // 🔥 PHASE 2: Génération réponse finale avec résultats des tools
         if (toolDecision.shouldUseTools && toolDecision.toolCalls.length > 0) {
