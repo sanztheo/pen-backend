@@ -14,26 +14,18 @@ router.use(authenticateToken);
 
 /**
  * 💰 Calcul dynamique du coût en crédits basé sur les paramètres de la requête
- * Tarification officielle :
+ * Tarification officielle (mise à jour 2025) :
  * - Mode Automatique (ask): 1 crédit
- * - Mode Recherche (search): 1.5 crédits
+ * - Mode Recherche (search): 2 crédits
  * - Mode Créer rapide (create + rapide): 1 crédit
  * - Mode Créer profond (create + profond): 2 crédits
- * - +0.25 crédit si sources ajoutées (pages/wikipedia/files)
- * - Web activé : GRATUIT (plus de coût supplémentaire)
+ * - Sources (pages/wikipedia/files) : GRATUIT (inclus dans le tarif de base)
+ * - Web : GRATUIT (inclus dans le tarif de base)
  */
 const calculateDynamicCost = (req: any): number => {
   const body = req.body || {};
-  const mode = body.mode || 'ask'; // Déduire du endpoint si pas dans body
+  const mode = body.mode || 'ask';
   const reflection = body.reflection || 'rapide';
-
-  // Déterminer si des sources sont présentes
-  const hasPages = (body.pageIds && body.pageIds.length > 0) ||
-                   (body.mentioned && body.mentioned.length > 0);
-  const hasFiles = (body.ragSources && body.ragSources.length > 0) ||
-                   (body.files && body.files.length > 0);
-  const hasWikipedia = body.wikipediaSources && body.wikipediaSources.length > 0;
-  const hasSources = hasPages || hasFiles || hasWikipedia;
 
   let credits = 0;
 
@@ -41,15 +33,17 @@ const calculateDynamicCost = (req: any): number => {
   if (mode === 'ask') {
     credits = 1;
   } else if (mode === 'search') {
-    credits = 1.5;
+    credits = 2; // 🔥 Augmenté de 1.5 → 2 crédits
   } else if (mode === 'create') {
     credits = reflection === 'profond' ? 2 : 1;
   }
 
-  // Supplément si des sources sont ajoutées
-  if (hasSources) {
-    credits += 0.25;
-  }
+  // 🔥 SOURCES GRATUITES: Plus de supplément pour les sources
+  // (Commenté pour référence historique)
+  // const hasSources = hasPages || hasFiles || hasWikipedia;
+  // if (hasSources) {
+  //   credits += 0.25;
+  // }
 
   // 🔥 WEB GRATUIT: Plus de coût supplémentaire pour useWeb
   // (Commenté pour référence historique)
