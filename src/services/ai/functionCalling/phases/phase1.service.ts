@@ -220,7 +220,51 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
 - \`totalIterations\` DOIT être précisé et compris entre 1 et 8 selon le mode.
 - N'utilise pas \`read_rag_source\` sans ID validé.
 - Si aucune source trouvée, inclure obligatoirement \`search_web\` en fallback dans la séquence.`
-        : ``;
+        : `Tu dois créer un plan JSON SIMPLE pour mode CREATE RAPIDE (1-3 tools maximum).
+
+# OUTILS DISPONIBLES SIMPLIFIÉS
+
+## 📋 EXPLORATION BASIQUE
+- \`list_available_sources\` : Liste les sources disponibles
+- \`search_rag_chunks\` : Recherche rapide dans les sources
+
+## 🌐 WEB (SI ACTIVÉ)
+- \`search_web\` : Recherche web rapide
+
+# STRATÉGIE MODE RAPIDE (1-3 outils max)
+${hasSpecificSources
+  ? `Sources spécifiques fournies → Appelle \`search_rag_chunks\` avec la query pour trouver l'info rapidement`
+  : useWeb
+    ? `Pas de sources spécifiques → Commence par \`list_available_sources\` puis \`search_web\` si nécessaire`
+    : `Pas de sources spécifiques, pas de web → Appelle \`list_available_sources\` puis \`search_rag_chunks\``
+}
+
+🔥 **MODE RAPIDE** : Maximum 3 tools, privilégie la rapidité sur l'exhaustivité.
+
+## Schema JSON (OBLIGATOIRE)
+
+\`\`\`json
+{
+  "plan": {
+    "totalIterations": <1 à 3>,
+    "reasoning": "<courte explication>",
+    "optimizedQuery": "<reformulation de la query pour meilleurs résultats>",
+    "toolSequence": [
+      {
+        "step": 1,
+        "toolName": "<nom_outil>",
+        "description": "<action>"
+      }
+    ]
+  }
+}
+\`\`\`
+
+${sourcesContext}${contextualInstructions}${useWebStr}
+
+Question : "${query}"
+
+GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après le JSON.`;
 
       let firstThinkingContent = '';
       const firstThinkingStream = await openai.chat.completions.create({
@@ -258,8 +302,18 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
       // Parse first thinking JSON
       const firstThinkingPlan = parseJSONFromStream(firstThinkingContent);
       if (!isFirstThinkingPlan(firstThinkingPlan)) {
-        console.warn('⚠️ First thinking plan invalid, falling back to ask mode');
-        // Fallback: utiliser 1 itération simple
+        console.warn('⚠️ First thinking plan invalid, falling back to no tools');
+        // 🔥 FIX: En mode rapide (isSearch=false), accepter un plan vide et continuer sans tools
+        if (!isSearch) {
+          console.log('🔧 [PHASE-1] Mode rapide détecté, continuing sans tools');
+          return {
+            shouldUseTools: false,
+            toolCalls: [],
+            thinking: firstThinkingContent,
+            intermediateThinkingBlocks: []
+          };
+        }
+        // En mode search, un plan invalide est une erreur
         throw new Error('Invalid first thinking plan format');
       }
 
@@ -427,33 +481,46 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
         console.log(`   Priority: ${strategyAdjustment.priority}, Confidence: ${strategyAdjustment.confidence.toFixed(2)}`);
 
         // 🔥 NOUVEAU: CURSOR-LIKE IMPROVEMENT - Agir sur les scores faibles (pas juste logger)
+        // ⚠️ LIMITES: Max 15 iterations totales, pas de tool répété dans les 3 dernières iters
+        const MAX_ITERATIONS = 15;
+        const RECENT_TOOL_WINDOW = 3;
+
         // Si les scores sont faibles ET que la stratégie recommande fortement d'explorer
         if (
           (strategyAdjustment.priority === 'high' || strategyAdjustment.priority === 'critical') &&
           strategyAdjustment.suggestedTools.length > 0 &&
-          resultScore.overallScore < 0.6
+          resultScore.overallScore < 0.6 &&
+          validatedToolSequence.length < MAX_ITERATIONS // 🔥 FIX: Limite max d'itérations
         ) {
           console.log(`🔥 [IMPROVEMENT] Score faible détecté (${resultScore.overallScore.toFixed(2)}), ajout de tools pour amélioration...`);
 
           // Dynamiquement ajouter les tools suggérés à la fin du plan
           for (const suggestedToolName of strategyAdjustment.suggestedTools) {
-            // Vérifier si le tool n'est pas déjà dans le plan restant
+            // 🔥 FIX: Vérifier si le tool n'est pas dans le plan restant OU dans les N dernières itérations
             const alreadyPlanned = validatedToolSequence
               .slice(iterationIdx + 1)
               .some(t => t.toolName === suggestedToolName);
 
-            if (!alreadyPlanned) {
+            const recentlyExecuted = validatedToolSequence
+              .slice(Math.max(0, iterationIdx - RECENT_TOOL_WINDOW + 1), iterationIdx + 1)
+              .some(t => t.toolName === suggestedToolName);
+
+            if (!alreadyPlanned && !recentlyExecuted && validatedToolSequence.length < MAX_ITERATIONS) {
               validatedToolSequence.push({
                 step: validatedToolSequence.length + 1,
                 toolName: suggestedToolName,
                 description: `Amélioration qualité: ${strategyAdjustment.reasoning}`
               });
               console.log(`✅ [IMPROVEMENT] Ajout de "${suggestedToolName}" pour améliorer la qualité`);
+            } else if (recentlyExecuted) {
+              console.log(`⏭️ [IMPROVEMENT] Skip "${suggestedToolName}" (exécuté récemment dans les ${RECENT_TOOL_WINDOW} dernières iters)`);
             }
           }
 
           // Augmenter totalIterations pour prendre en compte les nouveaux tools
           console.log(`🔄 [IMPROVEMENT] Nouvelle séquence: ${validatedToolSequence.map(t => t.toolName).join(' → ')}`);
+        } else if (validatedToolSequence.length >= MAX_ITERATIONS) {
+          console.log(`⏹️ [IMPROVEMENT] Limite MAX_ITERATIONS (${MAX_ITERATIONS}) atteinte, arrêt de l'amélioration`);
         }
 
         // Si la stratégie suggère d'arrêter et qu'on a assez d'informations

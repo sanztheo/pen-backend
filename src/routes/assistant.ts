@@ -57,7 +57,8 @@ const calculateDynamicCost = (req: any): number => {
 // 🛡️ ROUTES ASSISTANT SÉCURISÉES - Contrôle des crédits IA obligatoire avec tarification dynamique
 router.post('/ask', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_ask' }), assistantAsk);
 router.post('/search', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_search' }), assistantSearch);
-router.post('/create', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_create' }), assistantCreate);
+// 🔥 DEPRECATED: /create remplacé par /create/stream (removed to prevent double credit deduction)
+// router.post('/create', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_create' }), assistantCreate);
 router.post('/ask/stream', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_ask_stream' }), assistantAskStream);
 router.post('/search/stream', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_search_stream' }), assistantSearchStream);
 router.post('/create/stream', requireAICredits({ dynamicCost: calculateDynamicCost, action: 'assistant_create_stream' }), assistantCreateStream);

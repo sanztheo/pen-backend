@@ -105,16 +105,12 @@ export const assistantAskStream = async (req: Request, res: Response) => {
     res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
     res.flushHeaders();
 
-    // 🔥 TWO-PHASE Function Calling SEULEMENT si:
-    // 1. Mode "Toutes les sources" (sourcesScope='all') OU
-    // 2. Pages spécifiquement mentionnées OU
-    // 3. Sources RAG disponibles (Wikipedia, fichiers, etc)
+    // 🔥 TWO-PHASE Function Calling TOUJOURS ACTIF en mode ASK
+    // Permet à l'AI d'utiliser les tools (search_rag_chunks, search_web, etc.) pour répondre
+    // même si aucune source n'est spécifiquement mentionnée
     const hasSpecificPages = contextPageIds.length > 0;
-    const shouldUseFunctionCalling = 
-      (sourcesScope === 'all' && ragSources && ragSources.length > 0) ||
-      hasSpecificPages ||
-      (contextPageIds.length === 0 && ragSources && ragSources.length > 0);
-    
+    const shouldUseFunctionCalling = true; // 🔥 FIX: TOUJOURS actif pour donner accès aux tools
+
     if (shouldUseFunctionCalling) {
       console.log(`🔧 [ASK] Function Calling activé - Pages mentionnées: ${hasSpecificPages}, Mode: ${sourcesScope}`);
 
