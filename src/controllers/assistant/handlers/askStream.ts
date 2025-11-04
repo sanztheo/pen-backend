@@ -143,13 +143,14 @@ export const assistantAskStream = async (req: Request, res: Response) => {
 
       let currentThinking = '';
       let currentToolCalls: any[] = [];
+      let intermediateThinkingBlocks: any[] = []; // 🔥 NOUVEAU: Stocker intermediate thinking pour metadata
 
       try {
         const persona = await readPersonalizationFromReq(req);
         const personaSnippet = buildPersonaSnippet(persona, 400);
         // 🔥 PHASE 1: Décision des tools + explication streamée
         console.log(`🔧 [ASK-PHASE-1] Démarrage décision tools avec ${sourcesForAI.length} sources...`);
-        
+
         const toolDecision = await FunctionCallingService.decideAndExecuteTools({
           query: sanitizedQuery,
           availableSources: sourcesForAI,
@@ -161,7 +162,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
 ${personaSnippet}
 
 '''${LATEX_STRICT_RULES}'''`,
-          isSearch: false,  // 🔥 Flag pour Ask - réponse plus courte
+          isSearch: false,  // 🔥 Flag pour Ask - réponse plus courte (1-3 tools max)
 
           // Callbacks pour streaming temps réel
           onThinking: (thinkingChunk) => {
@@ -188,10 +189,20 @@ ${personaSnippet}
             if (typeof (res as any).flush === 'function') {
               (res as any).flush();
             }
+          },
+
+          // 🔥 NOUVEAU: Thinking intermédiaire entre les outils (comme search/create)
+          onIntermediateThinking: (thinkingChunk) => {
+            const timestamp = new Date().toISOString();
+            res.write(`event: intermediate_thinking\ndata: ${JSON.stringify({ content: thinkingChunk, timestamp })}\n\n`);
+            if (typeof (res as any).flush === 'function') {
+              (res as any).flush();
+            }
           }
         });
 
         currentToolCalls = toolDecision.toolCalls;
+        intermediateThinkingBlocks = toolDecision.intermediateThinkingBlocks || []; // 🔥 NOUVEAU: Capturer les intermediate thinking blocks
         console.log(`✅ [ASK-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés, shouldUseTools: ${toolDecision.shouldUseTools}`);
 
         // 🔥 PHASE 2: Génération réponse finale avec résultats des tools
@@ -270,7 +281,8 @@ ${personaSnippet}
         res.write(`data: ${JSON.stringify({
           toolCalls: currentToolCalls,
           thinking: currentThinking,
-          usedFallback: !toolDecision.shouldUseTools
+          usedFallback: !toolDecision.shouldUseTools,
+          intermediateThinkingBlocks: intermediateThinkingBlocks // 🔥 NOUVEAU: Inclure intermediate thinking blocks comme search/create
         })}\n\n`);
 
         try {
