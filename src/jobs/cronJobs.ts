@@ -10,6 +10,7 @@ const HEALTH_CHECK_SCHEDULE = '0 */6 * * *'; // Toutes les 6 heures
 const RAG_CLEANUP_SCHEDULE = '0 3 * * *'; // Tous les jours à 3h du matin
 const DAILY_ARTICLE_SCHEDULE = '0 0 * * *'; // Tous les jours à minuit
 const MONTHLY_RESET_SCHEDULE = '0 2 * * *'; // Tous les jours à 2h du matin
+const DAILY_LIMITS_RESET_SCHEDULE = '0 0 * * *'; // Tous les jours à minuit
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 export function startCronJobs() {
@@ -137,6 +138,43 @@ export function startCronJobs() {
 
   console.log(`✅ Tâche de reset mensuel programmée: ${MONTHLY_RESET_SCHEDULE} (Europe/Paris)`);
 
+  // 🔄 Reset automatique quotidien des limites quiz avancés (24h)
+  const dailyLimitsResetTask = cron.schedule(DAILY_LIMITS_RESET_SCHEDULE, async () => {
+    console.log('\n🔄 [CRON] Démarrage du reset quotidien des limites quiz avancés...');
+    try {
+      const { startDailyLimitsReset } = await import('../services/cron/resetLimitsCron.js');
+
+      // Exécuter le reset immédiatement
+      const { prisma } = await import('../lib/prisma.js');
+      const now = new Date();
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const result = await prisma.userLimits.updateMany({
+        where: {
+          advancedQuizzesResetAt: {
+            lte: twentyFourHoursAgo
+          },
+          advancedQuizzesUsed: {
+            gt: 0
+          }
+        },
+        data: {
+          advancedQuizzesUsed: 0,
+          advancedQuizzesResetAt: null
+        }
+      });
+
+      console.log(`✅ [CRON] Reset quotidien terminé: ${result.count} utilisateur(s) réinitialisé(s)`);
+
+    } catch (error) {
+      console.error('❌ [CRON] Erreur lors du reset quotidien:', error);
+    }
+  }, {
+    timezone: 'Europe/Paris'
+  });
+
+  console.log(`✅ Tâche de reset quotidien des limites programmée: ${DAILY_LIMITS_RESET_SCHEDULE} (Europe/Paris)`);
+
   // En développement, ajouter une tâche de test plus fréquente
   if (NODE_ENV === 'development') {
     // Tâche de test toutes les 5 minutes (désactivée par défaut)
@@ -164,7 +202,8 @@ export function startCronJobs() {
     healthCheck: healthCheckTask,
     ragCleanup: ragCleanupTask,
     dailyArticle: dailyArticleTask,
-    monthlyReset: monthlyResetTask
+    monthlyReset: monthlyResetTask,
+    dailyLimitsReset: dailyLimitsResetTask
   };
 }
 
