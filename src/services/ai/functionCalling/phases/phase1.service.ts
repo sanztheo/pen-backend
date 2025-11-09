@@ -252,7 +252,29 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
 - \`totalIterations\` DOIT être précisé et compris entre 1 et 8 selon le mode.
 - N'utilise pas \`read_rag_source\` sans ID validé.
 - Si aucune source trouvée, inclure obligatoirement \`search_web\` en fallback dans la séquence.`
-        : `Tu dois créer un plan JSON SIMPLE pour mode CREATE RAPIDE (1-3 tools maximum).
+        : `Tu dois créer un plan JSON SIMPLE pour mode ASK RAPIDE (1-3 tools maximum).
+
+🚨 **DÉTECTION SMALL TALK** (PRIORITÉ ABSOLUE) :
+Avant TOUTE planification, analyse si la question est une simple conversation sociale :
+- Salutations : "salut", "bonjour", "hello", "hi", "hey", "coucou"
+- Remerciements : "merci", "thanks", "thx", "ok merci"
+- Politesse : "au revoir", "bye", "à plus", "bonne journée"
+- Confirmation : "ok", "d'accord", "compris"
+
+⚠️ **SI SMALL TALK DÉTECTÉ** :
+→ Retourne IMMÉDIATEMENT un plan avec totalIterations: 0 et toolSequence: []
+→ La réponse sera générée SANS utiliser de tools et SANS déduire de crédits
+→ Exemple de réponse JSON :
+\`\`\`json
+{
+  "plan": {
+    "totalIterations": 0,
+    "reasoning": "Question conversationnelle détectée (salutation/politesse), aucun tool nécessaire",
+    "optimizedQuery": "",
+    "toolSequence": []
+  }
+}
+\`\`\`
 
 # OUTILS DISPONIBLES SIMPLIFIÉS
 
@@ -359,6 +381,17 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
 
       const { totalIterations, toolSequence, optimizedQuery } =
         firstThinkingPlan.plan;
+
+      // 🚨 SMALL TALK DETECTION: Si totalIterations === 0, c'est du small talk
+      if (totalIterations === 0 || toolSequence.length === 0) {
+        console.log(`💬 [PHASE-1] Small talk détecté: "${query}" - Skip tools`);
+        return {
+          shouldUseTools: false,
+          toolCalls: [],
+          thinking: firstThinkingContent,
+          intermediateThinkingBlocks: [],
+        };
+      }
 
       // 🎯 Extraire la query optimisée du plan (ou fallback sur query originale)
       const queryToUse =

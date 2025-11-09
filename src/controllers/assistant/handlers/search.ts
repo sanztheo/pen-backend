@@ -1,51 +1,128 @@
-import { Request, Response } from 'express';
-import { prisma } from '../../../lib/prisma.js';
-import { AIService } from '../../../services/ai/index.js';
-import { selectRelevantPagesWithAssistant } from '../../../services/ai/assistants/selectPages.js';
-import { detectPreferredLanguage, buildLangInstruction } from '../helpers/language.js';
-import { isMathLatexIntent, LATEX_STRICT_RULES } from '../helpers/latex.js';
-import { buildPagesContextChunked } from '../helpers/context.js';
-import { WebSearchService } from '../../../services/ai/webSearch.service.js';
-import { titleRelevanceScore } from '../helpers/scoring.js';
-import { formatAIText, formatItalicReferences } from '../helpers/format.js';
-import { readPersonalizationFromReq, buildPersonaSnippet } from '../helpers/personalization.js';
+import { Request, Response } from "express";
+import { prisma } from "../../../lib/prisma.js";
+import { AIService } from "../../../services/ai/index.js";
+import { selectRelevantPagesWithAssistant } from "../../../services/ai/assistants/selectPages.js";
+import {
+  detectPreferredLanguage,
+  buildLangInstruction,
+} from "../helpers/language.js";
+import { isMathLatexIntent, LATEX_STRICT_RULES } from "../helpers/latex.js";
+import { buildPagesContextChunked } from "../helpers/context.js";
+import { WebSearchService } from "../../../services/ai/webSearch.service.js";
+import { titleRelevanceScore } from "../helpers/scoring.js";
+import { formatAIText, formatItalicReferences } from "../helpers/format.js";
+import {
+  readPersonalizationFromReq,
+  buildPersonaSnippet,
+} from "../helpers/personalization.js";
 
 export const assistantSearch = async (req: Request, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Utilisateur non authentifié' });
-    const { query, workspaceId, pageIds = [], useWeb = true } = req.body as { query: string; workspaceId: string; pageIds?: string[]; useWeb?: boolean };
-    if (!query || !workspaceId) return res.status(400).json({ error: 'query et workspaceId requis' });
+    if (!req.user)
+      return res.status(401).json({ error: "Utilisateur non authentifié" });
+    const {
+      query,
+      workspaceId,
+      pageIds = [],
+      useWeb = true,
+    } = req.body as {
+      query: string;
+      workspaceId: string;
+      pageIds?: string[];
+      useWeb?: boolean;
+    };
+    if (!query || !workspaceId)
+      return res.status(400).json({ error: "query et workspaceId requis" });
+
+    // 🚨 SMALL TALK DETECTION: Détecter les salutations/politesse pour éviter la recherche inutile
+    const smallTalkPatterns =
+      /^(salut|bonjour|hello|hi|hey|coucou|merci|thanks|thx|ok merci|au revoir|bye|à plus|bonne journée|ok|d'accord|compris)[\s!?\.]*$/i;
+    const isSmallTalk = smallTalkPatterns.test(query.trim());
+
+    if (isSmallTalk) {
+      console.log(
+        "[AssistantSearch] Small talk detected, returning friendly response without search",
+      );
+      const friendlyResponses: Record<string, string> = {
+        salut: "Salut ! Comment puis-je vous aider ?",
+        bonjour: "Bonjour ! Comment puis-je vous aider ?",
+        hello: "Hello! How can I help you?",
+        hi: "Hi! How can I help you?",
+        hey: "Hey! What can I do for you?",
+        merci: "De rien ! N'hésitez pas si vous avez d'autres questions.",
+        thanks: "You're welcome!",
+        "au revoir": "Au revoir ! À bientôt.",
+        bye: "Bye! See you soon.",
+      };
+
+      const normalizedQuery = query
+        .trim()
+        .toLowerCase()
+        .replace(/[!?\.]/g, "");
+      const response =
+        friendlyResponses[normalizedQuery] ||
+        "Bonjour ! Comment puis-je vous aider ?";
+
+      return res.json({
+        answer: response,
+        references: "",
+        model: "gpt-4o-mini",
+        usedWeb: false,
+      });
+    }
 
     const lang = detectPreferredLanguage(req);
     let selectedIds: string[] = pageIds;
-    if (!selectedIds || selectedIds.length === 0 || (req.body as any)?.sourcesScope === 'all') {
-      console.log('[AssistantSearch] selection step (all sources)');
-      const all = await prisma.page.findMany({ where: { workspaceId, isArchived: false }, select: { id: true, title: true }, orderBy: { updatedAt: 'desc' }, take: 200 });
-      const sel = await selectRelevantPagesWithAssistant({ question: query, pages: all.map(p => ({ id: p.id, title: p.title })), maxResults: 5 });
-      const initialSelected = (sel.selected || []);
+    if (
+      !selectedIds ||
+      selectedIds.length === 0 ||
+      (req.body as any)?.sourcesScope === "all"
+    ) {
+      console.log("[AssistantSearch] selection step (all sources)");
+      const all = await prisma.page.findMany({
+        where: { workspaceId, isArchived: false },
+        select: { id: true, title: true },
+        orderBy: { updatedAt: "desc" },
+        take: 200,
+      });
+      const sel = await selectRelevantPagesWithAssistant({
+        question: query,
+        pages: all.map((p) => ({ id: p.id, title: p.title })),
+        maxResults: 5,
+      });
+      const initialSelected = sel.selected || [];
       let pruned = initialSelected
-        .map(p => ({ ...p, score: titleRelevanceScore(p.title, query) }))
-        .filter(p => p.score > 0)
+        .map((p) => ({ ...p, score: titleRelevanceScore(p.title, query) }))
+        .filter((p) => p.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, 5)
-        .map(p => p.id);
-      console.log('[AssistantSearch] IA selection (raw)=', initialSelected.map(p => p.title));
-      console.log('[AssistantSearch] IA selection pruned (ids.len)=', pruned.length);
+        .map((p) => p.id);
+      console.log(
+        "[AssistantSearch] IA selection (raw)=",
+        initialSelected.map((p) => p.title),
+      );
+      console.log(
+        "[AssistantSearch] IA selection pruned (ids.len)=",
+        pruned.length,
+      );
       selectedIds = pruned;
 
       if (!selectedIds.length || selectedIds.length === all.length) {
-        console.log('[AssistantSearch] AI selection failed, using smart fallback');
+        console.log(
+          "[AssistantSearch] AI selection failed, using smart fallback",
+        );
         const score = (title: string) => {
-          const queryWords = (query || '').toLowerCase()
+          const queryWords = (query || "")
+            .toLowerCase()
             .split(/[^a-zàâçéèêëîïôûùüÿñæœ0-9]+/)
-            .filter(w => w.length >= 2);
-          const titleLower = (title || '').toLowerCase();
+            .filter((w) => w.length >= 2);
+          const titleLower = (title || "").toLowerCase();
           let totalScore = 0;
           for (const word of queryWords) {
             if (titleLower.includes(word)) {
               totalScore += word.length * 2;
             }
-            const wordParts = word.split('');
+            const wordParts = word.split("");
             let partialMatch = 0;
             for (const char of wordParts) {
               if (titleLower.includes(char)) partialMatch++;
@@ -54,24 +131,45 @@ export const assistantSearch = async (req: Request, res: Response) => {
           }
           return totalScore;
         };
-        const scored = all.map(p => ({ ...p, score: score(p.title) }))
-          .filter(p => p.score > 0)
+        const scored = all
+          .map((p) => ({ ...p, score: score(p.title) }))
+          .filter((p) => p.score > 0)
           .sort((a, b) => b.score - a.score);
-        selectedIds = scored.slice(0, Math.min(5, scored.length)).map(p => p.id);
-        console.log('[AssistantSearch] fallback selection:', scored.slice(0,5).map(p => `${p.title} (${p.score})`));
+        selectedIds = scored
+          .slice(0, Math.min(5, scored.length))
+          .map((p) => p.id);
+        console.log(
+          "[AssistantSearch] fallback selection:",
+          scored.slice(0, 5).map((p) => `${p.title} (${p.score})`),
+        );
         if (!selectedIds.length) {
-          selectedIds = all.slice(0, 3).map(p => p.id);
-          console.log('[AssistantSearch] final fallback: recent pages');
+          selectedIds = all.slice(0, 3).map((p) => p.id);
+          console.log("[AssistantSearch] final fallback: recent pages");
         }
       }
-      console.log('[AssistantSearch] selectedIds.len=', selectedIds.length);
+      console.log("[AssistantSearch] selectedIds.len=", selectedIds.length);
     }
 
     const [ctx, webWithRefs] = await Promise.all([
       buildPagesContextChunked(workspaceId, selectedIds, 10, query, 12),
-      useWeb ? WebSearchService.searchWithRefs(query) : Promise.resolve({ text: '', refs: [] })
+      useWeb
+        ? WebSearchService.searchWithRefs(query)
+        : Promise.resolve({ text: "", refs: [] }),
     ]);
-    console.log('[AssistantSearch] workspaceId=', workspaceId, 'pageIds=', pageIds, 'ctx.len=', ctx.length, 'useWeb=', useWeb, 'web.len=', (webWithRefs.text || '').length, 'web.refs=', (webWithRefs.refs || []).length);
+    console.log(
+      "[AssistantSearch] workspaceId=",
+      workspaceId,
+      "pageIds=",
+      pageIds,
+      "ctx.len=",
+      ctx.length,
+      "useWeb=",
+      useWeb,
+      "web.len=",
+      (webWithRefs.text || "").length,
+      "web.refs=",
+      (webWithRefs.refs || []).length,
+    );
 
     const web = webWithRefs.text;
     const mathMode = isMathLatexIntent(query);
@@ -99,22 +197,43 @@ ${LATEX_STRICT_RULES}`;
 ${web}
 
 ${baseGuidelines}
-${personaSnippet ? `\n${personaSnippet}` : ''}
-${mathMode ? mathGuidelines : ''}`;
+${personaSnippet ? `\n${personaSnippet}` : ""}
+${mathMode ? mathGuidelines : ""}`;
 
     const MAX_TOKENS_SEARCH = 30000;
-    console.log('[AssistantSearch] calling AIService.generateContent maxTokens=', MAX_TOKENS_SEARCH);
-    const result = await AIService.generateContent({ prompt: query, context, temperature: 0.3, maxTokens: MAX_TOKENS_SEARCH });
-    const refPages = await prisma.page.findMany({ where: { id: { in: selectedIds } }, select: { id:true, title:true } });
-    const pageRefs = refPages.map(p => ({ title: p.title }));
+    console.log(
+      "[AssistantSearch] calling AIService.generateContent maxTokens=",
+      MAX_TOKENS_SEARCH,
+    );
+    const result = await AIService.generateContent({
+      prompt: query,
+      context,
+      temperature: 0.3,
+      maxTokens: MAX_TOKENS_SEARCH,
+    });
+    const refPages = await prisma.page.findMany({
+      where: { id: { in: selectedIds } },
+      select: { id: true, title: true },
+    });
+    const pageRefs = refPages.map((p) => ({ title: p.title }));
     const webRefs = webWithRefs.refs || [];
     const refsBlock = formatItalicReferences([...pageRefs, ...webRefs]);
-    const answer = formatAIText(result.content || '');
-    console.log('[AssistantSearch] result.len=', answer.length, 'refs.len=', refsBlock.length);
-    res.json({ answer, references: refsBlock, model: result.model, usedWeb: !!web });
+    const answer = formatAIText(result.content || "");
+    console.log(
+      "[AssistantSearch] result.len=",
+      answer.length,
+      "refs.len=",
+      refsBlock.length,
+    );
+    res.json({
+      answer,
+      references: refsBlock,
+      model: result.model,
+      usedWeb: !!web,
+    });
   } catch (e) {
-    console.error('assistantSearch error', e);
-    const message = (e as any)?.message || 'Erreur assistant recherche';
+    console.error("assistantSearch error", e);
+    const message = (e as any)?.message || "Erreur assistant recherche";
     res.status(500).json({ error: message });
   }
 };
