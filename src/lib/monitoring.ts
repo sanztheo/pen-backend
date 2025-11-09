@@ -1,0 +1,210 @@
+/**
+ * 📊 MONITORING ET MÉTRIQUES
+ *
+ * Monitoring de la santé du serveur :
+ * - Utilisation RAM (notamment pour Yjs documents)
+ * - Utilisation CPU
+ * - Statistiques des queues BullMQ
+ * - Connection pool database
+ */
+
+import { getQueueStats } from "./queues.js";
+
+/**
+ * 💾 Métriques RAM et mémoire
+ */
+export const getMemoryStats = () => {
+  const used = process.memoryUsage();
+
+  return {
+    rss: {
+      value: used.rss,
+      mb: Math.round((used.rss / 1024 / 1024) * 100) / 100,
+      label: "Resident Set Size",
+    },
+    heapTotal: {
+      value: used.heapTotal,
+      mb: Math.round((used.heapTotal / 1024 / 1024) * 100) / 100,
+      label: "Total Heap",
+    },
+    heapUsed: {
+      value: used.heapUsed,
+      mb: Math.round((used.heapUsed / 1024 / 1024) * 100) / 100,
+      label: "Heap Used",
+    },
+    external: {
+      value: used.external,
+      mb: Math.round((used.external / 1024 / 1024) * 100) / 100,
+      label: "External (C++ objects)",
+    },
+  };
+};
+
+/**
+ * 🖥️ Métriques CPU
+ */
+export const getCpuStats = () => {
+  const usage = process.cpuUsage();
+
+  return {
+    user: {
+      value: usage.user,
+      ms: Math.round(usage.user / 1000),
+      label: "User CPU Time",
+    },
+    system: {
+      value: usage.system,
+      ms: Math.round(usage.system / 1000),
+      label: "System CPU Time",
+    },
+  };
+};
+
+/**
+ * ⏱️ Métriques d'uptime
+ */
+export const getUptimeStats = () => {
+  const uptime = process.uptime();
+
+  return {
+    seconds: uptime,
+    formatted: formatUptime(uptime),
+  };
+};
+
+/**
+ * 📊 Métriques globales du système
+ */
+export const getSystemStats = async () => {
+  const memory = getMemoryStats();
+  const cpu = getCpuStats();
+  const uptime = getUptimeStats();
+  const queues = await getQueueStats();
+
+  return {
+    timestamp: new Date().toISOString(),
+    memory,
+    cpu,
+    uptime,
+    queues,
+    pid: process.pid,
+    nodeVersion: process.version,
+  };
+};
+
+/**
+ * 🚨 Détecter les seuils critiques
+ */
+export const checkHealthThresholds = () => {
+  const memory = getMemoryStats();
+  const heapUsedPercent =
+    (memory.heapUsed.value / memory.heapTotal.value) * 100;
+
+  const warnings = [];
+
+  // RAM Heap > 80%
+  if (heapUsedPercent > 80) {
+    warnings.push({
+      level: "critical",
+      type: "memory",
+      message: `Heap usage critique: ${Math.round(heapUsedPercent)}% (${memory.heapUsed.mb}MB/${memory.heapTotal.mb}MB)`,
+    });
+  } else if (heapUsedPercent > 60) {
+    warnings.push({
+      level: "warning",
+      type: "memory",
+      message: `Heap usage élevé: ${Math.round(heapUsedPercent)}% (${memory.heapUsed.mb}MB/${memory.heapTotal.mb}MB)`,
+    });
+  }
+
+  // RSS > 500MB
+  if (memory.rss.mb > 500) {
+    warnings.push({
+      level: "warning",
+      type: "memory",
+      message: `RSS élevé: ${memory.rss.mb}MB (documents Yjs potentiellement nombreux)`,
+    });
+  }
+
+  return {
+    healthy: warnings.filter((w) => w.level === "critical").length === 0,
+    warnings,
+  };
+};
+
+/**
+ * 📈 Monitoring automatique avec logs périodiques
+ */
+let monitoringInterval: NodeJS.Timeout | null = null;
+
+export const startMonitoring = (intervalMinutes: number = 5) => {
+  if (monitoringInterval) {
+    console.warn("⚠️ [MONITORING] Monitoring déjà actif");
+    return;
+  }
+
+  console.log(
+    `📊 [MONITORING] Démarrage monitoring (intervalle: ${intervalMinutes}min)`,
+  );
+
+  monitoringInterval = setInterval(
+    async () => {
+      const stats = await getSystemStats();
+      const health = checkHealthThresholds();
+
+      console.log(
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      );
+      console.log("📊 [MONITORING] Métriques système");
+      console.log(
+        `   💾 Heap: ${stats.memory.heapUsed.mb}MB / ${stats.memory.heapTotal.mb}MB (${Math.round((stats.memory.heapUsed.value / stats.memory.heapTotal.value) * 100)}%)`,
+      );
+      console.log(`   📦 RSS: ${stats.memory.rss.mb}MB`);
+      console.log(`   ⏱️ Uptime: ${stats.uptime.formatted}`);
+      console.log(`   🎯 Queues:`);
+      console.log(
+        `      - AI Generation: ${stats.queues.aiGeneration.waiting} waiting, ${stats.queues.aiGeneration.active} active`,
+      );
+      console.log(
+        `      - AI Assistant: ${stats.queues.aiAssistant.waiting} waiting, ${stats.queues.aiAssistant.active} active`,
+      );
+      console.log(
+        `      - AI Quiz: ${stats.queues.aiQuiz.waiting} waiting, ${stats.queues.aiQuiz.active} active`,
+      );
+
+      if (health.warnings.length > 0) {
+        console.log("   ⚠️ Avertissements:");
+        health.warnings.forEach((w) => {
+          const icon = w.level === "critical" ? "🚨" : "⚠️";
+          console.log(`      ${icon} ${w.message}`);
+        });
+      }
+
+      console.log(
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      );
+    },
+    intervalMinutes * 60 * 1000,
+  );
+};
+
+export const stopMonitoring = () => {
+  if (monitoringInterval) {
+    clearInterval(monitoringInterval);
+    monitoringInterval = null;
+    console.log("📊 [MONITORING] Monitoring arrêté");
+  }
+};
+
+/**
+ * 🔧 Helpers
+ */
+function formatUptime(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  if (days > 0) return `${days}j ${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}

@@ -1,47 +1,52 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import dotenv from 'dotenv';
-import http from 'http';
-import { WebSocketServer } from 'ws';
-import * as Y from 'yjs';
-import * as encoding from 'lib0/encoding';
-import * as decoding from 'lib0/decoding';
-import * as syncProtocol from 'y-protocols/sync';
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import dotenv from "dotenv";
+import http from "http";
+import { WebSocketServer } from "ws";
+import * as Y from "yjs";
+import * as encoding from "lib0/encoding";
+import * as decoding from "lib0/decoding";
+import * as syncProtocol from "y-protocols/sync";
 
-import authRoutes from './routes/auth.js';
-import workspaceRoutes from './routes/workspace.js';
-import projectRoutes from './routes/project.js';
-import pageRoutes from './routes/page.js';
-import contentRoutes from './routes/content.js';
-import aiRoutes from './routes/ai.js';
-import assistantRoutes from './routes/assistant.js';
-import conversationsRoutes from './routes/conversations.js';
-import quizRoutes from './routes/quiz.js';
-import { invalidateBlockNoteCache } from './lib/redis.js';
-import reorderRoutes from './routes/reorder.js';
-import graphicsRoutes from './routes/graphics.js';
-import dashboardLayoutRoutes from './routes/dashboardLayoutRoutes.js';
-import billingRoutes from './routes/billing.js';
-import limitsRoutes from './routes/limits.js';
-import aiCreditsRoutes from './routes/aiCredits.js';
-import quizLimitsRoutes from './routes/quizLimits.js';
-import syncLimitsRoutes from './routes/sync-limits.js';
-import updatesRoutes from './routes/updates.js';
-import userRoutes from './routes/user.js';
-import dailyArticleRoutes from './routes/dailyArticle.js';
-import uploadRoutes from './routes/upload.js';
-import { clerkWebhookHandler } from './routes/webhooks.js';
+import authRoutes from "./routes/auth.js";
+import workspaceRoutes from "./routes/workspace.js";
+import projectRoutes from "./routes/project.js";
+import pageRoutes from "./routes/page.js";
+import contentRoutes from "./routes/content.js";
+import aiRoutes from "./routes/ai.js";
+import assistantRoutes from "./routes/assistant.js";
+import conversationsRoutes from "./routes/conversations.js";
+import quizRoutes from "./routes/quiz.js";
+import { invalidateBlockNoteCache } from "./lib/redis.js";
+import reorderRoutes from "./routes/reorder.js";
+import graphicsRoutes from "./routes/graphics.js";
+import dashboardLayoutRoutes from "./routes/dashboardLayoutRoutes.js";
+import billingRoutes from "./routes/billing.js";
+import limitsRoutes from "./routes/limits.js";
+import aiCreditsRoutes from "./routes/aiCredits.js";
+import quizLimitsRoutes from "./routes/quizLimits.js";
+import syncLimitsRoutes from "./routes/sync-limits.js";
+import updatesRoutes from "./routes/updates.js";
+import userRoutes from "./routes/user.js";
+import dailyArticleRoutes from "./routes/dailyArticle.js";
+import uploadRoutes from "./routes/upload.js";
+import { clerkWebhookHandler } from "./routes/webhooks.js";
 
-import { startCronJobs } from './jobs/cronJobs.js';
-import { AuthService } from './services/auth.js';
-import { DatabaseHealthCheck } from './lib/dbHealthCheck.js';
+import { startCronJobs } from "./jobs/cronJobs.js";
+import { AuthService } from "./services/auth.js";
+import { DatabaseHealthCheck } from "./lib/dbHealthCheck.js";
 // import { Logger } from './lib/logger.js'; // ❌ DÉSACTIVÉ - cache les logs console
-import { PrismaPersistence } from './lib/y-prisma.js';
-import { prisma, startKeepAlive } from './lib/prisma.js';
-import { progressService } from './services/progressService.js';
-import compression from 'compression';
-import { backendConfig, CLIENT_URL } from './utils/config.js';
+import { PrismaPersistence } from "./lib/y-prisma.js";
+import { prisma, startKeepAlive } from "./lib/prisma.js";
+import { progressService } from "./services/progressService.js";
+import compression from "compression";
+import { backendConfig, CLIENT_URL } from "./utils/config.js";
+
+// 🎯 WORKERS & MONITORING IMPORTS
+import { startWorkers, stopWorkers } from "./workers/index.js";
+import { closeQueues } from "./lib/queues.js";
+import { startMonitoring, stopMonitoring } from "./lib/monitoring.js";
 
 // 🛡️ RATE LIMITING IMPORTS
 import {
@@ -50,15 +55,15 @@ import {
   aiRateLimit,
   quizRateLimit,
   assistantRateLimit,
-  logRateLimitConfig
-} from './middlewares/rateLimiting.js';
+  logRateLimitConfig,
+} from "./middlewares/rateLimiting.js";
 import {
   checkWebSocketConnectionLimit,
   checkWebSocketMessageLimit,
   cleanupWebSocketTrackers,
   startWebSocketCleanup,
-  logWebSocketRateLimitConfig
-} from './middlewares/websocketRateLimit.js';
+  logWebSocketRateLimitConfig,
+} from "./middlewares/websocketRateLimit.js";
 
 dotenv.config();
 // Logger.init(); // ❌ DÉSACTIVÉ - maintenant console.log s'affiche dans le terminal
@@ -70,68 +75,83 @@ const PORT = backendConfig.port;
 const NODE_ENV = backendConfig.nodeEnv;
 
 app.use(helmet());
-app.use(cors({
-  origin: CLIENT_URL.split(',').map(url => url.trim()),
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: CLIENT_URL.split(",").map((url) => url.trim()),
+    credentials: true,
+  }),
+);
 app.use(compression());
 
 // 🛡️ RATE LIMITING GLOBAL - Appliqué à TOUS les endpoints
 app.use(globalRateLimit);
 
 // Clerk webhook avant json pour body brut (skip rate limit via config)
-app.post('/api/webhooks/clerk', express.raw({ type: 'application/json' }), clerkWebhookHandler);
-app.use(express.json({ limit: '10mb' }));
+app.post(
+  "/api/webhooks/clerk",
+  express.raw({ type: "application/json" }),
+  clerkWebhookHandler,
+);
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
+app.get("/health", (req, res) => res.status(200).json({ status: "ok" }));
 
 // 🛡️ ROUTES AVEC RATE LIMITING SPÉCIFIQUE
-app.use('/api/auth', authRateLimit, authRoutes); // Protection brute force
-app.use('/api/content', contentRoutes); // 🏠 Nouvelle API simplifiée
-app.use('/api/workspaces', workspaceRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/pages', pageRoutes);
-app.use('/api/ai', aiRateLimit, aiRoutes); // Protection spam IA
+app.use("/api/auth", authRateLimit, authRoutes); // Protection brute force
+app.use("/api/content", contentRoutes); // 🏠 Nouvelle API simplifiée
+app.use("/api/workspaces", workspaceRoutes);
+app.use("/api/projects", projectRoutes);
+app.use("/api/pages", pageRoutes);
+app.use("/api/ai", aiRateLimit, aiRoutes); // Protection spam IA
 
 // 🤖 Route spéciale pour BlockNote AI - alias direct vers /api/ai/chat
 // BlockNote AI utilise DefaultChatTransport qui appelle /api/chat
-app.post('/api/chat', (req, res, next) => {
+app.post("/api/chat", (req, res, next) => {
   // Modifier l'URL pour correspondre à la route du router AI
-  req.url = '/chat';
-  req.originalUrl = '/api/ai/chat';
+  req.url = "/chat";
+  req.originalUrl = "/api/ai/chat";
   // Passer la requête au router AI
   aiRoutes(req, res, next);
 });
-app.use('/api/assistant', assistantRateLimit, assistantRoutes); // Protection OpenAI Assistant
-app.use('/api/conversations', conversationsRoutes);
-app.use('/api/quiz', quizRateLimit, quizRoutes); // Protection génération quiz
-app.use('/api/quiz/graphics', graphicsRoutes);
-app.use('/api/reorder', reorderRoutes);
-app.use('/api/dashboard-layout', dashboardLayoutRoutes);
+app.use("/api/assistant", assistantRateLimit, assistantRoutes); // Protection OpenAI Assistant
+app.use("/api/conversations", conversationsRoutes);
+app.use("/api/quiz", quizRateLimit, quizRoutes); // Protection génération quiz
+app.use("/api/quiz/graphics", graphicsRoutes);
+app.use("/api/reorder", reorderRoutes);
+app.use("/api/dashboard-layout", dashboardLayoutRoutes);
 // 🛡️ SÉCURITÉ: Routes admin supprimées pour éviter les vulnérabilités
-app.use('/api/billing', billingRoutes);
-app.use('/api/limits', limitsRoutes);
-app.use('/api/ai-credits', aiCreditsRoutes);
-app.use('/api/quiz-limits', quizLimitsRoutes);
-app.use('/api/sync-limits', syncLimitsRoutes);
-app.use('/api/updates', updatesRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/daily-article', dailyArticleRoutes);
-app.use('/api/user', userRoutes);
+app.use("/api/billing", billingRoutes);
+app.use("/api/limits", limitsRoutes);
+app.use("/api/ai-credits", aiCreditsRoutes);
+app.use("/api/quiz-limits", quizLimitsRoutes);
+app.use("/api/sync-limits", syncLimitsRoutes);
+app.use("/api/updates", updatesRoutes);
+app.use("/api/upload", uploadRoutes);
+app.use("/api/daily-article", dailyArticleRoutes);
+app.use("/api/user", userRoutes);
 
-app.use('*', (req, res) => res.status(404).json({ error: 'Route non trouvée' }));
-app.use((error: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('❌ Erreur non gérée:', error);
-  res.status(500).json({ error: 'Erreur interne du serveur' });
-});
+app.use("*", (req, res) =>
+  res.status(404).json({ error: "Route non trouvée" }),
+);
+app.use(
+  (
+    error: any,
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    console.error("❌ Erreur non gérée:", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
+  },
+);
 
 const authenticateTokenWS = async (token: string) => {
   try {
     // Utiliser la vérification de token Clerk pour WebSocket
     return await AuthService.verifyToken(token);
   } catch (error) {
-    console.error('Erreur authentification WebSocket:', error);
+    console.error("Erreur authentification WebSocket:", error);
     return null;
   }
 };
@@ -141,71 +161,87 @@ const setupYjsWebSocket = (server: http.Server) => {
   const persistence = new PrismaPersistence();
   const docs = new Map<string, Y.Doc>();
   const connections = new Map<string, number>(); // Compteur de connexions par document
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-  wss.on('connection', async (ws, req) => {
-    const url = req.url?.split('?')[0] || '';
-    const pathSegments = url.split('/').filter(Boolean);
+  wss.on("connection", async (ws, req) => {
+    const url = req.url?.split("?")[0] || "";
+    const pathSegments = url.split("/").filter(Boolean);
     const user = (req as any).user; // Récupérer l'utilisateur authentifié
-    
+
     if (!user) {
-      ws.close(1008, 'Utilisateur non authentifié');
+      ws.close(1008, "Utilisateur non authentifié");
       return;
     }
 
-    ws.on('error', (err) => {
-      if (err.message.includes('payload')) {
-        console.error(`[WS] ❌ Message trop volumineux reçu de l'utilisateur ${user?.id || 'UNDEFINED'}. Fermeture de la connexion.`);
-        ws.close(1009, 'Message trop volumineux');
+    ws.on("error", (err) => {
+      if (err.message.includes("payload")) {
+        console.error(
+          `[WS] ❌ Message trop volumineux reçu de l'utilisateur ${user?.id || "UNDEFINED"}. Fermeture de la connexion.`,
+        );
+        ws.close(1009, "Message trop volumineux");
       }
     });
-    
+
     // Déterminer le type de connexion
-    if (pathSegments.includes('save')) {
+    if (pathSegments.includes("save")) {
       // Route de sauvegarde rapide
-      const saveIndex = pathSegments.indexOf('save');
-      const pageId = saveIndex >= 0 && saveIndex + 1 < pathSegments.length 
-        ? pathSegments[saveIndex + 1] 
-        : null;
+      const saveIndex = pathSegments.indexOf("save");
+      const pageId =
+        saveIndex >= 0 && saveIndex + 1 < pathSegments.length
+          ? pathSegments[saveIndex + 1]
+          : null;
 
       if (!pageId) {
-        ws.close(1008, 'ID de page manquant pour sauvegarde');
+        ws.close(1008, "ID de page manquant pour sauvegarde");
         return;
       }
 
       // Valider le format UUID du pageId
       if (!uuidRegex.test(pageId)) {
-        ws.close(1008, 'Format UUID de page invalide');
+        ws.close(1008, "Format UUID de page invalide");
         return;
       }
 
-      console.log(`[WS] 💾 Connexion sauvegarde pour page: ${pageId} - User défini: ${!!user} (${user?.id || 'UNDEFINED'})`);
-      
-      ws.on('message', async (message) => {
+      console.log(
+        `[WS] 💾 Connexion sauvegarde pour page: ${pageId} - User défini: ${!!user} (${user?.id || "UNDEFINED"})`,
+      );
+
+      ws.on("message", async (message) => {
         try {
           // 🛡️ RATE LIMITING - Vérifier limite de messages AVANT traitement
           if (!checkWebSocketMessageLimit(ws)) {
-            console.log(`[WS] ❌ Rate limit messages dépassé pour page ${pageId}, message ignoré`);
-            ws.send(JSON.stringify({
-              type: 'save-error',
-              error: 'Trop de messages, veuillez ralentir'
-            }));
+            console.log(
+              `[WS] ❌ Rate limit messages dépassé pour page ${pageId}, message ignoré`,
+            );
+            ws.send(
+              JSON.stringify({
+                type: "save-error",
+                error: "Trop de messages, veuillez ralentir",
+              }),
+            );
             return;
           }
 
           const data = JSON.parse(message.toString());
-          if (data.type === 'save' && data.content) {
-            console.log(`[WS] 💾 Sauvegarde reçue pour ${pageId} par user: ${user?.id || 'UNDEFINED'}`);
+          if (data.type === "save" && data.content) {
+            console.log(
+              `[WS] 💾 Sauvegarde reçue pour ${pageId} par user: ${user?.id || "UNDEFINED"}`,
+            );
 
             if (!user) {
-              console.error(`[WS] ❌ SÉCURITÉ: Utilisateur non défini pour page ${pageId}`);
-              ws.send(JSON.stringify({
-                type: 'save-error',
-                error: 'Utilisateur non authentifié'
-              }));
+              console.error(
+                `[WS] ❌ SÉCURITÉ: Utilisateur non défini pour page ${pageId}`,
+              );
+              ws.send(
+                JSON.stringify({
+                  type: "save-error",
+                  error: "Utilisateur non authentifié",
+                }),
+              );
               return;
             }
-            
+
             try {
               // SÉCURITÉ: Vérifier l'accès à la page avant sauvegarde
               const pageAccess = await prisma.page.findFirst({
@@ -218,72 +254,93 @@ const setupYjsWebSocket = (server: http.Server) => {
                         members: {
                           some: {
                             userId: user.id,
-                            isActive: true
-                          }
-                        }
-                      }
-                    ]
-                  }
+                            isActive: true,
+                          },
+                        },
+                      },
+                    ],
+                  },
                 },
-                select: { id: true }
+                select: { id: true },
               });
 
               if (!pageAccess) {
-                console.error(`[WS] ❌ SÉCURITÉ: Accès refusé pour user ${user.id} sur page ${pageId}`);
-                ws.send(JSON.stringify({ 
-                  type: 'save-error', 
-                  error: 'Accès refusé à cette page' 
-                }));
+                console.error(
+                  `[WS] ❌ SÉCURITÉ: Accès refusé pour user ${user.id} sur page ${pageId}`,
+                );
+                ws.send(
+                  JSON.stringify({
+                    type: "save-error",
+                    error: "Accès refusé à cette page",
+                  }),
+                );
                 return;
               }
 
-              console.log(`[WS] ✅ SÉCURITÉ: Accès autorisé pour user ${user.id} sur page ${pageId}`);
+              console.log(
+                `[WS] ✅ SÉCURITÉ: Accès autorisé pour user ${user.id} sur page ${pageId}`,
+              );
 
               // Sauvegarder le contenu BlockNote en base
               await prisma.page.update({
                 where: { id: pageId },
                 data: {
                   blockNoteContent: data.content, // JSON direct, pas de stringify
-                  updatedAt: new Date()
-                }
+                  updatedAt: new Date(),
+                },
               });
 
-              console.log(`[WS] ✅ SAUVEGARDE DB RÉUSSIE: Page ${pageId} écrite en base de données par user ${user.id}`);
+              console.log(
+                `[WS] ✅ SAUVEGARDE DB RÉUSSIE: Page ${pageId} écrite en base de données par user ${user.id}`,
+              );
 
               // 🗑️ INVALIDATION CACHE REDIS: Invalider le cache pour forcer rechargement depuis DB
               await invalidateBlockNoteCache(pageId);
               console.log(`[WS] 🗑️ Cache Redis invalidé pour page ${pageId}`);
 
-              ws.send(JSON.stringify({ type: 'save-success', timestamp: Date.now() }));
+              ws.send(
+                JSON.stringify({ type: "save-success", timestamp: Date.now() }),
+              );
             } catch (dbError) {
-              console.error(`[WS] ❌ Erreur sauvegarde DB pour ${pageId}:`, dbError);
-              ws.send(JSON.stringify({ type: 'save-error', error: 'Erreur base de données' }));
+              console.error(
+                `[WS] ❌ Erreur sauvegarde DB pour ${pageId}:`,
+                dbError,
+              );
+              ws.send(
+                JSON.stringify({
+                  type: "save-error",
+                  error: "Erreur base de données",
+                }),
+              );
             }
           }
         } catch (error) {
-          console.error('[WS] Erreur sauvegarde:', error);
-          ws.send(JSON.stringify({ type: 'save-error', error: 'Format invalide' }));
+          console.error("[WS] Erreur sauvegarde:", error);
+          ws.send(
+            JSON.stringify({ type: "save-error", error: "Format invalide" }),
+          );
         }
       });
 
       return;
     }
-    
+
     // Le pageId est après 'collaboration' dans l'URL (code existant)
-    const collaborationIndex = pathSegments.indexOf('collaboration');
-    const pageId = collaborationIndex >= 0 && collaborationIndex + 1 < pathSegments.length 
-      ? pathSegments[collaborationIndex + 1] 
-      : null;
-    
-    if (!pageId || pageId === 'collaboration') {
-      ws.close(1008, 'ID de page manquant');
+    const collaborationIndex = pathSegments.indexOf("collaboration");
+    const pageId =
+      collaborationIndex >= 0 && collaborationIndex + 1 < pathSegments.length
+        ? pathSegments[collaborationIndex + 1]
+        : null;
+
+    if (!pageId || pageId === "collaboration") {
+      ws.close(1008, "ID de page manquant");
       console.log(`[WS] ❌ ID de page manquant dans l'URL: ${url}`);
       return;
     }
-    
+
     // Valider que c'est un UUID valide
     if (!uuidRegex.test(pageId)) {
-      ws.close(1008, 'Format UUID invalide');
+      ws.close(1008, "Format UUID invalide");
       return;
     }
 
@@ -298,23 +355,27 @@ const setupYjsWebSocket = (server: http.Server) => {
               members: {
                 some: {
                   userId: user.id,
-                  isActive: true
-                }
-              }
-            }
-          ]
-        }
+                  isActive: true,
+                },
+              },
+            },
+          ],
+        },
       },
-      select: { id: true }
+      select: { id: true },
     });
 
     if (!pageAccess) {
-      console.error(`[WS] ❌ SÉCURITÉ: Accès refusé pour user ${user.id} sur page collaboration ${pageId}`);
-      ws.close(1008, 'Accès refusé à cette page');
+      console.error(
+        `[WS] ❌ SÉCURITÉ: Accès refusé pour user ${user.id} sur page collaboration ${pageId}`,
+      );
+      ws.close(1008, "Accès refusé à cette page");
       return;
     }
 
-    console.log(`[WS] ✅ Accès collaboration autorisé pour user ${user.id} sur page ${pageId}`);
+    console.log(
+      `[WS] ✅ Accès collaboration autorisé pour user ${user.id} sur page ${pageId}`,
+    );
 
     // Obtenir ou créer le document Yjs
     let doc = docs.get(pageId);
@@ -329,7 +390,7 @@ const setupYjsWebSocket = (server: http.Server) => {
         persistence.storeUpdate(pageId, update);
       }
     };
-    doc.on('update', updateHandler);
+    doc.on("update", updateHandler);
 
     // Envoyer le state initial - protocole y-websocket standard
     const syncEncoder = encoding.createEncoder();
@@ -338,12 +399,14 @@ const setupYjsWebSocket = (server: http.Server) => {
     ws.send(encoding.toUint8Array(syncEncoder));
 
     // Gérer les messages WebSocket selon le protocole y-websocket
-    ws.on('message', (message: Buffer) => {
+    ws.on("message", (message: Buffer) => {
       try {
         // 🛡️ RATE LIMITING WEBSOCKET - Vérifier limite de messages
         if (!checkWebSocketMessageLimit(ws)) {
-          console.log('[WS] ❌ Rate limit messages dépassé, fermeture connexion');
-          ws.close(1008, 'Trop de messages');
+          console.log(
+            "[WS] ❌ Rate limit messages dépassé, fermeture connexion",
+          );
+          ws.close(1008, "Trop de messages");
           return;
         }
 
@@ -366,28 +429,32 @@ const setupYjsWebSocket = (server: http.Server) => {
             break;
         }
       } catch (error) {
-        console.error('[Yjs] Erreur traitement message:', error);
+        console.error("[Yjs] Erreur traitement message:", error);
       }
     });
 
     // Incrémenter le compteur de connexions
     connections.set(pageId, (connections.get(pageId) || 0) + 1);
-    console.log(`[Yjs] Connexion établie pour la page: ${pageId} (total: ${connections.get(pageId)})`);
+    console.log(
+      `[Yjs] Connexion établie pour la page: ${pageId} (total: ${connections.get(pageId)})`,
+    );
 
     // Nettoyage à la déconnexion
-    ws.on('close', () => {
+    ws.on("close", () => {
       // 🛡️ RATE LIMITING WEBSOCKET - Nettoyer les trackers
       cleanupWebSocketTrackers(ws);
 
       if (doc) {
-        doc.off('update', updateHandler);
+        doc.off("update", updateHandler);
       }
 
       // Décrémenter le compteur de connexions
       const connectionCount = (connections.get(pageId) || 1) - 1;
       connections.set(pageId, connectionCount);
 
-      console.log(`[Yjs] Déconnexion pour la page: ${pageId} (restant: ${connectionCount})`);
+      console.log(
+        `[Yjs] Déconnexion pour la page: ${pageId} (restant: ${connectionCount})`,
+      );
 
       // Si plus personne n'est connecté, supprimer le document de la mémoire
       if (connectionCount <= 0) {
@@ -398,17 +465,19 @@ const setupYjsWebSocket = (server: http.Server) => {
         }
         docs.delete(pageId);
         connections.delete(pageId);
-        console.log(`[Yjs] Document supprimé de la mémoire pour la page: ${pageId}`);
+        console.log(
+          `[Yjs] Document supprimé de la mémoire pour la page: ${pageId}`,
+        );
       }
     });
 
     console.log(`[Yjs] Connexion établie pour la page: ${pageId}`);
   });
 
-  server.on('upgrade', (request, socket, head) => {
-    const url = new URL(request.url || '', `http://${request.headers.host}`);
-    const token = url.searchParams.get('token');
-    const clientIp = request.socket.remoteAddress || 'unknown';
+  server.on("upgrade", (request, socket, head) => {
+    const url = new URL(request.url || "", `http://${request.headers.host}`);
+    const token = url.searchParams.get("token");
+    const clientIp = request.socket.remoteAddress || "unknown";
 
     console.log(`[WS] Tentative de connexion: ${url.pathname}`);
     console.log(`[WS] Token présent: ${!!token}`);
@@ -416,117 +485,134 @@ const setupYjsWebSocket = (server: http.Server) => {
     // 🛡️ RATE LIMITING WEBSOCKET - Vérifier limite de connexions par IP
     if (!checkWebSocketConnectionLimit(clientIp)) {
       console.log(`[WS] ❌ Rate limit dépassé pour IP: ${clientIp}`);
-      socket.write('HTTP/1.1 429 Too Many Requests\r\n\r\n');
+      socket.write("HTTP/1.1 429 Too Many Requests\r\n\r\n");
       socket.destroy();
       return;
     }
 
-    if (url.pathname.startsWith('/ws/save/')) {
-        // Route de sauvegarde rapide
-        if (!token) {
-            console.log('[WS] ❌ Token manquant pour sauvegarde - connexion rejetée');
+    if (url.pathname.startsWith("/ws/save/")) {
+      // Route de sauvegarde rapide
+      if (!token) {
+        console.log(
+          "[WS] ❌ Token manquant pour sauvegarde - connexion rejetée",
+        );
+        socket.destroy();
+        return;
+      }
+      authenticateTokenWS(token)
+        .then((user) => {
+          if (user) {
+            console.log(`[WS] ✅ Sauvegarde WebSocket - user: ${user.id}`);
+            // Stocker l'utilisateur dans la request pour l'utiliser dans la connexion
+            (request as any).user = user;
+            wss.handleUpgrade(request, socket, head, (ws) => {
+              wss.emit("connection", ws, request);
+            });
+          } else {
+            console.log("[WS] ❌ Authentication sauvegarde échouée");
             socket.destroy();
-            return;
-        }
-        authenticateTokenWS(token).then(user => {
-            if (user) {
-                console.log(`[WS] ✅ Sauvegarde WebSocket - user: ${user.id}`);
-                // Stocker l'utilisateur dans la request pour l'utiliser dans la connexion
-                (request as any).user = user;
-                wss.handleUpgrade(request, socket, head, (ws) => {
-                    wss.emit('connection', ws, request);
-                });
-            } else {
-                console.log('[WS] ❌ Authentication sauvegarde échouée');
-                socket.destroy();
-            }
-        }).catch(error => {
-            console.log('[WS] ❌ Erreur auth sauvegarde:', error);
-            socket.destroy();
+          }
+        })
+        .catch((error) => {
+          console.log("[WS] ❌ Erreur auth sauvegarde:", error);
+          socket.destroy();
         });
-    } else if (url.pathname.startsWith('/ws/collaboration/')) {
-        if (!token) {
-            console.log('[WS] ❌ Token manquant - connexion rejetée');
+    } else if (url.pathname.startsWith("/ws/collaboration/")) {
+      if (!token) {
+        console.log("[WS] ❌ Token manquant - connexion rejetée");
+        socket.destroy();
+        return;
+      }
+      authenticateTokenWS(token)
+        .then((user) => {
+          if (user) {
+            console.log(`[WS] ✅ Authentication réussie pour user: ${user.id}`);
+            // Stocker l'utilisateur dans la request pour l'utiliser dans la connexion
+            (request as any).user = user;
+            wss.handleUpgrade(request, socket, head, (ws) => {
+              wss.emit("connection", ws, request);
+            });
+          } else {
+            console.log("[WS] ❌ Authentication échouée - connexion rejetée");
             socket.destroy();
-            return;
-        }
-        authenticateTokenWS(token).then(user => {
-            if (user) {
-                console.log(`[WS] ✅ Authentication réussie pour user: ${user.id}`);
-                // Stocker l'utilisateur dans la request pour l'utiliser dans la connexion
-                (request as any).user = user;
-                wss.handleUpgrade(request, socket, head, (ws) => {
-                    wss.emit('connection', ws, request);
-                });
-            } else {
-                console.log('[WS] ❌ Authentication échouée - connexion rejetée');
-                socket.destroy();
-            }
-        }).catch(error => {
-            console.log('[WS] ❌ Erreur lors de l\'authentication:', error);
-            socket.destroy();
+          }
+        })
+        .catch((error) => {
+          console.log("[WS] ❌ Erreur lors de l'authentication:", error);
+          socket.destroy();
         });
-    } else if (url.pathname.startsWith('/ws/quiz-progress/')) {
-        // Route pour les mises à jour de progression de quiz
-        if (!token) {
-            console.log('[WS] ❌ Token manquant pour progression - connexion rejetée');
+    } else if (url.pathname.startsWith("/ws/quiz-progress/")) {
+      // Route pour les mises à jour de progression de quiz
+      if (!token) {
+        console.log(
+          "[WS] ❌ Token manquant pour progression - connexion rejetée",
+        );
+        socket.destroy();
+        return;
+      }
+
+      // Extraire l'ID du processus depuis l'URL
+      const pathSegments = url.pathname.split("/").filter(Boolean);
+      const progressIndex = pathSegments.indexOf("quiz-progress");
+      const processId =
+        progressIndex >= 0 && progressIndex + 1 < pathSegments.length
+          ? pathSegments[progressIndex + 1]
+          : null;
+
+      if (!processId) {
+        console.log("[WS] ❌ ID de processus manquant pour progression");
+        socket.destroy();
+        return;
+      }
+
+      authenticateTokenWS(token)
+        .then((user) => {
+          if (user) {
+            console.log(
+              `[WS] ✅ Progression WebSocket - user: ${user.id}, processus: ${processId}`,
+            );
+            wss.handleUpgrade(request, socket, head, (ws) => {
+              // Enregistrer la connexion dans le service de progression
+              progressService.registerConnection(processId, ws);
+
+              // Envoyer confirmation de connexion
+              ws.send(
+                JSON.stringify({
+                  type: "connected",
+                  processId,
+                  timestamp: Date.now(),
+                  message: "Connexion progression établie",
+                }),
+              );
+            });
+          } else {
+            console.log("[WS] ❌ Authentication progression échouée");
             socket.destroy();
-            return;
-        }
-        
-        // Extraire l'ID du processus depuis l'URL
-        const pathSegments = url.pathname.split('/').filter(Boolean);
-        const progressIndex = pathSegments.indexOf('quiz-progress');
-        const processId = progressIndex >= 0 && progressIndex + 1 < pathSegments.length 
-            ? pathSegments[progressIndex + 1] 
-            : null;
-            
-        if (!processId) {
-            console.log('[WS] ❌ ID de processus manquant pour progression');
-            socket.destroy();
-            return;
-        }
-        
-        authenticateTokenWS(token).then(user => {
-            if (user) {
-                console.log(`[WS] ✅ Progression WebSocket - user: ${user.id}, processus: ${processId}`);
-                wss.handleUpgrade(request, socket, head, (ws) => {
-                    // Enregistrer la connexion dans le service de progression
-                    progressService.registerConnection(processId, ws);
-                    
-                    // Envoyer confirmation de connexion
-                    ws.send(JSON.stringify({
-                        type: 'connected',
-                        processId,
-                        timestamp: Date.now(),
-                        message: 'Connexion progression établie'
-                    }));
-                });
-            } else {
-                console.log('[WS] ❌ Authentication progression échouée');
-                socket.destroy();
-            }
-        }).catch(error => {
-            console.log('[WS] ❌ Erreur auth progression:', error);
-            socket.destroy();
+          }
+        })
+        .catch((error) => {
+          console.log("[WS] ❌ Erreur auth progression:", error);
+          socket.destroy();
         });
     } else {
-        console.log(`[WS] ❌ Chemin non autorisé: ${url.pathname}`);
-        socket.destroy();
+      console.log(`[WS] ❌ Chemin non autorisé: ${url.pathname}`);
+      socket.destroy();
     }
   });
 
-  console.log('🚀 Serveur WebSocket configuré :');
-  console.log('   - /ws/collaboration/ (Yjs)');  
-  console.log('   - /ws/save/ (Sauvegarde)');
-  console.log('   - /ws/quiz-progress/ (Progression quiz)');
+  console.log("🚀 Serveur WebSocket configuré :");
+  console.log("   - /ws/collaboration/ (Yjs)");
+  console.log("   - /ws/save/ (Sauvegarde)");
+  console.log("   - /ws/quiz-progress/ (Progression quiz)");
 };
 
 server.listen(PORT, async () => {
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(`🚀 Serveur Pen SaaS démarré sur le port ${PORT} en mode ${NODE_ENV}`);
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log(
+    `🚀 Serveur Pen SaaS démarré sur le port ${PORT} en mode ${NODE_ENV}`,
+  );
   console.log(`✨ VERSION: RATE-LIMITED-SECURE - ${new Date().toISOString()}`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   // 🛡️ Afficher la configuration du rate limiting
   logRateLimitConfig();
@@ -541,15 +627,38 @@ server.listen(PORT, async () => {
     await DatabaseHealthCheck.displayDiagnostic();
     const connectionOk = await DatabaseHealthCheck.testConnectionWithRetry(3);
     if (connectionOk) {
-      console.log('🎯 Démarrage des tâches automatiques...');
+      console.log("🎯 Démarrage des tâches automatiques...");
       startCronJobs();
 
       // 💓 Activer le keep-alive DB pour éviter les timeouts
       startKeepAlive();
+
+      // 🎯 Démarrer les workers BullMQ pour jobs asynchrones
+      startWorkers();
+
+      // 📊 Démarrer le monitoring système (toutes les 5 minutes)
+      startMonitoring(5);
     } else {
-      console.error('⚠️ Tâches automatiques désactivées - BDD inaccessible');
+      console.error("⚠️ Tâches automatiques désactivées - BDD inaccessible");
     }
   } catch (error: any) {
-    console.error('❌ Erreur lors du diagnostic de BDD:', error.message);
+    console.error("❌ Erreur lors du diagnostic de BDD:", error.message);
   }
+});
+
+// 🧹 Graceful shutdown - Arrêter proprement les workers et queues
+process.on("SIGTERM", async () => {
+  console.log("🛑 [SHUTDOWN] Signal SIGTERM reçu, arrêt gracieux...");
+  stopMonitoring();
+  await stopWorkers();
+  await closeQueues();
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  console.log("🛑 [SHUTDOWN] Signal SIGINT reçu, arrêt gracieux...");
+  stopMonitoring();
+  await stopWorkers();
+  await closeQueues();
+  process.exit(0);
 });
