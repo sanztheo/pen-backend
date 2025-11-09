@@ -1,28 +1,61 @@
-import { Request, Response } from 'express';
-import { AIService } from '../../../services/ai/index.js';
-import { ConversationMemory } from '../../../services/ai/conversationMemory.js';
-import { buildPagesContextChunked } from '../helpers/context.js';
-import { WebSearchService } from '../../../services/ai/webSearch.service.js';
-import { detectPreferredLanguage, buildLangInstruction } from '../helpers/language.js';
-import { formatAIText } from '../helpers/format.js';
-import { readPersonalizationFromReq, buildPersonaSnippet } from '../helpers/personalization.js';
+import { Request, Response } from "express";
+import { AIService } from "../../../services/ai/index.js";
+import { ConversationMemory } from "../../../services/ai/conversationMemory.js";
+import { buildPagesContextChunked } from "../helpers/context.js";
+import { WebSearchService } from "../../../services/ai/webSearch.service.js";
+import {
+  detectPreferredLanguage,
+  buildLangInstruction,
+} from "../helpers/language.js";
+import { formatAIText } from "../helpers/format.js";
+import {
+  readPersonalizationFromReq,
+  buildPersonaSnippet,
+} from "../helpers/personalization.js";
 
 export const assistantAsk = async (req: Request, res: Response) => {
   try {
-    if (!req.user) return res.status(401).json({ error: 'Utilisateur non authentifié' });
-    const { query, workspaceId, pageIds = [] } = req.body as { query: string; workspaceId: string; pageIds?: string[] };
-    if (!query || !workspaceId) return res.status(400).json({ error: 'query et workspaceId requis' });
+    if (!req.user)
+      return res.status(401).json({ error: "Utilisateur non authentifié" });
+    const {
+      query,
+      workspaceId,
+      pageIds = [],
+    } = req.body as { query: string; workspaceId: string; pageIds?: string[] };
+    if (!query || !workspaceId)
+      return res.status(400).json({ error: "query et workspaceId requis" });
 
     const lang = detectPreferredLanguage(req);
     const [ctx, webWithRefs] = await Promise.all([
       buildPagesContextChunked(workspaceId, pageIds, 8, query, 10),
-      WebSearchService.searchWithRefs(query)
+      WebSearchService.searchWithRefs(query),
     ]);
     const web = webWithRefs.text;
-    const history = ConversationMemory.recentAsText(req.user.id, { maxChars: 1600, maxMessages: 10 });
-    console.log('[AssistantAsk] workspaceId=', workspaceId, 'pageIds=', pageIds, 'ctx.len=', ctx.length, 'web.len=', (web || '').length);
+    const history = ConversationMemory.recentAsText(req.user.id, {
+      maxChars: 1600,
+      maxMessages: 10,
+    });
+    console.log(
+      "[AssistantAsk] workspaceId=",
+      workspaceId,
+      "pageIds=",
+      pageIds,
+      "ctx.len=",
+      ctx.length,
+      "web.len=",
+      (web || "").length,
+    );
 
-    const prompt = `Question: ${query}
+    // 🚨 SMALL TALK DETECTION: Détecter les salutations/politesse pour éviter la recherche inutile
+    const smallTalkPatterns =
+      /^(salut|bonjour|hello|hi|hey|coucou|merci|thanks|thx|ok merci|au revoir|bye|à plus|bonne journée|ok|d'accord|compris)[\s!?\.]*$/i;
+    const isSmallTalk = smallTalkPatterns.test(query.trim());
+
+    const prompt = isSmallTalk
+      ? `Question conversationnelle: ${query}
+
+Réponds de manière brève et amicale à cette salutation ou politesse. Pas besoin de recherche ou d'analyse approfondie.`
+      : `Question: ${query}
 
 RÈGLES STRICTES OBLIGATOIRES:
 - LATEX: Toute formule mathématique DOIT être correctement fermée ($...$ pour inline, $$...$$ pour display). VÉRIFIER l'équilibrage des délimiteurs.
@@ -37,24 +70,32 @@ Consigne de raisonnement: réfléchis étape par étape en interne (reformule la
 ${web}
 
 ${buildLangInstruction(lang)}
-${personaSnippet ? `\n${personaSnippet}` : ''}
+${personaSnippet ? `\n${personaSnippet}` : ""}
 Consignes:
 - Priorise le contexte fourni (workspace + web). En cas de conflit, privilégie le contexte.
 - Si la question vise une information précise, réponds UNIQUEMENT avec cette information en 2–6 phrases claires.
 - Sinon, réponds en 3–6 phrases naturelles (≈80–150 mots), sans liste ni titres.
 - N'invente pas de références; ne cite pas si non nécessaires.
-${history ? `\n\n${history}` : ''}`;
-    const result = await AIService.generateContent({ prompt, context, temperature: 0.2, maxTokens: 2000 });
+${history ? `\n\n${history}` : ""}`;
+    const result = await AIService.generateContent({
+      prompt,
+      context,
+      temperature: 0.2,
+      maxTokens: 2000,
+    });
     const answer = formatAIText(result.content);
-    const compact = answer.replace(/\n+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    const compact = answer
+      .replace(/\n+/g, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
     try {
-      ConversationMemory.addMessage(req.user.id, 'user', query);
-      ConversationMemory.addMessage(req.user.id, 'assistant', compact);
+      ConversationMemory.addMessage(req.user.id, "user", query);
+      ConversationMemory.addMessage(req.user.id, "assistant", compact);
     } catch {}
     res.json({ answer: compact, model: result.model });
   } catch (e) {
-    console.error('assistantAsk error', e);
-    const message = (e as any)?.message || 'Erreur assistant';
+    console.error("assistantAsk error", e);
+    const message = (e as any)?.message || "Erreur assistant";
     res.status(500).json({ error: message });
   }
 };
