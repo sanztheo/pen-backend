@@ -7,18 +7,21 @@
  * - Les tools s'exécutent avec les arguments dérivés du thinking intermédiaire
  */
 
-import { AIService } from '../../base.js';
-import { ToolExecutor, type ToolContext } from '../../tools/executors.js';
+import { AIService } from "../../base.js";
+import { ToolExecutor, type ToolContext } from "../../tools/executors.js";
 import {
   isFirstThinkingPlan,
   isIntermediateThinkingOutput,
-  IntermediateThinkingBlock
-} from '../../../../types/ragThinking.js';
-import { parseJSONFromStream } from '../utils/jsonParser.js';
-import { ToolCallRecord } from '../types/common.types.js';
-import type { DecideToolsOptions, DecideToolsResult } from '../types/phase1.types.js';
-import { CoordinatorService } from '../coordinator.service.js';
-import { ScoringService, type ToolResultScore } from '../scoring.service.js';
+  IntermediateThinkingBlock,
+} from "../../../../types/ragThinking.js";
+import { parseJSONFromStream } from "../utils/jsonParser.js";
+import { ToolCallRecord } from "../types/common.types.js";
+import type {
+  DecideToolsOptions,
+  DecideToolsResult,
+} from "../types/phase1.types.js";
+import { CoordinatorService } from "../coordinator.service.js";
+import { ScoringService, type ToolResultScore } from "../scoring.service.js";
 
 /**
  * Service pour la Phase 1 : Décision et exécution des tools
@@ -31,7 +34,7 @@ export class Phase1Service {
    * - Tools execute with arguments derived from intermediate thinking
    */
   static async decideAndExecuteTools(
-    options: DecideToolsOptions
+    options: DecideToolsOptions,
   ): Promise<DecideToolsResult> {
     const {
       query,
@@ -44,33 +47,39 @@ export class Phase1Service {
       onThinking,
       onToolCall,
       onToolResult,
-      onIntermediateThinking
+      onIntermediateThinking,
     } = options;
 
     const toolCalls: ToolCallRecord[] = [];
     const intermediateThinkingBlocks: IntermediateThinkingBlock[] = [];
-    let thinking = '';
+    let thinking = "";
     const context: ToolContext = { userId, workspaceId };
 
-    console.log(`🔧 [PHASE-1] Boucle agentic refactorisée avec ${availableSources.length} sources disponibles`);
+    console.log(
+      `🔧 [PHASE-1] Boucle agentic refactorisée avec ${availableSources.length} sources disponibles`,
+    );
 
     const openai = AIService.getOpenAI();
-    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    const sleep = (ms: number) =>
+      new Promise((resolve) => setTimeout(resolve, ms));
 
     try {
       // 🔥 ÉTAPE 1: First Thinking - Generate JSON plan with tool sequence
       console.log(`💭 [PHASE-1] Génération first thinking avec plan JSON...`);
 
-      const sourcesContext = availableSources.length > 0
-        ? `Sources disponibles:\n${availableSources.map((s, i) => `${i+1}. "${s.title}" (ID: ${s.id}, Type: ${s.type})`).join('\n')}`
-        : 'Aucune source spécifique disponible';
+      const sourcesContext =
+        availableSources.length > 0
+          ? `Sources disponibles:\n${availableSources.map((s, i) => `${i + 1}. "${s.title}" (ID: ${s.id}, Type: ${s.type})`).join("\n")}`
+          : "Aucune source spécifique disponible";
 
       // 🎯 CONTEXTE ADAPTATIF: Détecter le scénario pour adapter les instructions
-      const hasWorkspacePages = availableSources.some(s => s.type === 'WORKSPACE_PAGE');
+      const hasWorkspacePages = availableSources.some(
+        (s) => s.type === "WORKSPACE_PAGE",
+      );
       const hasSpecificSources = availableSources.length > 0;
-      const isAllSourceMode = !hasSpecificSources;  // Mode all_source si aucune source spécifique
+      const isAllSourceMode = !hasSpecificSources; // Mode all_source si aucune source spécifique
 
-      let contextualInstructions = '';
+      let contextualInstructions = "";
 
       // 🎯 SCÉNARIO 1: Page/source unique spécifique
       if (hasSpecificSources && availableSources.length === 1) {
@@ -106,7 +115,7 @@ export class Phase1Service {
    - Appelle "list_global_wikipedia_sources" pour les sources Wikipedia globales
 2. **SÉLECTION**: Identifie les sources les plus pertinentes pour la question
 3. **LECTURE**: Lis les 2-3 meilleures sources avec "read_rag_source"
-4. **ENRICHISSEMENT**: Si ${useWeb ? 'web activé, utilise "search_web" pour compléter' : 'besoin, cherche dans d\'autres sources'}
+4. **ENRICHISSEMENT**: Si ${useWeb ? 'web activé, utilise "search_web" pour compléter' : "besoin, cherche dans d'autres sources"}
 
 ⚠️ NOTE: Mode exploration complète - explore toutes les options disponibles.`;
       }
@@ -114,19 +123,42 @@ export class Phase1Service {
       // 🔥 NEW: Add useWeb instruction with adaptive priority
       const useWebStr = useWeb
         ? `\n\n🌐 RECHERCHE WEB ACTIVÉE:
-${hasSpecificSources
-  ? 'Tu PEUX utiliser "search_web" pour ENRICHIR les sources sélectionnées si nécessaire.'
-  : 'Tu PEUX utiliser "search_web" après avoir exploré les sources locales, ou AVANT si tu penses que le web sera plus pertinent.'
+${
+  hasSpecificSources
+    ? 'Tu PEUX utiliser "search_web" pour ENRICHIR les sources sélectionnées si nécessaire.'
+    : 'Tu PEUX utiliser "search_web" après avoir exploré les sources locales, ou AVANT si tu penses que le web sera plus pertinent.'
 }
 
 📊 APPROCHE ADAPTATIVE (basée sur les scores) :
 - Si les sources locales donnent un bon score (>0.7) → Web OPTIONNEL
 - Si les sources locales donnent un score moyen (0.4-0.7) → Web RECOMMANDÉ
 - Si les sources locales donnent un score faible (<0.4) → Web FORTEMENT RECOMMANDÉ`
-        : '';
+        : "";
 
       const firstThinkingPrompt = isSearch
         ? `Tu dois créer un plan JSON structuré pour explorer un sujet en profondeur.
+
+🚨 **DÉTECTION SMALL TALK** (PRIORITÉ ABSOLUE) :
+Avant TOUTE planification, analyse si la question est une simple conversation sociale :
+- Salutations : "salut", "bonjour", "hello", "hi", "hey", "coucou"
+- Remerciements : "merci", "thanks", "thx", "ok merci"
+- Politesse : "au revoir", "bye", "à plus", "bonne journée"
+- Confirmation : "ok", "d'accord", "compris"
+
+⚠️ **SI SMALL TALK DÉTECTÉ** :
+→ Retourne IMMÉDIATEMENT un plan avec totalIterations: 0 et toolSequence: []
+→ La réponse sera générée SANS utiliser de tools et SANS déduire de crédits
+→ Exemple de réponse JSON :
+\`\`\`json
+{
+  "plan": {
+    "totalIterations": 0,
+    "reasoning": "Question conversationnelle détectée (salutation/politesse), aucun tool nécessaire",
+    "optimizedQuery": "",
+    "toolSequence": []
+  }
+}
+\`\`\`
 
 # OUTILS DISPONIBLES (par catégorie)
 
@@ -232,11 +264,12 @@ GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
 - \`search_web\` : Recherche web rapide
 
 # STRATÉGIE MODE RAPIDE (1-3 outils max)
-${hasSpecificSources
-  ? `Sources spécifiques fournies → Appelle \`search_rag_chunks\` avec la query pour trouver l'info rapidement`
-  : useWeb
-    ? `Pas de sources spécifiques → Commence par \`list_available_sources\` puis \`search_web\` si nécessaire`
-    : `Pas de sources spécifiques, pas de web → Appelle \`list_available_sources\` puis \`search_rag_chunks\``
+${
+  hasSpecificSources
+    ? `Sources spécifiques fournies → Appelle \`search_rag_chunks\` avec la query pour trouver l'info rapidement`
+    : useWeb
+      ? `Pas de sources spécifiques → Commence par \`list_available_sources\` puis \`search_web\` si nécessaire`
+      : `Pas de sources spécifiques, pas de web → Appelle \`list_available_sources\` puis \`search_rag_chunks\``
 }
 
 🔥 **MODE RAPIDE** : Maximum 3 tools, privilégie la rapidité sur l'exhaustivité.
@@ -266,23 +299,24 @@ Question : "${query}"
 
 GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après le JSON.`;
 
-      let firstThinkingContent = '';
+      let firstThinkingContent = "";
       const firstThinkingStream = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: "gpt-4o-mini",
         messages: [
           {
-            role: 'system',
-            content: 'Tu es un expert en structuration de requêtes. Tu génères UNIQUEMENT du JSON valide, sans texte additionnel.'
+            role: "system",
+            content:
+              "Tu es un expert en structuration de requêtes. Tu génères UNIQUEMENT du JSON valide, sans texte additionnel.",
           },
           {
-            role: 'user',
-            content: firstThinkingPrompt
-          }
+            role: "user",
+            content: firstThinkingPrompt,
+          },
         ],
         temperature: 0.3,
         max_tokens: 800, // 🎯 Augmenté pour permettre optimizedQuery + plan complet
         stream: true,
-        response_format: { type: 'json_object' } as any  // 🔥 JSON MODE STRICT
+        response_format: { type: "json_object" } as any, // 🔥 JSON MODE STRICT
       });
 
       // Collecter le contenu du premier thinking
@@ -297,32 +331,42 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
         }
       }
 
-      console.log(`✅ [PHASE-1] First thinking généré: ${firstThinkingContent.length} chars`);
+      console.log(
+        `✅ [PHASE-1] First thinking généré: ${firstThinkingContent.length} chars`,
+      );
 
       // Parse first thinking JSON
       const firstThinkingPlan = parseJSONFromStream(firstThinkingContent);
       if (!isFirstThinkingPlan(firstThinkingPlan)) {
-        console.warn('⚠️ First thinking plan invalid, falling back to no tools');
+        console.warn(
+          "⚠️ First thinking plan invalid, falling back to no tools",
+        );
         // 🔥 FIX: En mode rapide (isSearch=false), accepter un plan vide et continuer sans tools
         if (!isSearch) {
-          console.log('🔧 [PHASE-1] Mode rapide détecté, continuing sans tools');
+          console.log(
+            "🔧 [PHASE-1] Mode rapide détecté, continuing sans tools",
+          );
           return {
             shouldUseTools: false,
             toolCalls: [],
             thinking: firstThinkingContent,
-            intermediateThinkingBlocks: []
+            intermediateThinkingBlocks: [],
           };
         }
         // En mode search, un plan invalide est une erreur
-        throw new Error('Invalid first thinking plan format');
+        throw new Error("Invalid first thinking plan format");
       }
 
-      const { totalIterations, toolSequence, optimizedQuery } = firstThinkingPlan.plan;
+      const { totalIterations, toolSequence, optimizedQuery } =
+        firstThinkingPlan.plan;
 
       // 🎯 Extraire la query optimisée du plan (ou fallback sur query originale)
-      const queryToUse = optimizedQuery && typeof optimizedQuery === 'string' && optimizedQuery.trim().length > 0
-        ? optimizedQuery
-        : query;
+      const queryToUse =
+        optimizedQuery &&
+        typeof optimizedQuery === "string" &&
+        optimizedQuery.trim().length > 0
+          ? optimizedQuery
+          : query;
 
       if (optimizedQuery && optimizedQuery !== query) {
         console.log(`🎯 [QUERY-OPTIMIZATION] Query reformulée:`);
@@ -331,28 +375,41 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
       }
 
       // 🔥 Valider les tools: ne garder que les tools valides
-      const VALID_TOOLS = ['list_available_sources', 'select_relevant_sources', 'check_sources_rag_status', 'read_rag_source', 'search_rag_chunks', 'search_web', 'read_workspace_page', 'list_workspace_pages'];
-      const validatedToolSequence = toolSequence.filter((t) => VALID_TOOLS.includes(t.toolName));
+      const VALID_TOOLS = [
+        "list_available_sources",
+        "select_relevant_sources",
+        "check_sources_rag_status",
+        "read_rag_source",
+        "search_rag_chunks",
+        "search_web",
+        "read_workspace_page",
+        "list_workspace_pages",
+      ];
+      const validatedToolSequence = toolSequence.filter((t) =>
+        VALID_TOOLS.includes(t.toolName),
+      );
 
       if (validatedToolSequence.length === 0) {
-        console.warn('⚠️ Aucun tool valide dans le plan');
-        throw new Error('No valid tools in plan');
+        console.warn("⚠️ Aucun tool valide dans le plan");
+        throw new Error("No valid tools in plan");
       }
 
-      console.log(`🔧 [PHASE-1] Plan validé: ${validatedToolSequence.length} tools valides, tools: ${validatedToolSequence.map(t => t.toolName).join(' → ')}`);
+      console.log(
+        `🔧 [PHASE-1] Plan validé: ${validatedToolSequence.length} tools valides, tools: ${validatedToolSequence.map((t) => t.toolName).join(" → ")}`,
+      );
 
       await sleep(150);
 
       // 🔥 ÉTAPE 2: Agentic loop - Execute tools with arguments from intermediate thinking
       const initialMessages: any[] = [
         {
-          role: 'system',
-          content: systemPrompt
+          role: "system",
+          content: systemPrompt,
         },
         {
-          role: 'user',
-          content: `${sourcesContext}${contextualInstructions}\n\nQuestion: "${query}"`
-        }
+          role: "user",
+          content: `${sourcesContext}${contextualInstructions}\n\nQuestion: "${query}"`,
+        },
       ];
 
       // 🔥 Déclarer toolArgs AVANT la boucle pour garder les arguments du thinking intermédiaire
@@ -361,11 +418,17 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
       let extractedSources: any[] = [];
 
       // Exécuter chaque tool selon le plan (la séquence peut grandir dynamiquement via improvement logic)
-      for (let iterationIdx = 0; iterationIdx < validatedToolSequence.length; iterationIdx++) {
+      for (
+        let iterationIdx = 0;
+        iterationIdx < validatedToolSequence.length;
+        iterationIdx++
+      ) {
         const toolStep = validatedToolSequence[iterationIdx];
         if (!toolStep) break;
 
-        console.log(`🔧 [PHASE-1-ITER-${iterationIdx + 1}/${validatedToolSequence.length}] Exécution: ${toolStep.toolName} - ${toolStep.description}`);
+        console.log(
+          `🔧 [PHASE-1-ITER-${iterationIdx + 1}/${validatedToolSequence.length}] Exécution: ${toolStep.toolName} - ${toolStep.description}`,
+        );
 
         // 🔥 RÉINITIALISER toolArgs SEULEMENT pour le premier tool
         if (iterationIdx === 0) {
@@ -373,7 +436,10 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
           toolArgs = { query: queryToUse };
 
           // Si c'est read_rag_source et que des sources sont disponibles, passer le premier sourceId
-          if (toolStep.toolName === 'read_rag_source' && availableSources.length > 0) {
+          if (
+            toolStep.toolName === "read_rag_source" &&
+            availableSources.length > 0
+          ) {
             toolArgs.sourceId = availableSources[0].id;
           }
         }
@@ -387,37 +453,62 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
         await sleep(50);
 
         // 🔥 ÉTAPE 2C: Execute tool
-        const result = await ToolExecutor.executeToolCall(toolStep.toolName, toolArgs, context);
+        const result = await ToolExecutor.executeToolCall(
+          toolStep.toolName,
+          toolArgs,
+          context,
+        );
 
         // 🔥 NEW: Extract available sources from list_available_sources or list_global_wikipedia_sources results
-        if ((toolStep.toolName === 'list_available_sources' || toolStep.toolName === 'list_global_wikipedia_sources') && result && !result.startsWith('❌') && !result.startsWith('Aucune')) {
+        if (
+          (toolStep.toolName === "list_available_sources" ||
+            toolStep.toolName === "list_global_wikipedia_sources") &&
+          result &&
+          !result.startsWith("❌") &&
+          !result.startsWith("Aucune")
+        ) {
           try {
             // Parse source listings from the result (format: "ID: XXX")
             const sourceMatches = result.match(/ID: ([a-f0-9\-]+)/g);
             if (sourceMatches) {
               sourceMatches.forEach((match: string) => {
-                const id = match.replace('ID: ', '');
+                const id = match.replace("ID: ", "");
                 // Parse the title from the line above
-                const lines = result.split('\n');
-                const matchIdx = lines.findIndex(line => line.includes(match));
+                const lines = result.split("\n");
+                const matchIdx = lines.findIndex((line) =>
+                  line.includes(match),
+                );
                 if (matchIdx > 0) {
-                  const titleLine = lines[matchIdx - 3] || '';
+                  const titleLine = lines[matchIdx - 3] || "";
                   const titleMatch = titleLine.match(/\d+\.\s*\[.+?\]\s*(.+)/);
-                  const title = titleMatch ? titleMatch[1] : 'Unknown';
-                  
-                  const typeLineIdx = lines.findIndex((line, idx) => idx > matchIdx - 3 && line.startsWith('   Type:'));
-                  const typeMatch = typeLineIdx >= 0 ? lines[typeLineIdx].match(/Type:\s*(.+)/) : null;
-                  const sourceType = typeMatch ? typeMatch[1].trim() : 'WIKIPEDIA';
-                  
-                  if (!extractedSources.find(s => s.id === id)) {
+                  const title = titleMatch ? titleMatch[1] : "Unknown";
+
+                  const typeLineIdx = lines.findIndex(
+                    (line, idx) =>
+                      idx > matchIdx - 3 && line.startsWith("   Type:"),
+                  );
+                  const typeMatch =
+                    typeLineIdx >= 0
+                      ? lines[typeLineIdx].match(/Type:\s*(.+)/)
+                      : null;
+                  const sourceType = typeMatch
+                    ? typeMatch[1].trim()
+                    : "WIKIPEDIA";
+
+                  if (!extractedSources.find((s) => s.id === id)) {
                     extractedSources.push({ id, title, sourceType });
                   }
                 }
               });
-              console.log(`🔄 [PHASE-1] Extracted ${extractedSources.length} sources from ${toolStep.toolName}`);
+              console.log(
+                `🔄 [PHASE-1] Extracted ${extractedSources.length} sources from ${toolStep.toolName}`,
+              );
             }
           } catch (parseError) {
-            console.warn(`⚠️ [PHASE-1] Failed to extract sources from ${toolStep.toolName} result:`, parseError);
+            console.warn(
+              `⚠️ [PHASE-1] Failed to extract sources from ${toolStep.toolName} result:`,
+              parseError,
+            );
           }
         }
 
@@ -435,14 +526,18 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
           query: queryToUse,
           expectedInfo: toolStep.description,
           context: {
-            previousScores: toolCalls.map(tc => tc.score).filter(s => s !== undefined) as ToolResultScore[],
+            previousScores: toolCalls
+              .map((tc) => tc.score)
+              .filter((s) => s !== undefined) as ToolResultScore[],
             useWeb,
             hasSpecificSource: availableSources.length > 0,
-            mode: isSearch ? 'search' : 'ask'
-          }
+            mode: isSearch ? "search" : "ask",
+          },
         });
 
-        console.log(`📊 [PHASE-1-SCORE] ${toolStep.toolName}: ${resultScore.overallScore.toFixed(2)} (conf=${resultScore.confidence.toFixed(2)}, rel=${resultScore.relevance.toFixed(2)}, comp=${resultScore.completeness.toFixed(2)})`);
+        console.log(
+          `📊 [PHASE-1-SCORE] ${toolStep.toolName}: ${resultScore.overallScore.toFixed(2)} (conf=${resultScore.confidence.toFixed(2)}, rel=${resultScore.relevance.toFixed(2)}, comp=${resultScore.completeness.toFixed(2)})`,
+        );
         if (resultScore.suggestions.length > 0) {
           console.log(`💡 [PHASE-1-SUGGESTIONS]:`, resultScore.suggestions);
         }
@@ -452,33 +547,43 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
           name: toolStep.toolName,
           arguments: toolArgs,
           result,
-          score: resultScore,  // 🆕 NOUVEAU : score pour audit
-          timestamp: Date.now()
+          score: resultScore, // 🆕 NOUVEAU : score pour audit
+          timestamp: Date.now(),
         });
 
         // Ajouter à l'historique des messages
         initialMessages.push({
-          role: 'user',
-          content: `Tool ${toolStep.toolName} résultat:\n${result}`
+          role: "user",
+          content: `Tool ${toolStep.toolName} résultat:\n${result}`,
         });
 
-        console.log(`✅ [PHASE-1-ITER-${iterationIdx + 1}] Complété: ${toolStep.toolName}`);
+        console.log(
+          `✅ [PHASE-1-ITER-${iterationIdx + 1}] Complété: ${toolStep.toolName}`,
+        );
 
         // 🔄 FEEDBACK LOOP: Ajuster la stratégie en fonction des scores (observe → adjust → continue)
         const strategyAdjustment = await ScoringService.adjustStrategy(
-          toolCalls.map(tc => ({ name: tc.name, score: tc.score, result: tc.result })),
+          toolCalls.map((tc) => ({
+            name: tc.name,
+            score: tc.score,
+            result: tc.result,
+          })),
           queryToUse,
           {
             useWeb,
             availableSourcesCount: availableSources.length,
             hasSpecificSource: availableSources.length > 0,
-            mode: isSearch ? 'search' : 'ask'
-          }
+            mode: isSearch ? "search" : "ask",
+          },
         );
 
         console.log(`🔄 [STRATEGY-ADJUST] ${strategyAdjustment.reasoning}`);
-        console.log(`   shouldExploreMore: ${strategyAdjustment.shouldExploreMore}, shouldUseWeb: ${strategyAdjustment.shouldUseWeb}, shouldStop: ${strategyAdjustment.shouldStop}`);
-        console.log(`   Priority: ${strategyAdjustment.priority}, Confidence: ${strategyAdjustment.confidence.toFixed(2)}`);
+        console.log(
+          `   shouldExploreMore: ${strategyAdjustment.shouldExploreMore}, shouldUseWeb: ${strategyAdjustment.shouldUseWeb}, shouldStop: ${strategyAdjustment.shouldStop}`,
+        );
+        console.log(
+          `   Priority: ${strategyAdjustment.priority}, Confidence: ${strategyAdjustment.confidence.toFixed(2)}`,
+        );
 
         // 🔥 NOUVEAU: CURSOR-LIKE IMPROVEMENT - Agir sur les scores faibles (pas juste logger)
         // ⚠️ LIMITES: Max 15 iterations totales, pas de tool répété dans les 3 dernières iters
@@ -487,68 +592,105 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
 
         // Si les scores sont faibles ET que la stratégie recommande fortement d'explorer
         if (
-          (strategyAdjustment.priority === 'high' || strategyAdjustment.priority === 'critical') &&
+          (strategyAdjustment.priority === "high" ||
+            strategyAdjustment.priority === "critical") &&
           strategyAdjustment.suggestedTools.length > 0 &&
           resultScore.overallScore < 0.6 &&
           validatedToolSequence.length < MAX_ITERATIONS // 🔥 FIX: Limite max d'itérations
         ) {
-          console.log(`🔥 [IMPROVEMENT] Score faible détecté (${resultScore.overallScore.toFixed(2)}), ajout de tools pour amélioration...`);
+          console.log(
+            `🔥 [IMPROVEMENT] Score faible détecté (${resultScore.overallScore.toFixed(2)}), ajout de tools pour amélioration...`,
+          );
 
           // Dynamiquement ajouter les tools suggérés à la fin du plan
           for (const suggestedToolName of strategyAdjustment.suggestedTools) {
             // 🔥 FIX: Vérifier si le tool n'est pas dans le plan restant OU dans les N dernières itérations
             const alreadyPlanned = validatedToolSequence
               .slice(iterationIdx + 1)
-              .some(t => t.toolName === suggestedToolName);
+              .some((t) => t.toolName === suggestedToolName);
 
             const recentlyExecuted = validatedToolSequence
-              .slice(Math.max(0, iterationIdx - RECENT_TOOL_WINDOW + 1), iterationIdx + 1)
-              .some(t => t.toolName === suggestedToolName);
+              .slice(
+                Math.max(0, iterationIdx - RECENT_TOOL_WINDOW + 1),
+                iterationIdx + 1,
+              )
+              .some((t) => t.toolName === suggestedToolName);
 
-            if (!alreadyPlanned && !recentlyExecuted && validatedToolSequence.length < MAX_ITERATIONS) {
+            if (
+              !alreadyPlanned &&
+              !recentlyExecuted &&
+              validatedToolSequence.length < MAX_ITERATIONS
+            ) {
               validatedToolSequence.push({
                 step: validatedToolSequence.length + 1,
                 toolName: suggestedToolName,
-                description: `Amélioration qualité: ${strategyAdjustment.reasoning}`
+                description: `Amélioration qualité: ${strategyAdjustment.reasoning}`,
               });
-              console.log(`✅ [IMPROVEMENT] Ajout de "${suggestedToolName}" pour améliorer la qualité`);
+              console.log(
+                `✅ [IMPROVEMENT] Ajout de "${suggestedToolName}" pour améliorer la qualité`,
+              );
             } else if (recentlyExecuted) {
-              console.log(`⏭️ [IMPROVEMENT] Skip "${suggestedToolName}" (exécuté récemment dans les ${RECENT_TOOL_WINDOW} dernières iters)`);
+              console.log(
+                `⏭️ [IMPROVEMENT] Skip "${suggestedToolName}" (exécuté récemment dans les ${RECENT_TOOL_WINDOW} dernières iters)`,
+              );
             }
           }
 
           // Augmenter totalIterations pour prendre en compte les nouveaux tools
-          console.log(`🔄 [IMPROVEMENT] Nouvelle séquence: ${validatedToolSequence.map(t => t.toolName).join(' → ')}`);
+          console.log(
+            `🔄 [IMPROVEMENT] Nouvelle séquence: ${validatedToolSequence.map((t) => t.toolName).join(" → ")}`,
+          );
         } else if (validatedToolSequence.length >= MAX_ITERATIONS) {
-          console.log(`⏹️ [IMPROVEMENT] Limite MAX_ITERATIONS (${MAX_ITERATIONS}) atteinte, arrêt de l'amélioration`);
+          console.log(
+            `⏹️ [IMPROVEMENT] Limite MAX_ITERATIONS (${MAX_ITERATIONS}) atteinte, arrêt de l'amélioration`,
+          );
         }
 
         // Si la stratégie suggère d'arrêter et qu'on a assez d'informations
-        if (strategyAdjustment.shouldStop && strategyAdjustment.confidence > 0.8) {
-          console.log(`⏹️ [STRATEGY-ADJUST] Arrêt recommandé: informations suffisantes (score: ${resultScore.overallScore.toFixed(2)})`);
+        if (
+          strategyAdjustment.shouldStop &&
+          strategyAdjustment.confidence > 0.8
+        ) {
+          console.log(
+            `⏹️ [STRATEGY-ADJUST] Arrêt recommandé: informations suffisantes (score: ${resultScore.overallScore.toFixed(2)})`,
+          );
           // Ne pas arrêter brutalement, laisser l'IA décider dans le thinking intermédiaire
         }
 
         // 🔥 ÉTAPE 2D: Générer les arguments du tool SUIVANT via intermediate thinking (après exécution du tool actuel)
         const nextIterationIdx = iterationIdx + 1;
-        if (nextIterationIdx < validatedToolSequence.length && onIntermediateThinking) {
+        if (
+          nextIterationIdx < validatedToolSequence.length &&
+          onIntermediateThinking
+        ) {
           const nextToolStep = validatedToolSequence[nextIterationIdx];
 
           // 🔥 CRITICAL: Si nextToolStep n'existe pas (plan a été modifié), arrêter la boucle
           if (!nextToolStep) {
-            console.log(`⏹️ [PHASE-1-ITER-${iterationIdx + 1}] Pas de tool suivant après modification du plan, fin de la boucle`);
+            console.log(
+              `⏹️ [PHASE-1-ITER-${iterationIdx + 1}] Pas de tool suivant après modification du plan, fin de la boucle`,
+            );
             break;
           }
 
-          console.log(`🧠 [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Génération des arguments pour ${nextToolStep.toolName}...`);
+          console.log(
+            `🧠 [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Génération des arguments pour ${nextToolStep.toolName}...`,
+          );
 
           try {
             // 🔥 NEW: Build tool execution history with scores
-            const executedTools = toolCalls.map((tc, idx) => {
-              const score = tc.score ? ` (score: ${tc.score.overallScore.toFixed(2)})` : '';
-              return `${idx + 1}. ${tc.name}${score}`;
-            }).join('\n');
-            const remainingTools = validatedToolSequence.slice(iterationIdx + 1).map(t => `- ${t.toolName}`).join('\n');
+            const executedTools = toolCalls
+              .map((tc, idx) => {
+                const score = tc.score
+                  ? ` (score: ${tc.score.overallScore.toFixed(2)})`
+                  : "";
+                return `${idx + 1}. ${tc.name}${score}`;
+              })
+              .join("\n");
+            const remainingTools = validatedToolSequence
+              .slice(iterationIdx + 1)
+              .map((t) => `- ${t.toolName}`)
+              .join("\n");
 
             // 🎯 FEEDBACK LOOP: Intégrer les recommandations stratégiques dans le prompt
             const strategyRecommendation = `
@@ -556,19 +698,21 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
 ${strategyAdjustment.reasoning}
 
 🎯 RECOMMANDATIONS ADAPTATIVES :
-- Explorer d'autres sources ? ${strategyAdjustment.shouldExploreMore ? '✅ OUI' : '❌ NON'}
-- Utiliser search_web ? ${strategyAdjustment.shouldUseWeb ? '✅ OUI (priorité: ' + strategyAdjustment.priority + ')' : '❌ NON'}
-- Arrêter (info suffisante) ? ${strategyAdjustment.shouldStop ? '✅ OUI (confiance: ' + strategyAdjustment.confidence.toFixed(2) + ')' : '❌ NON'}
-${strategyAdjustment.suggestedTools.length > 0 ? '- Outils suggérés: ' + strategyAdjustment.suggestedTools.join(', ') : ''}
+- Explorer d'autres sources ? ${strategyAdjustment.shouldExploreMore ? "✅ OUI" : "❌ NON"}
+- Utiliser search_web ? ${strategyAdjustment.shouldUseWeb ? "✅ OUI (priorité: " + strategyAdjustment.priority + ")" : "❌ NON"}
+- Arrêter (info suffisante) ? ${strategyAdjustment.shouldStop ? "✅ OUI (confiance: " + strategyAdjustment.confidence.toFixed(2) + ")" : "❌ NON"}
+${strategyAdjustment.suggestedTools.length > 0 ? "- Outils suggérés: " + strategyAdjustment.suggestedTools.join(", ") : ""}
 
 ⚠️ NOTE: Ces recommandations sont basées sur l'analyse des résultats. Tu peux les suivre ou les adapter selon le contexte de la question.`;
 
             // 🔥 NEW: Add useWeb flag and web instruction with adaptive priority
             const webInstruction = useWeb
-              ? `\n🌐 RECHERCHE WEB ACTIVÉE: ${strategyAdjustment.shouldUseWeb
-                  ? `La stratégie recommande FORTEMENT d'utiliser search_web (priorité: ${strategyAdjustment.priority})`
-                  : 'La recherche web est disponible si nécessaire pour enrichir'}`
-              : '';
+              ? `\n🌐 RECHERCHE WEB ACTIVÉE: ${
+                  strategyAdjustment.shouldUseWeb
+                    ? `La stratégie recommande FORTEMENT d'utiliser search_web (priorité: ${strategyAdjustment.priority})`
+                    : "La recherche web est disponible si nécessaire pour enrichir"
+                }`
+              : "";
 
             const intermediateThinkingPrompt = `Tu as reçu des résultats. Analyse-les et détermine la prochaine étape.
 
@@ -579,10 +723,10 @@ Avant toute décision, commence par une checklist concise (3-7 points conceptuel
 📝 QUESTION ORIGINALE : "${query}"
 
 📋 OUTILS DÉJÀ EXÉCUTÉS :
-${executedTools || 'Aucun'}
+${executedTools || "Aucun"}
 
 📋 OUTILS RESTANTS DANS LE PLAN :
-${remainingTools || 'Aucun'}
+${remainingTools || "Aucun"}
 
 ⚠️ IMPORTANT - LIRE LES RÉSULTATS RÉELS :
 Les résultats précédents sont consignés dans le contexte ci-dessus (résultat de Tool X).
@@ -626,7 +770,7 @@ Les résultats précédents sont consignés dans le contexte ci-dessus (résulta
    - Exemple : Lire les 2 principaux théorèmes dans Wikipedia, puis chercher des cas d'usage modernes sur le web
 
 🌐 STRATÉGIE WEB :
-- ${useWeb ? '✅ WEB ACTIVÉ : Tu peux utiliser search_web pour COMPLÉTER les sources existantes' : '❌ WEB DÉSACTIVÉ : Reste uniquement sur les sources locales'}
+- ${useWeb ? "✅ WEB ACTIVÉ : Tu peux utiliser search_web pour COMPLÉTER les sources existantes" : "❌ WEB DÉSACTIVÉ : Reste uniquement sur les sources locales"}
 - search_web ne doit pas être la première option, mais un enrichissement optionnel
 - Si les sources locales couvrent la question : pas besoin du web !
 
@@ -763,20 +907,20 @@ Schéma d'exemple :
 
 Le champ "toolArguments" doit correspondre à la structure attendue par l'outil (cf. exemples plus haut). Tous les champs, sauf "modifiedToolSequence", sont OBLIGATOIRES dans chaque réponse sauf si shouldContinue vaut false : dans ce cas, "nextToolName" et "toolArguments" peuvent être omis ou nuls. La sortie NE DOIT contenir AUCUN texte hors de l'objet JSON.${webInstruction}`; //
 
-            let intermediateThinkingContent = '';
+            let intermediateThinkingContent = "";
             const intermediateStream = await openai.chat.completions.create({
-              model: 'gpt-4o-mini',
+              model: "gpt-4o-mini",
               messages: [
                 ...initialMessages,
                 {
-                  role: 'user',
-                  content: intermediateThinkingPrompt
-                }
+                  role: "user",
+                  content: intermediateThinkingPrompt,
+                },
               ],
               temperature: 0.3,
               max_tokens: 400,
               stream: true,
-              response_format: { type: 'json_object' } as any  // 🔥 JSON MODE STRICT
+              response_format: { type: "json_object" } as any, // 🔥 JSON MODE STRICT
             });
 
             // Streamer le thinking intermédiaire
@@ -789,56 +933,87 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
             }
 
             // Parser intermediate thinking JSON
-            const intermediateParsed = parseJSONFromStream(intermediateThinkingContent);
+            const intermediateParsed = parseJSONFromStream(
+              intermediateThinkingContent,
+            );
             if (isIntermediateThinkingOutput(intermediateParsed)) {
               // 🔥 NEW: Check if AI wants to modify the plan
-              if (intermediateParsed.modifiedToolSequence && intermediateParsed.modifiedToolSequence.length > 0) {
-                console.log(`🔄 [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Plan modifié! Nouvelle séquence:`, intermediateParsed.modifiedToolSequence.map((t: any) => t.toolName).join(' → '));
-
-                // 🎯 COORDINATOR: Valider la modification de plan
-                const originalPlanNames = validatedToolSequence.slice(iterationIdx + 1).map(t => t.toolName);
-                const modifiedPlanNames = intermediateParsed.modifiedToolSequence.map((t: any) => t.toolName);
-                const lastResult = toolCalls[toolCalls.length - 1]?.result || '';
-                
-                const planValidation = await CoordinatorService.validatePlanModification(
-                  originalPlanNames,
-                  modifiedPlanNames,
-                  lastResult,
-                  intermediateParsed.thinking
+              if (
+                intermediateParsed.modifiedToolSequence &&
+                intermediateParsed.modifiedToolSequence.length > 0
+              ) {
+                console.log(
+                  `🔄 [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Plan modifié! Nouvelle séquence:`,
+                  intermediateParsed.modifiedToolSequence
+                    .map((t: any) => t.toolName)
+                    .join(" → "),
                 );
 
+                // 🎯 COORDINATOR: Valider la modification de plan
+                const originalPlanNames = validatedToolSequence
+                  .slice(iterationIdx + 1)
+                  .map((t) => t.toolName);
+                const modifiedPlanNames =
+                  intermediateParsed.modifiedToolSequence.map(
+                    (t: any) => t.toolName,
+                  );
+                const lastResult =
+                  toolCalls[toolCalls.length - 1]?.result || "";
+
+                const planValidation =
+                  await CoordinatorService.validatePlanModification(
+                    originalPlanNames,
+                    modifiedPlanNames,
+                    lastResult,
+                    intermediateParsed.thinking,
+                  );
+
                 if (!planValidation.isValid) {
-                  console.warn(`❌ [COORDINATOR] Modification de plan REFUSÉE: ${planValidation.reasoning}`);
-                  console.log(`🔄 [COORDINATOR] Poursuite avec le plan original`);
+                  console.warn(
+                    `❌ [COORDINATOR] Modification de plan REFUSÉE: ${planValidation.reasoning}`,
+                  );
+                  console.log(
+                    `🔄 [COORDINATOR] Poursuite avec le plan original`,
+                  );
                   // Ne pas modifier le plan, continuer avec le plan original
                 } else {
-                  console.log(`✅ [COORDINATOR] Modification de plan VALIDÉE: ${planValidation.reasoning}`);
+                  console.log(
+                    `✅ [COORDINATOR] Modification de plan VALIDÉE: ${planValidation.reasoning}`,
+                  );
                   // Remplacer le reste du plan avec le nouveau plan
                   const newSequence = intermediateParsed.modifiedToolSequence;
                   // Supprimer les tools déjà exécutés du nouveau plan
-                  for (let i = validatedToolSequence.length - 1; i > iterationIdx; i--) {
+                  for (
+                    let i = validatedToolSequence.length - 1;
+                    i > iterationIdx;
+                    i--
+                  ) {
                     validatedToolSequence.pop();
                   }
                   // Ajouter les nouveaux tools
                   for (const newTool of newSequence) {
                     validatedToolSequence.push(newTool);
                   }
-                  console.log(`✅ Nouveau nombre total d'itérations: ${validatedToolSequence.length}`);
+                  console.log(
+                    `✅ Nouveau nombre total d'itérations: ${validatedToolSequence.length}`,
+                  );
                 }
 
                 // 🔥 IMPORTANT: Si on a modifié le plan, on doit CONTINUER même si shouldContinue est false
                 // Sinon on ne va jamais exécuter le nouveau plan!
               } else if (intermediateParsed.shouldContinue === false) {
                 // 🔥 NEW: Check if AI wants to stop the loop (SEULEMENT si pas de modifiedToolSequence)
-                console.log(`⏹️ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] IA a décidé d'arrêter la boucle`);
+                console.log(
+                  `⏹️ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] IA a décidé d'arrêter la boucle`,
+                );
                 intermediateThinkingBlocks.push({
                   iteration: iterationIdx,
                   thinking: intermediateParsed.thinking,
                   toolArguments: {},
                   generatedAt: new Date().toISOString(),
-                  nextToolName: 'STOP',
-                  score: resultScore,  // 🆕 Score du résultat du dernier tool
-                  strategyAdjustment: strategyAdjustment.reasoning  // 🆕 Raison de l'arrêt
+                  nextToolName: "STOP",
+                  score: resultScore, // 🆕 Score du résultat du dernier tool
+                  strategyAdjustment: strategyAdjustment.reasoning, // 🆕 Raison de l'arrêt
                 });
                 break; // Arrêter la boucle agentic
               }
@@ -846,112 +1021,160 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
               toolArgs = intermediateParsed.toolArguments || {};
 
               // 🎯 COORDINATOR: Valider la cohérence thinking/action AVANT d'exécuter
-              const previousResults = toolCalls.map(tc => tc.result);
-              const coordinatorValidation = await CoordinatorService.validateCoherence({
-                thinking: intermediateParsed.thinking,
-                nextToolName: nextToolStep.toolName,
-                toolArguments: toolArgs,
-                previousToolResults: previousResults,
-                originalPlan: validatedToolSequence.map(t => t.toolName)
-              });
+              const previousResults = toolCalls.map((tc) => tc.result);
+              const coordinatorValidation =
+                await CoordinatorService.validateCoherence({
+                  thinking: intermediateParsed.thinking,
+                  nextToolName: nextToolStep.toolName,
+                  toolArguments: toolArgs,
+                  previousToolResults: previousResults,
+                  originalPlan: validatedToolSequence.map((t) => t.toolName),
+                });
 
               if (!coordinatorValidation.isValid) {
-                console.warn(`❌ [COORDINATOR] Incohérence détectée: ${coordinatorValidation.reasoning}`);
-                
+                console.warn(
+                  `❌ [COORDINATOR] Incohérence détectée: ${coordinatorValidation.reasoning}`,
+                );
+
                 // 🔥 PRIORISATION: Si une correction est disponible, l'appliquer au lieu de bloquer
                 if (coordinatorValidation.correctedToolName) {
-                  console.log(`🔧 [COORDINATOR] Correction AUTO appliquée (type Cursor): ${nextToolStep.toolName} → ${coordinatorValidation.correctedToolName}`);
-                  
+                  console.log(
+                    `🔧 [COORDINATOR] Correction AUTO appliquée (type Cursor): ${nextToolStep.toolName} → ${coordinatorValidation.correctedToolName}`,
+                  );
+
                   // Créer un nouveau step avec le tool corrigé
-                  nextToolStep.toolName = coordinatorValidation.correctedToolName;
+                  nextToolStep.toolName =
+                    coordinatorValidation.correctedToolName;
                   nextToolStep.description = `Correction auto: ${coordinatorValidation.reasoning}`;
-                  
+
                   if (coordinatorValidation.correctedArguments) {
                     toolArgs = coordinatorValidation.correctedArguments;
-                    console.log(`🔧 [COORDINATOR] Arguments corrigés:`, toolArgs);
+                    console.log(
+                      `🔧 [COORDINATOR] Arguments corrigés:`,
+                      toolArgs,
+                    );
                   }
-                  
+
                   // 🔥 Si le tool corrigé est read_rag_source, vérifier que query est fourni
-                  if (coordinatorValidation.correctedToolName === 'read_rag_source' && !toolArgs.query) {
+                  if (
+                    coordinatorValidation.correctedToolName ===
+                      "read_rag_source" &&
+                    !toolArgs.query
+                  ) {
                     toolArgs.query = query; // Utiliser la query originale
-                    console.log(`🔧 [COORDINATOR] Query ajoutée pour read_rag_source: ${query}`);
+                    console.log(
+                      `🔧 [COORDINATOR] Query ajoutée pour read_rag_source: ${query}`,
+                    );
                   }
                 } else if (coordinatorValidation.shouldBlock) {
                   // Bloquer SEULEMENT si aucune correction n'est possible
-                  console.error(`🚫 [COORDINATOR] Exécution BLOQUÉE (aucune correction disponible)`);
+                  console.error(
+                    `🚫 [COORDINATOR] Exécution BLOQUÉE (aucune correction disponible)`,
+                  );
                   intermediateThinkingBlocks.push({
                     iteration: iterationIdx,
                     thinking: `[COORDINATOR BLOCK] ${coordinatorValidation.reasoning}`,
                     toolArguments: {},
                     generatedAt: new Date().toISOString(),
-                    nextToolName: 'BLOCKED',
-                    score: resultScore,  // 🆕 Score du résultat du dernier tool
-                    strategyAdjustment: 'Exécution bloquée par le Coordinator'  // 🆕 Raison du blocage
+                    nextToolName: "BLOCKED",
+                    score: resultScore, // 🆕 Score du résultat du dernier tool
+                    strategyAdjustment: "Exécution bloquée par le Coordinator", // 🆕 Raison du blocage
                   });
                   break; // Arrêter la boucle
                 } else {
-                  console.warn(`⚠️ [COORDINATOR] Incohérence détectée mais pas de correction - poursuite`);
+                  console.warn(
+                    `⚠️ [COORDINATOR] Incohérence détectée mais pas de correction - poursuite`,
+                  );
                 }
               } else {
-                console.log(`✅ [COORDINATOR] Plan cohérent: ${coordinatorValidation.reasoning}`);
+                console.log(
+                  `✅ [COORDINATOR] Plan cohérent: ${coordinatorValidation.reasoning}`,
+                );
               }
 
               // Sauvegarder le bloc avec l'itération du TOOL ACTUELLEMENT EXÉCUTÉ
               intermediateThinkingBlocks.push({
-                iteration: iterationIdx,  // 🔥 Itération du tool ACTUEL (après lequel ce thinking est généré)
+                iteration: iterationIdx, // 🔥 Itération du tool ACTUEL (après lequel ce thinking est généré)
                 thinking: intermediateParsed.thinking,
                 toolArguments: toolArgs,
                 generatedAt: new Date().toISOString(),
-                nextToolName: nextToolStep.toolName,  // 🔥 Le PROCHAIN tool
-                score: resultScore,  // 🆕 Score du résultat du tool actuel
-                strategyAdjustment: strategyAdjustment.reasoning  // 🆕 Recommandations de stratégie
+                nextToolName: nextToolStep.toolName, // 🔥 Le PROCHAIN tool
+                score: resultScore, // 🆕 Score du résultat du tool actuel
+                strategyAdjustment: strategyAdjustment.reasoning, // 🆕 Recommandations de stratégie
               });
 
               // 🔥 NEW: Ensure select_relevant_sources has required arguments
-              if (nextToolStep.toolName === 'select_relevant_sources') {
+              if (nextToolStep.toolName === "select_relevant_sources") {
                 // Add question if missing
                 if (!toolArgs.question) {
                   toolArgs.question = query;
-                  console.log(`🔧 [INTERMEDIATE-THINKING] Added missing 'question' to select_relevant_sources`);
+                  console.log(
+                    `🔧 [INTERMEDIATE-THINKING] Added missing 'question' to select_relevant_sources`,
+                  );
                 }
-                
+
                 // Add availableSources if missing
-                if (!toolArgs.availableSources || !Array.isArray(toolArgs.availableSources) || toolArgs.availableSources.length === 0) {
+                if (
+                  !toolArgs.availableSources ||
+                  !Array.isArray(toolArgs.availableSources) ||
+                  toolArgs.availableSources.length === 0
+                ) {
                   if (extractedSources.length > 0) {
                     toolArgs.availableSources = extractedSources;
-                    console.log(`🔧 [INTERMEDIATE-THINKING] Added extracted sources (${extractedSources.length}) to select_relevant_sources`);
+                    console.log(
+                      `🔧 [INTERMEDIATE-THINKING] Added extracted sources (${extractedSources.length}) to select_relevant_sources`,
+                    );
                   } else {
-                    console.warn(`⚠️ [INTERMEDIATE-THINKING] No extracted sources available for select_relevant_sources`);
+                    console.warn(
+                      `⚠️ [INTERMEDIATE-THINKING] No extracted sources available for select_relevant_sources`,
+                    );
                   }
                 }
               }
 
               // 🔥 NEW: Ensure search_web has required 'query' argument (string) - NO maxResults (controlled by OpenAI)
-              if (nextToolStep.toolName === 'search_web') {
+              if (nextToolStep.toolName === "search_web") {
                 // Validation: search_web needs 'query' (string), not 'question' or 'availableSources' or 'maxResults'
-                if (!toolArgs.query || typeof toolArgs.query !== 'string') {
+                if (!toolArgs.query || typeof toolArgs.query !== "string") {
                   // If IA provided wrong arguments (like 'question' or 'availableSources'), fix it
-                  if (toolArgs.question && typeof toolArgs.question === 'string') {
+                  if (
+                    toolArgs.question &&
+                    typeof toolArgs.question === "string"
+                  ) {
                     toolArgs = { query: toolArgs.question };
-                    console.log(`🔧 [INTERMEDIATE-THINKING] Fixed search_web arguments: converted 'question' to 'query'`);
+                    console.log(
+                      `🔧 [INTERMEDIATE-THINKING] Fixed search_web arguments: converted 'question' to 'query'`,
+                    );
                   } else {
                     // Fallback: use original query
                     toolArgs = { query };
-                    console.log(`🔧 [INTERMEDIATE-THINKING] Fixed search_web arguments: using original query`);
+                    console.log(
+                      `🔧 [INTERMEDIATE-THINKING] Fixed search_web arguments: using original query`,
+                    );
                   }
                 } else {
                   // Clean up any extra fields that don't belong to search_web (including maxResults)
                   toolArgs = { query: toolArgs.query };
-                  console.log(`🔧 [INTERMEDIATE-THINKING] Cleaned search_web arguments`);
+                  console.log(
+                    `🔧 [INTERMEDIATE-THINKING] Cleaned search_web arguments`,
+                  );
                 }
               }
 
-              console.log(`✅ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Arguments extraits:`, toolArgs);
+              console.log(
+                `✅ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Arguments extraits:`,
+                toolArgs,
+              );
             } else {
-              console.warn(`⚠️ Invalid intermediate thinking format after iteration ${iterationIdx}`);
+              console.warn(
+                `⚠️ Invalid intermediate thinking format after iteration ${iterationIdx}`,
+              );
             }
           } catch (error) {
-            console.warn(`⚠️ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Erreur:`, error);
+            console.warn(
+              `⚠️ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Erreur:`,
+              error,
+            );
             // Fallback: utiliser la description comme query
             toolArgs = { query: nextToolStep.description };
           }
@@ -960,15 +1183,16 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
         }
       }
 
-      console.log(`✅ [PHASE-1] Tous les tools exécutés: ${toolCalls.length} total`);
+      console.log(
+        `✅ [PHASE-1] Tous les tools exécutés: ${toolCalls.length} total`,
+      );
 
       return {
         toolCalls,
         thinking,
         shouldUseTools: toolCalls.length > 0,
-        intermediateThinkingBlocks
+        intermediateThinkingBlocks,
       };
-
     } catch (error) {
       console.error(`❌ [PHASE-1] Erreur boucle agentic:`, error);
       throw error;

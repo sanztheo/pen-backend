@@ -32,6 +32,7 @@ import userRoutes from "./routes/user.js";
 import dailyArticleRoutes from "./routes/dailyArticle.js";
 import uploadRoutes from "./routes/upload.js";
 import { clerkWebhookHandler } from "./routes/webhooks.js";
+import jobsRoutes from "./routes/jobs.js";
 
 import { startCronJobs } from "./jobs/cronJobs.js";
 import { AuthService } from "./services/auth.js";
@@ -130,6 +131,7 @@ app.use("/api/updates", updatesRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/daily-article", dailyArticleRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/jobs", jobsRoutes); // 🎯 Récupération résultats jobs BullMQ
 
 app.use("*", (req, res) =>
   res.status(404).json({ error: "Route non trouvée" }),

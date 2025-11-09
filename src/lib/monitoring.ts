@@ -94,6 +94,9 @@ export const getSystemStats = async () => {
 
 /**
  * 🚨 Détecter les seuils critiques
+ *
+ * Configuration pour Railway Hobby Plan (8GB RAM disponible)
+ * Heap Node.js configurée à 2GB (--max-old-space-size=2048)
  */
 export const checkHealthThresholds = () => {
   const memory = getMemoryStats();
@@ -102,14 +105,14 @@ export const checkHealthThresholds = () => {
 
   const warnings = [];
 
-  // RAM Heap > 80%
-  if (heapUsedPercent > 80) {
+  // RAM Heap > 85% (seuil augmenté pour 2GB)
+  if (heapUsedPercent > 85) {
     warnings.push({
       level: "critical",
       type: "memory",
       message: `Heap usage critique: ${Math.round(heapUsedPercent)}% (${memory.heapUsed.mb}MB/${memory.heapTotal.mb}MB)`,
     });
-  } else if (heapUsedPercent > 60) {
+  } else if (heapUsedPercent > 70) {
     warnings.push({
       level: "warning",
       type: "memory",
@@ -117,12 +120,18 @@ export const checkHealthThresholds = () => {
     });
   }
 
-  // RSS > 500MB
-  if (memory.rss.mb > 500) {
+  // RSS > 4GB (Railway Hobby = 8GB total, laisser 50% de marge)
+  if (memory.rss.mb > 4096) {
+    warnings.push({
+      level: "critical",
+      type: "memory",
+      message: `RSS critique: ${memory.rss.mb}MB (limite Railway Hobby: 8GB)`,
+    });
+  } else if (memory.rss.mb > 3072) {
     warnings.push({
       level: "warning",
       type: "memory",
-      message: `RSS élevé: ${memory.rss.mb}MB (documents Yjs potentiellement nombreux)`,
+      message: `RSS élevé: ${memory.rss.mb}MB (documents Yjs ou cache Redis importants)`,
     });
   }
 

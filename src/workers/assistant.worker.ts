@@ -12,6 +12,7 @@
 
 import { Worker, Job } from "bullmq";
 import { redis } from "../lib/redis.js";
+import { markJobCompleted, markJobFailed } from "../lib/jobResults.js";
 
 // Types de jobs assistant
 export interface AssistantJobData {
@@ -199,18 +200,28 @@ export const assistantWorker = new Worker<AssistantJobData, AssistantResult>(
   },
 );
 
-// 📊 Event listeners pour logging
-assistantWorker.on("completed", (job) => {
+// 📊 Event listeners pour logging et stockage des résultats
+assistantWorker.on("completed", async (job, result) => {
   console.log(
     `✅ [ASSISTANT-WORKER] Job ${job.id} complété (${job.data.type})`,
   );
+
+  // Stocker le résultat dans Redis pour récupération via API
+  if (job.id) {
+    await markJobCompleted(job.id, result);
+  }
 });
 
-assistantWorker.on("failed", (job, error) => {
+assistantWorker.on("failed", async (job, error) => {
   console.error(
     `❌ [ASSISTANT-WORKER] Job ${job?.id} échoué (${job?.data.type}):`,
     error.message,
   );
+
+  // Stocker l'erreur dans Redis
+  if (job?.id) {
+    await markJobFailed(job.id, error.message);
+  }
 });
 
 assistantWorker.on("error", (error) => {
