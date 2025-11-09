@@ -15,6 +15,7 @@
 
 import { Worker, Job } from "bullmq";
 import { redis } from "../lib/redis.js";
+import { markJobCompleted, markJobFailed } from "../lib/jobResults.js";
 
 // Types de jobs AI
 export interface AIGenerationJobData {
@@ -174,16 +175,26 @@ export const aiGenerationWorker = new Worker<
   },
 });
 
-// 📊 Event listeners pour logging
-aiGenerationWorker.on("completed", (job) => {
+// 📊 Event listeners pour logging et stockage des résultats
+aiGenerationWorker.on("completed", async (job, result) => {
   console.log(`✅ [AI-WORKER] Job ${job.id} complété (${job.data.type})`);
+
+  // Stocker le résultat dans Redis pour récupération via API
+  if (job.id) {
+    await markJobCompleted(job.id, result);
+  }
 });
 
-aiGenerationWorker.on("failed", (job, error) => {
+aiGenerationWorker.on("failed", async (job, error) => {
   console.error(
     `❌ [AI-WORKER] Job ${job?.id} échoué (${job?.data.type}):`,
     error.message,
   );
+
+  // Stocker l'erreur dans Redis
+  if (job?.id) {
+    await markJobFailed(job.id, error.message);
+  }
 });
 
 aiGenerationWorker.on("error", (error) => {
