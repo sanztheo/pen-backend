@@ -78,11 +78,41 @@ export class Phase1Service {
       );
       const hasSpecificSources = availableSources.length > 0;
       const isAllSourceMode = !hasSpecificSources; // Mode all_source si aucune source spécifique
+      const isWebOnlyMode = useWeb && !hasSpecificSources; // 🔥 NEW: Mode web uniquement
 
       let contextualInstructions = "";
 
+      // 🎯 SCÉNARIO 0: Web uniquement (pas de sources locales)
+      if (isWebOnlyMode) {
+        contextualInstructions = `\n\n📌 CONTEXTE: MODE WEB UNIQUEMENT activé.
+
+🌐 STRATÉGIE WEB ONLY (exploration web profonde) :
+1. **MULTI-RECHERCHE WEB** : Utilise "search_web" PLUSIEURS FOIS avec des angles différents
+   - Première recherche : Query générale/large sur le sujet
+   - Deuxième recherche : Aspect spécifique ou angle différent
+   - Troisième recherche (optionnel) : Approfondissement ou détails techniques
+2. **ANGLES DIFFÉRENTS** : Varie les queries pour obtenir des perspectives complémentaires
+3. **EXPLORATION PROFONDE** : Ne te limite pas à 1 seul appel web, explore le sujet sous plusieurs angles
+
+🎯 EXEMPLES DE MULTI-RECHERCHE :
+Query user: "Parle-moi de Y Combinator"
+→ search_web 1: "Y Combinator startup accelerator history"
+→ search_web 2: "Y Combinator portfolio companies success stories"
+→ search_web 3: "Y Combinator application process requirements"
+
+Query user: "Théorème de Pythagore"
+→ search_web 1: "Pythagoras theorem definition proof"
+→ search_web 2: "Pythagoras theorem real world applications"
+→ search_web 3: "Pythagoras theorem history origin"
+
+⚠️ IMPORTANT :
+- NE LISTE PAS les sources locales (aucune source locale disponible)
+- NE SÉLECTIONNE PAS de sources (tu n'en as pas)
+- CONCENTRE-TOI sur le web avec plusieurs angles d'exploration
+- Chaque appel search_web doit avoir une query différente et complémentaire`;
+      }
       // 🎯 SCÉNARIO 1: Page/source unique spécifique
-      if (hasSpecificSources && availableSources.length === 1) {
+      else if (hasSpecificSources && availableSources.length === 1) {
         contextualInstructions = `\n\n📌 CONTEXTE: Une source spécifique a été sélectionnée par l'utilisateur.
 
 🎯 STRATÉGIE RECOMMANDÉE (ADAPTATIVE) :
@@ -175,31 +205,73 @@ Avant TOUTE planification, analyse si la question est une simple conversation so
 
 ## 🌐 EXTERNES
 - \`check_sources_rag_status\` : Vérifie le statut RAG des sources (nécessite des IDs de source)
-- \`search_web\` : Recherche web (dernier recours)
+- \`search_web\` : Recherche web ${isWebOnlyMode ? "(OUTIL PRINCIPAL - utilise-le PLUSIEURS FOIS avec des angles différents)" : "(dernier recours)"}
 
 # STRATÉGIE RECOMMANDÉE (Search Mode - exploration profonde)
+${
+  isWebOnlyMode
+    ? `
+🌐 **MODE WEB ONLY DÉTECTÉ** : Aucune source locale sélectionnée
+→ UTILISE "search_web" PLUSIEURS FOIS (2-4 appels) avec des angles différents pour explorer le sujet en profondeur
+→ Varie les queries pour obtenir des perspectives complémentaires
+→ NE perds PAS de temps à lister les sources (aucune source locale disponible)
+
+Exemple de plan pour "Parle-moi de Y Combinator" :
+1. search_web: "Y Combinator startup accelerator history founders"
+2. search_web: "Y Combinator portfolio companies unicorns success"
+3. search_web: "Y Combinator application process funding model"
+4. search_web (optionnel): "Y Combinator Demo Day investor network"
+`
+    : `
 1. Appelle \`list_available_sources\`, puis \`list_global_wikipedia_sources\` → obtenez la liste complète des sources (personnelles + globales)
 2. Utilise \`select_relevant_sources\` OU \`read_rag_source\` pour explorer les sources pertinentes
 3. Utilise \`search_rag_chunks\` pour chercher des informations précises dans les sources
 4. Si l'information reste insuffisante, utilise \`search_web\` OU \`check_sources_rag_status\`
+`
+}
 
 🔥 **IMPORTANT :**
+${
+  isWebOnlyMode
+    ? `
+- MODE WEB ONLY : Saute directement aux appels "search_web" multiples
+- N'appelle PAS list_available_sources ou list_global_wikipedia_sources (aucune source locale)
+- Concentre-toi sur 2-4 appels search_web avec des queries complémentaires
+- Chaque search_web doit explorer un angle différent du sujet
+`
+    : `
 - Appelle TOUJOURS \`list_available_sources\` PUIS \`list_global_wikipedia_sources\` au début, dans cet ordre.
 - Si \`list_available_sources\` retourne vide, appelle quand même \`list_global_wikipedia_sources\` pour vérifier les Wikipedia globales.
 - N'appelle JAMAIS \`read_rag_source\` avec un ID vide ! Vérifie toujours les sources listées avant.
 - Si aucune source n'est trouvée nulle part, utilise \`search_web\`.
+`
+}
 
 # PLANIFICATION
 Commence par un court checklist (3-7 étapes conceptuelles) de ce que tu vas faire pour organiser la séquence de résolution avant d'établir la séquence des outils.
 
-# RÈGLES
-- Commence PAR lister les sources (personnelles puis globales)
+# RÈGLES ABSOLUES
+${
+  isWebOnlyMode
+    ? `
+🌐 **MODE WEB ONLY ACTIVÉ** (aucune source locale sélectionnée) :
+- ❌ N'appelle JAMAIS list_available_sources, list_global_wikipedia_sources, select_relevant_sources
+- ✅ Utilise UNIQUEMENT search_web (2-4 appels avec queries variées)
+- ✅ Chaque search_web doit explorer un angle différent du sujet
+- ✅ Commence DIRECTEMENT par search_web à l'étape 1
+`
+    : `
+📚 **MODE HYBRIDE** (sources locales disponibles) :
+- ✅ Commence TOUJOURS par list_available_sources PUIS list_global_wikipedia_sources
+- ✅ Ensuite select_relevant_sources OU read_rag_source pour explorer
+- ✅ search_web seulement si sources locales insuffisantes${useWebStr}
+`
+}
 - 🎯 **IMPÉRATIF**: Reformule SYSTÉMATIQUEMENT la query utilisateur pour TOUS les outils qui acceptent "query" ou "question"
 - 🎯 **OPTIMISATION QUERIES**: Corrige orthographe, enrichis avec mots-clés, rends précis ce qui est vague
 - CHAQUE outil doit être différent et complémentaire à chaque étape
-- \`totalIterations\` : valeur entre 1 et 8
+- \`totalIterations\` : valeur entre ${isWebOnlyMode ? "2 et 5 (focus multi-recherches web)" : "1 et 8"}
 - Si tu utilises \`check_sources_rag_status\`, récupère d'abord les IDs des sources
-- N'utilise \`search_web\` que si les sources RAG sont insuffisantes${useWebStr}
 - Utilise uniquement les outils listés ci-dessus; pour les opérations de lecture et de consultation, tu peux appeler automatiquement; pour tout changement d'état ou opération destructrice, requiers une confirmation explicite avant exécution.
 - Avant d'appeler tout outil important, indique brièvement pourquoi tu l'appelles et les paramètres minimaux utilisés.
 
@@ -289,9 +361,25 @@ Avant TOUTE planification, analyse si la question est une simple conversation so
 ${
   hasSpecificSources
     ? `Sources spécifiques fournies → Appelle \`search_rag_chunks\` avec la query pour trouver l'info rapidement`
-    : useWeb
-      ? `Pas de sources spécifiques → Commence par \`list_available_sources\` puis \`search_web\` si nécessaire`
-      : `Pas de sources spécifiques, pas de web → Appelle \`list_available_sources\` puis \`search_rag_chunks\``
+    : useWeb && availableSources.length === 0
+      ? `🌐 MODE RAPIDE + WEB ONLY DÉTECTÉ
+→ AUCUNE source locale disponible, utilise DIRECTEMENT \`search_web\` (NE PAS lister les sources)
+→ Focus rapidité : 1 seul \`search_web\` suffit pour récupérer les infos essentielles
+→ Si user demande "look on the web" ou "recherche web", utilise \`search_web\` en PREMIER tool
+
+⚡ Exemple pour "Create welcome page for Y Combinator, look on the web":
+{
+  "toolSequence": [
+    {
+      "step": 1,
+      "toolName": "search_web",
+      "description": "Rechercher qui est Y Combinator et leur mission"
+    }
+  ]
+}`
+      : useWeb
+        ? `Pas de sources spécifiques → Commence par \`list_available_sources\` puis \`search_web\` si nécessaire`
+        : `Pas de sources spécifiques, pas de web → Appelle \`list_available_sources\` puis \`search_rag_chunks\``
 }
 
 🔥 **MODE RAPIDE** : Maximum 3 tools, privilégie la rapidité sur l'exhaustivité.
@@ -619,24 +707,57 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
         );
 
         // 🔥 NOUVEAU: CURSOR-LIKE IMPROVEMENT - Agir sur les scores faibles (pas juste logger)
-        // ⚠️ LIMITES: Max 15 iterations totales, pas de tool répété dans les 3 dernières iters
-        const MAX_ITERATIONS = 15;
+        // ⚠️ LIMITES: Max 10 iterations totales, max 2 tools ajoutés, respecter mode Web Only
+        const MAX_ITERATIONS = 10;
+        const MAX_IMPROVEMENTS = 2;
         const RECENT_TOOL_WINDOW = 3;
+
+        // Compter combien de tools ont été ajoutés via IMPROVEMENT
+        const improvementsAdded = validatedToolSequence.filter((t) =>
+          t.description?.includes("Amélioration qualité"),
+        ).length;
+
+        // 🔥 FIX: En mode Web Only, BLOQUER les suggestions de tools locaux
+        const allowedToolsInWebOnly = ["search_web"];
+        let filteredSuggestedTools = strategyAdjustment.suggestedTools;
+
+        if (isWebOnlyMode) {
+          filteredSuggestedTools = strategyAdjustment.suggestedTools.filter(
+            (toolName) => allowedToolsInWebOnly.includes(toolName),
+          );
+
+          if (
+            filteredSuggestedTools.length <
+            strategyAdjustment.suggestedTools.length
+          ) {
+            console.log(
+              `🌐 [WEB-ONLY] Filtrage des tools locaux: ${strategyAdjustment.suggestedTools.join(", ")} → ${filteredSuggestedTools.join(", ")}`,
+            );
+          }
+        }
 
         // Si les scores sont faibles ET que la stratégie recommande fortement d'explorer
         if (
           (strategyAdjustment.priority === "high" ||
             strategyAdjustment.priority === "critical") &&
-          strategyAdjustment.suggestedTools.length > 0 &&
+          filteredSuggestedTools.length > 0 &&
           resultScore.overallScore < 0.6 &&
-          validatedToolSequence.length < MAX_ITERATIONS // 🔥 FIX: Limite max d'itérations
+          validatedToolSequence.length < MAX_ITERATIONS &&
+          improvementsAdded < MAX_IMPROVEMENTS // 🔥 FIX: Limite d'améliorations
         ) {
           console.log(
-            `🔥 [IMPROVEMENT] Score faible détecté (${resultScore.overallScore.toFixed(2)}), ajout de tools pour amélioration...`,
+            `🔥 [IMPROVEMENT] Score faible détecté (${resultScore.overallScore.toFixed(2)}), ajout de tools pour amélioration (${improvementsAdded}/${MAX_IMPROVEMENTS})...`,
           );
 
           // Dynamiquement ajouter les tools suggérés à la fin du plan
-          for (const suggestedToolName of strategyAdjustment.suggestedTools) {
+          for (const suggestedToolName of filteredSuggestedTools) {
+            if (improvementsAdded >= MAX_IMPROVEMENTS) {
+              console.log(
+                `⏹️ [IMPROVEMENT] Limite MAX_IMPROVEMENTS (${MAX_IMPROVEMENTS}) atteinte`,
+              );
+              break;
+            }
+
             // 🔥 FIX: Vérifier si le tool n'est pas dans le plan restant OU dans les N dernières itérations
             const alreadyPlanned = validatedToolSequence
               .slice(iterationIdx + 1)
@@ -660,7 +781,7 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
                 description: `Amélioration qualité: ${strategyAdjustment.reasoning}`,
               });
               console.log(
-                `✅ [IMPROVEMENT] Ajout de "${suggestedToolName}" pour améliorer la qualité`,
+                `✅ [IMPROVEMENT] Ajout de "${suggestedToolName}" pour améliorer la qualité (${improvementsAdded + 1}/${MAX_IMPROVEMENTS})`,
               );
             } else if (recentlyExecuted) {
               console.log(
@@ -676,6 +797,10 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
         } else if (validatedToolSequence.length >= MAX_ITERATIONS) {
           console.log(
             `⏹️ [IMPROVEMENT] Limite MAX_ITERATIONS (${MAX_ITERATIONS}) atteinte, arrêt de l'amélioration`,
+          );
+        } else if (improvementsAdded >= MAX_IMPROVEMENTS) {
+          console.log(
+            `⏹️ [IMPROVEMENT] Limite MAX_IMPROVEMENTS (${MAX_IMPROVEMENTS}) atteinte`,
           );
         }
 
@@ -711,13 +836,22 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
           );
 
           try {
-            // 🔥 NEW: Build tool execution history with scores
+            // 🔥 NEW: Build tool execution history with scores + track search_web queries
+            const previousWebQueries = toolCalls
+              .filter((tc) => tc.name === "search_web")
+              .map((tc) => tc.arguments?.query || "")
+              .filter((q) => q.length > 0);
+
             const executedTools = toolCalls
               .map((tc, idx) => {
                 const score = tc.score
                   ? ` (score: ${tc.score.overallScore.toFixed(2)})`
                   : "";
-                return `${idx + 1}. ${tc.name}${score}`;
+                const args =
+                  tc.name === "search_web" && tc.arguments?.query
+                    ? ` avec query: "${tc.arguments.query}"`
+                    : "";
+                return `${idx + 1}. ${tc.name}${score}${args}`;
               })
               .join("\n");
             const remainingTools = validatedToolSequence
@@ -757,6 +891,21 @@ Avant toute décision, commence par une checklist concise (3-7 points conceptuel
 
 📋 OUTILS DÉJÀ EXÉCUTÉS :
 ${executedTools || "Aucun"}
+
+${
+  previousWebQueries.length > 0
+    ? `
+🚨 QUERIES WEB DÉJÀ UTILISÉES (NE PAS RÉPÉTER) :
+${previousWebQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n")}
+
+⚠️ IMPORTANT pour le prochain search_web :
+Tu DOIS explorer un angle TOTALEMENT DIFFÉRENT. Exemples d'angles alternatifs :
+- Si déjà cherché "histoire" → cherche "portfolio companies" ou "funding model"
+- Si déjà cherché "overview" → cherche "success stories" ou "application process"
+- Si déjà cherché "founders" → cherche "Demo Day" ou "notable alumni"
+`
+    : ""
+}
 
 📋 OUTILS RESTANTS DANS LE PLAN :
 ${remainingTools || "Aucun"}
@@ -854,7 +1003,11 @@ Pour search_web :
   - 🔥 ATTENTION: Ce tool prend UNIQUEMENT "query" (string), PAS "question" ni "availableSources" ni "maxResults" !
   - Inclure : "query": "chaîne de recherche web" (string REFORMULÉE ET ENRICHIE)
   - 🔥 IMPÉRATIF: Reformule et enrichis la query avec mots-clés pertinents pour le web
-  - Exemple : {"query": "Pythagore théorème mathématiques géométrie démonstration applications cours"}
+  - 🚨 MULTI-RECHERCHE: Si tu as DÉJÀ appelé search_web, tu DOIS explorer un ANGLE TOTALEMENT DIFFÉRENT
+  - 🚨 INTERDICTION: Ne jamais répéter la même query ou des variantes similaires
+  - Exemple première recherche : {"query": "Y Combinator startup accelerator history founders"}
+  - Exemple deuxième recherche : {"query": "Y Combinator portfolio companies unicorns Airbnb Dropbox Stripe"}
+  - Exemple troisième recherche : {"query": "Y Combinator application process Demo Day funding model"}
 
 📊 DÉCISION :
 Après chaque appel d'outil ou édition, valide en 1 à 2 lignes l'adéquation du résultat avec l'étape attendue, et décide si une correction est nécessaire ou si tu poursuis la séquence.
