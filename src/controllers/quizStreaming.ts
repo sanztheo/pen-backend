@@ -1,67 +1,85 @@
-import { Request, Response } from 'express';
-import { QuizService } from '../services/quiz/quizService.js';
-import { SchoolLevel, QuestionType, LyceeSpecialty } from '../services/quiz/types.js';
-import { OpenAIAssistantService } from '../services/quiz/assistant/index.js';
-import { prisma } from '../lib/prisma.js';
-import { v4 as uuidv4 } from 'uuid';
-import { Question, UserAnswer, QuizCorrectionRequest } from '../services/quiz/types.js';
-import { QuizLimitsService } from '../services/credits/quizLimitsService.js';
+import { Request, Response } from "express";
+import { QuizService } from "../services/quiz/quizService.js";
+import {
+  SchoolLevel,
+  QuestionType,
+  LyceeSpecialty,
+} from "../services/quiz/types.js";
+import { OpenAIAssistantService } from "../services/quiz/assistant/index.js";
+import { prisma } from "../lib/prisma.js";
+import { v4 as uuidv4 } from "uuid";
+import {
+  Question,
+  UserAnswer,
+  QuizCorrectionRequest,
+} from "../services/quiz/types.js";
+import { QuizLimitsService } from "../services/credits/quizLimitsService.js";
 
 // Stockage temporaire des sessions de streaming
-const streamingSessions = new Map<string, {
-  userId: string;
-  request: any;
-  createdAt: Date;
-}>();
+const streamingSessions = new Map<
+  string,
+  {
+    userId: string;
+    request: any;
+    createdAt: Date;
+  }
+>();
 
 const LYCEE_SPECIALTY_LABELS: Record<LyceeSpecialty, string> = {
-  [LyceeSpecialty.MATHEMATIQUES]: 'Mathématiques',
-  [LyceeSpecialty.PHYSIQUE_CHIMIE]: 'Physique-Chimie',
-  [LyceeSpecialty.SVT]: 'Sciences de la Vie et de la Terre',
-  [LyceeSpecialty.HISTOIRE_GEO]: 'Histoire-Géographie',
-  [LyceeSpecialty.SES]: 'Sciences Économiques et Sociales',
-  [LyceeSpecialty.LANGUES_LITTERATURE]: 'Langues, littératures et cultures étrangères',
-  [LyceeSpecialty.LLCER_ANGLAIS]: 'LLCER Anglais',
-  [LyceeSpecialty.LLCER_ESPAGNOL]: 'LLCER Espagnol',
-  [LyceeSpecialty.LLCER_ALLEMAND]: 'LLCER Allemand',
-  [LyceeSpecialty.LLCER_ITALIEN]: 'LLCER Italien',
-  [LyceeSpecialty.ARTS_PLASTIQUES]: 'Arts Plastiques',
-  [LyceeSpecialty.MUSIQUE]: 'Musique',
-  [LyceeSpecialty.THEATRE]: 'Théâtre',
-  [LyceeSpecialty.CINEMA_AUDIOVISUEL]: 'Cinéma-Audiovisuel',
-  [LyceeSpecialty.DANSE]: 'Danse',
-  [LyceeSpecialty.HISTOIRE_DES_ARTS]: 'Histoire des Arts',
-  [LyceeSpecialty.NSI]: 'Numérique et Sciences Informatiques',
-  [LyceeSpecialty.SI]: 'Sciences de l\'Ingénieur',
-  [LyceeSpecialty.SCIENCES_INGENIEUR]: 'Sciences de l\'Ingénieur',
-  [LyceeSpecialty.BIOLOGIE_ECOLOGIE]: 'Biologie-Écologie',
-  [LyceeSpecialty.SPORT]: 'Éducation Physique et Sportive'
+  [LyceeSpecialty.MATHEMATIQUES]: "Mathématiques",
+  [LyceeSpecialty.PHYSIQUE_CHIMIE]: "Physique-Chimie",
+  [LyceeSpecialty.SVT]: "Sciences de la Vie et de la Terre",
+  [LyceeSpecialty.HISTOIRE_GEO]: "Histoire-Géographie",
+  [LyceeSpecialty.SES]: "Sciences Économiques et Sociales",
+  [LyceeSpecialty.LANGUES_LITTERATURE]:
+    "Langues, littératures et cultures étrangères",
+  [LyceeSpecialty.LLCER_ANGLAIS]: "LLCER Anglais",
+  [LyceeSpecialty.LLCER_ESPAGNOL]: "LLCER Espagnol",
+  [LyceeSpecialty.LLCER_ALLEMAND]: "LLCER Allemand",
+  [LyceeSpecialty.LLCER_ITALIEN]: "LLCER Italien",
+  [LyceeSpecialty.ARTS_PLASTIQUES]: "Arts Plastiques",
+  [LyceeSpecialty.MUSIQUE]: "Musique",
+  [LyceeSpecialty.THEATRE]: "Théâtre",
+  [LyceeSpecialty.CINEMA_AUDIOVISUEL]: "Cinéma-Audiovisuel",
+  [LyceeSpecialty.DANSE]: "Danse",
+  [LyceeSpecialty.HISTOIRE_DES_ARTS]: "Histoire des Arts",
+  [LyceeSpecialty.NSI]: "Numérique et Sciences Informatiques",
+  [LyceeSpecialty.SI]: "Sciences de l'Ingénieur",
+  [LyceeSpecialty.SCIENCES_INGENIEUR]: "Sciences de l'Ingénieur",
+  [LyceeSpecialty.BIOLOGIE_ECOLOGIE]: "Biologie-Écologie",
+  [LyceeSpecialty.SPORT]: "Éducation Physique et Sportive",
 };
 
-const getSpecialtyLabel = (specialty: LyceeSpecialty | undefined): string | undefined => {
+const getSpecialtyLabel = (
+  specialty: LyceeSpecialty | undefined,
+): string | undefined => {
   if (!specialty) {
     return undefined;
   }
 
-  return LYCEE_SPECIALTY_LABELS[specialty] || specialty.replace(/_/g, ' ');
+  return LYCEE_SPECIALTY_LABELS[specialty] || specialty.replace(/_/g, " ");
 };
 
 const buildSpecialtyDistribution = (
   specialties: LyceeSpecialty[] | undefined,
-  totalQuestions: number
+  totalQuestions: number,
 ): LyceeSpecialty[] => {
   if (!specialties || specialties.length === 0 || totalQuestions <= 0) {
     return [];
   }
 
-  const uniqueSpecialties = Array.from(new Set(specialties)) as LyceeSpecialty[];
+  const uniqueSpecialties = Array.from(
+    new Set(specialties),
+  ) as LyceeSpecialty[];
   if (uniqueSpecialties.length === 0) {
     return [];
   }
 
   const baseCount = Math.floor(totalQuestions / uniqueSpecialties.length);
   const remainder = totalQuestions % uniqueSpecialties.length;
-  const counts = uniqueSpecialties.map((_, index) => baseCount + (index < remainder ? 1 : 0));
+  const counts = uniqueSpecialties.map(
+    (_, index) => baseCount + (index < remainder ? 1 : 0),
+  );
 
   const distribution: LyceeSpecialty[] = [];
   let pointer = 0;
@@ -79,20 +97,22 @@ const buildSpecialtyDistribution = (
 };
 
 // Nettoyer les sessions expirées (plus de 1 heure)
-setInterval(() => {
-  const now = new Date();
-  for (const [sessionId, session] of streamingSessions.entries()) {
-    if (now.getTime() - session.createdAt.getTime() > 60 * 60 * 1000) {
-      streamingSessions.delete(sessionId);
+setInterval(
+  () => {
+    const now = new Date();
+    for (const [sessionId, session] of streamingSessions.entries()) {
+      if (now.getTime() - session.createdAt.getTime() > 60 * 60 * 1000) {
+        streamingSessions.delete(sessionId);
+      }
     }
-  }
-}, 5 * 60 * 1000); // Nettoyer toutes les 5 minutes
+  },
+  5 * 60 * 1000,
+); // Nettoyer toutes les 5 minutes
 
 /**
  * Contrôleur pour le streaming de génération de quiz
  */
 export class QuizStreamingController {
-
   /**
    * POST /api/quiz/generate-stream - Génère un quiz avec streaming des questions
    */
@@ -100,7 +120,7 @@ export class QuizStreamingController {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
@@ -118,54 +138,71 @@ export class QuizStreamingController {
         title,
         description,
         coursesOnly,
-        ragContext // 🆕 Récupérer le contexte RAG
+        ragContext, // 🆕 Récupérer le contexte RAG
       } = req.body;
 
       // 🧠 Debug: Vérifier la réception du contexte RAG
-      console.log(`🧠 [STREAMING-DEBUG] ragContext reçu: ${ragContext ? `${ragContext.length} caractères` : 'VIDE ou undefined'}`);
-      console.log(`🧠 [STREAMING-DEBUG] coursesOnly: ${coursesOnly}, pageProjectIds: ${pageProjectIds?.length || 0}`);
+      console.log(
+        `🧠 [STREAMING-DEBUG] ragContext reçu: ${ragContext ? `${ragContext.length} caractères` : "VIDE ou undefined"}`,
+      );
+      console.log(
+        `🧠 [STREAMING-DEBUG] coursesOnly: ${coursesOnly}, pageProjectIds: ${pageProjectIds?.length || 0}`,
+      );
 
       // Validation des paramètres requis
       if (!schoolLevel || !questionTypes || !questionCount) {
-        res.status(400).json({ 
-          error: 'Paramètres manquants: schoolLevel, questionTypes et questionCount sont requis' 
+        res.status(400).json({
+          error:
+            "Paramètres manquants: schoolLevel, questionTypes et questionCount sont requis",
         });
         return;
       }
 
       // Validation des enums
       if (!Object.values(SchoolLevel).includes(schoolLevel)) {
-        res.status(400).json({ error: 'Niveau scolaire invalide' });
+        res.status(400).json({ error: "Niveau scolaire invalide" });
         return;
       }
 
-      if (!Array.isArray(questionTypes) || !questionTypes.every(type => Object.values(QuestionType).includes(type))) {
-        res.status(400).json({ error: 'Types de questions invalides' });
+      if (
+        !Array.isArray(questionTypes) ||
+        !questionTypes.every((type) =>
+          Object.values(QuestionType).includes(type),
+        )
+      ) {
+        res.status(400).json({ error: "Types de questions invalides" });
         return;
       }
 
       if (questionCount < 1 || questionCount > 100) {
-        res.status(400).json({ error: 'Le nombre de questions doit être entre 1 et 100' });
+        res
+          .status(400)
+          .json({ error: "Le nombre de questions doit être entre 1 et 100" });
         return;
       }
 
       // 🔐 Vérification des limites de quiz avancés (>30 questions ET >10 pages)
       const pagesCount = pageProjectIds?.length || 0;
       if (questionCount > 30 && pagesCount > 10) {
-        console.log(`🎯 [STREAMING] Quiz avancé détecté: ${questionCount} questions, ${pagesCount} pages`);
+        console.log(
+          `🎯 [STREAMING] Quiz avancé détecté: ${questionCount} questions, ${pagesCount} pages`,
+        );
 
         const advancedQuizCheck = await QuizLimitsService.canCreateAdvancedQuiz(
           userId,
           questionCount,
-          pagesCount
+          pagesCount,
         );
 
         if (!advancedQuizCheck.success || advancedQuizCheck.limitReached) {
-          console.log(`❌ [STREAMING] Limite quiz avancés atteinte:`, advancedQuizCheck.message);
+          console.log(
+            `❌ [STREAMING] Limite quiz avancés atteinte:`,
+            advancedQuizCheck.message,
+          );
           res.status(429).json({
-            error: 'Limite de quiz avancés atteinte',
+            error: "Limite de quiz avancés atteinte",
             message: advancedQuizCheck.message,
-            limitType: 'advancedQuiz'
+            limitType: "advancedQuiz",
           });
           return;
         }
@@ -173,46 +210,54 @@ export class QuizStreamingController {
         console.log(`✅ [STREAMING] Quiz avancé autorisé, limite OK`);
       }
 
-      console.log(`🚀 [STREAMING] Début génération streaming pour ${questionCount} questions`);
+      console.log(
+        `🚀 [STREAMING] Début génération streaming pour ${questionCount} questions`,
+      );
 
       // 🧠 Vérification des chunks RAG si pages sélectionnées (système d'embedding automatique)
       if (pageProjectIds && pageProjectIds.length > 0 && coursesOnly) {
-        console.log(`🔍 [STREAMING-RAG] Vérification chunks pour ${pageProjectIds.length} page(s) sélectionnée(s)`);
-        
+        console.log(
+          `🔍 [STREAMING-RAG] Vérification chunks pour ${pageProjectIds.length} page(s) sélectionnée(s)`,
+        );
+
         try {
           // Compter les chunks disponibles pour les pages sélectionnées
           const chunksCount = await prisma.rAGChunk.count({
             where: {
               source: {
-                sourceType: 'WORKSPACE_PAGE',
+                sourceType: "WORKSPACE_PAGE",
                 userId: userId,
-                status: 'COMPLETED',
+                status: "COMPLETED",
                 OR: pageProjectIds.map((pageId: string) => ({
                   metadata: {
-                    path: ['pageId'],
-                    equals: pageId
-                  }
-                }))
-              }
-            }
+                    path: ["pageId"],
+                    equals: pageId,
+                  },
+                })),
+              },
+            },
           });
-          
-          console.log(`📊 [STREAMING-RAG] Chunks disponibles: ${chunksCount} pour pages sélectionnées`);
-          
+
+          console.log(
+            `📊 [STREAMING-RAG] Chunks disponibles: ${chunksCount} pour pages sélectionnées`,
+          );
+
           if (chunksCount === 0) {
-            console.warn(`⚠️ [STREAMING-RAG] Aucun chunk trouvé pour les pages sélectionnées. Vérification des sources...`);
-            
+            console.warn(
+              `⚠️ [STREAMING-RAG] Aucun chunk trouvé pour les pages sélectionnées. Vérification des sources...`,
+            );
+
             // Diagnostic des sources RAG
             const ragSources = await prisma.rAGSource.findMany({
               where: {
-                sourceType: 'WORKSPACE_PAGE',
+                sourceType: "WORKSPACE_PAGE",
                 userId: userId,
                 OR: pageProjectIds.map((pageId: string) => ({
                   metadata: {
-                    path: ['pageId'],
-                    equals: pageId
-                  }
-                }))
+                    path: ["pageId"],
+                    equals: pageId,
+                  },
+                })),
               },
               select: {
                 id: true,
@@ -220,27 +265,34 @@ export class QuizStreamingController {
                 status: true,
                 totalChunks: true,
                 errorMessage: true,
-                metadata: true
-              }
+                metadata: true,
+              },
             });
-            
-            console.log(`📋 [STREAMING-RAG] Sources RAG trouvées: ${ragSources.length}`);
-            ragSources.forEach(source => {
-              console.log(`   - "${source.title}": status=${source.status}, chunks=${source.totalChunks}, error="${source.errorMessage}"`);
+
+            console.log(
+              `📋 [STREAMING-RAG] Sources RAG trouvées: ${ragSources.length}`,
+            );
+            ragSources.forEach((source) => {
+              console.log(
+                `   - "${source.title}": status=${source.status}, chunks=${source.totalChunks}, error="${source.errorMessage}"`,
+              );
             });
           }
         } catch (error) {
-          console.error(`❌ [STREAMING-RAG] Erreur vérification chunks:`, error);
+          console.error(
+            `❌ [STREAMING-RAG] Erreur vérification chunks:`,
+            error,
+          );
         }
       }
 
       // Configuration SSE
       res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Cache-Control',
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Cache-Control",
       });
 
       // Fonction pour envoyer des événements SSE
@@ -258,23 +310,23 @@ export class QuizStreamingController {
             schoolLevel,
             questions: [], // Sera rempli progressivement
             isCompleted: false,
-            preset: preset || 'NONE',
+            preset: preset || "NONE",
             selectedSpecialties: lyceeSpecialties || [],
             higherEdField,
-            status: 'generating' // Nouvel état
-          }
+            status: "generating", // Nouvel état
+          },
         });
 
         // Envoyer l'ID du quiz
-        sendSSE('quiz-created', {
+        sendSSE("quiz-created", {
           quizId: quiz.id,
-          message: 'Quiz créé, génération des questions...'
+          message: "Quiz créé, génération des questions...",
         });
 
         // 2. Générer les questions une par une
         const assistantService = new OpenAIAssistantService();
         const generatedQuestions = [];
-        
+
         // Construction de la requête de base
         const baseRequest = {
           userId,
@@ -290,32 +342,43 @@ export class QuizStreamingController {
           title,
           description,
           coursesOnly,
-          ragContext // 🆕 Transmettre le contexte RAG à l'assistant
+          ragContext, // 🆕 Transmettre le contexte RAG à l'assistant
         };
 
         for (let i = 0; i < questionCount; i++) {
           try {
-            console.log(`📝 [STREAMING] Génération question ${i + 1}/${questionCount}`);
-            
+            console.log(
+              `📝 [STREAMING] Génération question ${i + 1}/${questionCount}`,
+            );
+
             // Envoyer le statut de génération
-            sendSSE('question-generating', {
+            sendSSE("question-generating", {
               questionNumber: i + 1,
               totalQuestions: questionCount,
-              message: `Génération de la question ${i + 1}...`
+              message: `Génération de la question ${i + 1}...`,
             });
 
             // Générer une seule question
             const singleQuestionRequest = {
               ...baseRequest,
               questionCount: 1, // Une seule question
-              existingQuestions: generatedQuestions // 🔧 Toujours passer les questions existantes
+              existingQuestions: generatedQuestions, // 🔧 Toujours passer les questions existantes
             };
 
-            console.log(`🧠 [STREAMING-DEBUG] Génération question ${i + 1} avec ${generatedQuestions.length} questions existantes`);
+            console.log(
+              `🧠 [STREAMING-DEBUG] Génération question ${i + 1} avec ${generatedQuestions.length} questions existantes`,
+            );
 
-            const questionResult = await assistantService.generateSingleQuestion(singleQuestionRequest);
-            
-            if (questionResult && questionResult.questions && questionResult.questions.length > 0) {
+            const questionResult =
+              await assistantService.generateSingleQuestion(
+                singleQuestionRequest,
+              );
+
+            if (
+              questionResult &&
+              questionResult.questions &&
+              questionResult.questions.length > 0
+            ) {
               const newQuestion = questionResult.questions[0];
               generatedQuestions.push(newQuestion);
 
@@ -323,32 +386,36 @@ export class QuizStreamingController {
               await prisma.quiz.update({
                 where: { id: quiz.id },
                 data: {
-                  questions: generatedQuestions as any
-                }
+                  questions: generatedQuestions as any,
+                },
               });
 
               // Envoyer la question générée au frontend
-              sendSSE('question-generated', {
+              sendSSE("question-generated", {
                 questionNumber: i + 1,
                 totalQuestions: questionCount,
                 question: newQuestion,
                 canStartAnswering: i === 0, // Permet de commencer après la première question
-                message: `Question ${i + 1} générée avec succès`
+                message: `Question ${i + 1} générée avec succès`,
               });
 
-              console.log(`✅ [STREAMING] Question ${i + 1} générée et envoyée`);
+              console.log(
+                `✅ [STREAMING] Question ${i + 1} générée et envoyée`,
+              );
             } else {
               throw new Error(`Échec génération question ${i + 1}`);
             }
-
           } catch (questionError) {
-            console.error(`❌ [STREAMING] Erreur question ${i + 1}:`, questionError);
-            
-            sendSSE('question-error', {
+            console.error(
+              `❌ [STREAMING] Erreur question ${i + 1}:`,
+              questionError,
+            );
+
+            sendSSE("question-error", {
               questionNumber: i + 1,
               totalQuestions: questionCount,
               error: `Erreur lors de la génération de la question ${i + 1}`,
-              canContinue: generatedQuestions.length > 0
+              canContinue: generatedQuestions.length > 0,
             });
 
             // Si on a déjà des questions, on peut continuer
@@ -362,53 +429,61 @@ export class QuizStreamingController {
         const finalQuiz = await prisma.quiz.update({
           where: { id: quiz.id },
           data: {
-            status: 'ready',
-            questions: generatedQuestions as any
-          }
+            status: "ready",
+            questions: generatedQuestions as any,
+          },
         });
 
         // 🔐 Déduire un quiz avancé si applicable (>30 questions ET >10 pages)
         if (questionCount > 30 && pagesCount > 10) {
-          console.log(`🎯 [STREAMING] Déduction quiz avancé pour utilisateur ${userId}`);
-          const deductResult = await QuizLimitsService.deductAdvancedQuiz(userId);
+          console.log(
+            `🎯 [STREAMING] Déduction quiz avancé pour utilisateur ${userId}`,
+          );
+          const deductResult =
+            await QuizLimitsService.deductAdvancedQuiz(userId);
           if (deductResult.success) {
-            console.log(`✅ [STREAMING] Quiz avancé déduit, restants: ${deductResult.remainingQuizzes}`);
+            console.log(
+              `✅ [STREAMING] Quiz avancé déduit, restants: ${deductResult.remainingQuizzes}`,
+            );
           } else {
-            console.warn(`⚠️ [STREAMING] Échec déduction quiz avancé:`, deductResult.message);
+            console.warn(
+              `⚠️ [STREAMING] Échec déduction quiz avancé:`,
+              deductResult.message,
+            );
           }
         }
 
         // Envoyer l'événement de fin
-        sendSSE('quiz-completed', {
+        sendSSE("quiz-completed", {
           quizId: quiz.id,
           totalQuestionsGenerated: generatedQuestions.length,
           totalQuestionsRequested: questionCount,
-          message: 'Quiz généré avec succès !',
-          quiz: finalQuiz
+          message: "Quiz généré avec succès !",
+          quiz: finalQuiz,
         });
 
-        console.log(`🎉 [STREAMING] Quiz ${quiz.id} complété avec ${generatedQuestions.length} questions`);
-
+        console.log(
+          `🎉 [STREAMING] Quiz ${quiz.id} complété avec ${generatedQuestions.length} questions`,
+        );
       } catch (error) {
-        console.error('❌ [STREAMING] Erreur génération:', error);
-        
-        sendSSE('error', {
-          message: 'Erreur lors de la génération du quiz',
-          details: error instanceof Error ? error.message : 'Erreur inconnue'
+        console.error("❌ [STREAMING] Erreur génération:", error);
+
+        sendSSE("error", {
+          message: "Erreur lors de la génération du quiz",
+          details: error instanceof Error ? error.message : "Erreur inconnue",
         });
       }
 
       // Fermer la connexion SSE
-      sendSSE('end', { message: 'Génération terminée' });
+      sendSSE("end", { message: "Génération terminée" });
       res.end();
-
     } catch (error) {
-      console.error('❌ [STREAMING] Erreur contrôleur:', error);
-      
+      console.error("❌ [STREAMING] Erreur contrôleur:", error);
+
       if (!res.headersSent) {
         res.status(500).json({
-          error: 'Erreur lors de l\'initialisation du streaming',
-          details: error instanceof Error ? error.message : 'Erreur inconnue'
+          error: "Erreur lors de l'initialisation du streaming",
+          details: error instanceof Error ? error.message : "Erreur inconnue",
         });
       }
     }
@@ -423,24 +498,24 @@ export class QuizStreamingController {
       const quizId = req.params.id;
 
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
       if (!quizId) {
-        res.status(400).json({ error: 'ID du quiz requis' });
+        res.status(400).json({ error: "ID du quiz requis" });
         return;
       }
 
       const quiz = await prisma.quiz.findFirst({
         where: {
           id: quizId,
-          userId
-        }
+          userId,
+        },
       });
 
       if (!quiz) {
-        res.status(404).json({ error: 'Quiz non trouvé' });
+        res.status(404).json({ error: "Quiz non trouvé" });
         return;
       }
 
@@ -448,17 +523,18 @@ export class QuizStreamingController {
         success: true,
         data: {
           id: quiz.id,
-          status: quiz.status || 'ready',
-          questionsGenerated: Array.isArray(quiz.questions) ? quiz.questions.length : 0,
-          isCompleted: quiz.status === 'ready'
-        }
+          status: quiz.status || "ready",
+          questionsGenerated: Array.isArray(quiz.questions)
+            ? quiz.questions.length
+            : 0,
+          isCompleted: quiz.status === "ready",
+        },
       });
-
     } catch (error) {
-      console.error('Erreur vérification statut streaming:', error);
+      console.error("Erreur vérification statut streaming:", error);
       res.status(500).json({
-        error: 'Erreur lors de la vérification du statut',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la vérification du statut",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -466,42 +542,52 @@ export class QuizStreamingController {
   /**
    * POST /api/quiz/streaming-session - Crée une session de streaming
    */
-  static async createStreamingSession(req: Request, res: Response): Promise<void> {
+  static async createStreamingSession(
+    req: Request,
+    res: Response,
+  ): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
       const sessionId = uuidv4();
-      
+
       // 🧠 Debug: Vérifier les données reçues dans la session
-      console.log(`🧠 [SESSION-DEBUG] Données reçues pour session ${sessionId}:`);
-      console.log(`  - ragContext: ${req.body.ragContext ? `${req.body.ragContext.length} chars` : 'undefined/null'}`);
+      console.log(
+        `🧠 [SESSION-DEBUG] Données reçues pour session ${sessionId}:`,
+      );
+      console.log(
+        `  - ragContext: ${req.body.ragContext ? `${req.body.ragContext.length} chars` : "undefined/null"}`,
+      );
       console.log(`  - coursesOnly: ${req.body.coursesOnly}`);
-      console.log(`  - pageProjectIds: ${req.body.pageProjectIds?.length || 0}`);
-      console.log(`  - Body keys: ${Object.keys(req.body).join(', ')}`);
-      
+      console.log(
+        `  - pageProjectIds: ${req.body.pageProjectIds?.length || 0}`,
+      );
+      console.log(`  - Body keys: ${Object.keys(req.body).join(", ")}`);
+
       // Stocker la session temporairement
       streamingSessions.set(sessionId, {
         userId,
         request: req.body,
-        createdAt: new Date()
+        createdAt: new Date(),
       });
 
-      console.log(`📝 [STREAMING] Session créée: ${sessionId} pour user: ${userId}`);
+      console.log(
+        `📝 [STREAMING] Session créée: ${sessionId} pour user: ${userId}`,
+      );
 
       res.status(200).json({
         success: true,
-        sessionId
+        sessionId,
       });
-
     } catch (error) {
-      console.error('❌ [STREAMING] Erreur création session:', error);
+      console.error("❌ [STREAMING] Erreur création session:", error);
       res.status(500).json({
-        error: 'Erreur lors de la création de la session',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la création de la session",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -509,16 +595,19 @@ export class QuizStreamingController {
   /**
    * GET /api/quiz/stream/:sessionId - Stream SSE pour la génération de quiz
    */
-  static async streamQuizGeneration(req: Request, res: Response): Promise<void> {
+  static async streamQuizGeneration(
+    req: Request,
+    res: Response,
+  ): Promise<void> {
     const sessionId = req.params.sessionId;
-    
+
     // Configuration SSE AVANT toute vérification pour éviter les erreurs JSON
     res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Cache-Control',
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Cache-Control",
     });
 
     // Fonction pour envoyer des événements SSE
@@ -527,22 +616,24 @@ export class QuizStreamingController {
       const dataData = `data: ${JSON.stringify(data)}\n\n`;
       console.log(`📤 [STREAMING] Envoi SSE - Event: ${event}`);
       console.log(`📤 [STREAMING] Envoi SSE - Data: ${JSON.stringify(data)}`);
-      console.log(`📤 [STREAMING] Format SSE complet:\n${eventData}${dataData}`);
+      console.log(
+        `📤 [STREAMING] Format SSE complet:\n${eventData}${dataData}`,
+      );
       res.write(eventData);
       res.write(dataData);
       // Forcer l'envoi immédiat des données (pour le streaming en temps réel)
-      if (typeof res.flush === 'function') {
+      if (typeof res.flush === "function") {
         res.flush();
       }
     };
 
     // Envoyer immédiatement un événement de connexion
-    sendSSE('connected', { message: 'Connexion SSE établie' });
+    sendSSE("connected", { message: "Connexion SSE établie" });
 
     // 🛡️ SÉCURITÉ CRITIQUE: Vérifier l'authentification via JWT
     const token = req.query.token as string;
     if (!token) {
-      sendSSE('error', { message: 'Token manquant' });
+      sendSSE("error", { message: "Token manquant" });
       res.end();
       return;
     }
@@ -550,37 +641,43 @@ export class QuizStreamingController {
     // Vérifier que la session existe AVANT validation JWT
     const session = streamingSessions.get(sessionId);
     if (!session) {
-      sendSSE('error', { message: 'Session non trouvée ou expirée' });
+      sendSSE("error", { message: "Session non trouvée ou expirée" });
       res.end();
       return;
     }
 
     // 🛡️ VALIDATION JWT OBLIGATOIRE: Vérifier le token et l'ownership de la session
     try {
-      const { AuthService } = await import('../services/auth.js');
+      const { AuthService } = await import("../services/auth.js");
       const user = await AuthService.verifyToken(token);
       if (!user || user.id !== session.userId) {
-        sendSSE('error', { message: 'Authentification requise - Token invalide ou non autorisé' });
+        sendSSE("error", {
+          message: "Authentification requise - Token invalide ou non autorisé",
+        });
         res.end();
         return;
       }
-      console.log(`🔗 [STREAMING] ✅ JWT validé pour user ${user.id}, session: ${sessionId}`);
+      console.log(
+        `🔗 [STREAMING] ✅ JWT validé pour user ${user.id}, session: ${sessionId}`,
+      );
     } catch (error) {
-      console.error('❌ [STREAMING] Échec validation JWT:', error);
-      sendSSE('error', { message: 'Token invalide ou expiré' });
+      console.error("❌ [STREAMING] Échec validation JWT:", error);
+      sendSSE("error", { message: "Token invalide ou expiré" });
       res.end();
       return;
     }
 
     // 🛡️ ANTI-REPLAY: Invalider immédiatement la session pour empêcher les connexions multiples
     streamingSessions.delete(sessionId);
-    console.log(`🛡️ [STREAMING] Session ${sessionId} invalidée pour prévenir les attaques replay`);
+    console.log(
+      `🛡️ [STREAMING] Session ${sessionId} invalidée pour prévenir les attaques replay`,
+    );
 
     try {
       // Récupérer les paramètres de la session
       const {
         schoolLevel,
-        questionTypes = ['MULTIPLE_CHOICE'],
+        questionTypes = ["MULTIPLE_CHOICE"],
         questionCount = 10,
         collegeGrade,
         lyceeSpecialties,
@@ -595,18 +692,24 @@ export class QuizStreamingController {
         sequentialConfig,
         targetGrade,
         timeLimit,
-        difficulty
+        difficulty,
       } = session.request;
 
       // 🧠 Debug: Vérifier les données récupérées de la session
-      console.log(`🧠 [SESSION-RECOVERY-DEBUG] Session ${sessionId} récupérée:`);
-      console.log(`  - ragContext: ${ragContext ? `${ragContext.length} chars` : 'undefined/null'}`);
+      console.log(
+        `🧠 [SESSION-RECOVERY-DEBUG] Session ${sessionId} récupérée:`,
+      );
+      console.log(
+        `  - ragContext: ${ragContext ? `${ragContext.length} chars` : "undefined/null"}`,
+      );
       console.log(`  - coursesOnly: ${coursesOnly}`);
       console.log(`  - pageProjectIds: ${pageProjectIds?.length || 0}`);
 
       const userId = session.userId;
 
-      console.log(`🚀 [STREAMING] Début génération streaming pour ${questionCount} questions`);
+      console.log(
+        `🚀 [STREAMING] Début génération streaming pour ${questionCount} questions`,
+      );
 
       // 1. Créer le quiz en base avec état "generating"
       const quiz = await prisma.quiz.create({
@@ -616,27 +719,29 @@ export class QuizStreamingController {
           schoolLevel,
           questions: [], // Sera rempli progressivement
           isCompleted: false,
-          status: 'generating',
-          preset: preset || 'NONE',
+          status: "generating",
+          preset: preset || "NONE",
           collegeGrade,
           higherEdField,
           createdAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
           // templateId est optionnel pour les quiz streaming
-        }
+        },
       });
 
       // Envoyer l'événement de création de quiz
-      sendSSE('quiz-created', {
+      sendSSE("quiz-created", {
         quizId: quiz.id,
-        message: `Quiz créé avec succès. Génération de ${questionCount} questions...`
+        message: `Quiz créé avec succès. Génération de ${questionCount} questions...`,
       });
 
-      console.log(`✅ [STREAMING] Quiz ${quiz.id} créé, génération des questions...`);
+      console.log(
+        `✅ [STREAMING] Quiz ${quiz.id} créé, génération des questions...`,
+      );
 
       // 2. Calculer la répartition équitable des types AVANT la génération
       const typeDistribution: string[] = [];
-      
+
       if (questionTypes.length === 1) {
         // Un seul type : toutes les questions de ce type
         for (let i = 0; i < questionCount; i++) {
@@ -646,47 +751,62 @@ export class QuizStreamingController {
         // Plusieurs types : répartition équitable
         const basePerType = Math.floor(questionCount / questionTypes.length);
         const remainder = questionCount % questionTypes.length;
-        
+
         questionTypes.forEach((type: any, typeIndex: number) => {
-          const countForThisType = basePerType + (typeIndex < remainder ? 1 : 0);
+          const countForThisType =
+            basePerType + (typeIndex < remainder ? 1 : 0);
           for (let i = 0; i < countForThisType; i++) {
             typeDistribution.push(type);
           }
         });
       }
-      
+
       // Mélanger la distribution pour éviter un ordre prévisible
       for (let i = typeDistribution.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [typeDistribution[i], typeDistribution[j]] = [typeDistribution[j], typeDistribution[i]];
+        [typeDistribution[i], typeDistribution[j]] = [
+          typeDistribution[j],
+          typeDistribution[i],
+        ];
       }
-      
-      console.log(`📊 [STREAMING] Répartition calculée pour ${questionCount} questions:`, 
+
+      console.log(
+        `📊 [STREAMING] Répartition calculée pour ${questionCount} questions:`,
         questionTypes.map((type: any) => ({
-          type, 
-          count: typeDistribution.filter(t => t === type).length
-        }))
+          type,
+          count: typeDistribution.filter((t) => t === type).length,
+        })),
       );
 
-      const specialtyDistribution = buildSpecialtyDistribution(lyceeSpecialties, questionCount);
+      const specialtyDistribution = buildSpecialtyDistribution(
+        lyceeSpecialties,
+        questionCount,
+      );
       if (specialtyDistribution.length > 0) {
-        const specialtySummary = specialtyDistribution.reduce<Record<string, number>>((acc, specialty) => {
+        const specialtySummary = specialtyDistribution.reduce<
+          Record<string, number>
+        >((acc, specialty) => {
           const label = getSpecialtyLabel(specialty) || specialty;
           acc[label] = (acc[label] || 0) + 1;
           return acc;
         }, {});
 
-        console.log('📚 [STREAMING] Répartition spécialités:', Object.entries(specialtySummary).map(([label, count]) => ({
-          specialty: label,
-          count
-        })));
+        console.log(
+          "📚 [STREAMING] Répartition spécialités:",
+          Object.entries(specialtySummary).map(([label, count]) => ({
+            specialty: label,
+            count,
+          })),
+        );
       }
 
       // 🆕 Générer les questions avec Chat Completion + JSON strict (gpt-4o-mini)
       const generatedQuestions: any[] = [];
       const assistantService = new OpenAIAssistantService();
-      
-      console.log(`🚀 [STREAMING] Utilisation du mode Chat Completion + JSON strict (gpt-4o-mini) pour ${questionCount} questions`);
+
+      console.log(
+        `🚀 [STREAMING] Utilisation du mode Chat Completion + JSON strict (gpt-4o-mini) pour ${questionCount} questions`,
+      );
 
       const baseRequest: Record<string, any> = {
         userId,
@@ -706,19 +826,19 @@ export class QuizStreamingController {
         coursesOnly,
         ragContext, // 🆕 Transmettre le contexte RAG à l'assistant
         timeLimit,
-        difficulty
+        difficulty,
       };
 
       for (let i = 0; i < questionCount; i++) {
         try {
           // Récupérer le type spécifique pour cette question
           const specificQuestionType = typeDistribution[i];
-          
+
           // Envoyer l'événement de début de génération
-          sendSSE('question-generating', {
+          sendSSE("question-generating", {
             questionNumber: i + 1,
             totalQuestions: questionCount,
-            message: `Génération de la question ${i + 1} (${specificQuestionType})...`
+            message: `Génération de la question ${i + 1} (${specificQuestionType})...`,
           });
 
           // Générer une seule question avec le type SPÉCIFIQUE
@@ -726,32 +846,51 @@ export class QuizStreamingController {
             ...baseRequest,
             questionTypes: [specificQuestionType], // ✅ UN SEUL TYPE SPÉCIFIQUE !
             questionCount: 1, // Une seule question
-            existingQuestions: generatedQuestions.length > 0 ? generatedQuestions : undefined
+            existingQuestions:
+              generatedQuestions.length > 0 ? generatedQuestions : undefined,
           };
 
           const specialtyForQuestion = specialtyDistribution[i];
-          const specialtyLabel = specialtyForQuestion ? (getSpecialtyLabel(specialtyForQuestion) || specialtyForQuestion) : undefined;
+          const specialtyLabel = specialtyForQuestion
+            ? getSpecialtyLabel(specialtyForQuestion) || specialtyForQuestion
+            : undefined;
 
           if (specialtyForQuestion && specialtyLabel) {
-            console.log(`🎓 [STREAMING] Spécialité ciblée pour question ${i + 1}: ${specialtyLabel}`);
+            console.log(
+              `🎓 [STREAMING] Spécialité ciblée pour question ${i + 1}: ${specialtyLabel}`,
+            );
             singleQuestionRequest.lyceeSpecialties = [specialtyForQuestion];
             singleQuestionRequest.focusSpecialty = specialtyForQuestion;
             singleQuestionRequest.focusSpecialtyLabel = specialtyLabel;
             singleQuestionRequest.specificSubject = specialtyLabel;
           }
 
-          console.log(`🎯 [STREAMING] Question ${i + 1}: Type assigné = ${specificQuestionType}`);
-          console.log(`🧠 [STREAMING-DEBUG] Envoi au Chat Completion (gpt-4o-mini) pour question ${i + 1}:`);
-          console.log(`  - ragContext: ${singleQuestionRequest.ragContext ? `${singleQuestionRequest.ragContext.length} chars` : 'undefined/null'}`);
+          console.log(
+            `🎯 [STREAMING] Question ${i + 1}: Type assigné = ${specificQuestionType}`,
+          );
+          console.log(
+            `🧠 [STREAMING-DEBUG] Envoi au Chat Completion (gpt-4o-mini) pour question ${i + 1}:`,
+          );
+          console.log(
+            `  - ragContext: ${singleQuestionRequest.ragContext ? `${singleQuestionRequest.ragContext.length} chars` : "undefined/null"}`,
+          );
           console.log(`  - coursesOnly: ${singleQuestionRequest.coursesOnly}`);
-          console.log(`  - pageProjectIds: ${singleQuestionRequest.pageProjectIds?.length || 0}`);
+          console.log(
+            `  - pageProjectIds: ${singleQuestionRequest.pageProjectIds?.length || 0}`,
+          );
           console.log(`  - questionType: ${specificQuestionType}`);
           console.log(`  - model: gpt-4o-mini + JSON strict`);
 
           // 🚀 Appel optimisé avec Chat Completion + JSON strict
-          const questionResult = await assistantService.generateSingleQuestion(singleQuestionRequest);
-          
-          if (questionResult && questionResult.questions && questionResult.questions.length > 0) {
+          const questionResult = await assistantService.generateSingleQuestion(
+            singleQuestionRequest,
+          );
+
+          if (
+            questionResult &&
+            questionResult.questions &&
+            questionResult.questions.length > 0
+          ) {
             const newQuestion = questionResult.questions[0];
             if (specialtyLabel && !newQuestion.subject) {
               newQuestion.subject = specialtyLabel;
@@ -761,7 +900,7 @@ export class QuizStreamingController {
               newQuestion.metadata = {
                 ...(newQuestion.metadata || {}),
                 lyceeSpecialty: specialtyForQuestion,
-                lyceeSpecialtyLabel: specialtyLabel
+                lyceeSpecialtyLabel: specialtyLabel,
               };
             }
             generatedQuestions.push(newQuestion);
@@ -770,32 +909,39 @@ export class QuizStreamingController {
             await prisma.quiz.update({
               where: { id: quiz.id },
               data: {
-                questions: generatedQuestions as any
-              }
+                questions: generatedQuestions as any,
+              },
             });
 
             // Envoyer la question générée au frontend
-            sendSSE('question-generated', {
+            sendSSE("question-generated", {
               questionNumber: i + 1,
               totalQuestions: questionCount,
               question: newQuestion,
               canStartAnswering: i === 0, // Permet de commencer après la première question
-              message: `Question ${i + 1} générée avec succès (Chat Completion)`
+              message: `Question ${i + 1} générée avec succès (Chat Completion)`,
             });
 
-            console.log(`✅ [STREAMING] Question ${i + 1} générée avec Chat Completion + JSON strict et envoyée`);
+            console.log(
+              `✅ [STREAMING] Question ${i + 1} générée avec Chat Completion + JSON strict et envoyée`,
+            );
           } else {
             throw new Error(`Échec génération question ${i + 1}`);
           }
-
         } catch (questionError) {
-          console.error(`❌ [STREAMING] Erreur question ${i + 1}:`, questionError);
-          
-          sendSSE('question-error', {
+          console.error(
+            `❌ [STREAMING] Erreur question ${i + 1}:`,
+            questionError,
+          );
+
+          sendSSE("question-error", {
             questionNumber: i + 1,
             totalQuestions: questionCount,
-            error: questionError instanceof Error ? questionError.message : 'Erreur inconnue',
-            message: `Erreur lors de la génération de la question ${i + 1}`
+            error:
+              questionError instanceof Error
+                ? questionError.message
+                : "Erreur inconnue",
+            message: `Erreur lors de la génération de la question ${i + 1}`,
           });
         }
       }
@@ -804,54 +950,58 @@ export class QuizStreamingController {
       const finalQuiz = await prisma.quiz.update({
         where: { id: quiz.id },
         data: {
-          status: 'ready',
-          questions: generatedQuestions as any
-        }
+          status: "ready",
+          questions: generatedQuestions as any,
+        },
       });
 
       // Envoyer l'événement de fin
-      sendSSE('quiz-completed', {
+      sendSSE("quiz-completed", {
         quizId: quiz.id,
         totalQuestionsGenerated: generatedQuestions.length,
         totalQuestionsRequested: questionCount,
-        message: 'Quiz généré avec succès via Chat Completion !',
-        quiz: finalQuiz
+        message: "Quiz généré avec succès via Chat Completion !",
+        quiz: finalQuiz,
       });
 
-      console.log(`🎉 [STREAMING] Quiz ${quiz.id} complété avec ${generatedQuestions.length} questions via Chat Completion + JSON strict (gpt-4o-mini)`);
-
+      console.log(
+        `🎉 [STREAMING] Quiz ${quiz.id} complété avec ${generatedQuestions.length} questions via Chat Completion + JSON strict (gpt-4o-mini)`,
+      );
     } catch (error) {
-      console.error('❌ [STREAMING] Erreur génération:', error);
-      
-      sendSSE('error', {
-        message: 'Erreur lors de la génération du quiz',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+      console.error("❌ [STREAMING] Erreur génération:", error);
+
+      sendSSE("error", {
+        message: "Erreur lors de la génération du quiz",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
 
       // Session déjà nettoyée en début de connexion (anti-replay)
     }
 
     // Fermer la connexion SSE
-    sendSSE('end', { message: 'Génération terminée' });
+    sendSSE("end", { message: "Génération terminée" });
     res.end();
   }
 
   /**
    * POST /api/quiz/submit-and-correct-stream - Soumet et corrige un quiz avec streaming
    */
-  static async submitAndCorrectStream(req: Request, res: Response): Promise<void> {
+  static async submitAndCorrectStream(
+    req: Request,
+    res: Response,
+  ): Promise<void> {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
       const { quizId, answers, sourceDocuments } = req.body;
 
       if (!quizId || !Array.isArray(answers)) {
-        res.status(400).json({ 
-          error: 'Paramètres manquants: quizId et answers requis' 
+        res.status(400).json({
+          error: "Paramètres manquants: quizId et answers requis",
         });
         return;
       }
@@ -860,50 +1010,54 @@ export class QuizStreamingController {
       const quiz = await prisma.quiz.findFirst({
         where: {
           id: quizId,
-          userId
-        }
+          userId,
+        },
       });
 
       if (!quiz) {
-        res.status(404).json({ error: 'Quiz non trouvé' });
+        res.status(404).json({ error: "Quiz non trouvé" });
         return;
       }
 
       // Configuration SSE
       res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Cache-Control',
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Cache-Control",
       });
 
       // Fonction pour envoyer des événements SSE
       const sendSSE = (event: string, data: any) => {
         res.write(`event: ${event}\n`);
         res.write(`data: ${JSON.stringify(data)}\n\n`);
-        if (typeof res.flush === 'function') {
+        if (typeof res.flush === "function") {
           res.flush();
         }
       };
 
       try {
         // Signaler le début de la correction
-        sendSSE('correction-started', {
+        sendSSE("correction-started", {
           quizId,
-          message: 'Correction en cours...'
+          message: "Correction en cours...",
         });
 
-        console.log(`🚀 [CORRECTION-STREAMING] Début correction quiz ${quizId}`);
+        console.log(
+          `🚀 [CORRECTION-STREAMING] Début correction quiz ${quizId}`,
+        );
 
         // Récupérer les questions du quiz
-        const questions = (Array.isArray(quiz.questions) ? quiz.questions : []) as unknown as Question[];
-        
+        const questions = (Array.isArray(quiz.questions)
+          ? quiz.questions
+          : []) as unknown as Question[];
+
         // Convertir les answers du frontend en UserAnswer[]
         const userAnswers: UserAnswer[] = answers.map((ans: any) => ({
           questionId: ans.questionId,
           answer: ans.answer,
-          timeSpent: ans.timeSpent || 0
+          timeSpent: ans.timeSpent || 0,
         }));
 
         // Tracker toutes les corrections pour la sauvegarde
@@ -915,50 +1069,60 @@ export class QuizStreamingController {
           userId,
           userAnswers,
           submittedAt: new Date(),
-          preset: (quiz as any).preset || 'NONE',
+          preset: (quiz as any).preset || "NONE",
           specificSubject: (quiz as any).specificSubject,
-          schoolLevel: quiz.schoolLevel as SchoolLevel || SchoolLevel.COLLEGE,
+          schoolLevel: (quiz.schoolLevel as SchoolLevel) || SchoolLevel.COLLEGE,
           // Utiliser les sourceDocuments du quiz (pour la cohérence) ou ceux du body en fallback
-          hasDocuments: quiz.hasDocuments || (!!sourceDocuments && sourceDocuments.length > 0),
-          sourceDocuments: (quiz.sourceDocuments as any) || sourceDocuments || [],
+          hasDocuments:
+            quiz.hasDocuments ||
+            (!!sourceDocuments && sourceDocuments.length > 0),
+          sourceDocuments:
+            (quiz.sourceDocuments as any) || sourceDocuments || [],
           coursesOnly: false,
-          workspaceContent: []
+          workspaceContent: [],
         };
 
         // Utiliser le générateur de correction streaming
-        const correctionGenerator = await import('../services/quiz/generators/correctionGenerator.js');
-        const generator = correctionGenerator.CorrectionGenerator.correctQuizStreaming(
-          questions,
-          userAnswers,
-          correctionRequest
+        const correctionGenerator = await import(
+          "../services/quiz/generators/correctionGenerator.js"
         );
+        const generator =
+          correctionGenerator.CorrectionGenerator.correctQuizStreaming(
+            questions,
+            userAnswers,
+            correctionRequest,
+          );
 
         // Itérer sur les événements du générateur
         for await (const event of generator) {
-          if (event.type === 'closed-questions') {
-            console.log(`✅ [CORRECTION-STREAMING] ${event.correction?.length || 0} questions fermées corrigées`);
+          if (event.type === "closed-questions") {
+            console.log(
+              `✅ [CORRECTION-STREAMING] ${event.correction?.length || 0} questions fermées corrigées`,
+            );
             // Accumuler les corrections
             if (event.correction && Array.isArray(event.correction)) {
               allCorrections.push(...event.correction);
             }
-            sendSSE('closed-questions-corrected', {
+            sendSSE("closed-questions-corrected", {
               corrections: event.correction,
-              count: event.correction?.length || 0
+              count: event.correction?.length || 0,
             });
-          } else if (event.type === 'open-question') {
-            console.log(`✅ [CORRECTION-STREAMING] Question ouverte ${event.questionNumber}/${event.totalOpenQuestions} corrigée`);
+          } else if (event.type === "open-question") {
+            console.log(
+              `✅ [CORRECTION-STREAMING] Question ouverte ${event.questionNumber}/${event.totalOpenQuestions} corrigée`,
+            );
             // Accumuler la correction
             if (event.correction) {
               allCorrections.push(event.correction);
             }
-            sendSSE('open-question-corrected', {
+            sendSSE("open-question-corrected", {
               questionNumber: event.questionNumber,
               totalOpenQuestions: event.totalOpenQuestions,
-              correction: event.correction
+              correction: event.correction,
             });
-          } else if (event.type === 'completion') {
+          } else if (event.type === "completion") {
             console.log(`🎉 [CORRECTION-STREAMING] Correction terminée`);
-            
+
             // Sauvegarder le résultat en base de données
             if (event.finalResult) {
               // Utiliser une transaction pour garantir la cohérence
@@ -969,8 +1133,8 @@ export class QuizStreamingController {
                   data: {
                     isCompleted: true,
                     completedAt: new Date(),
-                    updatedAt: new Date()
-                  }
+                    updatedAt: new Date(),
+                  },
                 });
 
                 // Créer le résultat du quiz
@@ -981,126 +1145,69 @@ export class QuizStreamingController {
                     maxScore: event.finalResult!.maxScore || 1,
                     percentage: event.finalResult!.percentage || 0,
                     adaptedGrade: event.finalResult!.adaptedGrade || 0,
-                    gradeScale: event.finalResult!.gradeScale || '/20',
+                    gradeScale: event.finalResult!.gradeScale || "/20",
                     detailedScoring: allCorrections, // Utiliser toutes les corrections accumulées
                     aiCorrection: event.finalResult!.aiCorrection as any,
-                    recommendations: event.finalResult!.aiCorrection?.recommendations as any
-                  }
+                    recommendations: event.finalResult!.aiCorrection
+                      ?.recommendations as any,
+                  },
                 });
               });
 
-              console.log(`✅ [CORRECTION-STREAMING] Quiz et résultats sauvegardés en DB`);
+              console.log(
+                `✅ [CORRECTION-STREAMING] Quiz et résultats sauvegardés en DB`,
+              );
 
               // 🗑️ Invalider le cache de l'historique après complétion du quiz
-              const { invalidateQuizHistoryCache } = await import('../lib/redis.js');
-              invalidateQuizHistoryCache(userId).catch(err =>
-                console.warn('⚠️ [CORRECTION-STREAMING] Échec invalidation cache:', err)
+              const { invalidateQuizHistoryCache } = await import(
+                "../lib/redis.js"
+              );
+              invalidateQuizHistoryCache(userId).catch((err) =>
+                console.warn(
+                  "⚠️ [CORRECTION-STREAMING] Échec invalidation cache:",
+                  err,
+                ),
               );
 
               // Envoyer l'analyse détaillée IA
-              sendSSE('ai-analysis', {
-                summary: event.finalResult.aiCorrection?.globalFeedback || '',
+              sendSSE("ai-analysis", {
+                summary: event.finalResult.aiCorrection?.globalFeedback || "",
                 strengths: event.finalResult.aiCorrection?.strengths || [],
                 weaknesses: event.finalResult.aiCorrection?.weaknesses || [],
-                recommendations: event.finalResult.aiCorrection?.recommendations || [],
-                personalizedTips: event.finalResult.metadata?.personalizedTips || []
+                recommendations:
+                  event.finalResult.aiCorrection?.recommendations || [],
+                personalizedTips:
+                  event.finalResult.metadata?.personalizedTips || [],
               });
             }
 
-            sendSSE('correction-completed', {
+            sendSSE("correction-completed", {
               quizId,
-              result: event.finalResult
+              result: event.finalResult,
             });
           }
         }
-
       } catch (error) {
-        console.error('❌ [CORRECTION-STREAMING] Erreur génération:', error);
-        
-        sendSSE('error', {
-          message: 'Erreur lors de la correction du quiz',
-          details: error instanceof Error ? error.message : 'Erreur inconnue'
+        console.error("❌ [CORRECTION-STREAMING] Erreur génération:", error);
+
+        sendSSE("error", {
+          message: "Erreur lors de la correction du quiz",
+          details: error instanceof Error ? error.message : "Erreur inconnue",
         });
       }
 
       // Fermer la connexion SSE
-      sendSSE('end', { message: 'Correction terminée' });
+      sendSSE("end", { message: "Correction terminée" });
       res.end();
-
     } catch (error) {
-      console.error('❌ [CORRECTION-STREAMING] Erreur contrôleur:', error);
-      
+      console.error("❌ [CORRECTION-STREAMING] Erreur contrôleur:", error);
+
       if (!res.headersSent) {
         res.status(500).json({
-          error: 'Erreur lors de l\'initialisation du streaming de correction',
-          details: error instanceof Error ? error.message : 'Erreur inconnue'
+          error: "Erreur lors de l'initialisation du streaming de correction",
+          details: error instanceof Error ? error.message : "Erreur inconnue",
         });
       }
-    }
-  }
-
-  /**
-   * POST /api/quiz/retake/:quizId - Crée une nouvelle tentative d'un quiz existant
-   */
-  static async retakeQuiz(req: Request, res: Response): Promise<void> {
-    try {
-      const userId = req.user?.id;
-      const { quizId } = req.params;
-
-      if (!userId || !quizId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié ou quiz ID manquant' });
-        return;
-      }
-
-      // Récupérer le quiz original
-      const originalQuiz = await prisma.quiz.findFirst({
-        where: {
-          id: quizId,
-          userId
-        }
-      });
-
-      if (!originalQuiz) {
-        res.status(404).json({ error: 'Quiz non trouvé' });
-        return;
-      }
-
-      console.log(`🔄 [RETAKE] Création d'une nouvelle tentative pour le quiz ${quizId}`);
-
-      // Créer une nouvelle tentative (copie du quiz avec les mêmes questions)
-      const newAttempt = await prisma.quiz.create({
-        data: {
-          userId,
-          title: originalQuiz.title,
-          schoolLevel: originalQuiz.schoolLevel,
-          questions: originalQuiz.questions as any,
-          isCompleted: false,
-          preset: originalQuiz.preset,
-          selectedSpecialties: originalQuiz.selectedSpecialties,
-          higherEdField: originalQuiz.higherEdField,
-          status: 'ready', // Les questions existent déjà
-          // Stocker les infos de retake dans questionTypes (Json)
-          questionTypes: {
-            ...(originalQuiz.questionTypes as any),
-            retakeOf: quizId, // Référence à la première tentative
-            attemptNumber: ((originalQuiz.questionTypes as any)?.attemptNumber || 1) + 1
-          } as any
-        }
-      });
-
-      console.log(`✅ [RETAKE] Nouvelle tentative créée: ${newAttempt.id}`);
-
-      res.status(200).json({
-        success: true,
-        data: newAttempt
-      });
-
-    } catch (error) {
-      console.error('❌ [RETAKE] Erreur création tentative:', error);
-      res.status(500).json({
-        error: 'Erreur lors de la création d\'une nouvelle tentative',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
-      });
     }
   }
 }
