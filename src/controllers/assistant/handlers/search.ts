@@ -34,43 +34,6 @@ export const assistantSearch = async (req: Request, res: Response) => {
     if (!query || !workspaceId)
       return res.status(400).json({ error: "query et workspaceId requis" });
 
-    // 🚨 SMALL TALK DETECTION: Détecter les salutations/politesse pour éviter la recherche inutile
-    const smallTalkPatterns =
-      /^(salut|bonjour|hello|hi|hey|coucou|merci|thanks|thx|ok merci|au revoir|bye|à plus|bonne journée|ok|d'accord|compris)[\s!?\.]*$/i;
-    const isSmallTalk = smallTalkPatterns.test(query.trim());
-
-    if (isSmallTalk) {
-      console.log(
-        "[AssistantSearch] Small talk detected, returning friendly response without search",
-      );
-      const friendlyResponses: Record<string, string> = {
-        salut: "Salut ! Comment puis-je vous aider ?",
-        bonjour: "Bonjour ! Comment puis-je vous aider ?",
-        hello: "Hello! How can I help you?",
-        hi: "Hi! How can I help you?",
-        hey: "Hey! What can I do for you?",
-        merci: "De rien ! N'hésitez pas si vous avez d'autres questions.",
-        thanks: "You're welcome!",
-        "au revoir": "Au revoir ! À bientôt.",
-        bye: "Bye! See you soon.",
-      };
-
-      const normalizedQuery = query
-        .trim()
-        .toLowerCase()
-        .replace(/[!?\.]/g, "");
-      const response =
-        friendlyResponses[normalizedQuery] ||
-        "Bonjour ! Comment puis-je vous aider ?";
-
-      return res.json({
-        answer: response,
-        references: "",
-        model: "gpt-4o-mini",
-        usedWeb: false,
-      });
-    }
-
     const lang = detectPreferredLanguage(req);
     let selectedIds: string[] = pageIds;
     if (
