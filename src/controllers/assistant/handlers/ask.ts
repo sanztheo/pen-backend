@@ -46,16 +46,7 @@ export const assistantAsk = async (req: Request, res: Response) => {
       (web || "").length,
     );
 
-    // 🚨 SMALL TALK DETECTION: Détecter les salutations/politesse pour éviter la recherche inutile
-    const smallTalkPatterns =
-      /^(salut|bonjour|hello|hi|hey|coucou|merci|thanks|thx|ok merci|au revoir|bye|à plus|bonne journée|ok|d'accord|compris)[\s!?\.]*$/i;
-    const isSmallTalk = smallTalkPatterns.test(query.trim());
-
-    const prompt = isSmallTalk
-      ? `Question conversationnelle: ${query}
-
-Réponds de manière brève et amicale à cette salutation ou politesse. Pas besoin de recherche ou d'analyse approfondie.`
-      : `Question: ${query}
+    const prompt = `Question: ${query}
 
 RÈGLES STRICTES OBLIGATOIRES:
 - LATEX: Toute formule mathématique DOIT être correctement fermée ($...$ pour inline, $$...$$ pour display). VÉRIFIER l'équilibrage des délimiteurs.
