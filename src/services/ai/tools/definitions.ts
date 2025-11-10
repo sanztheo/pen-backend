@@ -1,6 +1,6 @@
 /**
  * 🔧 FUNCTION CALLING TOOLS DEFINITIONS
- * Définitions des tools disponibles pour l'IA (OpenAI Function Calling)
+ * Définitions des tooels disponibles pour l'IA (OpenAI Function Calling)
  */
 
 export const FUNCTION_TOOLS = [
