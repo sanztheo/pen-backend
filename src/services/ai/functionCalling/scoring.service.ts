@@ -507,21 +507,44 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
 
     // 🎯 SCÉNARIO 2 : Multiple sources sélectionnées
     if (context.hasSpecificSource && context.availableSourcesCount > 1) {
-      // 🔥 FIX: Vérifier qu'on a RÉELLEMENT LU les sources, pas juste listé
+      // 🔥 FIX: Vérifier qu'on a RÉELLEMENT LU les sources SPÉCIFIQUES
       const hasListedSources = executedTools.some(
         (t) =>
           t.name === "list_available_sources" ||
           t.name === "list_global_wikipedia_sources",
       );
-      const hasReadSources = executedTools.some(
+
+      // 🔥 DISTINCTION CRITIQUE : Lecture spécifique vs recherche globale
+      const hasReadSpecificSources = executedTools.some(
         (t) =>
-          t.name === "read_rag_source" ||
-          t.name === "select_relevant_sources" ||
-          t.name === "search_rag_chunks",
+          t.name === "read_rag_source" || // Lecture d'UNE source précise
+          t.name === "select_relevant_sources", // Sélection + lecture
       );
 
-      // Si on a seulement LISTÉ les sources mais pas encore LU, NE PAS arrêter !
-      if (hasListedSources && !hasReadSources) {
+      const hasOnlyGlobalSearch =
+        executedTools.some(
+          (t) => t.name === "search_rag_chunks", // Recherche GLOBALE (pas spécifique)
+        ) && !hasReadSpecificSources;
+
+      // 🔥 CAS 0 : CRITIQUE - Sources PAS ENCORE listées (pas d'UUID disponibles!)
+      // OBLIGATOIRE pour Wikipedia : lister d'abord pour obtenir les vrais UUID
+      if (!hasListedSources) {
+        return {
+          shouldExploreMore: true,
+          shouldUseWeb: false,
+          shouldStop: false,
+          confidence: 0.99,
+          reasoning: `${context.availableSourcesCount} sources sélectionnées mais AUCUN listing effectué. OBLIGATOIRE de lister avec list_available_sources pour obtenir les UUID valides AVANT read_rag_source (sinon erreur UUID).`,
+          suggestedTools: [
+            "list_available_sources",
+            "list_global_wikipedia_sources",
+          ],
+          priority: "critical",
+        };
+      }
+
+      // CAS 1 : Sources listées mais pas encore lues
+      if (hasListedSources && !hasReadSpecificSources) {
         return {
           shouldExploreMore: true,
           shouldUseWeb: false,
@@ -530,37 +553,74 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
           reasoning:
             "Sources listées (score élevé sur le listing) : sélectionner et lire les plus pertinentes AVANT de conclure.",
           suggestedTools: ["select_relevant_sources", "read_rag_source"],
-          priority: "critical", // 🔥 PRIORITÉ CRITIQUE pour forcer la lecture
+          priority: "critical",
         };
       }
 
-      // SEULEMENT si on a LU les sources, évaluer si info suffisante
-      if (avgScore > 0.7 && hasReadSources) {
-        return {
-          shouldExploreMore: false,
-          shouldUseWeb:
-            context.useWeb &&
-            !executedTools.some((t) => t.name === "search_web"),
-          shouldStop: !context.useWeb,
-          confidence: 0.85,
-          reasoning:
-            "Les sources sélectionnées ont été lues et fournissent des informations complètes.",
-          suggestedTools: context.useWeb ? ["search_web"] : [],
-          priority: "low",
-        };
-      } else {
+      // CAS 2 : Seulement une recherche globale, pas de lecture spécifique
+      if (hasOnlyGlobalSearch) {
+        // 🔥 RÈGLE ABSOLUE : search_rag_chunks N'EST PAS une lecture de sources spécifiques
+        // Quand l'utilisateur sélectionne des sources, il faut les LIRE avec read_rag_source
         return {
           shouldExploreMore: true,
-          shouldUseWeb: context.useWeb,
+          shouldUseWeb: false,
           shouldStop: false,
-          confidence: 0.8,
-          reasoning:
-            "Les sources sélectionnées sont partielles. Exploration recommandée.",
-          suggestedTools: context.useWeb
-            ? ["search_web"]
-            : ["list_available_sources"],
-          priority: "medium",
+          confidence: 0.95,
+          reasoning: `${context.availableSourcesCount} sources sélectionnées. search_rag_chunks (recherche globale) ≠ read_rag_source (lecture spécifique). LIRE chaque source explicitement.`,
+          suggestedTools: ["read_rag_source", "select_relevant_sources"],
+          priority: "critical", // 🔥 MAX priorité
         };
+      }
+
+      // CAS 3 : Sources SPÉCIFIQUES lues, évaluer qualité
+      if (hasReadSpecificSources) {
+        // Compter combien de sources ont été lues
+        const readSourceCount = executedTools.filter(
+          (t) => t.name === "read_rag_source",
+        ).length;
+        const sourcesReadRatio =
+          readSourceCount / context.availableSourcesCount;
+
+        // Si on a lu moins de 50% des sources sélectionnées, continuer
+        if (sourcesReadRatio < 0.5) {
+          return {
+            shouldExploreMore: true,
+            shouldUseWeb: false,
+            shouldStop: false,
+            confidence: 0.85,
+            reasoning: `Seulement ${readSourceCount}/${context.availableSourcesCount} sources lues. Lire plus de sources sélectionnées.`,
+            suggestedTools: ["read_rag_source"],
+            priority: "high",
+          };
+        }
+
+        // Si score élevé ET majorité des sources lues, OK pour arrêter
+        if (avgScore > 0.7 && sourcesReadRatio >= 0.5) {
+          return {
+            shouldExploreMore: false,
+            shouldUseWeb:
+              context.useWeb &&
+              !executedTools.some((t) => t.name === "search_web"),
+            shouldStop: !context.useWeb,
+            confidence: 0.85,
+            reasoning: `${readSourceCount}/${context.availableSourcesCount} sources spécifiques lues avec score élevé.`,
+            suggestedTools: context.useWeb ? ["search_web"] : [],
+            priority: "low",
+          };
+        } else {
+          return {
+            shouldExploreMore: true,
+            shouldUseWeb: context.useWeb,
+            shouldStop: false,
+            confidence: 0.8,
+            reasoning:
+              "Les sources sélectionnées sont partielles. Exploration recommandée.",
+            suggestedTools: context.useWeb
+              ? ["search_web"]
+              : ["read_rag_source"],
+            priority: "medium",
+          };
+        }
       }
     }
 
