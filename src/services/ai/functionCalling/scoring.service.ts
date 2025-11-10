@@ -161,7 +161,9 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
   }
 
   /**
-   * 🎯 Calcul de score heuristique (rapide, sans IA)
+   * 🎯 Calcul de score heuristique CONTEXTUEL (rapide, sans IA)
+   *
+   * 🔥 NOUVEAU : Prend en compte le CONTEXTE de la requête et le TYPE de tool
    */
   private static calculateHeuristicScore(
     toolName: string,
@@ -172,6 +174,25 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
     let relevance = 0.5;
     let completeness = 0.5;
     const suggestions: string[] = [];
+
+    // 🎯 CLASSIFICATION DES TOOLS par type (intermédiaire vs final)
+    const INTERMEDIATE_TOOLS = [
+      "list_available_sources",
+      "list_global_wikipedia_sources",
+      "list_workspace_pages",
+      "check_sources_rag_status",
+    ];
+    const READING_TOOLS = [
+      "read_rag_source",
+      "read_workspace_page",
+      "search_rag_chunks",
+      "select_relevant_sources",
+    ];
+    const SEARCH_TOOLS = ["search_web"];
+
+    const isIntermediateTool = INTERMEDIATE_TOOLS.includes(toolName);
+    const isReadingTool = READING_TOOLS.includes(toolName);
+    const isSearchTool = SEARCH_TOOLS.includes(toolName);
 
     // RÈGLE 1 : Détecter les erreurs évidentes
     if (
@@ -222,39 +243,122 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
       }
     }
 
-    // RÈGLE 4 : Ajustements par type de tool
-    if (
-      toolName === "list_available_sources" ||
-      toolName === "list_global_wikipedia_sources"
-    ) {
-      // Pour les listings, on compte le nombre de sources
+    // 🔥 RÈGLE 4 : AJUSTEMENTS CONTEXTUELS PAR TYPE DE TOOL
+
+    // 🎯 TOOLS INTERMÉDIAIRES : Liste/découverte (NE SONT PAS des réponses finales)
+    if (isIntermediateTool) {
+      // Un listing réussi = haute confiance MAIS basse complétude (ce n'est qu'une étape)
       const sourceCount = (result.match(/\d+\.\s*\[/g) || []).length;
       if (sourceCount > 0) {
-        confidence = 0.9;
-        completeness = sourceCount > 5 ? 0.9 : 0.7;
+        confidence = 0.9; // ✅ Confiant que le listing a fonctionné
+        relevance = 0.7; // ✅ Pertinent (on a trouvé des sources)
+        completeness = 0.3; // ❌ PAS complet (il faut LIRE les sources maintenant!)
         suggestions.push(
-          `${sourceCount} sources trouvées, procéder à la sélection`,
+          `${sourceCount} sources trouvées, LIRE les sources pour répondre à la question`,
         );
+      } else {
+        // Aucune source trouvée
+        confidence = 0.8; // Confiant que la recherche a été faite
+        relevance = 0.2;
+        completeness = 0.1;
+        suggestions.push("Aucune source trouvée, essayer search_web");
       }
     }
 
-    if (toolName === "search_web") {
-      // Pour le web, vérifier si des résultats ont été trouvés
+    // 🎯 TOOLS DE LECTURE : Lecture de contenu (peuvent être des réponses finales)
+    else if (isReadingTool) {
+      // Une lecture réussie = peut être une réponse complète
+      if (result.length > 500) {
+        confidence = 0.85;
+        relevance = 0.75; // Ajusté avec match ratio ci-dessus
+        completeness = 0.8; // Potentiellement complet
+
+        // Vérifier si le contenu semble substantiel
+        const hasMultipleParagraphs = (result.match(/\n\n/g) || []).length > 2;
+        const hasStructure =
+          result.includes("##") ||
+          result.includes("**") ||
+          result.includes("1.");
+
+        if (hasMultipleParagraphs || hasStructure) {
+          completeness = 0.9;
+          suggestions.push(
+            "Contenu structuré et détaillé, probablement suffisant",
+          );
+        } else {
+          completeness = 0.7;
+          suggestions.push(
+            "Contenu présent, vérifier si suffisant pour la question",
+          );
+        }
+      } else if (result.length > 200) {
+        confidence = 0.7;
+        relevance = 0.6;
+        completeness = 0.5;
+        suggestions.push("Contenu partiel, pourrait nécessiter enrichissement");
+      } else {
+        confidence = 0.5;
+        relevance = 0.4;
+        completeness = 0.3;
+        suggestions.push("Contenu insuffisant, explorer d'autres sources");
+      }
+    }
+
+    // 🎯 TOOLS DE RECHERCHE WEB : Résultats externes
+    else if (isSearchTool) {
+      // Recherche web = potentiellement complète si contenu riche
       if (result.includes("Résultat") || result.includes("Source")) {
-        confidence = 0.8;
-        completeness = 0.7;
+        const resultCount = (result.match(/Résultat \d+/g) || []).length;
+
+        if (result.length > 800 && resultCount > 0) {
+          confidence = 0.85;
+          relevance = 0.8;
+          completeness = 0.85; // Web search peut être final
+          suggestions.push(
+            `${resultCount} résultats web trouvés avec contenu détaillé`,
+          );
+        } else if (result.length > 300) {
+          confidence = 0.75;
+          relevance = 0.7;
+          completeness = 0.6;
+          suggestions.push(
+            "Résultats web partiels, envisager recherche complémentaire",
+          );
+        } else {
+          confidence = 0.6;
+          relevance = 0.5;
+          completeness = 0.4;
+          suggestions.push("Résultats web limités");
+        }
       }
     }
 
-    const overallScore =
-      confidence * 0.4 + relevance * 0.3 + completeness * 0.3;
+    // 🎯 CALCUL FINAL avec pondération adaptée au type de tool
+    let overallScore: number;
+
+    if (isIntermediateTool) {
+      // Pour les tools intermédiaires, la confiance et la pertinence comptent plus
+      // (la complétude est INTENTIONNELLEMENT basse car ce n'est qu'une étape)
+      overallScore = confidence * 0.6 + relevance * 0.3 + completeness * 0.1;
+    } else {
+      // Pour les tools de lecture/recherche, pondération normale
+      overallScore = confidence * 0.4 + relevance * 0.3 + completeness * 0.3;
+    }
+
+    const toolType = isIntermediateTool
+      ? "INTERMÉDIAIRE"
+      : isReadingTool
+        ? "LECTURE"
+        : isSearchTool
+          ? "RECHERCHE"
+          : "AUTRE";
 
     return {
       confidence,
       relevance,
       completeness,
       overallScore,
-      reasoning: `Score heuristique: confiance=${confidence.toFixed(2)}, pertinence=${relevance.toFixed(2)}, complétude=${completeness.toFixed(2)}`,
+      reasoning: `Score contextuel [${toolType}]: conf=${confidence.toFixed(2)}, rel=${relevance.toFixed(2)}, comp=${completeness.toFixed(2)}`,
       suggestions,
     };
   }
@@ -270,7 +374,7 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
       score?: ToolResultScore;
       result: string;
     }>,
-    query: string,
+    _query: string,
     context: {
       useWeb: boolean;
       availableSourcesCount: number;
@@ -403,7 +507,35 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
 
     // 🎯 SCÉNARIO 2 : Multiple sources sélectionnées
     if (context.hasSpecificSource && context.availableSourcesCount > 1) {
-      if (avgScore > 0.7) {
+      // 🔥 FIX: Vérifier qu'on a RÉELLEMENT LU les sources, pas juste listé
+      const hasListedSources = executedTools.some(
+        (t) =>
+          t.name === "list_available_sources" ||
+          t.name === "list_global_wikipedia_sources",
+      );
+      const hasReadSources = executedTools.some(
+        (t) =>
+          t.name === "read_rag_source" ||
+          t.name === "select_relevant_sources" ||
+          t.name === "search_rag_chunks",
+      );
+
+      // Si on a seulement LISTÉ les sources mais pas encore LU, NE PAS arrêter !
+      if (hasListedSources && !hasReadSources) {
+        return {
+          shouldExploreMore: true,
+          shouldUseWeb: false,
+          shouldStop: false,
+          confidence: 0.95,
+          reasoning:
+            "Sources listées (score élevé sur le listing) : sélectionner et lire les plus pertinentes AVANT de conclure.",
+          suggestedTools: ["select_relevant_sources", "read_rag_source"],
+          priority: "critical", // 🔥 PRIORITÉ CRITIQUE pour forcer la lecture
+        };
+      }
+
+      // SEULEMENT si on a LU les sources, évaluer si info suffisante
+      if (avgScore > 0.7 && hasReadSources) {
         return {
           shouldExploreMore: false,
           shouldUseWeb:
@@ -412,7 +544,7 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
           shouldStop: !context.useWeb,
           confidence: 0.85,
           reasoning:
-            "Les sources sélectionnées fournissent des informations complètes.",
+            "Les sources sélectionnées ont été lues et fournissent des informations complètes.",
           suggestedTools: context.useWeb ? ["search_web"] : [],
           priority: "low",
         };
