@@ -30,6 +30,8 @@ export { PlannerService } from './planner.service.js';
 export type { PlanRequest, Plan, ToolStep } from './planner.service.js';
 export { ExecutorService } from './executor.service.js';
 export type { ExecutionStep, ExecutionContext, ExecutionResult, ExecutionCallbacks } from './executor.service.js';
+export { CoordinatorService } from './coordinator.service.js';
+export type { OrchestrationRequest, OrchestrationResult } from './coordinator.service.js';
 
 // Export des utilitaires (pour usage avancé)
 export {
