@@ -54,7 +54,8 @@ export class CoordinatorService {
     console.log(`   Thinking: "${thinking.slice(0, 100)}..."`);
     console.log(`   Tool proposé: ${nextToolName}`);
 
-    // 🆕 ÉTAPE 0 : Valider les DÉPENDANCES entre tools (graphe strict)
+    // 🆕 ÉTAPE 0 : Valider les DÉPENDANCES entre tools (mode WARNING, pas BLOCKING)
+    // Inspiré de Cursor: le coordinator GUIDE, il ne BLOQUE pas systématiquement
     if (nextToolName) {
       const depValidation = await this.validateToolDependencies(
         nextToolName,
@@ -63,16 +64,32 @@ export class CoordinatorService {
       );
 
       if (!depValidation.isValid) {
-        console.error(
-          `❌ [COORDINATOR] Dépendances non satisfaites: ${depValidation.reasoning}`,
+        console.warn(
+          `⚠️ [COORDINATOR] Dépendances suspectes: ${depValidation.reasoning}`,
         );
 
-        return {
-          isValid: false,
-          reasoning: depValidation.reasoning,
-          shouldBlock: depValidation.shouldBlock,
-          correctedArguments: depValidation.suggestedFix?.arguments,
-        };
+        // Ne bloquer QUE si c'est une erreur CRITIQUE (pas juste une validation heuristique)
+        const isCriticalError =
+          depValidation.reasoning.includes("DOIT être appelé") ||
+          depValidation.reasoning.includes("aucune source listée") ||
+          depValidation.reasoning.includes("CRITIQUE");
+
+        if (isCriticalError && depValidation.shouldBlock) {
+          console.error(
+            `❌ [COORDINATOR] Erreur CRITIQUE détectée, blocage nécessaire`,
+          );
+          return {
+            isValid: false,
+            reasoning: depValidation.reasoning,
+            shouldBlock: true,
+            correctedArguments: depValidation.suggestedFix?.arguments,
+          };
+        }
+
+        // Sinon, WARNING seulement (laisser passer mais logger)
+        console.log(
+          `⚠️ [COORDINATOR] Validation faible mais on continue (coordinator guide, ne bloque pas)`,
+        );
       }
     }
 
