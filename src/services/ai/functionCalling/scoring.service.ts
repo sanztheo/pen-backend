@@ -115,20 +115,20 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
 }`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o", // Intelligent model for nuanced quality assessment
         messages: [
           {
             role: "system",
             content:
-              "Tu es un évaluateur expert. Tu retournes UNIQUEMENT du JSON valide.",
+              "You are an expert quality evaluator. Return ONLY valid JSON without decorative symbols.",
           },
           {
             role: "user",
             content: scoringPrompt,
           },
         ],
-        temperature: 0.2,
-        max_tokens: 250,
+        temperature: 0.1, // Very low temperature for consistent scoring
+        max_tokens: 350, // Increased for detailed reasoning
         response_format: { type: "json_object" },
       });
 
@@ -204,11 +204,11 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
       "availableSources vide",
       "Source non trouvée",
       "UUID invalide",
-      "n'existe pas"
+      "n'existe pas",
     ];
 
-    const hasDependencyError = DEPENDENCY_ERROR_PATTERNS.some(pattern =>
-      result.toLowerCase().includes(pattern.toLowerCase())
+    const hasDependencyError = DEPENDENCY_ERROR_PATTERNS.some((pattern) =>
+      result.toLowerCase().includes(pattern.toLowerCase()),
     );
 
     if (hasDependencyError) {
@@ -218,7 +218,7 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
       suggestions.push(
         "ERREUR DE DÉPENDANCE CRITIQUE : repasser par le pipeline correct (list → select → read)",
         "Ne JAMAIS inventer ou réutiliser un ID absent des résultats précédents",
-        "Relancer le tool précédent pour obtenir des IDs valides"
+        "Relancer le tool précédent pour obtenir des IDs valides",
       );
 
       return {
@@ -227,7 +227,7 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
         completeness,
         overallScore: 0.0,
         reasoning: `ERREUR DE DÉPENDANCE CRITIQUE détectée dans ${toolName}. Pipeline invalide.`,
-        suggestions
+        suggestions,
       };
     }
 
