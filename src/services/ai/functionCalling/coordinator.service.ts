@@ -7,6 +7,7 @@
  * - Propose des corrections automatiques
  * - Empêche l'IA de sauter des étapes sans justification
  * - 🆕 Valide les dépendances entre tools (graphe strict)
+ * - 🆕 ORCHESTRATEUR PRINCIPAL: Coordonne Planner → Executor → Scorer
  */
 
 import { AIService } from "../base.js";
@@ -16,6 +17,13 @@ import {
   type ToolExecutionContext,
   type DependencyValidationResult,
 } from "./toolDependencies.js";
+import { PlannerService, type PlanRequest } from "./planner.service.js";
+import {
+  ExecutorService,
+  type ExecutionContext,
+  type ExecutionStep,
+} from "./executor.service.js";
+import type { IntermediateThinkingBlock } from "../../types/ragThinking.js";
 
 export interface CoordinatorInput {
   thinking: string; // Ce que l'IA dit qu'elle va faire
@@ -35,7 +43,385 @@ export interface CoordinatorOutput {
   shouldBlock: boolean; // Bloquer l'exécution ?
 }
 
+/**
+ * Request pour l'orchestration complète
+ */
+export interface OrchestrationRequest {
+  query: string;
+  workspaceId: string;
+  userId: string;
+  availableSources: Array<{
+    id: string;
+    title: string;
+    type: string;
+  }>;
+  useWeb: boolean;
+  isSearch: boolean;
+  systemPrompt: string;
+  onThinking?: (chunk: string) => void;
+  onToolCall?: (toolName: string, args: any) => void;
+  onToolResult?: (toolName: string, result: string) => void;
+  onIntermediateThinking?: (chunk: string) => void;
+}
+
+/**
+ * Résultat de l'orchestration complète
+ */
+export interface OrchestrationResult {
+  success: boolean;
+  toolCalls: Array<{
+    name: string;
+    arguments: any;
+    result: string;
+    thinking?: string;
+    score?: any;
+    timestamp?: number;
+  }>;
+  thinking: string;
+  intermediateThinkingBlocks: IntermediateThinkingBlock[];
+}
+
 export class CoordinatorService {
+  /**
+   * 🎯 ORCHESTRATEUR PRINCIPAL
+   *
+   * Coordonne l'exécution complète d'une requête utilisateur :
+   * 1. PLANNING : Génération du plan via PlannerService
+   * 2. VALIDATION : Validation du plan complet
+   * 3. EXECUTION : Boucle d'exécution via ExecutorService
+   * 4. SCORING : Évaluation des résultats via ScoringService
+   *
+   * Cette méthode est le point d'entrée principal du système.
+   */
+  static async orchestrate(
+    request: OrchestrationRequest,
+  ): Promise<OrchestrationResult> {
+    console.log("🎯 [COORDINATOR] Démarrage orchestration");
+    console.log(`   Query: "${request.query}"`);
+    console.log(`   Mode: ${request.isSearch ? "SEARCH" : "ASK"}`);
+    console.log(`   Sources: ${request.availableSources.length}`);
+    console.log(`   Web: ${request.useWeb ? "ENABLED" : "DISABLED"}`);
+
+    const startTime = Date.now();
+
+    try {
+      // ============================================
+      // ÉTAPE 1 : PLANNING (via PlannerService)
+      // ============================================
+      console.log("📋 [COORDINATOR] ÉTAPE 1/4: Génération du plan...");
+
+      const planRequest: PlanRequest = {
+        query: request.query,
+        availableSources: request.availableSources,
+        workspaceId: request.workspaceId,
+        userId: request.userId,
+        isSearch: request.isSearch,
+        useWeb: request.useWeb,
+        systemPrompt: request.systemPrompt,
+        onThinking: request.onThinking,
+      };
+
+      const plan = await PlannerService.generatePlan(planRequest);
+
+      console.log(
+        `✅ [COORDINATOR] Plan généré: ${plan.toolSequence.length} tools`,
+      );
+      console.log(
+        `   Tools: ${plan.toolSequence.map((t) => t.toolName).join(" → ")}`,
+      );
+      console.log(`   Mode détecté: ${plan.detectedMode}`);
+      console.log(`   Query optimisée: "${plan.optimizedQuery}"`);
+
+      // ============================================
+      // ÉTAPE 2 : VALIDATION DU PLAN
+      // ============================================
+      console.log("🔍 [COORDINATOR] ÉTAPE 2/4: Validation du plan...");
+
+      const planValidation = this.validateFullPlan(
+        plan.toolSequence.map((t) => ({
+          toolName: t.toolName,
+          params: t.params,
+        })),
+        plan.detectedMode,
+      );
+
+      if (!planValidation.isValid) {
+        console.error(
+          `❌ [COORDINATOR] Plan invalide: ${planValidation.reasoning}`,
+        );
+        return {
+          success: false,
+          toolCalls: [],
+          thinking: plan.reasoning,
+          intermediateThinkingBlocks: [],
+        };
+      }
+
+      console.log(`✅ [COORDINATOR] Plan validé: ${planValidation.reasoning}`);
+
+      // ============================================
+      // ÉTAPE 3 : BOUCLE D'EXÉCUTION
+      // ============================================
+      console.log(
+        "⚙️ [COORDINATOR] ÉTAPE 3/4: Exécution de la boucle agentic...",
+      );
+
+      const toolCalls: OrchestrationResult["toolCalls"] = [];
+      const intermediateThinkingBlocks: IntermediateThinkingBlock[] = [];
+      const initialMessages: Array<{ role: string; content: string }> = [
+        {
+          role: "system",
+          content: request.systemPrompt,
+        },
+        {
+          role: "user",
+          content: `Question: "${request.query}"`,
+        },
+      ];
+
+      // Contexte d'exécution initial
+      let extractedSources: Array<{
+        id: string;
+        title: string;
+        sourceType: string;
+      }> = [];
+
+      // Copier les sources fournies initialement
+      if (request.availableSources.length > 0) {
+        extractedSources = request.availableSources.map((s) => ({
+          id: s.id,
+          title: s.title,
+          sourceType: s.type,
+        }));
+      }
+
+      // Boucle d'exécution des tools
+      for (let i = 0; i < plan.toolSequence.length; i++) {
+        const step = plan.toolSequence[i];
+
+        console.log(
+          `🔧 [COORDINATOR] Exécution step ${i + 1}/${plan.toolSequence.length}: ${step.toolName}`,
+        );
+
+        try {
+          // Construire le contexte d'exécution
+          const executionContext: ExecutionContext = {
+            userId: request.userId,
+            workspaceId: request.workspaceId,
+            query: plan.optimizedQuery || request.query,
+            isSearch: request.isSearch,
+            useWeb: request.useWeb,
+            executedTools: toolCalls.map((tc) => ({
+              name: tc.name,
+              arguments: tc.arguments,
+              result: tc.result,
+              score: tc.score,
+            })),
+            extractedSources,
+            currentIteration: i,
+            maxIterations: plan.toolSequence.length,
+            remainingTools: plan.toolSequence
+              .slice(i + 1)
+              .map((t) => t.toolName),
+            initialMessages,
+          };
+
+          // Exécuter le step via ExecutorService
+          const executionResult = await ExecutorService.executeStep(
+            step,
+            executionContext,
+            {
+              onIntermediateThinking: request.onIntermediateThinking,
+              onToolCall: request.onToolCall,
+              onToolResult: request.onToolResult,
+            },
+          );
+
+          console.log(
+            `✅ [COORDINATOR] Step ${i + 1} complété: ${executionResult.toolName}`,
+          );
+
+          // Mettre à jour les sources extraites
+          if (
+            executionResult.extractedSources &&
+            executionResult.extractedSources.length > 0
+          ) {
+            extractedSources.push(...executionResult.extractedSources);
+            console.log(
+              `🔄 [COORDINATOR] ${executionResult.extractedSources.length} nouvelles sources extraites`,
+            );
+          }
+
+          // Ajouter le résultat à l'historique des messages
+          initialMessages.push({
+            role: "user",
+            content: `Tool ${executionResult.toolName} résultat:\n${executionResult.result}`,
+          });
+
+          // ============================================
+          // ÉTAPE 4 : SCORING (par step)
+          // ============================================
+          let score = null;
+          try {
+            score = await ScoringService.scoreToolResult({
+              toolName: executionResult.toolName,
+              result: executionResult.result,
+              query: plan.optimizedQuery || request.query,
+              expectedInfo: step.description,
+              context: {
+                previousScores: toolCalls
+                  .map((tc) => tc.score)
+                  .filter((s) => s !== undefined),
+                useWeb: request.useWeb,
+                hasSpecificSource: request.availableSources.length > 0,
+                mode: request.isSearch ? "search" : "ask",
+              },
+            });
+
+            console.log(
+              `📊 [COORDINATOR] Score step ${i + 1}: ${score.overallScore.toFixed(2)}`,
+            );
+          } catch (scoreError) {
+            console.warn(
+              `⚠️ [COORDINATOR] Erreur scoring step ${i + 1}:`,
+              scoreError,
+            );
+            // Continuer malgré l'erreur de scoring
+          }
+
+          // Enregistrer le tool call
+          toolCalls.push({
+            name: executionResult.toolName,
+            arguments: executionResult.arguments,
+            result: executionResult.result,
+            thinking: executionResult.thinking,
+            score,
+            timestamp: Date.now(),
+          });
+
+          // Enregistrer le bloc de thinking intermédiaire
+          if (executionResult.intermediateParsed) {
+            intermediateThinkingBlocks.push({
+              iteration: i,
+              thinking: executionResult.thinking,
+              toolArguments: executionResult.arguments,
+              generatedAt: new Date().toISOString(),
+              nextToolName: step.toolName,
+              score,
+            });
+          }
+
+          // Vérifier si on doit continuer
+          if (!executionResult.shouldContinue) {
+            console.log(
+              `⏹️ [COORDINATOR] Arrêt demandé par l'executor (shouldContinue: false)`,
+            );
+            break;
+          }
+
+          // Gestion des modifications de plan
+          if (
+            executionResult.modifiedToolSequence &&
+            executionResult.modifiedToolSequence.length > 0
+          ) {
+            console.log(
+              `🔄 [COORDINATOR] Modification de plan détectée: ${executionResult.modifiedToolSequence.length} nouveaux tools`,
+            );
+
+            // Valider la modification
+            const modificationValidation =
+              await this.validatePlanModification(
+                plan.toolSequence.slice(i + 1).map((t) => t.toolName),
+                executionResult.modifiedToolSequence.map((t) => t.toolName),
+                executionResult.result,
+                executionResult.thinking,
+              );
+
+            if (modificationValidation.isValid) {
+              console.log(
+                `✅ [COORDINATOR] Modification de plan validée: ${modificationValidation.reasoning}`,
+              );
+              // Remplacer les tools restants par le nouveau plan
+              plan.toolSequence.splice(
+                i + 1,
+                plan.toolSequence.length - (i + 1),
+                ...executionResult.modifiedToolSequence,
+              );
+            } else {
+              console.warn(
+                `❌ [COORDINATOR] Modification de plan refusée: ${modificationValidation.reasoning}`,
+              );
+            }
+          }
+
+          // Pause entre les steps pour éviter rate limits
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        } catch (stepError) {
+          console.error(
+            `❌ [COORDINATOR] Erreur step ${i + 1}:`,
+            stepError,
+          );
+
+          // Enregistrer l'erreur mais continuer
+          toolCalls.push({
+            name: step.toolName,
+            arguments: {},
+            result: `❌ Erreur: ${stepError instanceof Error ? stepError.message : "Erreur inconnue"}`,
+            thinking: "Error during execution",
+            score: null,
+            timestamp: Date.now(),
+          });
+
+          // Continuer avec le prochain step (ne pas tout casser)
+          console.log(
+            `⚠️ [COORDINATOR] Poursuite malgré l'erreur (step ${i + 1})`,
+          );
+        }
+      }
+
+      // ============================================
+      // FIN DE L'ORCHESTRATION
+      // ============================================
+      const endTime = Date.now();
+      const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+      console.log(
+        `✅ [COORDINATOR] Orchestration terminée en ${duration}s`,
+      );
+      console.log(`   Tools exécutés: ${toolCalls.length}`);
+      console.log(
+        `   Sources extraites: ${extractedSources.length} (${extractedSources.filter((s) => !request.availableSources.find((as) => as.id === s.id)).length} nouvelles)`,
+      );
+
+      // Calculer le score moyen
+      const scores = toolCalls
+        .map((tc) => tc.score?.overallScore)
+        .filter((s) => s !== undefined);
+      const avgScore =
+        scores.length > 0
+          ? scores.reduce((acc, s) => acc + s, 0) / scores.length
+          : 0;
+
+      console.log(`   Score moyen: ${avgScore.toFixed(2)}`);
+
+      return {
+        success: true,
+        toolCalls,
+        thinking: plan.reasoning,
+        intermediateThinkingBlocks,
+      };
+    } catch (error) {
+      console.error(`❌ [COORDINATOR] Erreur orchestration:`, error);
+
+      return {
+        success: false,
+        toolCalls: [],
+        thinking: `Erreur d'orchestration: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
+        intermediateThinkingBlocks: [],
+      };
+    }
+  }
+
   /**
    * 🔍 Valide la cohérence entre le thinking et l'action proposée
    */
