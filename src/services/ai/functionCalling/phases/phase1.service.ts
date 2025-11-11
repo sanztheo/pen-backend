@@ -863,17 +863,17 @@ GENERATE the JSON plan NOW. Maximum 3 tools. No text before or after the JSON.`;
               .join("\n");
 
             // FEEDBACK LOOP: Integrate strategic recommendations in prompt
+            // CRITICAL: Ne PAS mentionner shouldStop pour éviter arrêt prématuré
             const strategyRecommendation = `
 CURRENT STRATEGY EVALUATION (based on scores):
 ${strategyAdjustment.reasoning}
 
-ADAPTIVE RECOMMENDATIONS:
+ADAPTIVE RECOMMENDATIONS (informational only - continue plan execution):
 - Explore more sources? ${strategyAdjustment.shouldExploreMore ? "Yes" : "No"}
 - Use search_web? ${strategyAdjustment.shouldUseWeb ? "Yes (priority: " + strategyAdjustment.priority + ")" : "No"}
-- Stop (sufficient info)? ${strategyAdjustment.shouldStop ? "Yes (confidence: " + strategyAdjustment.confidence.toFixed(2) + ")" : "No"}
 ${strategyAdjustment.suggestedTools.length > 0 ? "- Suggested tools: " + strategyAdjustment.suggestedTools.join(", ") : ""}
 
-NOTE: These recommendations are based on results analysis. You can follow them or adapt based on question context.`;
+IMPORTANT: These are quality indicators ONLY. You MUST continue executing the planned tool sequence unless you have gathered ALL required information comprehensively. In search mode, execute the FULL plan to ensure thorough exploration.`;
 
             // Add useWeb flag and web instruction with adaptive priority
             const webInstruction = useWeb
@@ -919,6 +919,20 @@ Previous results are recorded in context above (result of Tool X).
 - If a tool returns a list → COUNT sources and select the BEST ones
 - NEVER INVENT sources! Use ONLY those listed in previous results
 - If NO tool found sources → You MUST call the NEXT tool in the plan
+
+EXECUTION MODE: ${isSearch ? "SEARCH (thorough exploration required)" : "ASK (focused response)"}
+${
+  isSearch
+    ? `
+CRITICAL - SEARCH MODE REQUIREMENTS:
+- You MUST execute the FULL planned sequence (${validatedToolSequence.length} tools)
+- NEVER stop early just because initial results seem "sufficient"
+- Search mode requires COMPREHENSIVE exploration across multiple sources
+- Quality indicators are informational only - continue the full plan
+- Only stop if you have exhausted ALL planned tools or reached maximum depth
+`
+    : ""
+}
 
 INTELLIGENT STRATEGY (NOT STRICT):
 
@@ -1101,7 +1115,7 @@ The "toolArguments" field must match the structure expected by the tool (see exa
 
             let intermediateThinkingContent = "";
             const intermediateStream = await openai.chat.completions.create({
-              model: "gpt-4o", // Intelligent model for precise argument extraction
+              model: "gpt-4o", // Intelligent model for precise argument extraction and plan adherence
               messages: [
                 ...initialMessages,
                 {
@@ -1109,8 +1123,8 @@ The "toolArguments" field must match the structure expected by the tool (see exa
                   content: intermediateThinkingPrompt,
                 },
               ],
-              temperature: 0.2, // Lower temperature for consistent argument extraction
-              max_tokens: 500, // Increased for complex argument structures
+              temperature: 0.1, // Very low temperature for strict plan following in search mode
+              max_tokens: 800, // Increased for comprehensive reasoning in search mode
               stream: true,
               response_format: { type: "json_object" } as any, // JSON MODE STRICT
             });
