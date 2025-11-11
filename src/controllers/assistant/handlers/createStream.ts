@@ -128,7 +128,7 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     // 🔥 PHASE 1: Function Calling pour rassembler l'information
     console.log(`🔧 [CREATE-PHASE-1] Démarrage avec reflection: ${reflection}`);
 
-    const { FunctionCallingService } = await import(
+    const { CoordinatorService, type OrchestrationRequest } = await import(
       "../../../services/ai/functionCalling/index.js"
     );
     const { indexAndPreparePagesForAI } = await import(
@@ -190,12 +190,14 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
       const persona = await readPersonalizationFromReq(req);
       const personaSnippet = buildPersonaSnippet(persona, 400);
 
-      const toolDecision = await FunctionCallingService.decideAndExecuteTools({
+      // 🔥 NOUVEAU: Utilisation du CoordinatorService pour orchestrer Planner → Executor → Scorer
+      const orchestrationRequest: OrchestrationRequest = {
         query: sanitizedInstruction,
-        availableSources: sourcesForAI,
         workspaceId,
         userId: req.user!.id,
+        availableSources: sourcesForAI,
         useWeb,
+        isSearch: useSearchMode, // 🔥 Profond = plus de tools (comme search), rapide = moins de tools
         systemPrompt: `System: Tu dois créer un COURS DÉTAILLÉ et structuré basé sur l'instruction de l'utilisateur.
 
 ⚠️ FORMAT COURS - INTERDICTIONS STRICTES:
@@ -206,7 +208,6 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
 ${personaSnippet}
 
 '''${LATEX_STRICT_RULES}'''`,
-        isSearch: useSearchMode, // 🔥 Profond = plus de tools (comme search), rapide = moins de tools
 
         // Callbacks pour streaming temps réel
         onThinking: (thinkingChunk) => {
@@ -253,7 +254,11 @@ ${personaSnippet}
             (res as any).flush();
           }
         },
-      });
+      };
+
+      const toolDecision = await CoordinatorService.orchestrate(
+        orchestrationRequest,
+      );
 
       console.log(
         `✅ [CREATE-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés`,
@@ -265,6 +270,10 @@ ${personaSnippet}
         toolDecision.intermediateThinkingBlocks || [];
 
       // 🔥 Construire le contexte à partir des résultats des tools
+      // Import FunctionCallingService pour buildContextFromToolResults
+      const { FunctionCallingService } = await import(
+        "../../../services/ai/functionCalling/index.js"
+      );
       toolResults = FunctionCallingService.buildContextFromToolResults(
         toolDecision.toolCalls,
       );

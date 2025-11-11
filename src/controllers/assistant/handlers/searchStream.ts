@@ -146,7 +146,7 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
         `🔧 [SEARCH] Function Calling activé - sourcesScope: ${sourcesScope}, ragSources: ${ragSources?.length || 0}`,
       );
 
-      const { FunctionCallingService } = await import(
+      const { CoordinatorService, type OrchestrationRequest } = await import(
         "../../../services/ai/functionCalling/index.js"
       );
 
@@ -198,72 +198,75 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           `🔧 [SEARCH-PHASE-1] Démarrage décision tools avec ${sourcesForAI.length} sources...`,
         );
 
-        const toolDecision = await FunctionCallingService.decideAndExecuteTools(
-          {
-            query: sanitizedQuery,
-            availableSources: sourcesForAI,
-            workspaceId,
-            userId: req.user!.id,
-            useWeb,
-            systemPrompt: `System: Réponds de manière claire, précise et structurée en tant qu'assistant IA intelligent.
+        // 🔥 NOUVEAU: Utilisation du CoordinatorService pour orchestrer Planner → Executor → Scorer
+        const orchestrationRequest: OrchestrationRequest = {
+          query: sanitizedQuery,
+          workspaceId,
+          userId: req.user!.id,
+          availableSources: sourcesForAI,
+          useWeb,
+          isSearch: true, // 🔥 Flag pour Search - utilise plus de tools
+          systemPrompt: `System: Réponds de manière claire, précise et structurée en tant qu'assistant IA intelligent.
 
 ${personaSnippet}
 
 '''${LATEX_STRICT_RULES}'''`,
-            isSearch: true, // 🔥 Flag pour Search - utilise plus de tools
 
-            // Callbacks pour streaming temps réel
-            onThinking: (thinkingChunk) => {
-              const timestamp = new Date().toISOString();
-              currentThinking += thinkingChunk;
-              res.write(
-                `event: thinking\ndata: ${JSON.stringify({ content: thinkingChunk, timestamp })}\n\n`,
-              );
-              if (typeof (res as any).flush === "function") {
-                (res as any).flush();
-              }
-            },
-
-            onToolCall: (toolName, args) => {
-              const timestamp = new Date().toISOString();
-              res.write(
-                `event: tool_call\ndata: ${JSON.stringify({ tool: toolName, args, timestamp })}\n\n`,
-              );
-              if (typeof (res as any).flush === "function") {
-                (res as any).flush();
-              }
-            },
-
-            onToolResult: (toolName, toolResult) => {
-              const timestamp = new Date().toISOString();
-              const truncated =
-                toolResult.length > 200
-                  ? toolResult.slice(0, 200) + "..."
-                  : toolResult;
-              res.write(
-                `event: tool_result\ndata: ${JSON.stringify({ tool: toolName, result: truncated, timestamp })}\n\n`,
-              );
-              if (typeof (res as any).flush === "function") {
-                (res as any).flush();
-              }
-            },
-
-            // 🔥 NEW: Thinking intermédiaire entre les requêtes
-            onIntermediateThinking: (thinkingChunk) => {
-              const timestamp = new Date().toISOString();
-              res.write(
-                `event: intermediate_thinking\ndata: ${JSON.stringify({ content: thinkingChunk, timestamp })}\n\n`,
-              );
-              if (typeof (res as any).flush === "function") {
-                (res as any).flush();
-              }
-            },
+          // Callbacks pour streaming temps réel
+          onThinking: (thinkingChunk) => {
+            const timestamp = new Date().toISOString();
+            currentThinking += thinkingChunk;
+            res.write(
+              `event: thinking\ndata: ${JSON.stringify({ content: thinkingChunk, timestamp })}\n\n`,
+            );
+            if (typeof (res as any).flush === "function") {
+              (res as any).flush();
+            }
           },
+
+          onToolCall: (toolName, args) => {
+            const timestamp = new Date().toISOString();
+            res.write(
+              `event: tool_call\ndata: ${JSON.stringify({ tool: toolName, args, timestamp })}\n\n`,
+            );
+            if (typeof (res as any).flush === "function") {
+              (res as any).flush();
+            }
+          },
+
+          onToolResult: (toolName, toolResult) => {
+            const timestamp = new Date().toISOString();
+            const truncated =
+              toolResult.length > 200
+                ? toolResult.slice(0, 200) + "..."
+                : toolResult;
+            res.write(
+              `event: tool_result\ndata: ${JSON.stringify({ tool: toolName, result: truncated, timestamp })}\n\n`,
+            );
+            if (typeof (res as any).flush === "function") {
+              (res as any).flush();
+            }
+          },
+
+          // 🔥 Thinking intermédiaire entre les requêtes
+          onIntermediateThinking: (thinkingChunk) => {
+            const timestamp = new Date().toISOString();
+            res.write(
+              `event: intermediate_thinking\ndata: ${JSON.stringify({ content: thinkingChunk, timestamp })}\n\n`,
+            );
+            if (typeof (res as any).flush === "function") {
+              (res as any).flush();
+            }
+          },
+        };
+
+        const toolDecision = await CoordinatorService.orchestrate(
+          orchestrationRequest,
         );
 
         currentToolCalls = toolDecision.toolCalls;
         console.log(
-          `✅ [SEARCH-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés, shouldUseTools: ${toolDecision.shouldUseTools}`,
+          `✅ [SEARCH-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés, success: ${toolDecision.success}`,
         );
 
         // 🔥 WEB GRATUIT: Plus de remboursement nécessaire car le web ne coûte plus de crédits
@@ -283,7 +286,11 @@ ${personaSnippet}
         // }
 
         // 🔥 PHASE 2: Génération réponse finale avec résultats des tools
-        if (toolDecision.shouldUseTools && toolDecision.toolCalls.length > 0) {
+        if (toolDecision.success && toolDecision.toolCalls.length > 0) {
+          // Import FunctionCallingService pour buildContextFromToolResults et generateWithToolResults
+          const { FunctionCallingService } = await import(
+            "../../../services/ai/functionCalling/index.js"
+          );
           console.log(`🔧 [SEARCH-PHASE-2] Génération réponse finale...`);
 
           const toolResults =
@@ -389,7 +396,7 @@ ${personaSnippet}
           `data: ${JSON.stringify({
             toolCalls: currentToolCalls,
             thinking: currentThinking,
-            usedFallback: !toolDecision.shouldUseTools,
+            usedFallback: !toolDecision.success || toolDecision.toolCalls.length === 0,
             intermediateThinkingBlocks: toolDecision.intermediateThinkingBlocks,
           })}\n\n`,
         );
