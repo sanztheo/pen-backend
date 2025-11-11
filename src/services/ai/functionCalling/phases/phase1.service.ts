@@ -1101,7 +1101,7 @@ The "toolArguments" field must match the structure expected by the tool (see exa
 
             let intermediateThinkingContent = "";
             const intermediateStream = await openai.chat.completions.create({
-              model: "gpt-4o-mini",
+              model: "gpt-4o", // Intelligent model for precise argument extraction
               messages: [
                 ...initialMessages,
                 {
@@ -1109,10 +1109,10 @@ The "toolArguments" field must match the structure expected by the tool (see exa
                   content: intermediateThinkingPrompt,
                 },
               ],
-              temperature: 0.3,
-              max_tokens: 400,
+              temperature: 0.2, // Lower temperature for consistent argument extraction
+              max_tokens: 500, // Increased for complex argument structures
               stream: true,
-              response_format: { type: "json_object" } as any, // 🔥 JSON MODE STRICT
+              response_format: { type: "json_object" } as any, // JSON MODE STRICT
             });
 
             // Streamer le thinking intermédiaire
