@@ -22,6 +22,7 @@ import type {
 } from "../types/phase1.types.js";
 import { CoordinatorService } from "../coordinator.service.js";
 import { ScoringService, type ToolResultScore } from "../scoring.service.js";
+import { ToolDependenciesValidator, type ToolExecutionContext } from "../toolDependencies.js";
 
 /**
  * Service pour la Phase 1 : Décision et exécution des tools
@@ -55,6 +56,13 @@ export class Phase1Service {
     let thinking = "";
     const context: ToolContext = { userId, workspaceId };
 
+    // 🆕 DÉTECTION DU MODE (ask, search, create_rapide, create_profond)
+    const detectedMode = ToolDependenciesValidator.detectMode(query, isSearch);
+    const toolLimits = ToolDependenciesValidator.getToolLimits(detectedMode);
+
+    console.log(
+      `🔧 [PHASE-1] Mode détecté: ${detectedMode} (${toolLimits.minTools}-${toolLimits.maxTools} tools, recommandé: ${toolLimits.recommended})`,
+    );
     console.log(
       `🔧 [PHASE-1] Boucle agentic refactorisée avec ${availableSources.length} sources disponibles`,
     );
@@ -463,6 +471,21 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
       console.log(
         `🔧 [PHASE-1] Plan validé: ${validatedToolSequence.length} tools valides, tools: ${validatedToolSequence.map((t) => t.toolName).join(" → ")}`,
       );
+
+      // 🆕 VALIDATION DU PLAN COMPLET (dépendances + mode)
+      const planValidation = CoordinatorService.validateFullPlan(
+        validatedToolSequence.map(t => ({ toolName: t.toolName, params: t.params })),
+        detectedMode
+      );
+
+      if (!planValidation.isValid) {
+        console.error(`❌ [PHASE-1] Plan invalide: ${planValidation.reasoning}`);
+        console.error(`   Suggestions: ${planValidation.missingDependencies?.join(', ')}`);
+
+        // En mode strict, on pourrait bloquer ici
+        // Pour l'instant, on continue avec un warning
+        console.warn(`⚠️ [PHASE-1] Poursuite malgré les erreurs de validation du plan`);
+      }
 
       await sleep(150);
 
@@ -1153,6 +1176,17 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
 
               // 🎯 COORDINATOR: Valider la cohérence thinking/action AVANT d'exécuter
               const previousResults = toolCalls.map((tc) => tc.result);
+
+              // 🆕 Construire le contexte d'exécution avec extractedSources
+              const executionContext: ToolExecutionContext = {
+                executedTools: toolCalls.map(tc => ({
+                  name: tc.name,
+                  arguments: tc.arguments,
+                  result: tc.result
+                })),
+                extractedSources: extractedSources
+              };
+
               const coordinatorValidation =
                 await CoordinatorService.validateCoherence({
                   thinking: intermediateParsed.thinking,
@@ -1160,6 +1194,7 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
                   toolArguments: toolArgs,
                   previousToolResults: previousResults,
                   originalPlan: validatedToolSequence.map((t) => t.toolName),
+                  executionContext: executionContext, // 🆕 Passer le contexte avec extractedSources
                 });
 
               if (!coordinatorValidation.isValid) {

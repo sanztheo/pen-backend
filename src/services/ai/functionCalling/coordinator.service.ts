@@ -1,15 +1,17 @@
 /**
  * 🎯 COORDINATOR SERVICE
- * 
+ *
  * Inspired by Cursor's architecture:
  * - Valide la cohérence entre thinking et actions
  * - Détecte les incohérences dans le plan
  * - Propose des corrections automatiques
  * - Empêche l'IA de sauter des étapes sans justification
+ * - 🆕 Valide les dépendances entre tools (graphe strict)
  */
 
 import { AIService } from '../base.js';
 import { ScoringService } from './scoring.service.js';
+import { ToolDependenciesValidator, type ToolExecutionContext, type DependencyValidationResult } from './toolDependencies.js';
 
 export interface CoordinatorInput {
   thinking: string;              // Ce que l'IA dit qu'elle va faire
@@ -18,6 +20,7 @@ export interface CoordinatorInput {
   previousToolResults: string[];  // Historique des résultats des tools
   originalPlan: string[];         // Plan initial
   modifiedPlan?: string[];        // Plan modifié (si l'IA veut changer)
+  executionContext?: ToolExecutionContext;  // 🆕 Contexte d'exécution avec extractedSources
 }
 
 export interface CoordinatorOutput {
@@ -33,18 +36,38 @@ export class CoordinatorService {
    * 🔍 Valide la cohérence entre le thinking et l'action proposée
    */
   static async validateCoherence(input: CoordinatorInput): Promise<CoordinatorOutput> {
-    const { thinking, nextToolName, previousToolResults, originalPlan } = input;
+    const { thinking, nextToolName, previousToolResults, originalPlan, toolArguments } = input;
 
     console.log(`🎯 [COORDINATOR] Validation de cohérence...`);
     console.log(`   Thinking: "${thinking.slice(0, 100)}..."`);
     console.log(`   Tool proposé: ${nextToolName}`);
+
+    // 🆕 ÉTAPE 0 : Valider les DÉPENDANCES entre tools (graphe strict)
+    if (nextToolName) {
+      const depValidation = await this.validateToolDependencies(
+        nextToolName,
+        toolArguments || {},
+        input
+      );
+
+      if (!depValidation.isValid) {
+        console.error(`❌ [COORDINATOR] Dépendances non satisfaites: ${depValidation.reasoning}`);
+
+        return {
+          isValid: false,
+          reasoning: depValidation.reasoning,
+          shouldBlock: depValidation.shouldBlock,
+          correctedArguments: depValidation.suggestedFix?.arguments
+        };
+      }
+    }
 
     // 🔥 DÉTECTION D'INCOHÉRENCES ÉVIDENTES
     const incoherences = this.detectIncoherences(thinking, nextToolName);
 
     if (incoherences.length > 0) {
       console.warn(`⚠️ [COORDINATOR] Incohérences détectées:`, incoherences);
-      
+
       // Appeler l'IA Coordinator pour corriger
       return await this.callCoordinatorAI(input, incoherences);
     }
@@ -304,5 +327,46 @@ La modification de plan est-elle justifiée par le résultat précédent ?
         reasoning: 'Erreur de validation, modification refusée par sécurité'
       };
     }
+  }
+
+  /**
+   * 🆕 Valide les dépendances d'un tool via ToolDependenciesValidator
+   */
+  private static async validateToolDependencies(
+    toolName: string,
+    toolArguments: any,
+    input: CoordinatorInput
+  ): Promise<DependencyValidationResult> {
+    // Utiliser le contexte d'exécution fourni, sinon créer un contexte vide
+    const executionContext: ToolExecutionContext = input.executionContext || {
+      executedTools: [],
+      extractedSources: []
+    };
+
+    return ToolDependenciesValidator.validateDependencies(
+      toolName,
+      toolArguments,
+      executionContext
+    );
+  }
+
+  /**
+   * 🆕 Valide un plan complet de tools
+   */
+  static validateFullPlan(
+    toolSequence: Array<{ toolName: string; params?: any }>,
+    mode: 'ask' | 'search' | 'create_rapide' | 'create_profond'
+  ): DependencyValidationResult {
+    console.log(`🎯 [COORDINATOR] Validation du plan complet (mode: ${mode})...`);
+
+    const validation = ToolDependenciesValidator.validatePlan(toolSequence, mode);
+
+    if (!validation.isValid) {
+      console.error(`❌ [COORDINATOR] Plan invalide: ${validation.reasoning}`);
+    } else {
+      console.log(`✅ [COORDINATOR] Plan valide: ${validation.reasoning}`);
+    }
+
+    return validation;
   }
 }
