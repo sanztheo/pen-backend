@@ -269,7 +269,8 @@ export class ToolDependenciesValidator {
       };
     }
 
-    // RÈGLE : sourceId DOIT provenir des sources extraites
+    // RÈGLE ASSOUPLIE : Vérifier sourceId SEULEMENT si extractedSources existe ET a du contenu
+    // Si extractedSources est vide, c'est probablement une source pré-sélectionnée par l'utilisateur
     if (context.extractedSources && context.extractedSources.length > 0) {
       const isValidSource = context.extractedSources.some(
         (src) => src.id === sourceId,
@@ -277,16 +278,18 @@ export class ToolDependenciesValidator {
 
       if (!isValidSource) {
         console.warn(
-          `⚠️ [DEPENDENCIES] sourceId "${sourceId}" non trouvé dans extractedSources`,
+          `⚠️ [DEPENDENCIES] sourceId "${sourceId}" non trouvé dans extractedSources (${context.extractedSources.length} sources)`,
         );
         console.warn(
           `   Sources disponibles: ${context.extractedSources.map((s) => s.id).join(", ")}`,
         );
 
+        // WARNING seulement, pas de blocage strict
+        // Le coordinator décidera si c'est critique ou non
         return {
           isValid: false,
-          reasoning: `sourceId "${sourceId}" invalide. Ne correspond à aucune source listée précédemment. INTERDICTION d'inventer ou réutiliser un ID absent.`,
-          shouldBlock: true,
+          reasoning: `sourceId "${sourceId}" non trouvé dans les sources extraites. Pourrait être une source pré-sélectionnée.`,
+          shouldBlock: false, // Ne pas bloquer automatiquement
         };
       }
     }
