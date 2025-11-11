@@ -159,9 +159,10 @@ export const assistantAskStream = async (req: Request, res: Response) => {
         `🔧 [ASK] Function Calling activé - Pages mentionnées: ${hasSpecificPages}, Mode: ${sourcesScope}`,
       );
 
-      const { CoordinatorService, type OrchestrationRequest } = await import(
+      const { CoordinatorService } = await import(
         "../../../services/ai/functionCalling/index.js"
       );
+      type OrchestrationRequest = import("../../../services/ai/functionCalling/index.js").OrchestrationRequest;
 
       // 🔥 Convertir les pages mentionnées en sources RAG pour l'IA
       // IMPORTANT: Si des pages spécifiques sont mentionnées, utiliser SEULEMENT ces pages

@@ -146,9 +146,10 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
         `🔧 [SEARCH] Function Calling activé - sourcesScope: ${sourcesScope}, ragSources: ${ragSources?.length || 0}`,
       );
 
-      const { CoordinatorService, type OrchestrationRequest } = await import(
+      const { CoordinatorService } = await import(
         "../../../services/ai/functionCalling/index.js"
       );
+      type OrchestrationRequest = import("../../../services/ai/functionCalling/index.js").OrchestrationRequest;
 
       // 🔥 Variable pour savoir si des pages spécifiques ont été mentionnées
       const hasSpecificPages = contextPageIds.length > 0;
