@@ -22,6 +22,10 @@ import type {
 } from "../types/phase1.types.js";
 import { CoordinatorService } from "../coordinator.service.js";
 import { ScoringService, type ToolResultScore } from "../scoring.service.js";
+import {
+  ToolDependenciesValidator,
+  type ToolExecutionContext,
+} from "../toolDependencies.js";
 
 /**
  * Service pour la Phase 1 : Décision et exécution des tools
@@ -55,6 +59,13 @@ export class Phase1Service {
     let thinking = "";
     const context: ToolContext = { userId, workspaceId };
 
+    // 🆕 DÉTECTION DU MODE (ask, search, create_rapide, create_profond)
+    const detectedMode = ToolDependenciesValidator.detectMode(query, isSearch);
+    const toolLimits = ToolDependenciesValidator.getToolLimits(detectedMode);
+
+    console.log(
+      `🔧 [PHASE-1] Mode détecté: ${detectedMode} (${toolLimits.minTools}-${toolLimits.maxTools} tools, recommandé: ${toolLimits.recommended})`,
+    );
     console.log(
       `🔧 [PHASE-1] Boucle agentic refactorisée avec ${availableSources.length} sources disponibles`,
     );
@@ -82,276 +93,283 @@ export class Phase1Service {
 
       let contextualInstructions = "";
 
-      // 🎯 SCÉNARIO 0: Web uniquement (pas de sources locales)
+      // SCENARIO 0: Web only (no local sources)
       if (isWebOnlyMode) {
-        contextualInstructions = `\n\n📌 CONTEXTE: MODE WEB UNIQUEMENT activé.
+        contextualInstructions = `\n\nCONTEXT: Web-only mode is enabled. No local sources are available.
 
-🌐 STRATÉGIE WEB ONLY (exploration web profonde) :
-1. **MULTI-RECHERCHE WEB** : Utilise "search_web" PLUSIEURS FOIS avec des angles différents
-   - Première recherche : Query générale/large sur le sujet
-   - Deuxième recherche : Aspect spécifique ou angle différent
-   - Troisième recherche (optionnel) : Approfondissement ou détails techniques
-2. **ANGLES DIFFÉRENTS** : Varie les queries pour obtenir des perspectives complémentaires
-3. **EXPLORATION PROFONDE** : Ne te limite pas à 1 seul appel web, explore le sujet sous plusieurs angles
+SUGGESTED STRATEGY:
+Focus your research on web searches. You should call search_web multiple times with different angles to build comprehensive understanding.
+Prefer to vary your queries to get complementary perspectives rather than repeating similar searches.
 
-🎯 EXEMPLES DE MULTI-RECHERCHE :
-Query user: "Parle-moi de Y Combinator"
-→ search_web 1: "Y Combinator startup accelerator history"
-→ search_web 2: "Y Combinator portfolio companies success stories"
-→ search_web 3: "Y Combinator application process requirements"
+Example multi-search approach for "Y Combinator":
+- First search: "Y Combinator startup accelerator history"
+- Second search: "Y Combinator portfolio companies success stories"
+- Third search: "Y Combinator application process requirements"
 
-Query user: "Théorème de Pythagore"
-→ search_web 1: "Pythagoras theorem definition proof"
-→ search_web 2: "Pythagoras theorem real world applications"
-→ search_web 3: "Pythagoras theorem history origin"
-
-⚠️ IMPORTANT :
-- NE LISTE PAS les sources locales (aucune source locale disponible)
-- NE SÉLECTIONNE PAS de sources (tu n'en as pas)
-- CONCENTRE-TOI sur le web avec plusieurs angles d'exploration
-- Chaque appel search_web doit avoir une query différente et complémentaire`;
+Since no local sources exist, avoid calling list_available_sources or select_relevant_sources.
+Each search_web call should explore a different aspect of the topic.`;
       }
-      // 🎯 SCÉNARIO 1: Page/source unique spécifique
+      // SCENARIO 1: Single specific source
       else if (hasSpecificSources && availableSources.length === 1) {
-        contextualInstructions = `\n\n📌 CONTEXTE: Une source spécifique a été sélectionnée par l'utilisateur.
+        contextualInstructions = `\n\nCONTEXT: The user has selected a specific source.
 
-🎯 STRATÉGIE RECOMMANDÉE (ADAPTATIVE) :
-1. **PRIORITÉ**: Commence par lire cette source avec "read_rag_source" (ID: ${availableSources[0].id})
-2. **ÉVALUATION**: Après lecture, évalue si l'information est suffisante
-3. **SI INSUFFISANT**: Tu peux explorer d'autres sources avec "list_available_sources" ou "search_web" (si activé)
-4. **FLEXIBILITÉ**: La source sélectionnée est prioritaire mais pas exclusive si elle est incomplète
+SUGGESTED STRATEGY:
+Start by reading this source with read_rag_source (ID: ${availableSources[0].id}).
+After reading, assess whether the information sufficiently addresses the query.
+If the information appears incomplete, you may optionally explore additional sources using list_available_sources or search_web.
 
-⚠️ NOTE: L'utilisateur a choisi cette source, mais tu peux la compléter si nécessaire.`;
+The user's source selection should be prioritized, but you have flexibility to gather supplementary information if needed.`;
       }
-      // 🎯 SCÉNARIO 2: Multiple sources spécifiques
+      // SCÉNARIO 2: Multiple sources spécifiques
       else if (hasSpecificSources && availableSources.length > 1) {
-        contextualInstructions = `\n\n📌 CONTEXTE: ${availableSources.length} sources spécifiques ont été sélectionnées.
+        const sourcesList = availableSources
+          .map((s, i) => `   ${i + 1}. "${s.title}" (ID: ${s.id})`)
+          .join("\n");
+        contextualInstructions = `\n\nCONTEXT: The user has pre-selected ${availableSources.length} specific sources.
 
-🎯 STRATÉGIE RECOMMANDÉE (ADAPTATIVE) :
-1. **PRIORITÉ**: Lis ces sources sélectionnées avec "read_rag_source" ou "select_relevant_sources"
-2. **OPTIMISATION**: Choisis les plus pertinentes (2-3 max) plutôt que tout lire
-3. **ÉVALUATION**: Après lecture, évalue si l'information couvre la question
-4. **SI INSUFFISANT**: Tu peux compléter avec "search_web" (si activé) ou chercher d'autres sources
+Sources provided:
+${sourcesList}
 
-⚠️ NOTE: Les sources sélectionnées sont prioritaires mais explorables si incomplètes.`;
+SUGGESTED STRATEGY:
+Since the user has already selected specific sources, prefer to read those sources directly rather than searching for additional sources.
+You should bias towards calling read_rag_source for each provided source (${availableSources.length} calls total).
+Avoid calling list_available_sources or select_relevant_sources as the selection has already been made.
+If after reading all provided sources the information appears insufficient, you may optionally call search_web or explore additional sources.
+
+Note: The user's source selection should be respected, but you have flexibility to gather additional information if needed after reading the provided sources.`;
       }
-      // 🎯 SCÉNARIO 3: all_source (exploration libre)
+      // SCÉNARIO 3: all_source (exploration libre)
       else if (isAllSourceMode) {
-        contextualInstructions = `\n\n📌 CONTEXTE: Mode exploration libre (all_source) - Aucune source spécifique.
+        contextualInstructions = `\n\nCONTEXT: Free exploration mode (all_source) - No specific sources selected.
 
-🎯 STRATÉGIE RECOMMANDÉE (EXPLORATION COMPLÈTE) :
-1. **DÉCOUVERTE**: Commence par lister TOUTES les sources disponibles
-   - Appelle "list_available_sources" pour les sources personnelles
-   - Appelle "list_global_wikipedia_sources" pour les sources Wikipedia globales
-2. **SÉLECTION**: Identifie les sources les plus pertinentes pour la question
-3. **LECTURE**: Lis les 2-3 meilleures sources avec "read_rag_source"
-4. **ENRICHISSEMENT**: Si ${useWeb ? 'web activé, utilise "search_web" pour compléter' : "besoin, cherche dans d'autres sources"}
+RECOMMENDED STRATEGY (COMPLETE EXPLORATION):
+1. DISCOVERY: Start by listing ALL available sources
+   - Call "list_available_sources" for personal sources
+   - Call "list_global_wikipedia_sources" for global Wikipedia sources
+2. SELECTION: Identify the most relevant sources for the question
+3. READING: Read the 2-3 best sources with "read_rag_source"
+4. ENRICHMENT: If ${useWeb ? 'web enabled, use "search_web" to complete' : "needed, search in other sources"}
 
-⚠️ NOTE: Mode exploration complète - explore toutes les options disponibles.`;
+NOTE: Complete exploration mode - explore all available options.`;
       }
 
-      // 🔥 NEW: Add useWeb instruction with adaptive priority
+      // Add useWeb instruction with adaptive priority
       const useWebStr = useWeb
-        ? `\n\n🌐 RECHERCHE WEB ACTIVÉE:
+        ? `\n\nWEB SEARCH AVAILABLE:
 ${
   hasSpecificSources
-    ? 'Tu PEUX utiliser "search_web" pour ENRICHIR les sources sélectionnées si nécessaire.'
-    : 'Tu PEUX utiliser "search_web" après avoir exploré les sources locales, ou AVANT si tu penses que le web sera plus pertinent.'
+    ? 'You can use "search_web" to enrich the selected sources if needed.'
+    : 'You can use "search_web" after exploring local sources, or before if you think web search will be more relevant.'
 }
 
-📊 APPROCHE ADAPTATIVE (basée sur les scores) :
-- Si les sources locales donnent un bon score (>0.7) → Web OPTIONNEL
-- Si les sources locales donnent un score moyen (0.4-0.7) → Web RECOMMANDÉ
-- Si les sources locales donnent un score faible (<0.4) → Web FORTEMENT RECOMMANDÉ`
+Adaptive approach based on scores:
+- If local sources provide good score (>0.7) → Web search optional
+- If local sources provide medium score (0.4-0.7) → Web search recommended
+- If local sources provide low score (<0.4) → Web search strongly recommended`
         : "";
 
       const firstThinkingPrompt = isSearch
-        ? `Tu dois créer un plan JSON structuré pour explorer un sujet en profondeur.
+        ? `You need to create a structured JSON plan to explore a topic in depth.
 
-# OUTILS DISPONIBLES (par catégorie)
+# MODE REQUIREMENTS: ${detectedMode.toUpperCase()}
+- Minimum tools required: ${toolLimits.minTools}
+- Maximum tools allowed: ${toolLimits.maxTools}
+- Recommended number: ${toolLimits.recommended}
 
-## 📋 LISTER LES SOURCES
-- \`list_available_sources\` : Liste TOUTES les sources disponibles (pages, fichiers, Wikipedia personnelles)
-- \`list_global_wikipedia_sources\` : Liste les sources Wikipedia GLOBALES partagées (avant \`search_web\` !)
-- \`list_workspace_pages\` : Liste les pages du workspace
+CRITICAL: Your plan MUST include at least ${toolLimits.minTools} tools to be valid.
+The validator will REJECT any plan with fewer than ${toolLimits.minTools} tools.
 
-## 🔍 LIRE/CHERCHER DANS LES SOURCES
-- \`read_rag_source\` : Lit le contenu complet d'UNE source RAG
-- \`select_relevant_sources\` : Sélectionne les sources pertinentes pour la question
-- \`search_rag_chunks\` : Recherche sémantique DANS les sources RAG
-- \`read_workspace_page\` : Lit une page spécifique du workspace
+# AVAILABLE TOOLS (by category)
 
-## 🌐 EXTERNES
-- \`check_sources_rag_status\` : Vérifie le statut RAG des sources (nécessite des IDs de source)
-- \`search_web\` : Recherche web ${isWebOnlyMode ? "(OUTIL PRINCIPAL - utilise-le PLUSIEURS FOIS avec des angles différents)" : "(dernier recours)"}
+## LIST SOURCES
+- \`list_available_sources\`: Lists ALL available sources (pages, files, personal Wikipedia)
+- \`list_global_wikipedia_sources\`: Lists GLOBAL shared Wikipedia sources (before \`search_web\`)
+- \`list_workspace_pages\`: Lists workspace pages
 
-# STRATÉGIE RECOMMANDÉE (Search Mode - exploration profonde)
+## READ/SEARCH IN SOURCES
+- \`read_rag_source\`: Reads the complete content of ONE RAG source
+- \`select_relevant_sources\`: Selects relevant sources for the question
+- \`search_rag_chunks\`: Semantic search WITHIN RAG sources
+- \`read_workspace_page\`: Reads a specific workspace page
+
+## EXTERNAL
+- \`check_sources_rag_status\`: Checks RAG status of sources (requires source IDs)
+- \`search_web\`: Web search ${isWebOnlyMode ? "(PRIMARY TOOL - use MULTIPLE TIMES with different angles)" : "(last resort)"}
+
+# SUGGESTED STRATEGY (Search Mode - deep exploration)
 ${
   isWebOnlyMode
     ? `
-🌐 **MODE WEB ONLY DÉTECTÉ** : Aucune source locale sélectionnée
-→ UTILISE "search_web" PLUSIEURS FOIS (2-4 appels) avec des angles différents pour explorer le sujet en profondeur
-→ Varie les queries pour obtenir des perspectives complémentaires
-→ NE perds PAS de temps à lister les sources (aucune source locale disponible)
+WEB ONLY MODE DETECTED: No local sources selected
+→ Use "search_web" MULTIPLE TIMES (2-4 calls) with different angles to explore the topic in depth
+→ Vary your queries to get complementary perspectives
+→ Skip listing sources (no local sources available)
 
-Exemple de plan pour "Parle-moi de Y Combinator" :
+Example plan for "Tell me about Y Combinator":
 1. search_web: "Y Combinator startup accelerator history founders"
 2. search_web: "Y Combinator portfolio companies unicorns success"
 3. search_web: "Y Combinator application process funding model"
-4. search_web (optionnel): "Y Combinator Demo Day investor network"
+4. search_web (optional): "Y Combinator Demo Day investor network"
 `
     : `
-1. Appelle \`list_available_sources\`, puis \`list_global_wikipedia_sources\` → obtenez la liste complète des sources (personnelles + globales)
-2. Utilise \`select_relevant_sources\` OU \`read_rag_source\` pour explorer les sources pertinentes
-3. Utilise \`search_rag_chunks\` pour chercher des informations précises dans les sources
-4. Si l'information reste insuffisante, utilise \`search_web\` OU \`check_sources_rag_status\`
+1. Call \`list_available_sources\`, then \`list_global_wikipedia_sources\` → get complete list of sources (personal + global)
+2. Use \`select_relevant_sources\` OR \`read_rag_source\` to explore relevant sources
+3. Use \`search_rag_chunks\` to search for specific information in sources
+4. If information remains insufficient, use \`search_web\` OR \`check_sources_rag_status\`
 `
 }
 
-🔥 **IMPORTANT :**
+IMPORTANT:
 ${
   isWebOnlyMode
     ? `
-- MODE WEB ONLY : Saute directement aux appels "search_web" multiples
-- N'appelle PAS list_available_sources ou list_global_wikipedia_sources (aucune source locale)
-- Concentre-toi sur 2-4 appels search_web avec des queries complémentaires
-- Chaque search_web doit explorer un angle différent du sujet
+- WEB ONLY MODE: Jump directly to multiple "search_web" calls
+- Avoid calling list_available_sources or list_global_wikipedia_sources (no local sources)
+- Focus on 2-4 search_web calls with complementary queries
+- Each search_web should explore a different angle of the topic
 `
     : `
-- Appelle TOUJOURS \`list_available_sources\` PUIS \`list_global_wikipedia_sources\` au début, dans cet ordre.
-- Si \`list_available_sources\` retourne vide, appelle quand même \`list_global_wikipedia_sources\` pour vérifier les Wikipedia globales.
-- N'appelle JAMAIS \`read_rag_source\` avec un ID vide ! Vérifie toujours les sources listées avant.
-- Si aucune source n'est trouvée nulle part, utilise \`search_web\`.
+- Start with \`list_available_sources\` THEN \`list_global_wikipedia_sources\`, in that order
+- If \`list_available_sources\` returns empty, still call \`list_global_wikipedia_sources\` to check global Wikipedia
+- Never call \`read_rag_source\` with an empty ID - always check listed sources first
+- If no sources found anywhere, use \`search_web\`
 `
 }
 
-# PLANIFICATION
-Commence par un court checklist (3-7 étapes conceptuelles) de ce que tu vas faire pour organiser la séquence de résolution avant d'établir la séquence des outils.
+# PLANNING
+Start with a short checklist (3-7 conceptual steps) of what you will do to organize the resolution sequence before establishing the tool sequence.
 
-# RÈGLES ABSOLUES
+# GUIDELINES
 ${
   isWebOnlyMode
     ? `
-🌐 **MODE WEB ONLY ACTIVÉ** (aucune source locale sélectionnée) :
-- ❌ N'appelle JAMAIS list_available_sources, list_global_wikipedia_sources, select_relevant_sources
-- ✅ Utilise UNIQUEMENT search_web (2-4 appels avec queries variées)
-- ✅ Chaque search_web doit explorer un angle différent du sujet
-- ✅ Commence DIRECTEMENT par search_web à l'étape 1
+WEB ONLY MODE (no local sources selected):
+- Avoid: list_available_sources, list_global_wikipedia_sources, select_relevant_sources
+- Use: ONLY search_web (2-4 calls with varied queries)
+- Each search_web should explore a different angle of the topic
+- Start DIRECTLY with search_web at step 1
 `
     : `
-📚 **MODE HYBRIDE** (sources locales disponibles) :
-- ✅ Commence TOUJOURS par list_available_sources PUIS list_global_wikipedia_sources
-- ✅ Ensuite select_relevant_sources OU read_rag_source pour explorer
-- ✅ search_web seulement si sources locales insuffisantes${useWebStr}
+HYBRID MODE (local sources available):
+- Start with list_available_sources THEN list_global_wikipedia_sources
+- Then select_relevant_sources OR read_rag_source to explore
+- search_web only if local sources are insufficient${useWebStr}
 `
 }
-- 🎯 **IMPÉRATIF**: Reformule SYSTÉMATIQUEMENT la query utilisateur pour TOUS les outils qui acceptent "query" ou "question"
-- 🎯 **OPTIMISATION QUERIES**: Corrige orthographe, enrichis avec mots-clés, rends précis ce qui est vague
-- CHAQUE outil doit être différent et complémentaire à chaque étape
-- \`totalIterations\` : valeur entre ${isWebOnlyMode ? "2 et 5 (focus multi-recherches web)" : "1 et 8"}
-- Si tu utilises \`check_sources_rag_status\`, récupère d'abord les IDs des sources
-- Utilise uniquement les outils listés ci-dessus; pour les opérations de lecture et de consultation, tu peux appeler automatiquement; pour tout changement d'état ou opération destructrice, requiers une confirmation explicite avant exécution.
-- Avant d'appeler tout outil important, indique brièvement pourquoi tu l'appelles et les paramètres minimaux utilisés.
+- You should reformulate the user query for ALL tools that accept "query" or "question" parameters
+- Query optimization: Fix spelling, enrich with keywords, make vague queries more precise
+- Each tool should be different and complementary at each step
+- \`totalIterations\`: MUST be at least ${toolLimits.minTools} (minimum required), recommended ${toolLimits.recommended}, maximum ${toolLimits.maxTools}
+- If you use \`check_sources_rag_status\`, first retrieve the source IDs
+- Use only the tools listed above; for read and consultation operations, you can call automatically; for any state change or destructive operation, require explicit confirmation before execution
+- Before calling any important tool, briefly indicate why you're calling it and the minimal parameters used
 
-# STRUCTURE STRICTE DU JSON (tous les champs sont obligatoires)
+# STRICT JSON STRUCTURE (all fields are required)
 
 \`\`\`json
 {
   "plan": {
-    "totalIterations": <entier entre 1 et 8>,
-    "reasoning": "<courte explication du choix de séquence>",
-    "optimizedQuery": "<🎯 REFORMULATION OBLIGATOIRE de la query utilisateur pour améliorer les résultats>",
+    "totalIterations": <integer between 1 and 8>,
+    "reasoning": "<short explanation of sequence choice>",
+    "optimizedQuery": "<REQUIRED REFORMULATION of user query to improve results>",
     "toolSequence": [
       {
-        "step": <entier>,
-        "toolName": "<nom de l'outil>",
-        "description": "<brève description de l'action>",
+        "step": <integer>,
+        "toolName": "<tool name>",
+        "description": "<brief action description>",
         "params": {
-          // Facultatif : paramètres comme sourceId (si requis par l'outil)
+          // Optional: parameters like sourceId (if required by tool)
         }
       }
-      // ...autres étapes, toujours dans l'ordre prescrit (démarre par \`list_available_sources\` puis \`list_global_wikipedia_sources\`)
+      // ...other steps, always in prescribed order (start with \`list_available_sources\` then \`list_global_wikipedia_sources\`)
     ],
     "errorHandling": {
-      "emptySourceId": "Ne jamais appeler read_rag_source avec un ID vide. Vérifie d'abord les sources listées.",
-      "noSourcesFound": "Si aucune source trouvée dans toutes les listes, utilise search_web."
+      "emptySourceId": "Never call read_rag_source with empty ID. Check listed sources first.",
+      "noSourcesFound": "If no sources found in all lists, use search_web."
     }
   }
 }
 \`\`\`
 
-🎯 **CHAMP OBLIGATOIRE - optimizedQuery** :
-Ce champ DOIT contenir une version reformulée et optimisée de la query utilisateur.
-Cette query optimisée sera utilisée automatiquement pour les premiers tools (list_available_sources, select_relevant_sources, etc.).
+REQUIRED FIELD - optimizedQuery:
+This field MUST contain a reformulated and optimized version of the user query.
+This optimized query will be automatically used for the first tools (list_available_sources, select_relevant_sources, etc.).
 
-Exemple de reformulation :
-- Query utilisateur: "fait une analyse sur le web sur pythagore"
-- optimizedQuery: "Théorème de Pythagore: définition, démonstration mathématique et applications géométriques"
+Reformulation example:
+- User query: "fait une analyse sur le web sur pythagore"
+- optimizedQuery: "Pythagorean theorem: definition, mathematical proof and geometric applications"
 
-Après avoir réalisé la planification et la séquence, valide que chaque outil est bien justifié dans la séquence et que le schéma de sortie est strictement respecté.
+After planning and sequencing, validate that each tool is well justified in the sequence and the output schema is strictly respected.
 
 ${sourcesContext}${contextualInstructions}${useWebStr}
 
-Question : "${query}"
+Question: "${query}"
 
-GÉNÈRE le plan JSON MAINTENANT. Aucun texte avant ou après le JSON.
+GENERATE the JSON plan NOW. No text before or after the JSON.
 
-## Format de sortie
-- Le plan JSON doit respecter strictement le schéma ci-dessus.
-- Outils toujours dans l'ordre prescrit au début : \`list_available_sources\`, puis \`list_global_wikipedia_sources\`.
-- \`totalIterations\` DOIT être précisé et compris entre 1 et 8 selon le mode.
-- N'utilise pas \`read_rag_source\` sans ID validé.
-- Si aucune source trouvée, inclure obligatoirement \`search_web\` en fallback dans la séquence.`
-        : `Tu dois créer un plan JSON SIMPLE pour mode ASK RAPIDE (1-3 tools maximum).
+## Output format
+- The JSON plan must strictly respect the schema above
+- Tools always in prescribed order at start: \`list_available_sources\`, then \`list_global_wikipedia_sources\`
+- \`totalIterations\` MUST be at least ${toolLimits.minTools} tools in your plan
+- Don't use \`read_rag_source\` without validated ID
+- If no sources found, include \`search_web\` as fallback in sequence`
+        : `You need to create a SIMPLE JSON plan for QUICK ASK mode.
 
-# OUTILS DISPONIBLES SIMPLIFIÉS
+# MODE REQUIREMENTS: ${detectedMode.toUpperCase()}
+- Minimum tools required: ${toolLimits.minTools}
+- Maximum tools allowed: ${toolLimits.maxTools}
+- Recommended number: ${toolLimits.recommended}
 
-## 📋 EXPLORATION BASIQUE
-- \`list_available_sources\` : Liste les sources disponibles
-- \`search_rag_chunks\` : Recherche rapide dans les sources
+IMPORTANT: Your plan MUST include at least ${toolLimits.minTools} tools to be valid.
 
-## 🌐 WEB (SI ACTIVÉ)
-- \`search_web\` : Recherche web rapide
+# SIMPLIFIED AVAILABLE TOOLS
 
-# STRATÉGIE MODE RAPIDE (1-3 outils max)
+## BASIC EXPLORATION
+- \`list_available_sources\`: Lists available sources
+- \`search_rag_chunks\`: Quick search in sources
+
+## WEB (IF ENABLED)
+- \`search_web\`: Quick web search
+
+# QUICK MODE STRATEGY (1-3 tools max)
 ${
   hasSpecificSources
-    ? `Sources spécifiques fournies → Appelle \`search_rag_chunks\` avec la query pour trouver l'info rapidement`
+    ? `Specific sources provided → Call \`search_rag_chunks\` with query to find info quickly`
     : useWeb && availableSources.length === 0
-      ? `🌐 MODE RAPIDE + WEB ONLY DÉTECTÉ
-→ AUCUNE source locale disponible, utilise DIRECTEMENT \`search_web\` (NE PAS lister les sources)
-→ Focus rapidité : 1 seul \`search_web\` suffit pour récupérer les infos essentielles
-→ Si user demande "look on the web" ou "recherche web", utilise \`search_web\` en PREMIER tool
+      ? `QUICK MODE + WEB ONLY DETECTED
+→ NO local sources available, use \`search_web\` DIRECTLY (skip listing sources)
+→ Speed focus: 1 single \`search_web\` is enough to get essential info
+→ If user asks "look on the web" or "web search", use \`search_web\` as FIRST tool
 
-⚡ Exemple pour "Create welcome page for Y Combinator, look on the web":
+Example for "Create welcome page for Y Combinator, look on the web":
 {
   "toolSequence": [
     {
       "step": 1,
       "toolName": "search_web",
-      "description": "Rechercher qui est Y Combinator et leur mission"
+      "description": "Search who is Y Combinator and their mission"
     }
   ]
 }`
       : useWeb
-        ? `Pas de sources spécifiques → Commence par \`list_available_sources\` puis \`search_web\` si nécessaire`
-        : `Pas de sources spécifiques, pas de web → Appelle \`list_available_sources\` puis \`search_rag_chunks\``
+        ? `No specific sources → Start with \`list_available_sources\` then \`search_web\` if needed`
+        : `No specific sources, no web → Call \`list_available_sources\` then \`search_rag_chunks\``
 }
 
-🔥 **MODE RAPIDE** : Maximum 3 tools, privilégie la rapidité sur l'exhaustivité.
+QUICK MODE: Maximum 3 tools, favor speed over comprehensiveness.
 
-## Schema JSON (OBLIGATOIRE)
+## JSON Schema (REQUIRED)
 
 \`\`\`json
 {
   "plan": {
-    "totalIterations": <1 à 3>,
-    "reasoning": "<courte explication>",
-    "optimizedQuery": "<reformulation de la query pour meilleurs résultats>",
+    "totalIterations": <1 to 3>,
+    "reasoning": "<short explanation>",
+    "optimizedQuery": "<query reformulation for better results>",
     "toolSequence": [
       {
         "step": 1,
-        "toolName": "<nom_outil>",
+        "toolName": "<tool_name>",
         "description": "<action>"
       }
     ]
@@ -361,28 +379,28 @@ ${
 
 ${sourcesContext}${contextualInstructions}${useWebStr}
 
-Question : "${query}"
+Question: "${query}"
 
-GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après le JSON.`;
+GENERATE the JSON plan NOW. Maximum 3 tools. No text before or after the JSON.`;
 
       let firstThinkingContent = "";
       const firstThinkingStream = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o", // More intelligent model for complex planning
         messages: [
           {
             role: "system",
             content:
-              "Tu es un expert en structuration de requêtes. Tu génères UNIQUEMENT du JSON valide, sans texte additionnel.",
+              "You are an expert AI assistant specialized in query analysis and tool orchestration. Generate valid JSON plans without emojis or decorative symbols. Focus on precise, structured planning with clear reasoning.",
           },
           {
             role: "user",
             content: firstThinkingPrompt,
           },
         ],
-        temperature: 0.3,
-        max_tokens: 800, // 🎯 Augmenté pour permettre optimizedQuery + plan complet
+        temperature: 0.2, // Lower temperature for more consistent planning
+        max_tokens: 1000, // Increased for complex plans with multiple tools
         stream: true,
-        response_format: { type: "json_object" } as any, // 🔥 JSON MODE STRICT
+        response_format: { type: "json_object" } as any, // JSON MODE STRICT
       });
 
       // Collecter le contenu du premier thinking
@@ -423,8 +441,7 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
         throw new Error("Invalid first thinking plan format");
       }
 
-      const { totalIterations, toolSequence, optimizedQuery } =
-        firstThinkingPlan.plan;
+      const { toolSequence, optimizedQuery } = firstThinkingPlan.plan;
 
       // 🎯 Extraire la query optimisée du plan (ou fallback sur query originale)
       const queryToUse =
@@ -463,6 +480,27 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
       console.log(
         `🔧 [PHASE-1] Plan validé: ${validatedToolSequence.length} tools valides, tools: ${validatedToolSequence.map((t) => t.toolName).join(" → ")}`,
       );
+
+      // 🆕 VALIDATION DU PLAN COMPLET (dépendances + mode)
+      const planValidation = CoordinatorService.validateFullPlan(
+        validatedToolSequence.map((t) => ({ toolName: t.toolName })),
+        detectedMode,
+      );
+
+      if (!planValidation.isValid) {
+        console.error(
+          `❌ [PHASE-1] Plan invalide: ${planValidation.reasoning}`,
+        );
+        console.error(
+          `   Suggestions: ${planValidation.missingDependencies?.join(", ")}`,
+        );
+
+        // En mode strict, on pourrait bloquer ici
+        // Pour l'instant, on continue avec un warning
+        console.warn(
+          `⚠️ [PHASE-1] Poursuite malgré les erreurs de validation du plan`,
+        );
+      }
 
       await sleep(150);
 
@@ -523,6 +561,14 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
           toolStep.toolName,
           toolArgs,
           context,
+        );
+
+        // 🔥 Recovery intelligent pour erreurs UUID
+        this.handleUUIDErrorRecovery(
+          result,
+          toolStep,
+          validatedToolSequence,
+          iterationIdx,
         );
 
         // 🔥 NEW: Extract available sources from list_available_sources or list_global_wikipedia_sources results
@@ -652,9 +698,9 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
         );
 
         // 🔥 NOUVEAU: CURSOR-LIKE IMPROVEMENT - Agir sur les scores faibles (pas juste logger)
-        // ⚠️ LIMITES: Max 10 iterations totales, max 2 tools ajoutés, respecter mode Web Only
-        const MAX_ITERATIONS = 10;
-        const MAX_IMPROVEMENTS = 2;
+        // ⚠️ LIMITES: Max 15 iterations totales, max 3 tools ajoutés, respecter mode Web Only
+        const MAX_ITERATIONS = 15;
+        const MAX_IMPROVEMENTS = 3;
         const RECENT_TOOL_WINDOW = 3;
 
         // Compter combien de tools ont été ajoutés via IMPROVEMENT
@@ -749,15 +795,27 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
           );
         }
 
-        // Si la stratégie suggère d'arrêter et qu'on a assez d'informations
+        // 🔥 PHILOSOPHIE: Le scoring est une INDICATION, pas une règle absolue
+        // On continue l'exploration jusqu'au nombre de tools recommandé, même si le score est bon
+        const hasReachedRecommendedTools =
+          toolCalls.length >= toolLimits.recommended;
+
         if (
           strategyAdjustment.shouldStop &&
-          strategyAdjustment.confidence > 0.8
+          strategyAdjustment.confidence > 0.8 &&
+          hasReachedRecommendedTools
         ) {
           console.log(
-            `⏹️ [STRATEGY-ADJUST] Arrêt recommandé: informations suffisantes (score: ${resultScore.overallScore.toFixed(2)})`,
+            `⏹️ [STRATEGY-ADJUST] Arrêt acceptable: ${toolCalls.length}/${toolLimits.recommended} tools recommandés atteints (score: ${resultScore.overallScore.toFixed(2)})`,
           );
           // Ne pas arrêter brutalement, laisser l'IA décider dans le thinking intermédiaire
+        } else if (
+          strategyAdjustment.shouldStop &&
+          !hasReachedRecommendedTools
+        ) {
+          console.log(
+            `🔄 [STRATEGY-ADJUST] Score bon mais continue exploration: ${toolCalls.length}/${toolLimits.recommended} tools (le scoring n'est qu'une indication)`,
+          );
         }
 
         // 🔥 ÉTAPE 2D: Générer les arguments du tool SUIVANT via intermediate thinking (après exécution du tool actuel)
@@ -804,243 +862,260 @@ GÉNÈRE le plan JSON MAINTENANT. Maximum 3 tools. Aucun texte avant ou après l
               .map((t) => `- ${t.toolName}`)
               .join("\n");
 
-            // 🎯 FEEDBACK LOOP: Intégrer les recommandations stratégiques dans le prompt
+            // FEEDBACK LOOP: Integrate strategic recommendations in prompt
+            // CRITICAL: Ne PAS mentionner shouldStop pour éviter arrêt prématuré
             const strategyRecommendation = `
-📊 ÉVALUATION DE LA STRATÉGIE ACTUELLE (basée sur les scores) :
+CURRENT STRATEGY EVALUATION (based on scores):
 ${strategyAdjustment.reasoning}
 
-🎯 RECOMMANDATIONS ADAPTATIVES :
-- Explorer d'autres sources ? ${strategyAdjustment.shouldExploreMore ? "✅ OUI" : "❌ NON"}
-- Utiliser search_web ? ${strategyAdjustment.shouldUseWeb ? "✅ OUI (priorité: " + strategyAdjustment.priority + ")" : "❌ NON"}
-- Arrêter (info suffisante) ? ${strategyAdjustment.shouldStop ? "✅ OUI (confiance: " + strategyAdjustment.confidence.toFixed(2) + ")" : "❌ NON"}
-${strategyAdjustment.suggestedTools.length > 0 ? "- Outils suggérés: " + strategyAdjustment.suggestedTools.join(", ") : ""}
+ADAPTIVE RECOMMENDATIONS (informational only - continue plan execution):
+- Explore more sources? ${strategyAdjustment.shouldExploreMore ? "Yes" : "No"}
+- Use search_web? ${strategyAdjustment.shouldUseWeb ? "Yes (priority: " + strategyAdjustment.priority + ")" : "No"}
+${strategyAdjustment.suggestedTools.length > 0 ? "- Suggested tools: " + strategyAdjustment.suggestedTools.join(", ") : ""}
 
-⚠️ NOTE: Ces recommandations sont basées sur l'analyse des résultats. Tu peux les suivre ou les adapter selon le contexte de la question.`;
+IMPORTANT: These are quality indicators ONLY. You MUST continue executing the planned tool sequence unless you have gathered ALL required information comprehensively. In search mode, execute the FULL plan to ensure thorough exploration.`;
 
-            // 🔥 NEW: Add useWeb flag and web instruction with adaptive priority
+            // Add useWeb flag and web instruction with adaptive priority
             const webInstruction = useWeb
-              ? `\n🌐 RECHERCHE WEB ACTIVÉE: ${
+              ? `\nWEB SEARCH AVAILABLE: ${
                   strategyAdjustment.shouldUseWeb
-                    ? `La stratégie recommande FORTEMENT d'utiliser search_web (priorité: ${strategyAdjustment.priority})`
-                    : "La recherche web est disponible si nécessaire pour enrichir"
+                    ? `Strategy strongly recommends using search_web (priority: ${strategyAdjustment.priority})`
+                    : "Web search is available if needed to enrich"
                 }`
               : "";
 
-            const intermediateThinkingPrompt = `Tu as reçu des résultats. Analyse-les et détermine la prochaine étape.
+            const intermediateThinkingPrompt = `You received results. Analyze them and determine the next step.
 
 ${strategyRecommendation}
 
-Avant toute décision, commence par une checklist concise (3-7 points conceptuels) décrivant les étapes à envisager selon les données reçues.
+Before any decision, start with a concise checklist (3-7 conceptual points) describing the steps to consider based on received data.
 
-📝 QUESTION ORIGINALE : "${query}"
+ORIGINAL QUESTION: "${query}"
 
-📋 OUTILS DÉJÀ EXÉCUTÉS :
-${executedTools || "Aucun"}
+TOOLS ALREADY EXECUTED:
+${executedTools || "None"}
 
 ${
   previousWebQueries.length > 0
     ? `
-🚨 QUERIES WEB DÉJÀ UTILISÉES (NE PAS RÉPÉTER) :
+WEB QUERIES ALREADY USED (DO NOT REPEAT):
 ${previousWebQueries.map((q, i) => `${i + 1}. "${q}"`).join("\n")}
 
-⚠️ IMPORTANT pour le prochain search_web :
-Tu DOIS explorer un angle TOTALEMENT DIFFÉRENT. Exemples d'angles alternatifs :
-- Si déjà cherché "histoire" → cherche "portfolio companies" ou "funding model"
-- Si déjà cherché "overview" → cherche "success stories" ou "application process"
-- Si déjà cherché "founders" → cherche "Demo Day" ou "notable alumni"
+IMPORTANT for next search_web:
+You MUST explore a TOTALLY DIFFERENT angle. Examples of alternative angles:
+- If already searched "history" → search "portfolio companies" or "funding model"
+- If already searched "overview" → search "success stories" or "application process"
+- If already searched "founders" → search "Demo Day" or "notable alumni"
 `
     : ""
 }
 
-📋 OUTILS RESTANTS DANS LE PLAN :
-${remainingTools || "Aucun"}
+REMAINING TOOLS IN PLAN:
+${remainingTools || "None"}
 
-⚠️ IMPORTANT - LIRE LES RÉSULTATS RÉELS :
-Les résultats précédents sont consignés dans le contexte ci-dessus (résultat de Tool X).
-- Si un outil retourne "Aucune source" → C'EST RÉEL, il n'y a pas de sources de ce type !
-- Si un outil retourne une liste → COMPTE les sources et sélectionne les MEILLEURES
-- N'INVENTE JAMAIS de sources ! Utilise UNIQUEMENT celles listées dans les résultats précédents
-- Si AUCUN outil n'a trouvé de sources → Tu DOIS appeler l'outil SUIVANT dans le plan
+IMPORTANT - READ ACTUAL RESULTS:
+Previous results are recorded in context above (result of Tool X).
+- If a tool returns "No sources" → It's REAL, there are no sources of that type
+- If a tool returns a list → COUNT sources and select the BEST ones
+- NEVER INVENT sources! Use ONLY those listed in previous results
+- If NO tool found sources → You MUST call the NEXT tool in the plan
 
-🧠 STRATÉGIE INTELLIGENTE (PAS STRICTE) :
+EXECUTION MODE: ${isSearch ? "SEARCH (thorough exploration required)" : "ASK (focused response)"}
+${
+  isSearch
+    ? `
+CRITICAL - SEARCH MODE REQUIREMENTS:
+- You MUST execute the FULL planned sequence (${validatedToolSequence.length} tools)
+- NEVER stop early just because initial results seem "sufficient"
+- Search mode requires COMPREHENSIVE exploration across multiple sources
+- Quality indicators are informational only - continue the full plan
+- Only stop if you have exhausted ALL planned tools or reached maximum depth
+`
+    : ""
+}
 
-🎯 **RÈGLE D'OR - OPTIMISATION DES REQUÊTES** :
-   → N'utilise JAMAIS directement la question brute de l'utilisateur si elle est mal formulée
-   → CORRIGE les fautes ("parle mo ide theoremes" → "théorèmes mathématiques")
-   → AMÉLIORE la clarté ("expliquer" → "définition propriétés applications")
-   → AJOUTE des mots-clés pertinents pour de meilleurs résultats
+INTELLIGENT STRATEGY (NOT STRICT):
 
-1️⃣ SI des sources Wikipedia GLOBALES ont été LISTÉES mais PAS ENCORE LUES :
-   → 🎯 SÉLECTIONNE LES MEILLEURES (2-3 max) pertinentes pour la question
-   → ❌ N'essaie PAS de tout lire ! (ex : si 1000 sources, choisis les 3 les plus pertinentes)
-   → 📖 LIS-LES pour extraire les informations clés avec une query OPTIMISÉE
-   → APRÈS la lecture : décide si tu as besoin du web pour compléter
+CORE RULE - QUERY OPTIMIZATION:
+   → Never use the raw user question directly if it's poorly formulated
+   → FIX spelling errors ("parle mo ide theoremes" → "mathematical theorems")
+   → IMPROVE clarity ("explain" → "definition properties applications")
+   → ADD relevant keywords for better results
 
-2️⃣ COMMENT CHOISIR LES MEILLEURES SOURCES ?
-   - Lis les TITRES des sources listées
-   - Sélectionne celles qui CORRESPONDENT LE PLUS à ta question
-   - Utilise read_rag_source avec les MEILLEURES IDs (pas tous les IDs !)
-   - Exemple pour "parle-moi des théorèmes" :
-     ✅ "Théorème de Thalès" (très pertinent)
-     ✅ "Théorème de Pythagore" (pertinent)
-     ⚠️ "Loi des cosinus" (pertinent mais secondaire - à évaluer)
+1. IF global Wikipedia sources have been LISTED but NOT YET READ:
+   → Select the BEST ones (2-3 max) relevant to the question
+   → Don't try to read everything (e.g., if 1000 sources, choose the 3 most relevant)
+   → READ them to extract key information with an OPTIMIZED query
+   → AFTER reading: decide if you need web search to complete
 
-3️⃣ SI tu as DÉJÀ LU des sources sélectionnées :
-   → Évalue si la réponse est SUFFISANTE pour la question
-   → ✅ Suffisant ? → shouldContinue: false (l'IA générera la réponse finale)
-   → ❌ Incomplet ? → Tu peux compléter OPTIONNELLEMENT avec search_web si le web est activé
+2. HOW TO CHOOSE THE BEST SOURCES?
+   - Read the TITLES of listed sources
+   - Select those that MATCH MOST closely to your question
+   - Use read_rag_source with the BEST IDs (not all IDs)
+   - Example for "tell me about theorems":
+     Best: "Thales Theorem" (highly relevant)
+     Good: "Pythagorean Theorem" (relevant)
+     Consider: "Law of cosines" (relevant but secondary - evaluate)
 
-4️⃣ PHILOSOPHIE :
-   - Les sources locales (Wikipedia globales) = PRIORITÉ (c'est gratuit + rapide)
-   - SÉLECTION INTELLIGENTE : Choisis 2-3 sources max, pas tout
-   - Le web = POUR ENRICHIR, pas remplacer les sources locales
-   - Exemple : Lire les 2 principaux théorèmes dans Wikipedia, puis chercher des cas d'usage modernes sur le web
+3. IF you have ALREADY READ selected sources:
+   → Evaluate if the answer is SUFFICIENT for the question
+   → Sufficient? → shouldContinue: false (AI will generate final answer)
+   → Incomplete? → You can optionally complete with search_web if web is enabled
 
-🌐 STRATÉGIE WEB :
-- ${useWeb ? "✅ WEB ACTIVÉ : Tu peux utiliser search_web pour COMPLÉTER les sources existantes" : "❌ WEB DÉSACTIVÉ : Reste uniquement sur les sources locales"}
-- search_web ne doit pas être la première option, mais un enrichissement optionnel
-- Si les sources locales couvrent la question : pas besoin du web !
+4. PHILOSOPHY:
+   - Local sources (global Wikipedia) = PRIORITY (it's free + fast)
+   - INTELLIGENT SELECTION: Choose 2-3 sources max, not everything
+   - Web = TO ENRICH, not replace local sources
+   - Example: Read the 2 main theorems in Wikipedia, then search for modern use cases on web
 
-🛠️ ARGUMENTS PAR OUTIL :
+WEB STRATEGY:
+- ${useWeb ? "WEB ENABLED: You can use search_web to COMPLETE existing sources" : "WEB DISABLED: Stay only on local sources"}
+- search_web should not be the first option, but an optional enrichment
+- If local sources cover the question: no need for web
 
-🎯 **RÈGLE D'OR - OPTIMISATION OBLIGATOIRE DES QUERIES** :
-Pour TOUS les outils qui acceptent "query" ou "question", tu DOIS systématiquement améliorer/reformuler la requête utilisateur pour maximiser la pertinence des résultats :
-  ✅ Corriger les fautes d'orthographe et de grammaire
-  ✅ Rendre les requêtes vagues plus précises et ciblées
-  ✅ Ajouter des mots-clés pertinents et contextuels
-  ✅ Structurer la query pour optimiser la recherche sémantique
-  ✅ Traduire ou clarifier les termes ambigus
+TOOL ARGUMENTS:
 
-Exemples de reformulation :
-  ❌ "fait une analyse sur le web sur pythagore"
-  ✅ "Théorème de Pythagore: définition, démonstration mathématique et applications"
+CORE RULE - REQUIRED QUERY OPTIMIZATION:
+For ALL tools that accept "query" or "question", you MUST systematically improve/reformulate the user query to maximize result relevance:
+  - Correct spelling and grammar errors
+  - Make vague queries more precise and targeted
+  - Add relevant and contextual keywords
+  - Structure query to optimize semantic search
+  - Translate or clarify ambiguous terms
 
-  ❌ "parle mo ide theoremes"
-  ✅ "théorèmes mathématiques fondamentaux géométrie algèbre"
+Reformulation examples:
+  Bad: "fait une analyse sur le web sur pythagore"
+  Good: "Pythagorean theorem: definition, mathematical proof and applications"
 
-  ❌ "c koi la loi newton"
-  ✅ "Lois de Newton mécanique classique physique principes fondamentaux"
+  Bad: "parle mo ide theoremes"
+  Good: "fundamental mathematical theorems geometry algebra"
 
-Pour list_available_sources :
-  - Inclure : "query": "${query}" (REFORMULÉE ET OPTIMISÉE)
-  - 🔥 IMPÉRATIF: Reformule TOUJOURS la query utilisateur pour améliorer les résultats de recherche
-  - Exemple : {"query": "Théorème de Pythagore applications mathématiques géométrie"}
+  Bad: "c koi la loi newton"
+  Good: "Newton's laws classical mechanics physics fundamental principles"
 
-Pour select_relevant_sources :
-  - TOUJOURS inclure : "question": "${query}" (REFORMULÉE ET OPTIMISÉE)
-  - TOUJOURS inclure : "availableSources": Tableau d'objets {id, title, sourceType} EXTRATS des résultats précédents
-  - 🔥 IMPÉRATIF: Optimise la question pour une meilleure sélection de sources
-  - Exemple : {"question": "définition et preuves mathématiques du théorème de Pythagore", "availableSources": [{"id": "123", "title": "...", "sourceType": "WIKIPEDIA"}]}
+For list_available_sources:
+  - Include: "query": "${query}" (REFORMULATED AND OPTIMIZED)
+  - Required: Always reformulate user query to improve search results
+  - Example: {"query": "Pythagorean theorem mathematical applications geometry"}
 
-Pour read_rag_source :
-  - Inclure : "sourceId" : L'ID d'une source trouvée
-  - Inclure : "query" : Requête de recherche dans la source (string REFORMULÉE)
-  - 🔥 IMPÉRATIF: Reformule pour cibler précisément les informations recherchées dans la source
-  - Exemple : {"sourceId": "123", "query": "démonstration mathématique et cas d'usage du théorème"}
+For select_relevant_sources:
+  - Always include: "question": "${query}" (REFORMULATED AND OPTIMIZED)
+  - Always include: "availableSources": Array of objects {id, title, sourceType} EXTRACTED from list_available_sources results
+  - Required: Use EXACT IDs (UUID format) found in list_available_sources results
+  - Critical: NEVER INVENT IDs! Use ONLY IDs present in results (e.g., "a0395ed4-a69f-4d70-bef5-7e19f7d9098d")
+  - Bad: {"id": "wiki_7266", ...} (invented ID)
+  - Good: {"id": "a0395ed4-a69f-4d70-bef5-7e19f7d9098d", ...} (real ID extracted from results)
+  - Example: {"question": "definition and mathematical proofs of Pythagorean theorem", "availableSources": [{"id": "a0395ed4-a69f-4d70-bef5-7e19f7d9098d", "title": "Pythagorean Theorem", "sourceType": "WIKIPEDIA"}]}
 
-Pour search_rag_chunks :
-  - Inclure : "query": Requête de recherche sémantique (string REFORMULÉE ET OPTIMISÉE)
-  - 🔥 IMPÉRATIF: Optimise pour une recherche sémantique vectorielle efficace
-  - Inclure optionnellement : "sourceIds": Tableau d'IDs si tu veux chercher dans des sources spécifiques
-  - Exemple : {"query": "preuves géométriques triangle rectangle Pythagore", "sourceIds": ["123"]}
+For read_rag_source:
+  - Include: "sourceId": The ID of a found source
+  - Include: "query": Search query in source (REFORMULATED string)
+  - Required: Reformulate to precisely target information sought in source
+  - Example: {"sourceId": "123", "query": "mathematical proof and use cases of theorem"}
 
-Pour search_web :
-  - 🔥 ATTENTION: Ce tool prend UNIQUEMENT "query" (string), PAS "question" ni "availableSources" ni "maxResults" !
-  - Inclure : "query": "chaîne de recherche web" (string REFORMULÉE ET ENRICHIE)
-  - 🔥 IMPÉRATIF: Reformule et enrichis la query avec mots-clés pertinents pour le web
-  - 🚨 MULTI-RECHERCHE: Si tu as DÉJÀ appelé search_web, tu DOIS explorer un ANGLE TOTALEMENT DIFFÉRENT
-  - 🚨 INTERDICTION: Ne jamais répéter la même query ou des variantes similaires
-  - Exemple première recherche : {"query": "Y Combinator startup accelerator history founders"}
-  - Exemple deuxième recherche : {"query": "Y Combinator portfolio companies unicorns Airbnb Dropbox Stripe"}
-  - Exemple troisième recherche : {"query": "Y Combinator application process Demo Day funding model"}
+For search_rag_chunks:
+  - Include: "query": Semantic search query (REFORMULATED AND OPTIMIZED string)
+  - Required: Optimize for efficient vector semantic search
+  - Optionally include: "sourceIds": Array of IDs if you want to search in specific sources
+  - Example: {"query": "geometric proofs right triangle Pythagoras", "sourceIds": ["123"]}
 
-📊 DÉCISION :
-Après chaque appel d'outil ou édition, valide en 1 à 2 lignes l'adéquation du résultat avec l'étape attendue, et décide si une correction est nécessaire ou si tu poursuis la séquence.
-Retourne STRICTEMENT un objet JSON ayant la structure suivante (les clés doivent être dans l'ordre exact ci-dessous) :
-- "thinking" : Ta réflexion sur les résultats et la prochaine étape (string)
-- "shouldContinue" : true ou false (boolean)
-- "nextToolName" : Indique le prochain outil si shouldContinue est true (string ou null)
-- "toolArguments" : Spécifie les arguments à fournir au prochain outil (objet, structure spécifique selon chaque outil)
-- "modifiedToolSequence" (optionnel) : Tableau avec la séquence d'outils modifiée si tu veux changer le plan (array)
+For search_web:
+  - Important: This tool takes ONLY "query" (string), NOT "question" nor "availableSources" nor "maxResults"
+  - Include: "query": "web search string" (REFORMULATED AND ENRICHED string)
+  - Required: Reformulate and enrich query with relevant keywords for web
+  - Multi-search: If you ALREADY called search_web, you MUST explore a TOTALLY DIFFERENT ANGLE
+  - Never repeat same query or similar variants
+  - Example first search: {"query": "Y Combinator startup accelerator history founders"}
+  - Example second search: {"query": "Y Combinator portfolio companies unicorns Airbnb Dropbox Stripe"}
+  - Example third search: {"query": "Y Combinator application process Demo Day funding model"}
 
-🔥 **RÈGLE DE COHÉRENCE CRITIQUE** :
-- Si ton "thinking" dit "je vais lire les sources" → "nextToolName" DOIT être "read_rag_source"
-- Si ton "thinking" dit "je vais sélectionner" → "nextToolName" DOIT être "select_relevant_sources"
-- Si ton "thinking" dit "je vais chercher sur le web" → "nextToolName" DOIT être "search_web"
-- **INTERDICTION ABSOLUE** de dire une chose dans thinking et faire autre chose dans nextToolName
-- Un Coordinator vérifiera la cohérence et BLOQUERA les incohérences
+DECISION:
+After each tool call or edit, validate in 1-2 lines the adequacy of the result with the expected step, and decide if a correction is needed or if you continue the sequence.
+Return STRICTLY a JSON object with the following structure (keys must be in exact order below):
+- "thinking": Your reflection on results and next step (string)
+- "shouldContinue": true or false (boolean)
+- "nextToolName": Indicates next tool if shouldContinue is true (string or null)
+- "toolArguments": Specifies arguments to provide to next tool (object, specific structure per tool)
+- "modifiedToolSequence" (optional): Array with modified tool sequence if you want to change plan (array)
 
-EXEMPLES DE DÉCISIONS :
+CRITICAL CONSISTENCY RULE:
+- If your "thinking" says "I will read sources" → "nextToolName" MUST be "read_rag_source"
+- If your "thinking" says "I will select" → "nextToolName" MUST be "select_relevant_sources"
+- If your "thinking" says "I will search web" → "nextToolName" MUST be "search_web"
+- Never say one thing in thinking and do another in nextToolName
+- A Coordinator will verify consistency and BLOCK inconsistencies
 
-Exemple 1 - Wikipedia listée avec select_relevant_sources (AVEC REFORMULATION) :
+DECISION EXAMPLES:
+
+Example 1 - Wikipedia listed with select_relevant_sources (WITH REFORMULATION AND REAL IDS):
 {
-  "thinking": "J'ai trouvé 3 sources Wikipedia. Je reformule 'parle-moi des théorèmes' en 'théorèmes mathématiques fondamentaux définitions et applications' pour une meilleure sélection.",
+  "thinking": "Found 3 Wikipedia sources in results. I reformulate 'tell me about theorems' to 'fundamental mathematical theorems definitions applications' and use EXACT UUID IDs extracted from list_available_sources results.",
   "shouldContinue": true,
   "nextToolName": "select_relevant_sources",
   "toolArguments": {
-    "question": "théorèmes mathématiques fondamentaux définitions et applications",
+    "question": "fundamental mathematical theorems definitions applications",
     "availableSources": [
-      {"id": "id1", "title": "Théorème de Thalès", "sourceType": "WIKIPEDIA"},
-      {"id": "id2", "title": "Théorème de Pythagore", "sourceType": "WIKIPEDIA"},
-      {"id": "id3", "title": "Loi des cosinus", "sourceType": "WIKIPEDIA"}
+      {"id": "6a14f726-aa93-47f5-9d90-ae2304493e44", "title": "Thales Theorem", "sourceType": "WIKIPEDIA"},
+      {"id": "a0395ed4-a69f-4d70-bef5-7e19f7d9098d", "title": "Pythagorean Theorem", "sourceType": "WIKIPEDIA"},
+      {"id": "28fc1ad2-dfc8-4afe-9d15-64f0bbc1c5e7", "title": "Law of cosines", "sourceType": "WIKIPEDIA"}
     ]
   }
 }
 
-Exemple 2 - Wikipedia listée, lire la meilleure (AVEC REFORMULATION) :
+Example 2 - Wikipedia listed, read best one (WITH REFORMULATION):
 {
-  "thinking": "J'ai listé les sources. Je lis Pythagore avec une query optimisée pour cibler les informations clés.",
+  "thinking": "Listed sources. Reading Pythagoras with optimized query to target key information.",
   "shouldContinue": true,
   "nextToolName": "read_rag_source",
-  "toolArguments": {"sourceId": "6f9280e9-a4ba-43ae-8372-698efd22fa84", "query": "démonstration mathématique triangle rectangle applications géométriques"}
+  "toolArguments": {"sourceId": "6f9280e9-a4ba-43ae-8372-698efd22fa84", "query": "mathematical proof right triangle geometric applications"}
 }
 
-Exemple 3 - Wikipedia lue, info suffisante :
+Example 3 - Wikipedia read, sufficient info:
 {
-  "thinking": "J'ai lu les 2 principaux théorèmes (Thalès et Pythagore). Ils couvrent bien les concepts fondamentaux demandés.",
+  "thinking": "Read 2 main theorems (Thales and Pythagoras). They cover well the fundamental concepts requested.",
   "shouldContinue": false,
   "modifiedToolSequence": []
 }
 
-Exemple 4 - Wikipedia lue partiellement, veut enrichir avec web (AVEC REFORMULATION ENRICHIE) :
+Example 4 - Wikipedia partially read, want to enrich with web (WITH ENRICHED REFORMULATION):
 {
-  "thinking": "J'ai lu Thalès et Pythagore. Je cherche sur le web avec une query enrichie de mots-clés pour trouver d'autres théorèmes fondamentaux.",
+  "thinking": "Read Thales and Pythagoras. Searching web with keyword-enriched query to find other fundamental theorems.",
   "shouldContinue": true,
   "nextToolName": "search_web",
-  "toolArguments": {"query": "théorèmes mathématiques fondamentaux géométrie algèbre cours démonstrations"}
+  "toolArguments": {"query": "fundamental mathematical theorems geometry algebra course proofs"}
 }
 
-Exemple 5 - Correction d'une requête mal formulée (REFORMULATION OBLIGATOIRE) :
+Example 5 - Correcting poorly formulated query (REQUIRED REFORMULATION):
 {
-  "thinking": "La question 'parle mo ide theoremes' est mal formulée. Je la corrige en 'théorèmes mathématiques fondamentaux' pour une recherche efficace.",
+  "thinking": "Question 'parle mo ide theoremes' is poorly formulated. I correct it to 'fundamental mathematical theorems' for effective search.",
   "shouldContinue": true,
   "nextToolName": "read_rag_source",
-  "toolArguments": {"sourceId": "abc-123", "query": "définition propriétés applications théorèmes mathématiques"}
+  "toolArguments": {"sourceId": "abc-123", "query": "definition properties applications mathematical theorems"}
 }
 
-## Format de sortie
+## Output format
 
-La réponse doit être STRICTEMENT un objet JSON ayant les clés SUIVANTES, dans cet ordre (toutes sauf modifiedToolSequence sont requises) :
+Response must be STRICTLY a JSON object with FOLLOWING keys, in this order (all except modifiedToolSequence are required):
 1. "thinking" (string)
 2. "shouldContinue" (boolean)
-3. "nextToolName" (string ou null)
-4. "toolArguments" (objet, type dépendant de l'outil)
-5. "modifiedToolSequence" (optionnel, array)
+3. "nextToolName" (string or null)
+4. "toolArguments" (object, type depends on tool)
+5. "modifiedToolSequence" (optional, array)
 
-Schéma d'exemple :
+Example schema:
 {
-  "thinking": "<raisonnement>",
+  "thinking": "<reasoning>",
   "shouldContinue": true,
-  "nextToolName": "<nom_tool>",
+  "nextToolName": "<tool_name>",
   "toolArguments": { ... },
   "modifiedToolSequence": [ ... ]
 }
 
-Le champ "toolArguments" doit correspondre à la structure attendue par l'outil (cf. exemples plus haut). Tous les champs, sauf "modifiedToolSequence", sont OBLIGATOIRES dans chaque réponse sauf si shouldContinue vaut false : dans ce cas, "nextToolName" et "toolArguments" peuvent être omis ou nuls. La sortie NE DOIT contenir AUCUN texte hors de l'objet JSON.${webInstruction}`; //
+The "toolArguments" field must match the structure expected by the tool (see examples above). All fields except "modifiedToolSequence" are REQUIRED in each response unless shouldContinue is false: in that case, "nextToolName" and "toolArguments" can be omitted or null. Output MUST contain NO text outside the JSON object.${webInstruction}`; //
 
             let intermediateThinkingContent = "";
             const intermediateStream = await openai.chat.completions.create({
-              model: "gpt-4o-mini",
+              model: "gpt-4o", // Intelligent model for precise argument extraction and plan adherence
               messages: [
                 ...initialMessages,
                 {
@@ -1048,10 +1123,10 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
                   content: intermediateThinkingPrompt,
                 },
               ],
-              temperature: 0.3,
-              max_tokens: 400,
+              temperature: 0.1, // Very low temperature for strict plan following in search mode
+              max_tokens: 800, // Increased for comprehensive reasoning in search mode
               stream: true,
-              response_format: { type: "json_object" } as any, // 🔥 JSON MODE STRICT
+              response_format: { type: "json_object" } as any, // JSON MODE STRICT
             });
 
             // Streamer le thinking intermédiaire
@@ -1153,6 +1228,17 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
 
               // 🎯 COORDINATOR: Valider la cohérence thinking/action AVANT d'exécuter
               const previousResults = toolCalls.map((tc) => tc.result);
+
+              // 🆕 Construire le contexte d'exécution avec extractedSources
+              const executionContext: ToolExecutionContext = {
+                executedTools: toolCalls.map((tc) => ({
+                  name: tc.name,
+                  arguments: tc.arguments,
+                  result: tc.result,
+                })),
+                extractedSources: extractedSources,
+              };
+
               const coordinatorValidation =
                 await CoordinatorService.validateCoherence({
                   thinking: intermediateParsed.thinking,
@@ -1160,6 +1246,7 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
                   toolArguments: toolArgs,
                   previousToolResults: previousResults,
                   originalPlan: validatedToolSequence.map((t) => t.toolName),
+                  executionContext: executionContext, // 🆕 Passer le contexte avec extractedSources
                 });
 
               if (!coordinatorValidation.isValid) {
@@ -1192,10 +1279,23 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
                       "read_rag_source" &&
                     !toolArgs.query
                   ) {
-                    toolArgs.query = query; // Utiliser la query originale
-                    console.log(
-                      `🔧 [COORDINATOR] Query ajoutée pour read_rag_source: ${query}`,
+                    // 🎯 OPTIMISATION: Générer une query spécifique à la source au lieu d'utiliser la query brute
+                    const sourceToRead = extractedSources.find(
+                      (s) => s.id === toolArgs.sourceId,
                     );
+                    if (sourceToRead) {
+                      // Générer une query optimisée basée sur le titre de la source
+                      toolArgs.query = `définition, propriétés, formules et applications de ${sourceToRead.title.toLowerCase()}`;
+                      console.log(
+                        `🔧 [COORDINATOR] Query optimisée générée pour read_rag_source: ${toolArgs.query}`,
+                      );
+                    } else {
+                      // Fallback: utiliser la query originale si la source n'est pas trouvée
+                      toolArgs.query = query;
+                      console.log(
+                        `🔧 [COORDINATOR] Query fallback ajoutée pour read_rag_source: ${query}`,
+                      );
+                    }
                   }
                 } else if (coordinatorValidation.shouldBlock) {
                   // Bloquer SEULEMENT si aucune correction n'est possible
@@ -1327,6 +1427,45 @@ Le champ "toolArguments" doit correspondre à la structure attendue par l'outil 
     } catch (error) {
       console.error(`❌ [PHASE-1] Erreur boucle agentic:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * 🔄 Gère la récupération intelligente en cas d'erreur UUID
+   */
+  private static handleUUIDErrorRecovery(
+    result: string,
+    toolStep: any,
+    validatedToolSequence: any[],
+    iterationIdx: number,
+  ): void {
+    const hasUUIDError =
+      result.includes("Invalid UUID") ||
+      result.includes("Inconsistent column data") ||
+      result.includes("invalid character");
+    const isReadRAGFailure =
+      toolStep.toolName === "read_rag_source" && result.startsWith("❌");
+
+    if (hasUUIDError && isReadRAGFailure) {
+      console.log(
+        `🔄 [UUID-RECOVERY] Erreur UUID détectée, injection list_available_sources pour recovery`,
+      );
+
+      const hasListInPlan = validatedToolSequence.some(
+        (t) => t.toolName === "list_available_sources",
+      );
+
+      if (!hasListInPlan && validatedToolSequence.length < 10) {
+        validatedToolSequence.splice(iterationIdx + 1, 0, {
+          step: iterationIdx + 2,
+          toolName: "list_available_sources",
+          description: "Recovery: Lister sources pour obtenir vrais UUIDs",
+        });
+
+        console.log(
+          `✅ [UUID-RECOVERY] list_available_sources injecté position ${iterationIdx + 1}`,
+        );
+      }
     }
   }
 }
