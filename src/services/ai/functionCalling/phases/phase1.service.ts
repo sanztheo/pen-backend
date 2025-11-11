@@ -171,6 +171,14 @@ Adaptive approach based on scores:
       const firstThinkingPrompt = isSearch
         ? `You need to create a structured JSON plan to explore a topic in depth.
 
+# MODE REQUIREMENTS: ${detectedMode.toUpperCase()}
+- Minimum tools required: ${toolLimits.minTools}
+- Maximum tools allowed: ${toolLimits.maxTools}
+- Recommended number: ${toolLimits.recommended}
+
+⚠️ CRITICAL: Your plan MUST include at least ${toolLimits.minTools} tools to be valid.
+The validator will REJECT any plan with fewer than ${toolLimits.minTools} tools.
+
 # AVAILABLE TOOLS (by category)
 
 ## LIST SOURCES
@@ -251,7 +259,7 @@ HYBRID MODE (local sources available):
 - You should reformulate the user query for ALL tools that accept "query" or "question" parameters
 - Query optimization: Fix spelling, enrich with keywords, make vague queries more precise
 - Each tool should be different and complementary at each step
-- \`totalIterations\`: value between ${isWebOnlyMode ? "2 and 5 (focus on multi-web searches)" : "1 and 8"}
+- \`totalIterations\`: MUST be at least ${toolLimits.minTools} (minimum required), recommended ${toolLimits.recommended}, maximum ${toolLimits.maxTools}
 - If you use \`check_sources_rag_status\`, first retrieve the source IDs
 - Use only the tools listed above; for read and consultation operations, you can call automatically; for any state change or destructive operation, require explicit confirmation before execution
 - Before calling any important tool, briefly indicate why you're calling it and the minimal parameters used
@@ -302,10 +310,17 @@ GENERATE the JSON plan NOW. No text before or after the JSON.
 ## Output format
 - The JSON plan must strictly respect the schema above
 - Tools always in prescribed order at start: \`list_available_sources\`, then \`list_global_wikipedia_sources\`
-- \`totalIterations\` MUST be specified and between 1 and 8 depending on mode
+- \`totalIterations\` MUST be at least ${toolLimits.minTools} tools in your plan
 - Don't use \`read_rag_source\` without validated ID
 - If no sources found, include \`search_web\` as fallback in sequence`
-        : `You need to create a SIMPLE JSON plan for QUICK ASK mode (1-3 tools maximum).
+        : `You need to create a SIMPLE JSON plan for QUICK ASK mode.
+
+# MODE REQUIREMENTS: ${detectedMode.toUpperCase()}
+- Minimum tools required: ${toolLimits.minTools}
+- Maximum tools allowed: ${toolLimits.maxTools}
+- Recommended number: ${toolLimits.recommended}
+
+⚠️ IMPORTANT: Your plan MUST include at least ${toolLimits.minTools} tools to be valid.
 
 # SIMPLIFIED AVAILABLE TOOLS
 
@@ -426,8 +441,7 @@ GENERATE the JSON plan NOW. Maximum 3 tools. No text before or after the JSON.`;
         throw new Error("Invalid first thinking plan format");
       }
 
-      const { totalIterations, toolSequence, optimizedQuery } =
-        firstThinkingPlan.plan;
+      const { toolSequence, optimizedQuery } = firstThinkingPlan.plan;
 
       // 🎯 Extraire la query optimisée du plan (ou fallback sur query originale)
       const queryToUse =
