@@ -128,9 +128,10 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     // 🔥 PHASE 1: Function Calling pour rassembler l'information
     console.log(`🔧 [CREATE-PHASE-1] Démarrage avec reflection: ${reflection}`);
 
-    const { CoordinatorService, type OrchestrationRequest } = await import(
+    const { CoordinatorService } = await import(
       "../../../services/ai/functionCalling/index.js"
     );
+    type OrchestrationRequest = import("../../../services/ai/functionCalling/index.js").OrchestrationRequest;
     const { indexAndPreparePagesForAI } = await import(
       "../helpers/pageIndexing.js"
     );
