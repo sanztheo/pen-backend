@@ -138,19 +138,19 @@ If after reading all provided sources the information appears insufficient, you 
 
 Note: The user's source selection should be respected, but you have flexibility to gather additional information if needed after reading the provided sources.`;
       }
-      // 🎯 SCÉNARIO 3: all_source (exploration libre)
+      // SCÉNARIO 3: all_source (exploration libre)
       else if (isAllSourceMode) {
-        contextualInstructions = `\n\n📌 CONTEXTE: Mode exploration libre (all_source) - Aucune source spécifique.
+        contextualInstructions = `\n\nCONTEXT: Free exploration mode (all_source) - No specific sources selected.
 
-🎯 STRATÉGIE RECOMMANDÉE (EXPLORATION COMPLÈTE) :
-1. **DÉCOUVERTE**: Commence par lister TOUTES les sources disponibles
-   - Appelle "list_available_sources" pour les sources personnelles
-   - Appelle "list_global_wikipedia_sources" pour les sources Wikipedia globales
-2. **SÉLECTION**: Identifie les sources les plus pertinentes pour la question
-3. **LECTURE**: Lis les 2-3 meilleures sources avec "read_rag_source"
-4. **ENRICHISSEMENT**: Si ${useWeb ? 'web activé, utilise "search_web" pour compléter' : "besoin, cherche dans d'autres sources"}
+RECOMMENDED STRATEGY (COMPLETE EXPLORATION):
+1. DISCOVERY: Start by listing ALL available sources
+   - Call "list_available_sources" for personal sources
+   - Call "list_global_wikipedia_sources" for global Wikipedia sources
+2. SELECTION: Identify the most relevant sources for the question
+3. READING: Read the 2-3 best sources with "read_rag_source"
+4. ENRICHMENT: If ${useWeb ? 'web enabled, use "search_web" to complete' : "needed, search in other sources"}
 
-⚠️ NOTE: Mode exploration complète - explore toutes les options disponibles.`;
+NOTE: Complete exploration mode - explore all available options.`;
       }
 
       // Add useWeb instruction with adaptive priority
@@ -176,7 +176,7 @@ Adaptive approach based on scores:
 - Maximum tools allowed: ${toolLimits.maxTools}
 - Recommended number: ${toolLimits.recommended}
 
-⚠️ CRITICAL: Your plan MUST include at least ${toolLimits.minTools} tools to be valid.
+CRITICAL: Your plan MUST include at least ${toolLimits.minTools} tools to be valid.
 The validator will REJECT any plan with fewer than ${toolLimits.minTools} tools.
 
 # AVAILABLE TOOLS (by category)
@@ -320,7 +320,7 @@ GENERATE the JSON plan NOW. No text before or after the JSON.
 - Maximum tools allowed: ${toolLimits.maxTools}
 - Recommended number: ${toolLimits.recommended}
 
-⚠️ IMPORTANT: Your plan MUST include at least ${toolLimits.minTools} tools to be valid.
+IMPORTANT: Your plan MUST include at least ${toolLimits.minTools} tools to be valid.
 
 # SIMPLIFIED AVAILABLE TOOLS
 
@@ -385,22 +385,22 @@ GENERATE the JSON plan NOW. Maximum 3 tools. No text before or after the JSON.`;
 
       let firstThinkingContent = "";
       const firstThinkingStream = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o", // More intelligent model for complex planning
         messages: [
           {
             role: "system",
             content:
-              "You are an expert in query structuring. You generate ONLY valid JSON, without additional text.",
+              "You are an expert AI assistant specialized in query analysis and tool orchestration. Generate valid JSON plans without emojis or decorative symbols. Focus on precise, structured planning with clear reasoning.",
           },
           {
             role: "user",
             content: firstThinkingPrompt,
           },
         ],
-        temperature: 0.3,
-        max_tokens: 800, // Increased to allow optimizedQuery + complete plan
+        temperature: 0.2, // Lower temperature for more consistent planning
+        max_tokens: 1000, // Increased for complex plans with multiple tools
         stream: true,
-        response_format: { type: "json_object" } as any, // 🔥 JSON MODE STRICT
+        response_format: { type: "json_object" } as any, // JSON MODE STRICT
       });
 
       // Collecter le contenu du premier thinking
