@@ -1208,20 +1208,62 @@ The "toolArguments" field must match the structure expected by the tool (see exa
                 // 🔥 IMPORTANT: Si on a modifié le plan, on doit CONTINUER même si shouldContinue est false
                 // Sinon on ne va jamais exécuter le nouveau plan!
               } else if (intermediateParsed.shouldContinue === false) {
-                // 🔥 NEW: Check if AI wants to stop the loop (SEULEMENT si pas de modifiedToolSequence)
-                console.log(
-                  `⏹️ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] IA a décidé d'arrêter la boucle`,
-                );
-                intermediateThinkingBlocks.push({
-                  iteration: iterationIdx,
-                  thinking: intermediateParsed.thinking,
-                  toolArguments: {},
-                  generatedAt: new Date().toISOString(),
-                  nextToolName: "STOP",
-                  score: resultScore, // 🆕 Score du résultat du dernier tool
-                  strategyAdjustment: strategyAdjustment.reasoning, // 🆕 Raison de l'arrêt
-                });
-                break; // Arrêter la boucle agentic
+                // 🔥 VALIDATION STRICTE: L'IA ne peut arrêter que si elle a exécuté au moins 80% du plan
+                const executedTools = iterationIdx + 1;
+                const totalPlannedTools = validatedToolSequence.length;
+                const executionProgress = executedTools / totalPlannedTools;
+                const minProgressToStop = 0.8; // 80% minimum
+
+                // ⚠️ CONDITIONS STRICTES POUR AUTORISER L'ARRÊT PRÉMATURÉ:
+                const canStopEarly =
+                  executionProgress >= minProgressToStop || // Au moins 80% du plan exécuté
+                  (resultScore &&
+                    resultScore.confidence >= 0.95 &&
+                    resultScore.relevance >= 0.95 &&
+                    resultScore.completeness >= 0.95) || // Score parfait (>0.95 partout)
+                  (executedTools >= toolLimits.minTools &&
+                    resultScore &&
+                    resultScore.overallScore >= 0.9); // Au moins minTools + score excellent (>0.9)
+
+                if (canStopEarly) {
+                  console.log(
+                    `⏹️ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] IA a décidé d'arrêter la boucle`,
+                  );
+                  console.log(
+                    `   ✅ VALIDATION: Arrêt autorisé (progress: ${(executionProgress * 100).toFixed(0)}%, executedTools: ${executedTools}/${totalPlannedTools}, score: ${resultScore?.overallScore?.toFixed(2) || "N/A"})`,
+                  );
+                  intermediateThinkingBlocks.push({
+                    iteration: iterationIdx,
+                    thinking: intermediateParsed.thinking,
+                    toolArguments: {},
+                    generatedAt: new Date().toISOString(),
+                    nextToolName: "STOP",
+                    score: resultScore,
+                    strategyAdjustment: strategyAdjustment.reasoning,
+                  });
+                  break; // Arrêter la boucle agentic
+                } else {
+                  // ❌ ARRÊT REFUSÉ: L'IA doit continuer le plan
+                  console.warn(
+                    `❌ [INTERMEDIATE-THINKING-AFTER-${iterationIdx}] Arrêt REFUSÉ par validation stricte`,
+                  );
+                  console.warn(
+                    `   ⚠️ Progress insuffisant: ${(executionProgress * 100).toFixed(0)}% (minimum: ${minProgressToStop * 100}%)`,
+                  );
+                  console.warn(
+                    `   ⚠️ Tools exécutés: ${executedTools}/${totalPlannedTools} (minimum: ${Math.ceil(totalPlannedTools * minProgressToStop)})`,
+                  );
+                  console.warn(
+                    `   ⚠️ Score actuel: ${resultScore?.overallScore?.toFixed(2) || "N/A"} (minimum pour early stop: 0.90)`,
+                  );
+                  console.warn(
+                    `   🔄 Poursuite forcée du plan: ${validatedToolSequence
+                      .slice(iterationIdx + 1)
+                      .map((t) => t.toolName)
+                      .join(" → ")}`,
+                  );
+                  // Ne pas break, continuer avec le plan original
+                }
               }
 
               toolArgs = intermediateParsed.toolArguments || {};
