@@ -26,6 +26,8 @@ export type {
 // Export des services (pour usage avancé)
 export { Phase1Service, Phase2Service } from './phases/index.js';
 export { LegacyService } from './legacy/index.js';
+export { PlannerService } from './planner.service.js';
+export type { PlanRequest, Plan, ToolStep } from './planner.service.js';
 
 // Export des utilitaires (pour usage avancé)
 export {
