@@ -18,6 +18,7 @@ import {
   analyzeQuery,
   optimizePrompt,
 } from "../helpers/promptOptimizer.js";
+import { mapRagSourcesToRealUUIDs } from "../helpers/sourceMapping.js";
 
 // 🚀 NOUVEAUX SERVICES (refactoring architecture)
 import { DebugLogger } from "../config/debug.js";
@@ -170,61 +171,8 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
         `🔧 [CREATE] Pas de pages spécifiques - utiliser les sources RAG externes`,
       );
 
-      // 🔥 FIX: Résoudre les vrais UUID des sources RAG (surtout Wikipedia)
-      const resolvedSources = await Promise.all(
-        ragSources.map(async (s: any) => {
-          // Si l'ID commence par "wiki_", c'est un ID Wikipedia à résoudre
-          if (s.id && typeof s.id === "string" && s.id.startsWith("wiki_")) {
-            // Extraire le numéro de page Wikipedia (ex: "wiki_7266" → "7266")
-            const wikiPageId = s.id.replace("wiki_", "");
-
-            // Chercher la source Wikipedia dans la DB par titre (plus fiable)
-            const wikiSource = await prisma.rAGSource.findFirst({
-              where: {
-                sourceType: "WIKIPEDIA",
-                title: s.title || "",
-              },
-              select: {
-                id: true,
-                title: true,
-                sourceType: true,
-              },
-            });
-
-            if (wikiSource) {
-              console.log(
-                `✅ [WIKI-RESOLVE] "${s.title}" → UUID: ${wikiSource.id}`,
-              );
-              return {
-                id: wikiSource.id, // Vrai UUID de la DB
-                title: wikiSource.title,
-                type: wikiSource.sourceType,
-              };
-            } else {
-              console.warn(
-                `⚠️ [WIKI-RESOLVE] Source Wikipedia non trouvée: "${s.title}" (ID: ${s.id})`,
-              );
-              return null; // Ignorer les sources non trouvées
-            }
-          }
-
-          // Pour les autres sources, utiliser l'ID tel quel (déjà un UUID)
-          return {
-            id: s.id || "",
-            title: s.title || "",
-            type: s.type || "UNKNOWN",
-          };
-        }),
-      );
-
-      // Filtrer les sources non résolues (null)
-      sourcesForAI = resolvedSources.filter(
-        (s): s is NonNullable<typeof s> => s !== null,
-      );
-
-      console.log(
-        `✅ [WIKI-RESOLVE] ${sourcesForAI.length}/${ragSources.length} sources résolues avec UUID valides`,
-      );
+      // 🔥 FIX: Utiliser la fonction helper pour mapper les IDs vers vrais UUIDs
+      sourcesForAI = await mapRagSourcesToRealUUIDs(ragSources);
     }
 
     // 🔥 Limites selon reflection: rapide = mode standard (0-2 tools), profond = mode search (3-5+ tools)

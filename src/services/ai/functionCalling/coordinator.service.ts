@@ -1,50 +1,104 @@
 /**
  * 🎯 COORDINATOR SERVICE
- * 
+ *
  * Inspired by Cursor's architecture:
  * - Valide la cohérence entre thinking et actions
  * - Détecte les incohérences dans le plan
  * - Propose des corrections automatiques
  * - Empêche l'IA de sauter des étapes sans justification
+ * - 🆕 Valide les dépendances entre tools (graphe strict)
  */
 
-import { AIService } from '../base.js';
-import { ScoringService } from './scoring.service.js';
+import { AIService } from "../base.js";
+import { ScoringService } from "./scoring.service.js";
+import {
+  ToolDependenciesValidator,
+  type ToolExecutionContext,
+  type DependencyValidationResult,
+} from "./toolDependencies.js";
 
 export interface CoordinatorInput {
-  thinking: string;              // Ce que l'IA dit qu'elle va faire
-  nextToolName: string | null;   // Le tool qu'elle veut appeler
-  toolArguments: any;             // Les arguments du tool
-  previousToolResults: string[];  // Historique des résultats des tools
-  originalPlan: string[];         // Plan initial
-  modifiedPlan?: string[];        // Plan modifié (si l'IA veut changer)
+  thinking: string; // Ce que l'IA dit qu'elle va faire
+  nextToolName: string | null; // Le tool qu'elle veut appeler
+  toolArguments: any; // Les arguments du tool
+  previousToolResults: string[]; // Historique des résultats des tools
+  originalPlan: string[]; // Plan initial
+  modifiedPlan?: string[]; // Plan modifié (si l'IA veut changer)
+  executionContext?: ToolExecutionContext; // 🆕 Contexte d'exécution avec extractedSources
 }
 
 export interface CoordinatorOutput {
-  isValid: boolean;               // Le plan est-il cohérent ?
-  correctedToolName?: string;     // Tool corrigé si incohérence
-  correctedArguments?: any;       // Arguments corrigés
-  reasoning: string;              // Explication de la décision
-  shouldBlock: boolean;           // Bloquer l'exécution ?
+  isValid: boolean; // Le plan est-il cohérent ?
+  correctedToolName?: string; // Tool corrigé si incohérence
+  correctedArguments?: any; // Arguments corrigés
+  reasoning: string; // Explication de la décision
+  shouldBlock: boolean; // Bloquer l'exécution ?
 }
 
 export class CoordinatorService {
   /**
    * 🔍 Valide la cohérence entre le thinking et l'action proposée
    */
-  static async validateCoherence(input: CoordinatorInput): Promise<CoordinatorOutput> {
-    const { thinking, nextToolName, previousToolResults, originalPlan } = input;
+  static async validateCoherence(
+    input: CoordinatorInput,
+  ): Promise<CoordinatorOutput> {
+    const {
+      thinking,
+      nextToolName,
+      previousToolResults,
+      originalPlan,
+      toolArguments,
+    } = input;
 
     console.log(`🎯 [COORDINATOR] Validation de cohérence...`);
     console.log(`   Thinking: "${thinking.slice(0, 100)}..."`);
     console.log(`   Tool proposé: ${nextToolName}`);
+
+    // 🆕 ÉTAPE 0 : Valider les DÉPENDANCES entre tools (mode WARNING, pas BLOCKING)
+    // Inspiré de Cursor: le coordinator GUIDE, il ne BLOQUE pas systématiquement
+    if (nextToolName) {
+      const depValidation = await this.validateToolDependencies(
+        nextToolName,
+        toolArguments || {},
+        input,
+      );
+
+      if (!depValidation.isValid) {
+        console.warn(
+          `⚠️ [COORDINATOR] Dépendances suspectes: ${depValidation.reasoning}`,
+        );
+
+        // Ne bloquer QUE si c'est une erreur CRITIQUE (pas juste une validation heuristique)
+        const isCriticalError =
+          depValidation.reasoning.includes("DOIT être appelé") ||
+          depValidation.reasoning.includes("aucune source listée") ||
+          depValidation.reasoning.includes("CRITIQUE");
+
+        if (isCriticalError && depValidation.shouldBlock) {
+          console.error(
+            `❌ [COORDINATOR] Erreur CRITIQUE détectée, blocage nécessaire`,
+          );
+          return {
+            isValid: false,
+            reasoning: depValidation.reasoning,
+            shouldBlock: true,
+            correctedArguments: depValidation.suggestedFix?.arguments,
+          };
+        }
+
+        // Sinon, WARNING seulement (laisser passer mais logger)
+        console.log(
+          `⚠️ [COORDINATOR] Validation faible mais on continue (coordinator guide, ne bloque pas)`,
+        );
+      }
+    }
 
     // 🔥 DÉTECTION D'INCOHÉRENCES ÉVIDENTES
     const incoherences = this.detectIncoherences(thinking, nextToolName);
 
     if (incoherences.length > 0) {
       console.warn(`⚠️ [COORDINATOR] Incohérences détectées:`, incoherences);
-      
+
       // Appeler l'IA Coordinator pour corriger
       return await this.callCoordinatorAI(input, incoherences);
     }
@@ -53,58 +107,70 @@ export class CoordinatorService {
     console.log(`✅ [COORDINATOR] Plan cohérent, validation OK`);
     return {
       isValid: true,
-      reasoning: 'Plan cohérent avec le thinking',
-      shouldBlock: false
+      reasoning: "Plan cohérent avec le thinking",
+      shouldBlock: false,
     };
   }
 
   /**
    * 🔍 Détecte les incohérences évidentes (règles heuristiques)
    */
-  private static detectIncoherences(thinking: string, nextToolName: string | null): string[] {
+  private static detectIncoherences(
+    thinking: string,
+    nextToolName: string | null,
+  ): string[] {
     const incoherences: string[] = [];
     const thinkingLower = thinking.toLowerCase();
 
     // Règle 1: L'IA dit "je vais lire" mais appelle search_web
     if (
-      (thinkingLower.includes('je vais lire') || 
-       thinkingLower.includes('lire la source') ||
-       thinkingLower.includes('lire les sources')) &&
-      nextToolName === 'search_web'
+      (thinkingLower.includes("je vais lire") ||
+        thinkingLower.includes("lire la source") ||
+        thinkingLower.includes("lire les sources")) &&
+      nextToolName === "search_web"
     ) {
-      incoherences.push(`Thinking dit "lire les sources" mais appelle "search_web"`);
+      incoherences.push(
+        `Thinking dit "lire les sources" mais appelle "search_web"`,
+      );
     }
 
     // Règle 2: L'IA dit "sélectionner" mais saute à autre chose
     if (
-      (thinkingLower.includes('sélectionner') || 
-       thinkingLower.includes('choisir les sources')) &&
-      nextToolName !== 'select_relevant_sources' &&
+      (thinkingLower.includes("sélectionner") ||
+        thinkingLower.includes("choisir les sources")) &&
+      nextToolName !== "select_relevant_sources" &&
       nextToolName !== null
     ) {
-      incoherences.push(`Thinking dit "sélectionner" mais appelle "${nextToolName}"`);
+      incoherences.push(
+        `Thinking dit "sélectionner" mais appelle "${nextToolName}"`,
+      );
     }
 
     // Règle 3: L'IA dit "rechercher sur le web" mais appelle autre chose
     if (
-      (thinkingLower.includes('rechercher sur le web') || 
-       thinkingLower.includes('chercher sur internet') ||
-       thinkingLower.includes('web')) &&
-      nextToolName !== 'search_web' &&
-      !thinkingLower.includes('pas besoin')
+      (thinkingLower.includes("rechercher sur le web") ||
+        thinkingLower.includes("chercher sur internet") ||
+        thinkingLower.includes("web")) &&
+      nextToolName !== "search_web" &&
+      !thinkingLower.includes("pas besoin")
     ) {
-      incoherences.push(`Thinking mentionne "web" mais appelle "${nextToolName}"`);
+      incoherences.push(
+        `Thinking mentionne "web" mais appelle "${nextToolName}"`,
+      );
     }
 
     // Règle 4: L'IA dit avoir trouvé des sources pertinentes mais veut faire search_web
     if (
-      (thinkingLower.includes('trouvé') && 
-       (thinkingLower.includes('source') || thinkingLower.includes('pertinent'))) &&
-      nextToolName === 'search_web' &&
-      !thinkingLower.includes('compléter') &&
-      !thinkingLower.includes('enrichir')
+      thinkingLower.includes("trouvé") &&
+      (thinkingLower.includes("source") ||
+        thinkingLower.includes("pertinent")) &&
+      nextToolName === "search_web" &&
+      !thinkingLower.includes("compléter") &&
+      !thinkingLower.includes("enrichir")
     ) {
-      incoherences.push(`Thinking dit avoir trouvé des sources mais appelle "search_web" sans justification`);
+      incoherences.push(
+        `Thinking dit avoir trouvé des sources mais appelle "search_web" sans justification`,
+      );
     }
 
     return incoherences;
@@ -115,14 +181,14 @@ export class CoordinatorService {
    */
   private static async callCoordinatorAI(
     input: CoordinatorInput,
-    incoherences: string[]
+    incoherences: string[],
   ): Promise<CoordinatorOutput> {
     const openai = AIService.getOpenAI();
 
     const coordinatorPrompt = `Tu es un Coordinator IA qui vérifie la cohérence des plans d'action.
 
 **INCOHÉRENCES DÉTECTÉES** :
-${incoherences.map((inc, i) => `${i + 1}. ${inc}`).join('\n')}
+${incoherences.map((inc, i) => `${i + 1}. ${inc}`).join("\n")}
 
 **THINKING DE L'IA** :
 "${input.thinking}"
@@ -132,7 +198,7 @@ Tool: ${input.nextToolName}
 Arguments: ${JSON.stringify(input.toolArguments)}
 
 **RÉSULTATS PRÉCÉDENTS** :
-${input.previousToolResults.slice(-2).join('\n---\n')}
+${input.previousToolResults.slice(-2).join("\n---\n")}
 
 **TA MISSION** :
 Analyse l'incohérence et décide :
@@ -160,23 +226,24 @@ Analyse l'incohérence et décide :
 
     try {
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: "gpt-4o", // Intelligent model for coherence validation
         messages: [
           {
-            role: 'system',
-            content: 'Tu es un Coordinator expert qui valide la cohérence des plans IA. Tu retournes UNIQUEMENT du JSON.'
+            role: "system",
+            content:
+              "You are an expert AI coordinator that validates plan coherence. Return ONLY valid JSON without decorative symbols.",
           },
           {
-            role: 'user',
-            content: coordinatorPrompt
-          }
+            role: "user",
+            content: coordinatorPrompt,
+          },
         ],
-        temperature: 0.2,
-        max_tokens: 300,
-        response_format: { type: 'json_object' }
+        temperature: 0.1, // Very low temperature for consistent validation
+        max_tokens: 400, // Increased for detailed reasoning
+        response_format: { type: "json_object" },
       });
 
-      const content = response.choices[0]?.message?.content || '{}';
+      const content = response.choices[0]?.message?.content || "{}";
       const result = JSON.parse(content) as CoordinatorOutput;
 
       console.log(`🎯 [COORDINATOR-AI] Décision:`, result);
@@ -184,12 +251,12 @@ Analyse l'incohérence et décide :
       return result;
     } catch (error) {
       console.error(`❌ [COORDINATOR-AI] Erreur:`, error);
-      
+
       // Fallback: bloquer par sécurité
       return {
         isValid: false,
         shouldBlock: true,
-        reasoning: `Erreur Coordinator: ${error instanceof Error ? error.message : 'Erreur inconnue'}. Blocage par sécurité.`
+        reasoning: `Erreur Coordinator: ${error instanceof Error ? error.message : "Erreur inconnue"}. Blocage par sécurité.`,
       };
     }
   }
@@ -203,13 +270,13 @@ Analyse l'incohérence et décide :
   static async enrichValidationWithScores(
     input: CoordinatorInput,
     averageScore: number,
-    strategyRecommendation: string
+    strategyRecommendation: string,
   ): Promise<{ shouldWarn: boolean; warningMessage?: string }> {
     // Si le score moyen est très faible (<0.3), avertir
     if (averageScore < 0.3) {
       return {
         shouldWarn: true,
-        warningMessage: `Score moyen très faible (${averageScore.toFixed(2)}). Les résultats précédents sont insuffisants. ${strategyRecommendation}`
+        warningMessage: `Score moyen très faible (${averageScore.toFixed(2)}). Les résultats précédents sont insuffisants. ${strategyRecommendation}`,
       };
     }
 
@@ -217,19 +284,19 @@ Analyse l'incohérence et décide :
     if (averageScore < 0.6 && input.nextToolName === null) {
       return {
         shouldWarn: true,
-        warningMessage: `Score moyen moyen (${averageScore.toFixed(2)}). L'IA veut arrêter mais les résultats sont partiels. Recommandation: continuer l'exploration.`
+        warningMessage: `Score moyen moyen (${averageScore.toFixed(2)}). L'IA veut arrêter mais les résultats sont partiels. Recommandation: continuer l'exploration.`,
       };
     }
 
     // Si le score moyen est bon (>0.7), tout va bien
     if (averageScore > 0.7) {
       return {
-        shouldWarn: false
+        shouldWarn: false,
       };
     }
 
     return {
-      shouldWarn: false
+      shouldWarn: false,
     };
   }
 
@@ -240,18 +307,18 @@ Analyse l'incohérence et décide :
     originalPlan: string[],
     modifiedPlan: string[],
     lastToolResult: string,
-    thinking: string
+    thinking: string,
   ): Promise<{ isValid: boolean; reasoning: string }> {
     console.log(`🔄 [COORDINATOR] Validation modification de plan...`);
-    console.log(`   Plan original: ${originalPlan.join(' → ')}`);
-    console.log(`   Plan modifié: ${modifiedPlan.join(' → ')}`);
+    console.log(`   Plan original: ${originalPlan.join(" → ")}`);
+    console.log(`   Plan modifié: ${modifiedPlan.join(" → ")}`);
 
     const openai = AIService.getOpenAI();
 
     const validationPrompt = `Tu es un Coordinator qui valide les modifications de plan.
 
-**PLAN ORIGINAL** : ${originalPlan.join(' → ')}
-**PLAN MODIFIÉ** : ${modifiedPlan.join(' → ')}
+**PLAN ORIGINAL** : ${originalPlan.join(" → ")}
+**PLAN MODIFIÉ** : ${modifiedPlan.join(" → ")}
 
 **DERNIER RÉSULTAT** :
 ${lastToolResult.slice(0, 500)}
@@ -275,23 +342,24 @@ La modification de plan est-elle justifiée par le résultat précédent ?
 
     try {
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: "gpt-4o", // Intelligent model for plan modification validation
         messages: [
           {
-            role: 'system',
-            content: 'Tu es un validateur de cohérence de plans. Retourne UNIQUEMENT du JSON.'
+            role: "system",
+            content:
+              "You are an expert plan coherence validator. Return ONLY valid JSON without decorative symbols.",
           },
           {
-            role: 'user',
-            content: validationPrompt
-          }
+            role: "user",
+            content: validationPrompt,
+          },
         ],
-        temperature: 0.2,
-        max_tokens: 200,
-        response_format: { type: 'json_object' }
+        temperature: 0.1, // Very low temperature for consistent validation
+        max_tokens: 300, // Increased for detailed reasoning
+        response_format: { type: "json_object" },
       });
 
-      const content = response.choices[0]?.message?.content || '{}';
+      const content = response.choices[0]?.message?.content || "{}";
       const result = JSON.parse(content);
 
       console.log(`🔄 [COORDINATOR] Validation modification:`, result);
@@ -301,8 +369,54 @@ La modification de plan est-elle justifiée par le résultat précédent ?
       console.error(`❌ [COORDINATOR] Erreur validation:`, error);
       return {
         isValid: false,
-        reasoning: 'Erreur de validation, modification refusée par sécurité'
+        reasoning: "Erreur de validation, modification refusée par sécurité",
       };
     }
+  }
+
+  /**
+   * 🆕 Valide les dépendances d'un tool via ToolDependenciesValidator
+   */
+  private static async validateToolDependencies(
+    toolName: string,
+    toolArguments: any,
+    input: CoordinatorInput,
+  ): Promise<DependencyValidationResult> {
+    // Utiliser le contexte d'exécution fourni, sinon créer un contexte vide
+    const executionContext: ToolExecutionContext = input.executionContext || {
+      executedTools: [],
+      extractedSources: [],
+    };
+
+    return ToolDependenciesValidator.validateDependencies(
+      toolName,
+      toolArguments,
+      executionContext,
+    );
+  }
+
+  /**
+   * 🆕 Valide un plan complet de tools
+   */
+  static validateFullPlan(
+    toolSequence: Array<{ toolName: string; params?: any }>,
+    mode: "ask" | "search" | "create_rapide" | "create_profond",
+  ): DependencyValidationResult {
+    console.log(
+      `🎯 [COORDINATOR] Validation du plan complet (mode: ${mode})...`,
+    );
+
+    const validation = ToolDependenciesValidator.validatePlan(
+      toolSequence,
+      mode,
+    );
+
+    if (!validation.isValid) {
+      console.error(`❌ [COORDINATOR] Plan invalide: ${validation.reasoning}`);
+    } else {
+      console.log(`✅ [COORDINATOR] Plan valide: ${validation.reasoning}`);
+    }
+
+    return validation;
   }
 }
