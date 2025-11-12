@@ -33,6 +33,16 @@ export type { ExecutionStep, ExecutionContext, ExecutionResult, ExecutionCallbac
 export { CoordinatorService } from './coordinator.service.js';
 export type { OrchestrationRequest, OrchestrationResult } from './coordinator.service.js';
 
+// 🚀 Export des services optimisés (architecture Cursor-inspired)
+export { OptimizedExecutorService } from './executor.service.optimized.js';
+export type { OptimizedExecutionContext, ToolExecutionPlan, BatchExecutionResult } from './executor.service.optimized.js';
+export { ThinkingService } from './thinking.service.js';
+export type { PhaseResult, ToolResult, ToolPlan, ReflectionResult } from './thinking.service.js';
+export { CacheService } from './cache.service.js';
+export type { CachedContext, ToolDescription } from './cache.service.js';
+export { MetricsService } from './metrics.service.js';
+export type { ExecutionMetrics } from './metrics.service.js';
+
 // Export des utilitaires (pour usage avancé)
 export {
   parseJSONFromStream,
