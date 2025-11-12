@@ -42,6 +42,8 @@ export { CacheService } from './cache.service.js';
 export type { CachedContext, ToolDescription } from './cache.service.js';
 export { MetricsService } from './metrics.service.js';
 export type { ExecutionMetrics } from './metrics.service.js';
+export { FunctionCallingConfigService } from './config.js';
+export type { FunctionCallingConfig } from './config.js';
 
 // Export des utilitaires (pour usage avancé)
 export {
