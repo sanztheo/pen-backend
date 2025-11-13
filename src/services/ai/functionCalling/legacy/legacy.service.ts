@@ -1,12 +1,12 @@
 /**
  * Service Legacy (deprecated)
  *
- * @deprecated Use Phase1Service.decideAndExecuteTools + Phase2Service.generateWithToolResults instead
+ * @deprecated Use CoordinatorService.orchestrate() + Phase2Service.generateWithToolResults instead
  * Legacy method kept for backward compatibility
  */
 
 import { AIService } from '../../base.js';
-import { Phase1Service } from '../phases/phase1.service.js';
+import { CoordinatorService } from '../coordinator.service.js';
 import { Phase2Service } from '../phases/phase2.service.js';
 import { buildContextFromToolResults } from '../utils/contextBuilder.js';
 import type { FunctionCallingOptions, FunctionCallingResult } from '../types/legacy.types.js';
@@ -16,13 +16,13 @@ import type { FunctionCallingOptions, FunctionCallingResult } from '../types/leg
  */
 export class LegacyService {
   /**
-   * @deprecated Use decideAndExecuteTools + generateWithToolResults instead
+   * @deprecated Use CoordinatorService.orchestrate() + Phase2Service.generateWithToolResults instead
    * Legacy method kept for backward compatibility
    */
   static async generateWithTools(
     options: FunctionCallingOptions
   ): Promise<FunctionCallingResult> {
-    console.warn('[DEPRECATED] generateWithTools() is deprecated. Use two-phase system instead.');
+    console.warn('[DEPRECATED] generateWithTools() is deprecated. Use CoordinatorService.orchestrate() instead.');
 
     const {
       query,
@@ -37,12 +37,13 @@ export class LegacyService {
     } = options;
 
     // Phase 1: Decide and execute tools
-    const toolDecision = await Phase1Service.decideAndExecuteTools({
+    const toolDecision = await CoordinatorService.orchestrate({
       query,
       availableSources,
       workspaceId,
       userId,
       useWeb,
+      isSearch: false, // Legacy mode defaults to ask mode
       systemPrompt,
       onThinking,
       onToolCall,
@@ -50,7 +51,7 @@ export class LegacyService {
     });
 
     // Phase 2: Generate with tool results
-    if (toolDecision.shouldUseTools) {
+    if (toolDecision.success) {
       const toolResults = buildContextFromToolResults(toolDecision.toolCalls);
       const finalResponse = await Phase2Service.generateWithToolResults({
         query,
@@ -64,7 +65,7 @@ export class LegacyService {
         toolCalls: toolDecision.toolCalls,
         thinking: toolDecision.thinking,
         usedFallback: false,
-        intermediateThinkingBlocks: toolDecision.intermediateThinkingBlocks // 🔥 NEW: Include blocks
+        intermediateThinkingBlocks: toolDecision.intermediateThinkingBlocks
       };
     }
 
@@ -81,7 +82,7 @@ export class LegacyService {
       toolCalls: [],
       thinking: toolDecision.thinking,
       usedFallback: true,
-      intermediateThinkingBlocks: [] // 🔥 NEW: Empty array for fallback (no tools used)
+      intermediateThinkingBlocks: toolDecision.intermediateThinkingBlocks
     };
   }
 }

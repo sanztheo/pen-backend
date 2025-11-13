@@ -7,7 +7,7 @@
  * de function calling de manière modulaire et maintainable.
  */
 
-import { Phase1Service } from './phases/phase1.service.js';
+import { CoordinatorService } from './coordinator.service.js';
 import { Phase2Service } from './phases/phase2.service.js';
 import { LegacyService } from './legacy/legacy.service.js';
 import { buildContextFromToolResults, buildInitialPrompt } from './utils/index.js';
@@ -38,11 +38,34 @@ export class FunctionCallingService {
    * - First thinking : génère un plan JSON avec la séquence de tools
    * - Intermediate thinking : génère du JSON avec les arguments pour chaque tool
    * - Exécution des tools avec les arguments dérivés du thinking
+   *
+   * @deprecated Use CoordinatorService.orchestrate() directly for new code
    */
   static async decideAndExecuteTools(
     options: DecideToolsOptions
   ): Promise<DecideToolsResult> {
-    return Phase1Service.decideAndExecuteTools(options);
+    // Redirect to CoordinatorService for backward compatibility
+    const result = await CoordinatorService.orchestrate({
+      query: options.query,
+      workspaceId: options.workspaceId,
+      userId: options.userId,
+      availableSources: options.availableSources,
+      useWeb: options.useWeb,
+      isSearch: options.isSearch ?? false, // Default to ask mode if not specified
+      systemPrompt: options.systemPrompt,
+      onThinking: options.onThinking,
+      onToolCall: options.onToolCall,
+      onToolResult: options.onToolResult,
+      onIntermediateThinking: options.onIntermediateThinking
+    });
+
+    // Map OrchestrationResult to DecideToolsResult
+    return {
+      toolCalls: result.toolCalls,
+      thinking: result.thinking,
+      shouldUseTools: result.success,
+      intermediateThinkingBlocks: result.intermediateThinkingBlocks
+    };
   }
 
   /**
