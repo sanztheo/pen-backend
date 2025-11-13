@@ -115,7 +115,7 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
 }`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o", // Intelligent model for nuanced quality assessment
+        model: "gpt-5.1",
         messages: [
           {
             role: "system",
@@ -128,7 +128,7 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
           },
         ],
         temperature: 0.1, // Very low temperature for consistent scoring
-        max_tokens: 350, // Increased for detailed reasoning
+        max_completion_tokens: 350, // GPT-5 uses max_completion_tokens instead of max_tokens
         response_format: { type: "json_object" },
       });
 
