@@ -241,7 +241,7 @@ Each search_web should explore a complementary angle to local sources.`
           },
         ],
         temperature: 0.2, // Lower temperature for more consistent planning
-        max_completion_tokens: 1000, // GPT-5 uses max_completion_tokens instead of max_tokens
+        max_completion_tokens: isSearch ? 2500 : 1000, // SEARCH mode needs more tokens (10+ tools with detailed reasoning)
         stream: true,
         response_format: { type: "json_object" } as any, // JSON MODE STRICT
       });
