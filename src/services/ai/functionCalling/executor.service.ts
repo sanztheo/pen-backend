@@ -15,8 +15,9 @@ import { parseJSONFromStream } from "./utils/jsonParser.js";
 import {
   isIntermediateThinkingOutput,
   type IntermediateThinkingOutput,
-} from "../../types/ragThinking.js";
+} from "../../../types/ragThinking.js";
 import type { StrategyAdjustment } from "./scoring.service.js";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 
 /**
  * Représente un step à exécuter dans le plan
@@ -50,7 +51,7 @@ export interface ExecutionContext {
   currentIteration: number;
   maxIterations: number;
   remainingTools: string[];
-  initialMessages: Array<{ role: string; content: string }>;
+  initialMessages: ChatCompletionMessageParam[];
   strategyAdjustment?: StrategyAdjustment;
 }
 
@@ -251,7 +252,7 @@ export class ExecutorService {
         intermediateParsed.modifiedToolSequence.length > 0
       ) {
         console.log(
-          `🔄 [EXECUTOR] IA veut modifier le plan: ${intermediateParsed.modifiedToolSequence.map((t) => t.toolName).join(" → ")}`,
+          `🔄 [EXECUTOR] IA veut modifier le plan: ${intermediateParsed.modifiedToolSequence.map((t: { toolName: string }) => t.toolName).join(" → ")}`,
         );
       }
 
@@ -306,7 +307,7 @@ export class ExecutorService {
         thinking: intermediateParsed.thinking,
         extractedSources,
         success: !result.startsWith("❌"),
-        shouldContinue: intermediateParsed.shouldContinue !== false,
+        shouldContinue: intermediateParsed.shouldContinue ?? true,
         modifiedToolSequence: intermediateParsed.modifiedToolSequence,
         intermediateParsed,
       };
