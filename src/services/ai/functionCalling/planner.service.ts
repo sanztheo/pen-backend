@@ -328,23 +328,57 @@ Each search_web should explore a complementary angle to local sources.`
         detectedMode,
       );
 
+      let finalToolSequence = validatedToolSequence;
+
       if (!planValidation.isValid) {
         console.error(
           `❌ [PLANNER] Plan invalide: ${planValidation.reasoning}`,
         );
-        console.error(
-          `   Suggestions: ${planValidation.missingDependencies?.join(", ")}`,
-        );
 
-        // En mode strict, on pourrait bloquer ici
-        // Pour l'instant, on continue avec un warning
-        console.warn(
-          `⚠️ [PLANNER] Poursuite malgré les erreurs de validation du plan`,
-        );
+        // 🔧 Si un plan corrigé est disponible, l'utiliser au lieu de bloquer
+        if (
+          planValidation.suggestedFix &&
+          planValidation.suggestedFix.toolName === "PLAN_CORRECTION"
+        ) {
+          const correctedPlan = planValidation.suggestedFix.arguments
+            .correctedPlan as Array<{ toolName: string; params?: any }>;
+
+          console.log(
+            `🔧 [PLANNER] Utilisation du plan corrigé automatiquement`,
+          );
+          console.log(
+            `   Ancien: ${validatedToolSequence.map((t) => t.toolName).join(" → ")}`,
+          );
+          console.log(
+            `   Nouveau: ${correctedPlan.map((t) => t.toolName).join(" → ")}`,
+          );
+
+          // Mapper le plan corrigé avec les détails complets
+          finalToolSequence = correctedPlan.map((correctedTool, idx) => {
+            // Retrouver le tool original pour garder ses paramètres
+            const originalTool = validatedToolSequence.find(
+              (t) => t.toolName === correctedTool.toolName,
+            );
+            return (
+              originalTool || {
+                step: idx + 1,
+                toolName: correctedTool.toolName,
+                description: `Tool ${correctedTool.toolName}`,
+              }
+            );
+          });
+        } else {
+          console.error(
+            `   Suggestions: ${planValidation.missingDependencies?.join(", ")}`,
+          );
+          console.warn(
+            `⚠️ [PLANNER] Poursuite malgré les erreurs de validation du plan`,
+          );
+        }
       }
 
       return {
-        toolSequence: validatedToolSequence,
+        toolSequence: finalToolSequence,
         optimizedQuery: queryToUse,
         reasoning,
         totalIterations,
