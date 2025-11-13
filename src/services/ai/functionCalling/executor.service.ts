@@ -154,10 +154,10 @@ export class ExecutorService {
         strategyAdjustment: context.strategyAdjustment,
       });
 
-      // Appeler GPT-4o pour générer les arguments
+      // Appeler GPT-5 pour générer les arguments
       let intermediateThinkingContent = "";
       const intermediateStream = await openai.chat.completions.create({
-        model: "gpt-4o", // Intelligent model for precise argument extraction and plan adherence
+        model: "gpt-5.1",
         messages: [
           ...context.initialMessages,
           {
@@ -166,7 +166,7 @@ export class ExecutorService {
           },
         ],
         temperature: 0.1, // Very low temperature for strict plan following in search mode
-        max_tokens: 800, // Increased for comprehensive reasoning in search mode
+        max_completion_tokens: 800, // GPT-5 uses max_completion_tokens instead of max_tokens
         stream: true,
         response_format: { type: "json_object" } as any, // JSON MODE STRICT
       });

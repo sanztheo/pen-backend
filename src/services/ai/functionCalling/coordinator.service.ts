@@ -912,7 +912,7 @@ Analyse l'incohérence et décide :
 
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o", // Intelligent model for coherence validation
+        model: "gpt-5.1",
         messages: [
           {
             role: "system",
@@ -925,7 +925,7 @@ Analyse l'incohérence et décide :
           },
         ],
         temperature: 0.1, // Very low temperature for consistent validation
-        max_tokens: 400, // Increased for detailed reasoning
+        max_completion_tokens: 400, // GPT-5 uses max_completion_tokens instead of max_tokens
         response_format: { type: "json_object" },
       });
 
@@ -1028,7 +1028,7 @@ La modification de plan est-elle justifiée par le résultat précédent ?
 
     try {
       const response = await openai.chat.completions.create({
-        model: "gpt-4o", // Intelligent model for plan modification validation
+        model: "gpt-5.1",
         messages: [
           {
             role: "system",
@@ -1041,7 +1041,7 @@ La modification de plan est-elle justifiée par le résultat précédent ?
           },
         ],
         temperature: 0.1, // Very low temperature for consistent validation
-        max_tokens: 300, // Increased for detailed reasoning
+        max_completion_tokens: 300, // GPT-5 uses max_completion_tokens instead of max_tokens
         response_format: { type: "json_object" },
       });
 
