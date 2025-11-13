@@ -133,7 +133,10 @@ export class ThinkingService {
       console.log(
         `✅ [THINKING] Pas de réflexion nécessaire - phase "${result.phase}" OK`,
       );
-      return { action: "continue", reasoning: "Phase successful, no reflection needed" };
+      return {
+        action: "continue",
+        reasoning: "Phase successful, no reflection needed",
+      };
     }
 
     console.log(
@@ -143,7 +146,7 @@ export class ThinkingService {
     // Appel OpenAI avec contexte caché
     const cachedContext = CacheService.getCachedContext();
     const reflection = await AIService.getOpenAI().chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-5.1",
       messages: [
         {
           role: "system",
@@ -155,7 +158,7 @@ export class ThinkingService {
         },
       ],
       temperature: 0.2,
-      max_tokens: 500,
+      max_completion_tokens: 500,
       response_format: { type: "json_object" },
     });
 

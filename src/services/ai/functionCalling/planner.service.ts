@@ -213,7 +213,7 @@ Adaptive approach based on scores:
 
       let firstThinkingContent = "";
       const firstThinkingStream = await openai.chat.completions.create({
-        model: "gpt-4o", // More intelligent model for complex planning
+        model: "gpt-5.1",
         messages: [
           {
             role: "system",
@@ -226,7 +226,7 @@ Adaptive approach based on scores:
           },
         ],
         temperature: 0.2, // Lower temperature for more consistent planning
-        max_tokens: 1000, // Increased for complex plans with multiple tools
+        max_completion_tokens: 1000, // GPT-5 uses max_completion_tokens instead of max_tokens
         stream: true,
         response_format: { type: "json_object" } as any, // JSON MODE STRICT
       });
@@ -462,7 +462,10 @@ HYBRID MODE (local sources available):
         "toolName": "<tool name>",
         "description": "<brief action description>",
         "params": {
-          // Optional: parameters like sourceId (if required by tool)
+          // REQUIRED for search_web: {"query": "optimized search query"}
+          // REQUIRED for read_rag_source: {"sourceId": "...", "query": "..."}
+          // REQUIRED for select_relevant_sources: {"question": "...", "availableSources": [...]}
+          // For other tools, can be empty {} if no params needed
         }
       }
       // ...other steps, always in prescribed order (start with \`list_available_sources\` then \`list_global_wikipedia_sources\`)
@@ -547,7 +550,10 @@ Example for "Create welcome page for Y Combinator, look on the web":
     {
       "step": 1,
       "toolName": "search_web",
-      "description": "Search who is Y Combinator and their mission"
+      "description": "Search who is Y Combinator and their mission",
+      "params": {
+        "query": "Y Combinator startup accelerator history mission founders"
+      }
     }
   ]
 }`
@@ -560,6 +566,8 @@ QUICK MODE: Maximum 3 tools, favor speed over comprehensiveness.
 
 ## JSON Schema (REQUIRED)
 
+CRITICAL: The "params" field is REQUIRED for each tool in toolSequence!
+
 \`\`\`json
 {
   "plan": {
@@ -570,7 +578,11 @@ QUICK MODE: Maximum 3 tools, favor speed over comprehensiveness.
       {
         "step": 1,
         "toolName": "<tool_name>",
-        "description": "<action>"
+        "description": "<action>",
+        "params": {
+          // REQUIRED: For search_web, you MUST include {"query": "optimized search string"}
+          // For other tools, provide appropriate params or {} if none needed
+        }
       }
     ]
   }
