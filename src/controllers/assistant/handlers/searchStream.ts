@@ -149,7 +149,8 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
       const { CoordinatorService } = await import(
         "../../../services/ai/functionCalling/index.js"
       );
-      type OrchestrationRequest = import("../../../services/ai/functionCalling/index.js").OrchestrationRequest;
+      type OrchestrationRequest =
+        import("../../../services/ai/functionCalling/index.js").OrchestrationRequest;
 
       // 🔥 Variable pour savoir si des pages spécifiques ont été mentionnées
       const hasSpecificPages = contextPageIds.length > 0;
@@ -186,6 +187,43 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
 
         // 🔥 FIX: Utiliser la fonction helper pour mapper les IDs vers vrais UUIDs
         sourcesForAI = await mapRagSourcesToRealUUIDs(ragSources);
+      } else if (sourcesScope === "all") {
+        // 🔥 MODE ALL: Récupérer TOUTES les sources RAG disponibles dans le workspace
+        console.log(
+          `🌐 [SEARCH] Mode ALL détecté - récupération de toutes les sources du workspace`,
+        );
+
+        const { default: prisma } = await import("../../../lib/prisma.js");
+
+        // Récupérer toutes les sources du workspace de l'utilisateur
+        const allWorkspaceSources = await prisma.rAGSource.findMany({
+          where: {
+            workspaceId,
+            userId,
+            status: "COMPLETED", // Seulement les sources complètes et utilisables
+          },
+          select: {
+            id: true,
+            title: true,
+            sourceType: true,
+            totalChunks: true,
+            lastUsedAt: true,
+            status: true,
+            isGlobal: true,
+          },
+          orderBy: { lastUsedAt: "desc" },
+        });
+
+        console.log(
+          `✅ [SEARCH] ${allWorkspaceSources.length} sources disponibles en mode ALL`,
+        );
+
+        // Formater pour l'IA
+        sourcesForAI = allWorkspaceSources.map((s) => ({
+          id: s.id,
+          title: s.title,
+          sourceType: s.sourceType,
+        }));
       }
 
       let currentThinking = "";
@@ -265,9 +303,8 @@ ${personaSnippet}
         // - 75-83% moins d'appels API
         // - >80% plus rapide (exécution parallèle)
         // - 87-96% moins cher (avec prompt caching)
-        const toolDecision = await CoordinatorService.orchestrateOptimized(
-          orchestrationRequest,
-        );
+        const toolDecision =
+          await CoordinatorService.orchestrateOptimized(orchestrationRequest);
 
         currentToolCalls = toolDecision.toolCalls;
         console.log(
@@ -401,7 +438,8 @@ ${personaSnippet}
           `data: ${JSON.stringify({
             toolCalls: currentToolCalls,
             thinking: currentThinking,
-            usedFallback: !toolDecision.success || toolDecision.toolCalls.length === 0,
+            usedFallback:
+              !toolDecision.success || toolDecision.toolCalls.length === 0,
             intermediateThinkingBlocks: toolDecision.intermediateThinkingBlocks,
           })}\n\n`,
         );
