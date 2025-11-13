@@ -35,7 +35,8 @@ import {
   type ReflectionTrigger,
 } from "./thinking.service.js";
 import { MetricsService, type ExecutionMetrics } from "./metrics.service.js";
-import type { IntermediateThinkingBlock } from "../../types/ragThinking.js";
+import type { IntermediateThinkingBlock } from "../../../types/ragThinking.js";
+import type { ChatCompletionMessageParam } from "openai/resources/chat/completions.js";
 
 export interface CoordinatorInput {
   thinking: string; // Ce que l'IA dit qu'elle va faire
@@ -87,7 +88,7 @@ export interface OrchestrationResult {
     result: string;
     thinking?: string;
     score?: any;
-    timestamp?: number;
+    timestamp: number;
   }>;
   thinking: string;
   intermediateThinkingBlocks: IntermediateThinkingBlock[];
@@ -180,7 +181,7 @@ export class CoordinatorService {
 
       const toolCalls: OrchestrationResult["toolCalls"] = [];
       const intermediateThinkingBlocks: IntermediateThinkingBlock[] = [];
-      const initialMessages: Array<{ role: string; content: string }> = [
+      const initialMessages: ChatCompletionMessageParam[] = [
         {
           role: "system",
           content: request.systemPrompt,
@@ -341,13 +342,12 @@ export class CoordinatorService {
             );
 
             // Valider la modification
-            const modificationValidation =
-              await this.validatePlanModification(
-                plan.toolSequence.slice(i + 1).map((t) => t.toolName),
-                executionResult.modifiedToolSequence.map((t) => t.toolName),
-                executionResult.result,
-                executionResult.thinking,
-              );
+            const modificationValidation = await this.validatePlanModification(
+              plan.toolSequence.slice(i + 1).map((t) => t.toolName),
+              executionResult.modifiedToolSequence.map((t) => t.toolName),
+              executionResult.result,
+              executionResult.thinking,
+            );
 
             if (modificationValidation.isValid) {
               console.log(
@@ -369,10 +369,7 @@ export class CoordinatorService {
           // Pause entre les steps pour éviter rate limits
           await new Promise((resolve) => setTimeout(resolve, 100));
         } catch (stepError) {
-          console.error(
-            `❌ [COORDINATOR] Erreur step ${i + 1}:`,
-            stepError,
-          );
+          console.error(`❌ [COORDINATOR] Erreur step ${i + 1}:`, stepError);
 
           // Enregistrer l'erreur mais continuer
           toolCalls.push({
@@ -397,9 +394,7 @@ export class CoordinatorService {
       const endTime = Date.now();
       const duration = ((endTime - startTime) / 1000).toFixed(2);
 
-      console.log(
-        `✅ [COORDINATOR] Orchestration terminée en ${duration}s`,
-      );
+      console.log(`✅ [COORDINATOR] Orchestration terminée en ${duration}s`);
       console.log(`   Tools exécutés: ${toolCalls.length}`);
       console.log(
         `   Sources extraites: ${extractedSources.length} (${extractedSources.filter((s) => !request.availableSources.find((as) => as.id === s.id)).length} nouvelles)`,
@@ -464,7 +459,9 @@ export class CoordinatorService {
       // ============================================
       // ÉTAPE 1 : PLANNING (1 API call)
       // ============================================
-      console.log("📋 [COORDINATOR-OPTIMIZED] ÉTAPE 1/4: Génération du plan...");
+      console.log(
+        "📋 [COORDINATOR-OPTIMIZED] ÉTAPE 1/4: Génération du plan...",
+      );
 
       const planRequest: PlanRequest = {
         query: request.query,
@@ -490,7 +487,9 @@ export class CoordinatorService {
       // ============================================
       // ÉTAPE 2 : VALIDATION DU PLAN
       // ============================================
-      console.log("🔍 [COORDINATOR-OPTIMIZED] ÉTAPE 2/4: Validation du plan...");
+      console.log(
+        "🔍 [COORDINATOR-OPTIMIZED] ÉTAPE 2/4: Validation du plan...",
+      );
 
       const planValidation = this.validateFullPlan(
         plan.toolSequence.map((t) => ({
@@ -577,8 +576,9 @@ export class CoordinatorService {
         "🧠 [COORDINATOR-OPTIMIZED] ÉTAPE 3.5/4: Réflexion stratégique conditionnelle...",
       );
 
-      const validation =
-        OptimizedExecutorService.validateResults(batchResult.results);
+      const validation = OptimizedExecutorService.validateResults(
+        batchResult.results,
+      );
 
       const phaseResult: PhaseResult = {
         phase: "execution",
@@ -698,7 +698,9 @@ export class CoordinatorService {
       console.log(
         `✅ [COORDINATOR-OPTIMIZED] Orchestration terminée en ${(totalLatency / 1000).toFixed(2)}s`,
       );
-      console.log(`   API calls: ${apiCallsUsed} (vs ${2 + plan.toolSequence.length} baseline)`);
+      console.log(
+        `   API calls: ${apiCallsUsed} (vs ${2 + plan.toolSequence.length} baseline)`,
+      );
       console.log(`   Reflections: ${reflectionCount}`);
       console.log(`   Tools exécutés: ${toolCalls.length}`);
 
@@ -709,10 +711,7 @@ export class CoordinatorService {
         intermediateThinkingBlocks: [], // Pas de thinking blocks dans le nouveau système
       };
     } catch (error) {
-      console.error(
-        `❌ [COORDINATOR-OPTIMIZED] Erreur orchestration:`,
-        error,
-      );
+      console.error(`❌ [COORDINATOR-OPTIMIZED] Erreur orchestration:`, error);
 
       return {
         success: false,
