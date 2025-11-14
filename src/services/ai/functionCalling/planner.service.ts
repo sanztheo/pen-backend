@@ -322,10 +322,12 @@ Each search_web should explore a complementary angle to local sources.`
         `🔧 [PLANNER] Plan validé: ${validatedToolSequence.length} tools valides, tools: ${validatedToolSequence.map((t) => t.toolName).join(" → ")}`,
       );
 
-      // 🆕 VALIDATION DU PLAN COMPLET (nombre de tools selon le mode)
+      // VALIDATION DU PLAN COMPLET (nombre de tools selon le mode)
+      const hasPreselectedSources = availableSources.length > 0;
       const planValidation = ToolDependenciesValidator.validatePlan(
         validatedToolSequence.map((t) => ({ toolName: t.toolName })),
         detectedMode,
+        hasPreselectedSources,
       );
 
       let finalToolSequence = validatedToolSequence;
@@ -412,57 +414,95 @@ Each search_web should explore a complementary angle to local sources.`
 CRITICAL: Your plan MUST include at least ${toolLimits.minTools} tools to be valid.
 The validator will REJECT any plan with fewer than ${toolLimits.minTools} tools.
 
-# AVAILABLE TOOLS (by category)
+<tools>
 
-## LIST SOURCES
-- \`list_available_sources\`: Lists ALL available sources (pages, files, personal Wikipedia)
-- \`list_global_wikipedia_sources\`: Lists GLOBAL shared Wikipedia sources (before \`search_web\`)
-- \`list_workspace_pages\`: Lists workspace pages
+<discovery>
+list_available_sources: Lists ALL available sources (pages, files, personal Wikipedia).
+  Returns: Source IDs and titles only, not content.
+  Use when: Need to discover what sources exist before reading them.
 
-## READ/SEARCH IN SOURCES
-- \`read_rag_source\`: Reads the complete content of ONE RAG source
-- \`select_relevant_sources\`: Selects relevant sources for the question
-- \`search_rag_chunks\`: Semantic search WITHIN RAG sources
-- \`read_workspace_page\`: Reads a specific workspace page
+list_global_wikipedia_sources: Lists GLOBAL shared Wikipedia sources.
+  Returns: Wikipedia article titles and IDs only.
+  Use when: Need access to Wikipedia knowledge base.
 
-## EXTERNAL
-- \`check_sources_rag_status\`: Checks RAG status of sources (requires source IDs)
-- \`search_web\`: Web search ${isWebOnlyMode ? "(PRIMARY TOOL - use MULTIPLE TIMES with different angles)" : "(EQUAL to local sources - INTERLEAVE with local)"}
+list_workspace_pages: Lists workspace pages only.
+  Returns: Page titles and IDs.
+  Use when: Need to explore user's workspace specifically.
+</discovery>
 
-# SUGGESTED STRATEGY (Search Mode - deep exploration)
+<reading>
+read_rag_source: READ COMPLETE FULL CONTENT of a source.
+  Returns: Complete source text with full context.
+  Use when: User asks "what is this about?", "summarize this", "what's the content?".
+  Requires: Valid source ID from discovery tools.
+  Example queries: "ca parle de quoi?", "resume cette page", "what is it about?".
+
+search_rag_chunks: SEARCH for SPECIFIC information within sources.
+  Returns: Relevant text fragments/excerpts only (NOT full content).
+  Use when: Looking for specific facts, keywords, or targeted information.
+  DO NOT use for: Questions about overall content or summaries.
+  Example queries: "find X in the page", "search for Y", "where does it mention Z?".
+
+select_relevant_sources: Filters sources by relevance to question.
+  Returns: Subset of most relevant sources.
+  Requires: Results from list_available_sources first.
+  Use when: Too many sources to read, need to narrow down.
+
+read_workspace_page: Reads complete workspace page content.
+  Returns: Full page text.
+  Scope: Workspace pages only (not files or Wikipedia).
+</reading>
+
+<external>
+check_sources_rag_status: Checks if sources are indexed and ready.
+  Returns: Status information only (not content).
+  Use when: Need to validate source readiness before reading.
+
+search_web: Web search for current information.
+  Returns: Web search results.
+  ${isWebOnlyMode ? "PRIMARY MODE: Use multiple times with different search angles." : "INTERLEAVED MODE: Mix with local sources equally, don't stack all web searches at end."}
+  Requires API credits, slower than local sources.
+</external>
+
+</tools>
+
+<strategy>
 ${
   isWebOnlyMode
     ? `
-WEB ONLY MODE: No local sources selected
-→ Use "search_web" MULTIPLE TIMES (2-4 calls) with different angles
-→ Each search should explore a complementary perspective
+Web-only mode detected (no local sources available).
+
+Approach:
+- Use search_web MULTIPLE times (2-4 calls minimum)
+- Each search explores different angle or aspect
+- Vary search queries to get comprehensive coverage
 
 Example for "Y Combinator":
-1. search_web: "Y Combinator startup accelerator history"
-2. search_web: "Y Combinator portfolio companies success"
-3. search_web: "Y Combinator application process"
+  Step 1: search_web "Y Combinator startup accelerator history"
+  Step 2: search_web "Y Combinator portfolio companies Airbnb Dropbox"
+  Step 3: search_web "Y Combinator application process Demo Day"
 `
     : `
-🔥 CURSOR-STYLE INTERLEAVED APPROACH:
-Instead of doing "all local then web", INTERLEAVE them for balanced exploration.
+Interleaved approach (mix local and web sources equally):
 
-Example pattern (all+web):
-1. list_available_sources - Discover local
-2. search_web (angle 1) - Get web perspective
-3. list_global_wikipedia_sources - Discover global
-4. read_rag_source - Read best local
-5. search_web (angle 2) - Complement with web
-6. search_rag_chunks - Deep dive local
+Pattern when all sources mode:
+  1. list_available_sources (discover local)
+  2. search_web (web perspective)
+  3. list_global_wikipedia_sources (discover Wikipedia)
+  4. read_rag_source (read best local)
+  5. search_web (complement with web)
+  6. search_rag_chunks (deep dive local)
 
-Example pattern (source+web):
-1. read_rag_source (source 1) - Local
-2. search_web (angle 1) - Web enrichment
-3. read_rag_source (source 2) - Local
-4. search_web (angle 2) - Web complement
+Pattern when specific sources selected:
+  1. read_rag_source (source 1)
+  2. search_web (complementary angle)
+  3. read_rag_source (source 2)
+  4. search_web (different angle)
 
-KEY: MIX local and web throughout, don't stack them!
+Key principle: Alternate local and web sources, do not stack them sequentially.
 `
 }
+</strategy>
 
 IMPORTANT:
 ${
@@ -615,14 +655,56 @@ GENERATE the JSON plan NOW. No text before or after the JSON.
 
 IMPORTANT: Your plan MUST include at least ${toolLimits.minTools} tools to be valid.
 
-# SIMPLIFIED AVAILABLE TOOLS
+<tools>
 
-## BASIC EXPLORATION
-- \`list_available_sources\`: Lists available sources
-- \`search_rag_chunks\`: Quick search in sources
+list_available_sources: Lists available sources.
+  Returns: Titles and IDs only.
 
-## WEB (IF ENABLED)
-- \`search_web\`: Quick web search
+read_rag_source: READ COMPLETE FULL CONTENT.
+  Use when: User asks what a page is about, wants summary, needs full understanding.
+  Returns: Complete source text.
+  Example queries: "ca parle de quoi?", "resume cette page", "what is it about?".
+
+  PARAMS FORMAT (CRITICAL):
+  {
+    "sourceId": "uuid-string",
+    "query": "what is this about?"
+  }
+
+  IMPORTANT: Use "sourceId" NOT "source_id".
+
+search_rag_chunks: SEARCH for SPECIFIC excerpts.
+  Use when: Looking for specific facts or keywords.
+  Returns: Relevant fragments only (NOT full content).
+  DO NOT use for: Summary or "what is it about" questions.
+  Example queries: "find X", "search for Y", "where is Z mentioned?".
+
+  PARAMS FORMAT (CRITICAL):
+  {
+    "query": "search terms here"
+  }
+
+  IMPORTANT: Use "query" NOT "search_query".
+
+search_web: Web search (if enabled).
+  Returns: Current web information.
+  Note: Slower, costs credits.
+
+</tools>
+
+<decision_tree>
+
+If user asks WHAT content is about:
+  Questions: "ca parle de quoi?", "resume", "what's in this?", "c'est quoi le contenu?".
+  Tool: read_rag_source (reads full content).
+  DO NOT use: search_rag_chunks (returns fragments only).
+
+If user wants to FIND specific information:
+  Questions: "trouve X", "cherche Y", "where is Z?".
+  Tool: search_rag_chunks (fast targeted search).
+  DO NOT use: read_rag_source (unnecessarily slow).
+
+</decision_tree>
 
 # QUICK MODE STRATEGY (1-3 tools max)
 ${

@@ -153,12 +153,14 @@ export class CoordinatorService {
         "🔍 [COORDINATOR-OPTIMIZED] ÉTAPE 2/4: Validation du plan...",
       );
 
+      const hasPreselectedSources = request.availableSources.length > 0;
       const planValidation = this.validateFullPlan(
         plan.toolSequence.map((t) => ({
           toolName: t.toolName,
           params: t.params,
         })),
         plan.detectedMode,
+        hasPreselectedSources,
       );
 
       if (!planValidation.isValid) {
@@ -537,12 +539,14 @@ export class CoordinatorService {
         "🔍 [COORDINATOR-OPTIMIZED] ÉTAPE 2/4: Validation du plan...",
       );
 
+      const hasPreselectedSources = request.availableSources.length > 0;
       const planValidation = this.validateFullPlan(
         plan.toolSequence.map((t) => ({
           toolName: t.toolName,
           params: t.params,
         })),
         plan.detectedMode,
+        hasPreselectedSources,
       );
 
       if (!planValidation.isValid) {
@@ -1190,25 +1194,25 @@ La modification de plan est-elle justifiée par le résultat précédent ?
   }
 
   /**
-   * 🆕 Valide un plan complet de tools
+   * Validates a complete tool plan
    */
   static validateFullPlan(
     toolSequence: Array<{ toolName: string; params?: any }>,
     mode: "ask" | "search" | "create_rapide" | "create_profond",
+    hasPreselectedSources: boolean = false,
   ): DependencyValidationResult {
-    console.log(
-      `🎯 [COORDINATOR] Validation du plan complet (mode: ${mode})...`,
-    );
+    console.log(`[COORDINATOR] Validation du plan complet (mode: ${mode})...`);
 
     const validation = ToolDependenciesValidator.validatePlan(
       toolSequence,
       mode,
+      hasPreselectedSources,
     );
 
     if (!validation.isValid) {
-      console.error(`❌ [COORDINATOR] Plan invalide: ${validation.reasoning}`);
+      console.error(`[COORDINATOR] Plan invalide: ${validation.reasoning}`);
     } else {
-      console.log(`✅ [COORDINATOR] Plan valide: ${validation.reasoning}`);
+      console.log(`[COORDINATOR] Plan valide: ${validation.reasoning}`);
     }
 
     return validation;
