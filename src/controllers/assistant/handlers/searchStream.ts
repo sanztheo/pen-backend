@@ -297,6 +297,17 @@ ${personaSnippet}
               (res as any).flush();
             }
           },
+
+          // 🆕 Scoring phase callback
+          onScoring: (toolName, progress) => {
+            const timestamp = new Date().toISOString();
+            res.write(
+              `event: scoring\ndata: ${JSON.stringify({ tool: toolName, progress, timestamp })}\n\n`,
+            );
+            if (typeof (res as any).flush === "function") {
+              (res as any).flush();
+            }
+          },
         };
 
         // 🚀 ARCHITECTURE OPTIMISÉE: Utilise orchestrateOptimized() pour gains de performance
