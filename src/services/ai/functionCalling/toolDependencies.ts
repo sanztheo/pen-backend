@@ -425,15 +425,17 @@ export class ToolDependenciesValidator {
   }
 
   /**
-   * 🔧 Corrige automatiquement l'ordre des tools dans un plan invalide
-   * AMÉLIORATION: Insère les tools manquants au lieu de juste réordonner
+   * Corrects the order of tools in an invalid plan automatically
+   * IMPROVEMENT: Inserts missing tools instead of just reordering
    */
   static fixPlan(
     toolSequence: Array<{ toolName: string; params?: any }>,
+    hasPreselectedSources: boolean = false,
   ): Array<{ toolName: string; params?: any }> {
-    console.log(`🔧 [FIX-PLAN] Tentative de correction automatique du plan...`);
+    console.log(`[FIX-PLAN] Attempting automatic plan correction...`);
+    console.log(`[FIX-PLAN] hasPreselectedSources: ${hasPreselectedSources}`);
 
-    // Grouper les tools par type de dépendance
+    // Group tools by dependency type
     const listingTools: typeof toolSequence = [];
     const selectionTools: typeof toolSequence = [];
     const readTools: typeof toolSequence = [];
@@ -454,29 +456,37 @@ export class ToolDependenciesValidator {
       }
     }
 
-    // Réordonner selon les dépendances :
+    // Reorder according to dependencies:
     // 1. Listing (list_available_sources, list_global_wikipedia_sources)
-    // 2. Sélection (select_relevant_sources)
-    // 3. Lectures (read_rag_source)
-    // 4. Autres tools (search_web, etc.) - entrelacés avec read_rag_source pour varier
+    // 2. Selection (select_relevant_sources)
+    // 3. Reads (read_rag_source)
+    // 4. Other tools (search_web, etc.) - interleaved with read_rag_source for variety
 
     const correctedPlan: typeof toolSequence = [];
 
-    // 🔥 CORRECTION 1: Si read_rag_source existe SANS listing tool, supprimer read_rag_source
+    // CORRECTION 1: If read_rag_source exists WITHOUT listing tool
+    // BUT: If sources are preselected, read_rag_source is VALID without listing
     if (readTools.length > 0 && listingTools.length === 0) {
-      console.warn(
-        `⚠️ [FIX-PLAN] read_rag_source présent sans listing tool - suppression de read_rag_source`,
-      );
-      // On vide readTools pour ne pas les inclure dans le plan corrigé
-      readTools.length = 0;
+      if (hasPreselectedSources) {
+        console.log(
+          `[FIX-PLAN] read_rag_source valid with preselected sources - keeping it`,
+        );
+        // Keep read_rag_source - it's valid with preselected sources
+      } else {
+        console.warn(
+          `[FIX-PLAN] read_rag_source without listing tool and no preselected sources - removing`,
+        );
+        // Empty readTools to not include them in the corrected plan
+        readTools.length = 0;
+      }
     }
 
-    // 🔥 CORRECTION 2: Si select_relevant_sources existe SANS listing tool, supprimer select_relevant_sources
+    // CORRECTION 2: If select_relevant_sources exists WITHOUT listing tool, remove it
     if (selectionTools.length > 0 && listingTools.length === 0) {
       console.warn(
-        `⚠️ [FIX-PLAN] select_relevant_sources présent sans listing tool - suppression de select_relevant_sources`,
+        `[FIX-PLAN] select_relevant_sources without listing tool - removing`,
       );
-      // On vide selectionTools pour ne pas les inclure dans le plan corrigé
+      // Empty selectionTools to not include them in the corrected plan
       selectionTools.length = 0;
     }
 
@@ -509,11 +519,12 @@ export class ToolDependenciesValidator {
   }
 
   /**
-   * 🔍 Valide un plan de tools complet
+   * Validates a complete tool plan
    */
   static validatePlan(
     toolSequence: Array<{ toolName: string; params?: any }>,
     mode: "ask" | "search" | "create_rapide" | "create_profond",
+    hasPreselectedSources: boolean = false,
   ): DependencyValidationResult {
     const limits = this.getToolLimits(mode);
 
@@ -547,26 +558,25 @@ export class ToolDependenciesValidator {
         );
 
       if (!hasListingBefore) {
-        // 🔧 Correction automatique au lieu de bloquer
         console.warn(
-          `⚠️ [DEPENDENCIES] select_relevant_sources mal placé, correction automatique...`,
+          `[DEPENDENCIES] select_relevant_sources misplaced, auto-correcting...`,
         );
-        const correctedPlan = this.fixPlan(toolSequence);
+        const correctedPlan = this.fixPlan(toolSequence, hasPreselectedSources);
 
         return {
           isValid: false,
-          reasoning:
-            "select_relevant_sources mal placé - plan corrigé automatiquement",
+          reasoning: "select_relevant_sources misplaced - plan auto-corrected",
           suggestedFix: {
             toolName: "PLAN_CORRECTION",
             arguments: { correctedPlan },
           },
-          shouldBlock: false, // 🔥 Ne plus bloquer, juste corriger
+          shouldBlock: false,
         };
       }
     }
 
     // Si read_rag_source est présent, il DOIT être après un listing ou une sélection
+    // SAUF si les sources sont déjà présélectionnées par l'utilisateur
     const readIdx = toolNames.indexOf("read_rag_source");
     if (readIdx !== -1) {
       const hasSourcesBefore = toolNames
@@ -578,22 +588,26 @@ export class ToolDependenciesValidator {
             name === "select_relevant_sources",
         );
 
-      if (!hasSourcesBefore) {
-        // 🔧 Correction automatique au lieu de bloquer
+      // ✅ FIX: Si sources présélectionnées, read_rag_source est VALIDE sans listing
+      if (!hasSourcesBefore && !hasPreselectedSources) {
         console.warn(
-          `⚠️ [DEPENDENCIES] read_rag_source mal placé, correction automatique...`,
+          `[DEPENDENCIES] read_rag_source misplaced (no sources before and no preselected sources), auto-correcting...`,
         );
-        const correctedPlan = this.fixPlan(toolSequence);
+        const correctedPlan = this.fixPlan(toolSequence, hasPreselectedSources);
 
         return {
           isValid: false,
-          reasoning: "read_rag_source mal placé - plan corrigé automatiquement",
+          reasoning: "read_rag_source misplaced - plan auto-corrected",
           suggestedFix: {
             toolName: "PLAN_CORRECTION",
             arguments: { correctedPlan },
           },
-          shouldBlock: false, // 🔥 Ne plus bloquer, juste corriger
+          shouldBlock: false,
         };
+      } else if (!hasSourcesBefore && hasPreselectedSources) {
+        console.log(
+          `✅ [DEPENDENCIES] read_rag_source valid with preselected sources (no listing needed)`,
+        );
       }
     }
 
