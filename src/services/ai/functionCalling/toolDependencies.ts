@@ -425,6 +425,71 @@ export class ToolDependenciesValidator {
   }
 
   /**
+   * 🔧 Corrige automatiquement l'ordre des tools dans un plan invalide
+   */
+  static fixPlan(
+    toolSequence: Array<{ toolName: string; params?: any }>,
+  ): Array<{ toolName: string; params?: any }> {
+    console.log(`🔧 [FIX-PLAN] Tentative de correction automatique du plan...`);
+
+    // Grouper les tools par type de dépendance
+    const listingTools: typeof toolSequence = [];
+    const selectionTools: typeof toolSequence = [];
+    const readTools: typeof toolSequence = [];
+    const otherTools: typeof toolSequence = [];
+
+    for (const tool of toolSequence) {
+      if (
+        tool.toolName === "list_available_sources" ||
+        tool.toolName === "list_global_wikipedia_sources"
+      ) {
+        listingTools.push(tool);
+      } else if (tool.toolName === "select_relevant_sources") {
+        selectionTools.push(tool);
+      } else if (tool.toolName === "read_rag_source") {
+        readTools.push(tool);
+      } else {
+        otherTools.push(tool);
+      }
+    }
+
+    // Réordonner selon les dépendances :
+    // 1. Listing (list_available_sources, list_global_wikipedia_sources)
+    // 2. Sélection (select_relevant_sources)
+    // 3. Lectures (read_rag_source)
+    // 4. Autres tools (search_web, etc.) - entrelacés avec read_rag_source pour varier
+
+    const correctedPlan: typeof toolSequence = [];
+
+    // 1. D'abord les listings (seulement 1, pas besoin de dupliquer)
+    if (listingTools.length > 0) {
+      correctedPlan.push(listingTools[0]);
+    }
+
+    // 2. Ensuite la sélection (seulement 1)
+    if (selectionTools.length > 0) {
+      correctedPlan.push(selectionTools[0]);
+    }
+
+    // 3. Entrelacer read_rag_source et autres tools pour plus de diversité
+    const maxLength = Math.max(readTools.length, otherTools.length);
+    for (let i = 0; i < maxLength; i++) {
+      if (i < readTools.length) {
+        correctedPlan.push(readTools[i]);
+      }
+      if (i < otherTools.length) {
+        correctedPlan.push(otherTools[i]);
+      }
+    }
+
+    console.log(
+      `✅ [FIX-PLAN] Plan corrigé: ${correctedPlan.map((t) => t.toolName).join(" → ")}`,
+    );
+
+    return correctedPlan;
+  }
+
+  /**
    * 🔍 Valide un plan de tools complet
    */
   static validatePlan(
@@ -463,11 +528,21 @@ export class ToolDependenciesValidator {
         );
 
       if (!hasListingBefore) {
+        // 🔧 Correction automatique au lieu de bloquer
+        console.warn(
+          `⚠️ [DEPENDENCIES] select_relevant_sources mal placé, correction automatique...`,
+        );
+        const correctedPlan = this.fixPlan(toolSequence);
+
         return {
           isValid: false,
           reasoning:
-            "select_relevant_sources DOIT être après list_available_sources ou list_global_wikipedia_sources",
-          shouldBlock: true,
+            "select_relevant_sources mal placé - plan corrigé automatiquement",
+          suggestedFix: {
+            toolName: "PLAN_CORRECTION",
+            arguments: { correctedPlan },
+          },
+          shouldBlock: false, // 🔥 Ne plus bloquer, juste corriger
         };
       }
     }
@@ -485,11 +560,20 @@ export class ToolDependenciesValidator {
         );
 
       if (!hasSourcesBefore) {
+        // 🔧 Correction automatique au lieu de bloquer
+        console.warn(
+          `⚠️ [DEPENDENCIES] read_rag_source mal placé, correction automatique...`,
+        );
+        const correctedPlan = this.fixPlan(toolSequence);
+
         return {
           isValid: false,
-          reasoning:
-            "read_rag_source DOIT être après un tool de listing/sélection de sources",
-          shouldBlock: true,
+          reasoning: "read_rag_source mal placé - plan corrigé automatiquement",
+          suggestedFix: {
+            toolName: "PLAN_CORRECTION",
+            arguments: { correctedPlan },
+          },
+          shouldBlock: false, // 🔥 Ne plus bloquer, juste corriger
         };
       }
     }

@@ -148,7 +148,9 @@ export class CoordinatorService {
       // ============================================
       // ÉTAPE 2 : VALIDATION DU PLAN
       // ============================================
-      console.log("🔍 [COORDINATOR] ÉTAPE 2/4: Validation du plan...");
+      console.log(
+        "🔍 [COORDINATOR-OPTIMIZED] ÉTAPE 2/4: Validation du plan...",
+      );
 
       const planValidation = this.validateFullPlan(
         plan.toolSequence.map((t) => ({
@@ -160,17 +162,60 @@ export class CoordinatorService {
 
       if (!planValidation.isValid) {
         console.error(
-          `❌ [COORDINATOR] Plan invalide: ${planValidation.reasoning}`,
+          `❌ [COORDINATOR-OPTIMIZED] Plan invalide: ${planValidation.reasoning}`,
         );
-        return {
-          success: false,
-          toolCalls: [],
-          thinking: plan.reasoning,
-          intermediateThinkingBlocks: [],
-        };
-      }
 
-      console.log(`✅ [COORDINATOR] Plan validé: ${planValidation.reasoning}`);
+        // 🔧 NOUVEAU : Si un plan corrigé est disponible, l'utiliser au lieu de bloquer
+        if (
+          planValidation.suggestedFix &&
+          planValidation.suggestedFix.toolName === "PLAN_CORRECTION"
+        ) {
+          const correctedPlan = planValidation.suggestedFix.arguments
+            .correctedPlan as Array<{ toolName: string; params?: any }>;
+
+          console.log(
+            `🔧 [COORDINATOR-OPTIMIZED] Plan corrigé automatiquement détecté, utilisation...`,
+          );
+          console.log(
+            `   Ancien: ${plan.toolSequence.map((t) => t.toolName).join(" → ")}`,
+          );
+          console.log(
+            `   Nouveau: ${correctedPlan.map((t) => t.toolName).join(" → ")}`,
+          );
+
+          // Remplacer le plan original par le plan corrigé
+          plan.toolSequence = correctedPlan.map((correctedTool, idx) => {
+            // Retrouver le tool original pour garder ses paramètres complets
+            const originalTool = plan.toolSequence.find(
+              (t) => t.toolName === correctedTool.toolName,
+            );
+            return (
+              originalTool || {
+                step: idx + 1,
+                toolName: correctedTool.toolName,
+                description: `Tool ${correctedTool.toolName}`,
+                params: correctedTool.params || {},
+              }
+            );
+          });
+
+          console.log(
+            `✅ [COORDINATOR-OPTIMIZED] Plan corrigé appliqué avec succès`,
+          );
+        } else {
+          // Pas de correction disponible, bloquer l'exécution
+          return {
+            success: false,
+            toolCalls: [],
+            thinking: plan.reasoning,
+            intermediateThinkingBlocks: [],
+          };
+        }
+      } else {
+        console.log(
+          `✅ [COORDINATOR-OPTIMIZED] Plan validé: ${planValidation.reasoning}`,
+        );
+      }
 
       // ============================================
       // ÉTAPE 3 : BOUCLE D'EXÉCUTION
