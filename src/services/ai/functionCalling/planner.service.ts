@@ -484,6 +484,34 @@ ${
 # PLANNING
 Start with a short checklist (3-7 conceptual steps) of what you will do to organize the resolution sequence before establishing the tool sequence.
 
+# 📋 TOOL ORDER & DEPENDENCIES (IMPORTANT)
+
+## Recommended Order (adapt based on context):
+1. **Discovery Phase** (if needed):
+   - list_available_sources → Discover what's available
+   - list_global_wikipedia_sources → Check global knowledge
+   - list_workspace_pages → Check workspace pages
+
+2. **Selection Phase** (if sources discovered):
+   - select_relevant_sources → Choose most relevant sources
+
+3. **Reading Phase** (interleave with web if enabled):
+   - read_rag_source → Read complete source content
+   - search_rag_chunks → Search within sources
+   - search_web → Get web perspective (INTERLEAVE, don't wait!)
+
+## Dependency Rules (guidance, not strict):
+- ✅ PREFERRED: list_available_sources BEFORE read_rag_source
+- ✅ PREFERRED: select_relevant_sources AFTER list_available_sources
+- ✅ AVOID: read_rag_source without knowing if sources exist
+- ✅ FLEXIBLE: search_web can be used at ANY point (don't wait for end!)
+
+## Important Notes:
+- These are GUIDELINES to help you plan efficiently
+- You can adapt the order based on the specific query
+- If sources are pre-selected, skip discovery phase
+- INTERLEAVE local and web searches (don't stack them!)
+
 # GUIDELINES
 ${
   isWebOnlyMode

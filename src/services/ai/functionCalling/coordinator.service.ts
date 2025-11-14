@@ -75,6 +75,7 @@ export interface OrchestrationRequest {
   onToolCall?: (toolName: string, args: any) => void;
   onToolResult?: (toolName: string, result: string) => void;
   onIntermediateThinking?: (chunk: string) => void;
+  onScoring?: (toolName: string, progress: string) => void; // 🆕 Callback pour la phase de scoring
 }
 
 /**
@@ -161,11 +162,11 @@ export class CoordinatorService {
       );
 
       if (!planValidation.isValid) {
-        console.error(
-          `❌ [COORDINATOR-OPTIMIZED] Plan invalide: ${planValidation.reasoning}`,
+        console.warn(
+          `⚠️ [COORDINATOR-OPTIMIZED] Plan avec avertissements: ${planValidation.reasoning}`,
         );
 
-        // 🔧 NOUVEAU : Si un plan corrigé est disponible, l'utiliser au lieu de bloquer
+        // 🔧 Si un plan corrigé est disponible, l'utiliser
         if (
           planValidation.suggestedFix &&
           planValidation.suggestedFix.toolName === "PLAN_CORRECTION"
@@ -203,13 +204,13 @@ export class CoordinatorService {
             `✅ [COORDINATOR-OPTIMIZED] Plan corrigé appliqué avec succès`,
           );
         } else {
-          // Pas de correction disponible, bloquer l'exécution
-          return {
-            success: false,
-            toolCalls: [],
-            thinking: plan.reasoning,
-            intermediateThinkingBlocks: [],
-          };
+          // ⚠️ NOUVEAU : Plus de blocage, juste un warning et on continue
+          console.warn(
+            `⚠️ [COORDINATOR-OPTIMIZED] Pas de correction disponible, poursuite avec plan original`,
+          );
+          console.warn(
+            `   L'IA a été guidée par le system prompt, on lui fait confiance`,
+          );
         }
       } else {
         console.log(
@@ -545,11 +546,11 @@ export class CoordinatorService {
       );
 
       if (!planValidation.isValid) {
-        console.error(
-          `❌ [COORDINATOR-OPTIMIZED] Plan invalide: ${planValidation.reasoning}`,
+        console.warn(
+          `⚠️ [COORDINATOR-OPTIMIZED] Plan avec avertissements: ${planValidation.reasoning}`,
         );
 
-        // 🔧 NOUVEAU : Si un plan corrigé est disponible, l'utiliser au lieu de bloquer
+        // 🔧 Si un plan corrigé est disponible, l'utiliser
         if (
           planValidation.suggestedFix &&
           planValidation.suggestedFix.toolName === "PLAN_CORRECTION"
@@ -587,22 +588,19 @@ export class CoordinatorService {
             `✅ [COORDINATOR-OPTIMIZED] Plan corrigé appliqué avec succès`,
           );
         } else {
-          // Pas de correction disponible, bloquer l'exécution
-          console.error(
-            `❌ [COORDINATOR-OPTIMIZED] Aucune correction disponible, arrêt de l'exécution`,
+          // ⚠️ NOUVEAU : Plus de blocage, juste un warning et on continue
+          console.warn(
+            `⚠️ [COORDINATOR-OPTIMIZED] Pas de correction disponible, poursuite avec plan original`,
           );
-          return {
-            success: false,
-            toolCalls: [],
-            thinking: plan.reasoning,
-            intermediateThinkingBlocks: [],
-          };
+          console.warn(
+            `   L'IA a été guidée par le system prompt, on lui fait confiance`,
+          );
         }
+      } else {
+        console.log(
+          `✅ [COORDINATOR-OPTIMIZED] Plan validé: ${planValidation.reasoning}`,
+        );
       }
-
-      console.log(
-        `✅ [COORDINATOR-OPTIMIZED] Plan validé: ${planValidation.reasoning}`,
-      );
 
       // ============================================
       // ÉTAPE 3 : EXÉCUTION PARALLÈLE (0 API calls!)
@@ -718,11 +716,27 @@ export class CoordinatorService {
       // ============================================
       console.log("📊 [COORDINATOR-OPTIMIZED] ÉTAPE 4/4: Scoring...");
 
+      // 🆕 Notifier le frontend du début du scoring
+      if (request.onScoring) {
+        request.onScoring(
+          "all",
+          `Analyse de ${batchResult.results.length} résultats...`,
+        );
+      }
+
       const toolCalls: OrchestrationResult["toolCalls"] = [];
 
       for (let i = 0; i < batchResult.results.length; i++) {
         const result = batchResult.results[i];
         const step = plan.toolSequence[i];
+
+        // 🆕 Notifier le frontend du scoring en cours
+        if (request.onScoring) {
+          request.onScoring(
+            result.tool,
+            `Évaluation ${i + 1}/${batchResult.results.length}`,
+          );
+        }
 
         let score = null;
         if (!result.error && result.result) {
@@ -757,6 +771,11 @@ export class CoordinatorService {
           score,
           timestamp: Date.now(),
         });
+      }
+
+      // 🆕 Notifier le frontend de la fin du scoring
+      if (request.onScoring) {
+        request.onScoring("all", "Terminé");
       }
 
       // ============================================
@@ -820,8 +839,8 @@ export class CoordinatorService {
     const {
       thinking,
       nextToolName,
-      previousToolResults,
-      originalPlan,
+      previousToolResults: _previousToolResults,
+      originalPlan: _originalPlan,
       toolArguments,
     } = input;
 
