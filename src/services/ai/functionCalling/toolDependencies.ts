@@ -426,6 +426,7 @@ export class ToolDependenciesValidator {
 
   /**
    * 🔧 Corrige automatiquement l'ordre des tools dans un plan invalide
+   * AMÉLIORATION: Insère les tools manquants au lieu de juste réordonner
    */
   static fixPlan(
     toolSequence: Array<{ toolName: string; params?: any }>,
@@ -460,6 +461,24 @@ export class ToolDependenciesValidator {
     // 4. Autres tools (search_web, etc.) - entrelacés avec read_rag_source pour varier
 
     const correctedPlan: typeof toolSequence = [];
+
+    // 🔥 CORRECTION 1: Si read_rag_source existe SANS listing tool, supprimer read_rag_source
+    if (readTools.length > 0 && listingTools.length === 0) {
+      console.warn(
+        `⚠️ [FIX-PLAN] read_rag_source présent sans listing tool - suppression de read_rag_source`,
+      );
+      // On vide readTools pour ne pas les inclure dans le plan corrigé
+      readTools.length = 0;
+    }
+
+    // 🔥 CORRECTION 2: Si select_relevant_sources existe SANS listing tool, supprimer select_relevant_sources
+    if (selectionTools.length > 0 && listingTools.length === 0) {
+      console.warn(
+        `⚠️ [FIX-PLAN] select_relevant_sources présent sans listing tool - suppression de select_relevant_sources`,
+      );
+      // On vide selectionTools pour ne pas les inclure dans le plan corrigé
+      selectionTools.length = 0;
+    }
 
     // 1. D'abord les listings (seulement 1, pas besoin de dupliquer)
     if (listingTools.length > 0) {

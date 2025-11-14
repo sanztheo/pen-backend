@@ -548,12 +548,56 @@ export class CoordinatorService {
         console.error(
           `❌ [COORDINATOR-OPTIMIZED] Plan invalide: ${planValidation.reasoning}`,
         );
-        return {
-          success: false,
-          toolCalls: [],
-          thinking: plan.reasoning,
-          intermediateThinkingBlocks: [],
-        };
+
+        // 🔧 NOUVEAU : Si un plan corrigé est disponible, l'utiliser au lieu de bloquer
+        if (
+          planValidation.suggestedFix &&
+          planValidation.suggestedFix.toolName === "PLAN_CORRECTION"
+        ) {
+          const correctedPlan = planValidation.suggestedFix.arguments
+            .correctedPlan as Array<{ toolName: string; params?: any }>;
+
+          console.log(
+            `🔧 [COORDINATOR-OPTIMIZED] Utilisation du plan corrigé automatiquement...`,
+          );
+          console.log(
+            `   Ancien: ${plan.toolSequence.map((t) => t.toolName).join(" → ")}`,
+          );
+          console.log(
+            `   Nouveau: ${correctedPlan.map((t) => t.toolName).join(" → ")}`,
+          );
+
+          // Remplacer le plan original par le plan corrigé
+          plan.toolSequence = correctedPlan.map((correctedTool, idx) => {
+            // Retrouver le tool original pour garder ses paramètres complets
+            const originalTool = plan.toolSequence.find(
+              (t) => t.toolName === correctedTool.toolName,
+            );
+            return (
+              originalTool || {
+                step: idx + 1,
+                toolName: correctedTool.toolName,
+                description: `Tool ${correctedTool.toolName}`,
+                params: correctedTool.params || {},
+              }
+            );
+          });
+
+          console.log(
+            `✅ [COORDINATOR-OPTIMIZED] Plan corrigé appliqué avec succès`,
+          );
+        } else {
+          // Pas de correction disponible, bloquer l'exécution
+          console.error(
+            `❌ [COORDINATOR-OPTIMIZED] Aucune correction disponible, arrêt de l'exécution`,
+          );
+          return {
+            success: false,
+            toolCalls: [],
+            thinking: plan.reasoning,
+            intermediateThinkingBlocks: [],
+          };
+        }
       }
 
       console.log(
