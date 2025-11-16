@@ -43,10 +43,15 @@ function verifyWebhookSignature(
     .update(requestBody)
     .digest("hex");
 
+  // Vérifier d'abord que les longueurs correspondent
+  if (signature.length !== computedSignature.length) {
+    return false;
+  }
+
   // Utiliser timingSafeEqual pour éviter les timing attacks
   return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(computedSignature),
+    Buffer.from(signature, "utf8"),
+    Buffer.from(computedSignature, "utf8"),
   );
 }
 
