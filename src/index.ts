@@ -23,6 +23,8 @@ import reorderRoutes from "./routes/reorder.js";
 import graphicsRoutes from "./routes/graphics.js";
 import dashboardLayoutRoutes from "./routes/dashboardLayoutRoutes.js";
 import billingRoutes from "./routes/billing.js";
+import billingGocardlessRoutes from "./routes/billing-gocardless.js";
+import { gocardlessWebhookHandler } from "./routes/webhooks-gocardless.js";
 import limitsRoutes from "./routes/limits.js";
 import aiCreditsRoutes from "./routes/aiCredits.js";
 import quizLimitsRoutes from "./routes/quizLimits.js";
@@ -93,6 +95,14 @@ app.post(
   express.raw({ type: "application/json" }),
   clerkWebhookHandler,
 );
+
+// GoCardless webhook avec raw body pour vérifier la signature
+app.post(
+  "/api/webhooks/gocardless",
+  express.raw({ type: "application/json" }),
+  gocardlessWebhookHandler,
+);
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -123,6 +133,7 @@ app.use("/api/reorder", reorderRoutes);
 app.use("/api/dashboard-layout", dashboardLayoutRoutes);
 // 🛡️ SÉCURITÉ: Routes admin supprimées pour éviter les vulnérabilités
 app.use("/api/billing", billingRoutes);
+app.use("/api/billing-gocardless", billingGocardlessRoutes);
 app.use("/api/limits", limitsRoutes);
 app.use("/api/ai-credits", aiCreditsRoutes);
 app.use("/api/quiz-limits", quizLimitsRoutes);
