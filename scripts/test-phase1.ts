@@ -3,6 +3,7 @@
  * Vérifie: Client GoCardless, Routes, Database Schema
  */
 
+import "dotenv/config";
 import { gcClient } from "../src/lib/gocardless.js";
 import { prisma } from "../src/lib/prisma.js";
 
