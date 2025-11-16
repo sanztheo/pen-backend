@@ -14,7 +14,7 @@ console.log("━━━━━━━━━━━━━━━━━━━━━━�
 
 const WEBHOOK_SECRET = process.env.GOCARDLESS_WEBHOOK_SECRET!;
 const WEBHOOK_URL =
-  "https://pen-backend-sandbox-079c.up.railway.app/api/webhooks/gocardless";
+  "https://b1f9d464bc5d.ngrok-free.app/api/webhooks/gocardless";
 
 let passCount = 0;
 let failCount = 0;
@@ -196,6 +196,7 @@ async function runTests() {
         payment: `PM_TEST_${Date.now()}`,
         mandate: `MD_TEST_${Date.now()}`,
         subscription: `SB_TEST_${Date.now()}`,
+        customer: user!.gocardlessCustomerId,
       },
       details: {
         origin: "gocardless",

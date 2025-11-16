@@ -164,7 +164,7 @@ async function handleMandateCreated(event: MandateCreatedEvent) {
     }
 
     // Mettre à jour le statut du mandat
-    await updateMandateStatus(mandateId, "pending_customer_approval");
+    await updateMandateStatus(user.id, mandateId, "pending_customer_approval");
 
     // Logger l'événement
     await logWebhookEvent("mandates.created", "pending", user.id, {
@@ -205,7 +205,7 @@ async function handleMandateActive(event: MandateActiveEvent) {
     }
 
     // Mettre à jour le statut du mandat
-    await updateMandateStatus(mandateId, "active");
+    await updateMandateStatus(user.id, mandateId, "active");
 
     // Logger l'événement
     await logWebhookEvent("mandates.active", "completed", user.id, {
@@ -246,7 +246,7 @@ async function handleMandateCancelled(event: MandateCancelledEvent) {
     }
 
     // Mettre à jour le statut du mandat
-    await updateMandateStatus(mandateId, "cancelled");
+    await updateMandateStatus(user.id, mandateId, "cancelled");
 
     // Désactiver le plan premium
     await deactivatePremiumPlan(user.id, "mandate_cancelled");
@@ -293,7 +293,7 @@ async function handleMandateFailed(event: MandateFailedEvent) {
     }
 
     // Mettre à jour le statut du mandat
-    await updateMandateStatus(mandateId, "failed");
+    await updateMandateStatus(user.id, mandateId, "failed");
 
     // Désactiver le plan premium
     await deactivatePremiumPlan(user.id, "mandate_failed");

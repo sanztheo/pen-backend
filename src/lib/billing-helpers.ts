@@ -67,9 +67,9 @@ export async function updateUserLimitsToFree(userId: string) {
     );
 
     // Mettre à jour les limites dans UserLimits vers les valeurs free
-    await prisma.userLimits.update({
+    await prisma.userLimits.upsert({
       where: { userId },
-      data: {
+      update: {
         aiCreditsLimit: 50,
         workspacesLimit: 2,
         projectsLimit: -1, // Illimité pour projets même en free
@@ -81,6 +81,26 @@ export async function updateUserLimitsToFree(userId: string) {
         advancedQuizzesLimit: 10,
         statsChartsLimit: ["progression-area", "difficulty-radar"],
         // Reset les usages
+        aiCreditsUsed: 0,
+        workspacesUsed: 0,
+        projectsUsed: 0,
+        customQuizzesUsed: 0,
+        presetSequencesUsed: 0,
+        advancedQuizzesUsed: 0,
+        lastResetAt: new Date(),
+      },
+      create: {
+        userId,
+        aiCreditsLimit: 50,
+        workspacesLimit: 2,
+        projectsLimit: -1,
+        customQuizzesLimit: 5,
+        presetSequencesLimit: 1,
+        historyQuizzesLimit: 5,
+        pagesSelectionLimit: 2,
+        questionsPerQuizLimit: 10,
+        advancedQuizzesLimit: 10,
+        statsChartsLimit: ["progression-area", "difficulty-radar"],
         aiCreditsUsed: 0,
         workspacesUsed: 0,
         projectsUsed: 0,
@@ -162,7 +182,10 @@ export async function logWebhookEvent(
           status,
           provider: "gocardless",
           providerId:
-            metadata.eventId || metadata.paymentId || `webhook_${Date.now()}`,
+            metadata.paymentId ||
+            metadata.mandateId ||
+            metadata.eventId ||
+            `webhook_${Date.now()}`,
           metadata: {
             ...metadata,
             eventType,
@@ -215,6 +238,7 @@ export async function findUserByGocardlessCustomer(
  * @param reference - La référence du mandat (optionnel)
  */
 export async function updateMandateStatus(
+  userId: string,
   mandateId: string,
   status:
     | "pending_customer_approval"
@@ -236,9 +260,16 @@ export async function updateMandateStatus(
       updateData.mandateReference = reference;
     }
 
-    await prisma.userSubscription.updateMany({
-      where: { gocardlessMandateId: mandateId },
-      data: updateData,
+    // Upsert pour créer si n'existe pas, ou mettre à jour si existe
+    await prisma.userSubscription.upsert({
+      where: { userId },
+      update: updateData,
+      create: {
+        userId,
+        plan: "free_user",
+        gocardlessCustomerId: "", // Sera mis à jour par d'autres handlers
+        ...updateData,
+      },
     });
 
     console.log(
