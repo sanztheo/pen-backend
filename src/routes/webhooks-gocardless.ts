@@ -1,492 +1,531 @@
-import express from "express";
+import { Request, Response } from "express";
 import crypto from "crypto";
-import { gcClient } from "../lib/gocardless.js";
 import { prisma } from "../lib/prisma.js";
+import {
+  GoCardlessWebhookEvent,
+  GoCardlessWebhookPayload,
+  PaymentConfirmedEvent,
+  PaymentFailedEvent,
+  MandateActiveEvent,
+  MandateCancelledEvent,
+  MandateFailedEvent,
+  MandateCreatedEvent,
+  SubscriptionCreatedEvent,
+  SubscriptionFinishedEvent,
+} from "../types/gocardless.js";
+import {
+  isEventProcessed,
+  logWebhookEvent,
+  findUserByGocardlessCustomer,
+  updateMandateStatus,
+  updateSubscriptionInfo,
+  activatePremiumPlan,
+  deactivatePremiumPlan,
+  updateUserLimitsToPremium,
+  updateUserLimitsToFree,
+} from "../lib/billing-helpers.js";
+
+// Webhook secret pour vérifier la signature
+const WEBHOOK_SECRET =
+  process.env.GOCARDLESS_WEBHOOK_SECRET ||
+  "3W8PRZirYFBzn_P1iWvxoVcg9v9dlqnAtCIcUErD";
 
 /**
- * 🎯 WEBHOOK GOCARDLESS - Gestion événements paiements
- *
- * Événements gérés:
- * - payments.confirmed → Paiement réussi
- * - payments.failed → Paiement échoué
- * - mandates.created → Mandat créé (autorisation prélèvement)
- * - mandates.cancelled → Mandat annulé
- * - mandates.failed → Mandat échoué
- * - subscriptions.created → Abonnement créé
- * - subscriptions.payment_created → Nouveau paiement généré
- * - subscriptions.finished → Abonnement terminé
+ * Vérifie la signature HMAC-SHA256 du webhook GoCardless
  */
+function verifyWebhookSignature(
+  requestBody: string,
+  signature: string,
+  secret: string,
+): boolean {
+  const computedSignature = crypto
+    .createHmac("sha256", secret)
+    .update(requestBody)
+    .digest("hex");
 
-export const gocardlessWebhookHandler: express.RequestHandler = async (
-  req,
-  res,
-) => {
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("🚨 WEBHOOK GOCARDLESS REÇU !");
-  console.log("URL:", req.url);
-  console.log("Method:", req.method);
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  // Utiliser timingSafeEqual pour éviter les timing attacks
+  return crypto.timingSafeEqual(
+    Buffer.from(signature),
+    Buffer.from(computedSignature),
+  );
+}
+
+/**
+ * Handler pour l'événement payments.confirmed
+ */
+async function handlePaymentConfirmed(event: PaymentConfirmedEvent) {
+  console.log(`[WEBHOOK] Traitement payment.confirmed: ${event.id}`);
 
   try {
-    // 1️⃣ Vérifier la signature webhook
+    // Récupérer le paiement depuis GoCardless si nécessaire
+    const customerId = event.links.customer;
+    if (!customerId) {
+      console.error("[WEBHOOK] Customer ID manquant dans l'événement");
+      return;
+    }
+
+    // Trouver l'utilisateur via le customer ID
+    const user = await findUserByGocardlessCustomer(customerId);
+    if (!user) {
+      console.error(
+        `[WEBHOOK] Utilisateur non trouvé pour customer: ${customerId}`,
+      );
+      return;
+    }
+
+    // Activer le plan premium
+    await activatePremiumPlan(user.id, new Date(event.created_at));
+
+    // Logger l'événement
+    await logWebhookEvent("payments.confirmed", "completed", user.id, {
+      eventId: event.id,
+      paymentId: event.links.payment,
+      customerId,
+      createdAt: event.created_at,
+    });
+
+    console.log(
+      `[WEBHOOK] ✅ Paiement confirmé et plan premium activé pour user: ${user.id}`,
+    );
+  } catch (error) {
+    console.error(`[WEBHOOK] ❌ Erreur traitement payment.confirmed:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Handler pour l'événement payments.failed
+ */
+async function handlePaymentFailed(event: PaymentFailedEvent) {
+  console.log(`[WEBHOOK] Traitement payment.failed: ${event.id}`);
+
+  try {
+    const customerId = event.links.customer;
+    if (!customerId) {
+      console.error("[WEBHOOK] Customer ID manquant dans l'événement");
+      return;
+    }
+
+    const user = await findUserByGocardlessCustomer(customerId);
+    if (!user) {
+      console.error(
+        `[WEBHOOK] Utilisateur non trouvé pour customer: ${customerId}`,
+      );
+      return;
+    }
+
+    // Logger l'échec du paiement
+    await logWebhookEvent("payments.failed", "failed", user.id, {
+      eventId: event.id,
+      paymentId: event.links.payment,
+      customerId,
+      failureReason: event.details?.cause,
+      description: event.details?.description,
+      createdAt: event.created_at,
+    });
+
+    // Pour l'instant, on ne désactive pas immédiatement le premium (grace period)
+    // On pourrait envoyer un email d'avertissement ici
+    console.log(
+      `[WEBHOOK] ⚠️ Paiement échoué pour user: ${user.id} - Grace period actif`,
+    );
+  } catch (error) {
+    console.error(`[WEBHOOK] ❌ Erreur traitement payment.failed:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Handler pour l'événement mandates.created
+ */
+async function handleMandateCreated(event: MandateCreatedEvent) {
+  console.log(`[WEBHOOK] Traitement mandates.created: ${event.id}`);
+
+  try {
+    const mandateId = event.links.mandate;
+    const customerId = event.links.customer;
+
+    if (!mandateId || !customerId) {
+      console.error("[WEBHOOK] Mandate ID ou Customer ID manquant");
+      return;
+    }
+
+    const user = await findUserByGocardlessCustomer(customerId);
+    if (!user) {
+      console.error(
+        `[WEBHOOK] Utilisateur non trouvé pour customer: ${customerId}`,
+      );
+      return;
+    }
+
+    // Mettre à jour le statut du mandat
+    await updateMandateStatus(mandateId, "pending_customer_approval");
+
+    // Logger l'événement
+    await logWebhookEvent("mandates.created", "pending", user.id, {
+      eventId: event.id,
+      mandateId,
+      customerId,
+      createdAt: event.created_at,
+    });
+
+    console.log(`[WEBHOOK] ✅ Mandat créé pour user: ${user.id}`);
+  } catch (error) {
+    console.error(`[WEBHOOK] ❌ Erreur traitement mandates.created:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Handler pour l'événement mandates.active
+ */
+async function handleMandateActive(event: MandateActiveEvent) {
+  console.log(`[WEBHOOK] Traitement mandates.active: ${event.id}`);
+
+  try {
+    const mandateId = event.links.mandate;
+    const customerId = event.links.customer;
+
+    if (!mandateId || !customerId) {
+      console.error("[WEBHOOK] Mandate ID ou Customer ID manquant");
+      return;
+    }
+
+    const user = await findUserByGocardlessCustomer(customerId);
+    if (!user) {
+      console.error(
+        `[WEBHOOK] Utilisateur non trouvé pour customer: ${customerId}`,
+      );
+      return;
+    }
+
+    // Mettre à jour le statut du mandat
+    await updateMandateStatus(mandateId, "active");
+
+    // Logger l'événement
+    await logWebhookEvent("mandates.active", "completed", user.id, {
+      eventId: event.id,
+      mandateId,
+      customerId,
+      createdAt: event.created_at,
+    });
+
+    console.log(`[WEBHOOK] ✅ Mandat activé pour user: ${user.id}`);
+  } catch (error) {
+    console.error(`[WEBHOOK] ❌ Erreur traitement mandates.active:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Handler pour l'événement mandates.cancelled
+ */
+async function handleMandateCancelled(event: MandateCancelledEvent) {
+  console.log(`[WEBHOOK] Traitement mandates.cancelled: ${event.id}`);
+
+  try {
+    const mandateId = event.links.mandate;
+    const customerId = event.links.customer;
+
+    if (!mandateId || !customerId) {
+      console.error("[WEBHOOK] Mandate ID ou Customer ID manquant");
+      return;
+    }
+
+    const user = await findUserByGocardlessCustomer(customerId);
+    if (!user) {
+      console.error(
+        `[WEBHOOK] Utilisateur non trouvé pour customer: ${customerId}`,
+      );
+      return;
+    }
+
+    // Mettre à jour le statut du mandat
+    await updateMandateStatus(mandateId, "cancelled");
+
+    // Désactiver le plan premium
+    await deactivatePremiumPlan(user.id, "mandate_cancelled");
+
+    // Logger l'événement
+    await logWebhookEvent("mandates.cancelled", "cancelled", user.id, {
+      eventId: event.id,
+      mandateId,
+      customerId,
+      cancellationReason: event.details?.cause,
+      createdAt: event.created_at,
+    });
+
+    console.log(
+      `[WEBHOOK] ✅ Mandat annulé et premium désactivé pour user: ${user.id}`,
+    );
+  } catch (error) {
+    console.error(`[WEBHOOK] ❌ Erreur traitement mandates.cancelled:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Handler pour l'événement mandates.failed
+ */
+async function handleMandateFailed(event: MandateFailedEvent) {
+  console.log(`[WEBHOOK] Traitement mandates.failed: ${event.id}`);
+
+  try {
+    const mandateId = event.links.mandate;
+    const customerId = event.links.customer;
+
+    if (!mandateId || !customerId) {
+      console.error("[WEBHOOK] Mandate ID ou Customer ID manquant");
+      return;
+    }
+
+    const user = await findUserByGocardlessCustomer(customerId);
+    if (!user) {
+      console.error(
+        `[WEBHOOK] Utilisateur non trouvé pour customer: ${customerId}`,
+      );
+      return;
+    }
+
+    // Mettre à jour le statut du mandat
+    await updateMandateStatus(mandateId, "failed");
+
+    // Désactiver le plan premium
+    await deactivatePremiumPlan(user.id, "mandate_failed");
+
+    // Logger l'événement
+    await logWebhookEvent("mandates.failed", "failed", user.id, {
+      eventId: event.id,
+      mandateId,
+      customerId,
+      failureReason: event.details?.cause,
+      description: event.details?.description,
+      createdAt: event.created_at,
+    });
+
+    console.log(
+      `[WEBHOOK] ✅ Mandat échoué et premium désactivé pour user: ${user.id}`,
+    );
+  } catch (error) {
+    console.error(`[WEBHOOK] ❌ Erreur traitement mandates.failed:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Handler pour l'événement subscriptions.created
+ */
+async function handleSubscriptionCreated(event: SubscriptionCreatedEvent) {
+  console.log(`[WEBHOOK] Traitement subscriptions.created: ${event.id}`);
+
+  try {
+    const subscriptionId = event.links.subscription;
+    const customerId = event.links.customer;
+
+    if (!subscriptionId || !customerId) {
+      console.error("[WEBHOOK] Subscription ID ou Customer ID manquant");
+      return;
+    }
+
+    const user = await findUserByGocardlessCustomer(customerId);
+    if (!user) {
+      console.error(
+        `[WEBHOOK] Utilisateur non trouvé pour customer: ${customerId}`,
+      );
+      return;
+    }
+
+    // Mettre à jour les informations de subscription
+    await updateSubscriptionInfo(subscriptionId, user.id);
+
+    // Logger l'événement
+    await logWebhookEvent("subscriptions.created", "completed", user.id, {
+      eventId: event.id,
+      subscriptionId,
+      customerId,
+      createdAt: event.created_at,
+    });
+
+    console.log(`[WEBHOOK] ✅ Subscription créée pour user: ${user.id}`);
+  } catch (error) {
+    console.error(
+      `[WEBHOOK] ❌ Erreur traitement subscriptions.created:`,
+      error,
+    );
+    throw error;
+  }
+}
+
+/**
+ * Handler pour l'événement subscriptions.finished
+ */
+async function handleSubscriptionFinished(event: SubscriptionFinishedEvent) {
+  console.log(`[WEBHOOK] Traitement subscriptions.finished: ${event.id}`);
+
+  try {
+    const subscriptionId = event.links.subscription;
+    const customerId = event.links.customer;
+
+    if (!subscriptionId || !customerId) {
+      console.error("[WEBHOOK] Subscription ID ou Customer ID manquant");
+      return;
+    }
+
+    const user = await findUserByGocardlessCustomer(customerId);
+    if (!user) {
+      console.error(
+        `[WEBHOOK] Utilisateur non trouvé pour customer: ${customerId}`,
+      );
+      return;
+    }
+
+    // Désactiver le plan premium
+    await deactivatePremiumPlan(user.id, "subscription_finished");
+
+    // Logger l'événement
+    await logWebhookEvent("subscriptions.finished", "cancelled", user.id, {
+      eventId: event.id,
+      subscriptionId,
+      customerId,
+      finishReason: event.details?.cause,
+      createdAt: event.created_at,
+    });
+
+    console.log(
+      `[WEBHOOK] ✅ Subscription terminée et premium désactivé pour user: ${user.id}`,
+    );
+  } catch (error) {
+    console.error(
+      `[WEBHOOK] ❌ Erreur traitement subscriptions.finished:`,
+      error,
+    );
+    throw error;
+  }
+}
+
+/**
+ * Handler principal pour les webhooks GoCardless
+ */
+export async function gocardlessWebhookHandler(req: Request, res: Response) {
+  console.log("[WEBHOOK] ========================================");
+  console.log("[WEBHOOK] Réception webhook GoCardless");
+
+  try {
+    // Vérifier la présence de la signature
     const signature = req.headers["webhook-signature"] as string;
-    const secret = process.env.GOCARDLESS_WEBHOOK_SECRET;
-
-    if (!secret) {
-      console.error("❌ GOCARDLESS_WEBHOOK_SECRET manquant");
-      return res.status(500).json({ error: "Webhook secret not configured" });
+    if (!signature) {
+      console.error("[WEBHOOK] ❌ Signature manquante");
+      return res.status(401).json({ error: "Signature manquante" });
     }
 
-    const payload = (req.body as Buffer).toString("utf8");
+    // Récupérer le body raw pour vérification de signature
+    const rawBody = req.body.toString("utf8");
 
-    // Calculer HMAC SHA-256
-    const expectedSignature = crypto
-      .createHmac("sha256", secret)
-      .update(payload)
-      .digest("hex");
-
-    if (signature !== expectedSignature) {
-      console.error("❌ Signature invalide");
-      return res.status(401).json({ error: "Invalid signature" });
+    // Vérifier la signature
+    if (!verifyWebhookSignature(rawBody, signature, WEBHOOK_SECRET)) {
+      console.error("[WEBHOOK] ❌ Signature invalide");
+      return res.status(401).json({ error: "Signature invalide" });
     }
 
-    console.log("✅ Signature valide");
+    console.log("[WEBHOOK] ✅ Signature vérifiée");
 
-    // 2️⃣ Parser le payload
-    const body = JSON.parse(payload);
-    const events = body.events || [];
+    // Parser le payload
+    const payload: GoCardlessWebhookPayload = JSON.parse(rawBody);
 
-    console.log(`📨 ${events.length} événement(s) reçu(s)`);
+    if (!payload.events || !Array.isArray(payload.events)) {
+      console.error("[WEBHOOK] ❌ Format de payload invalide");
+      return res.status(400).json({ error: "Format invalide" });
+    }
 
-    // 3️⃣ Traiter chaque événement
-    for (const event of events) {
-      const eventId = event.id;
-      const resourceType = event.resource_type;
-      const action = event.action;
+    console.log(`[WEBHOOK] ${payload.events.length} événement(s) reçu(s)`);
 
-      console.log(`\n🔍 Event: ${resourceType}.${action} (ID: ${eventId})`);
+    // Traiter chaque événement
+    for (const event of payload.events) {
+      const eventType = `${event.resource_type}.${event.action}`;
+      console.log(
+        `[WEBHOOK] Traitement événement: ${eventType} (ID: ${event.id})`,
+      );
 
-      // Idempotence: vérifier si déjà traité
-      const alreadyProcessed = await prisma.webhookEvent.findUnique({
-        where: { eventId },
-      });
-
-      if (alreadyProcessed) {
-        console.log(`⏭️ Événement déjà traité: ${eventId}`);
+      // Vérifier si l'événement a déjà été traité (idempotence)
+      if (await isEventProcessed(event.id)) {
+        console.log(`[WEBHOOK] ⏭️ Événement déjà traité: ${event.id}`);
         continue;
       }
 
-      // Router vers le bon handler
-      await handleEvent(event);
+      try {
+        // Router vers le handler approprié
+        switch (eventType) {
+          case "payments.confirmed":
+            await handlePaymentConfirmed(event as PaymentConfirmedEvent);
+            break;
 
-      // Marquer comme traité
-      await prisma.webhookEvent.create({
-        data: {
-          eventId,
-          type: `${resourceType}.${action}`,
-          processedAt: new Date(),
-        },
-      });
+          case "payments.failed":
+            await handlePaymentFailed(event as PaymentFailedEvent);
+            break;
 
-      console.log(`✅ Événement traité: ${eventId}`);
+          case "mandates.created":
+            await handleMandateCreated(event as MandateCreatedEvent);
+            break;
+
+          case "mandates.active":
+            await handleMandateActive(event as MandateActiveEvent);
+            break;
+
+          case "mandates.cancelled":
+            await handleMandateCancelled(event as MandateCancelledEvent);
+            break;
+
+          case "mandates.failed":
+            await handleMandateFailed(event as MandateFailedEvent);
+            break;
+
+          case "subscriptions.created":
+            await handleSubscriptionCreated(event as SubscriptionCreatedEvent);
+            break;
+
+          case "subscriptions.finished":
+            await handleSubscriptionFinished(
+              event as SubscriptionFinishedEvent,
+            );
+            break;
+
+          default:
+            console.log(`[WEBHOOK] ℹ️ Type d'événement non géré: ${eventType}`);
+            // Logger quand même l'événement non géré
+            await logWebhookEvent(eventType, "pending", undefined, {
+              eventId: event.id,
+              eventType,
+              links: event.links,
+              details: event.details,
+              createdAt: event.created_at,
+            });
+        }
+      } catch (eventError) {
+        console.error(
+          `[WEBHOOK] ❌ Erreur traitement événement ${event.id}:`,
+          eventError,
+        );
+        // Continuer avec les autres événements même si un échoue
+      }
     }
 
-    return res.status(200).json({ received: true });
-  } catch (error: any) {
-    console.error("❌ Erreur webhook GoCardless:", error);
-    return res.status(500).json({ error: "Webhook processing failed" });
+    console.log("[WEBHOOK] ✅ Traitement terminé");
+    console.log("[WEBHOOK] ========================================");
+
+    // Répondre avec succès
+    res.status(200).json({
+      success: true,
+      processed: payload.events.length,
+    });
+  } catch (error) {
+    console.error("[WEBHOOK] ❌ Erreur générale:", error);
+    console.log("[WEBHOOK] ========================================");
+
+    // Retourner 500 pour que GoCardless réessaie
+    res.status(500).json({
+      error: "Erreur de traitement du webhook",
+    });
   }
-};
-
-// Handler principal des événements
-async function handleEvent(event: any) {
-  const { resource_type, action, links } = event;
-
-  // 💳 PAYMENTS - Paiements
-  if (resource_type === "payments") {
-    if (action === "confirmed") {
-      await handlePaymentConfirmed(event);
-    }
-    if (action === "failed") {
-      await handlePaymentFailed(event);
-    }
-  }
-
-  // 📝 MANDATES - Autorisations prélèvement
-  if (resource_type === "mandates") {
-    if (action === "created" || action === "active") {
-      await handleMandateCreated(event);
-    }
-    if (action === "cancelled") {
-      await handleMandateCancelled(event);
-    }
-    if (action === "failed") {
-      await handleMandateFailed(event);
-    }
-  }
-
-  // 🔄 SUBSCRIPTIONS - Abonnements récurrents
-  if (resource_type === "subscriptions") {
-    if (action === "created") {
-      await handleSubscriptionCreated(event);
-    }
-    if (action === "payment_created") {
-      await handleSubscriptionPaymentCreated(event);
-    }
-    if (action === "finished" || action === "cancelled") {
-      await handleSubscriptionFinished(event);
-    }
-  }
-}
-
-// 💳 Paiement confirmé
-async function handlePaymentConfirmed(event: any) {
-  const paymentId = event.links.payment;
-
-  // Récupérer détails paiement
-  const payment = await gcClient.payments.find(paymentId);
-  const customerId = payment.links?.customer;
-
-  if (!customerId) {
-    console.warn("⚠️ Pas de customer_id dans payment");
-    return;
-  }
-
-  // Trouver user par gocardlessCustomerId
-  const user = await prisma.user.findFirst({
-    where: { gocardlessCustomerId: customerId },
-  });
-
-  if (!user) {
-    console.warn(`⚠️ User introuvable pour customer: ${customerId}`);
-    return;
-  }
-
-  console.log(
-    `💰 Paiement confirmé: ${payment.amount} ${payment.currency} pour user: ${user.id}`,
-  );
-
-  // Activer premium
-  const now = new Date();
-  const periodEnd = new Date(now);
-  periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-  await prisma.userSubscription.upsert({
-    where: { userId: user.id },
-    update: {
-      plan: "premium",
-      status: "active",
-      paymentMethod: "gocardless",
-      lastPaymentDate: new Date(payment.charge_date),
-      currentPeriodStart: now,
-      currentPeriodEnd: periodEnd,
-      updatedAt: new Date(),
-    },
-    create: {
-      userId: user.id,
-      plan: "premium",
-      status: "active",
-      paymentMethod: "gocardless",
-      gocardlessCustomerId: customerId,
-      lastPaymentDate: new Date(payment.charge_date),
-      currentPeriodStart: now,
-      currentPeriodEnd: periodEnd,
-    },
-  });
-
-  // Mettre à jour limites premium
-  await updateUserLimitsToPremium(user.id);
-
-  // Logger paiement
-  await prisma.paymentLog.create({
-    data: {
-      userId: user.id,
-      provider: "gocardless",
-      providerId: paymentId,
-      amount: parseInt(payment.amount),
-      currency: payment.currency,
-      status: "confirmed",
-      metadata: payment,
-    },
-  });
-
-  console.log(`✅ Premium activé pour user: ${user.id}`);
-}
-
-// ❌ Paiement échoué
-async function handlePaymentFailed(event: any) {
-  const paymentId = event.links.payment;
-
-  const payment = await gcClient.payments.find(paymentId);
-  const customerId = payment.links?.customer;
-
-  if (!customerId) return;
-
-  const user = await prisma.user.findFirst({
-    where: { gocardlessCustomerId: customerId },
-  });
-
-  if (!user) return;
-
-  console.log(`❌ Paiement échoué pour user: ${user.id}`);
-
-  // Marquer subscription comme past_due
-  await prisma.userSubscription.update({
-    where: { userId: user.id },
-    data: {
-      status: "past_due",
-      updatedAt: new Date(),
-    },
-  });
-
-  // Logger échec
-  await prisma.paymentLog.create({
-    data: {
-      userId: user.id,
-      provider: "gocardless",
-      providerId: paymentId,
-      amount: parseInt(payment.amount),
-      currency: payment.currency,
-      status: "failed",
-      metadata: payment,
-    },
-  });
-
-  // TODO: Envoyer email utilisateur
-}
-
-// 📝 Mandat créé (autorisation prélèvement)
-async function handleMandateCreated(event: any) {
-  const mandateId = event.links.mandate;
-
-  const mandate = await gcClient.mandates.find(mandateId);
-  const customerId = mandate.links?.customer;
-
-  if (!customerId) return;
-
-  const user = await prisma.user.findFirst({
-    where: { gocardlessCustomerId: customerId },
-  });
-
-  if (!user) return;
-
-  console.log(`📝 Mandat créé pour user: ${user.id}`);
-
-  await prisma.userSubscription.upsert({
-    where: { userId: user.id },
-    update: {
-      gocardlessMandateId: mandateId,
-      mandateReference: mandate.reference,
-      mandateStatus: mandate.status,
-      updatedAt: new Date(),
-    },
-    create: {
-      userId: user.id,
-      plan: "free_user",
-      status: "active",
-      paymentMethod: "gocardless",
-      gocardlessCustomerId: customerId,
-      gocardlessMandateId: mandateId,
-      mandateReference: mandate.reference,
-      mandateStatus: mandate.status,
-      currentPeriodStart: new Date(),
-      currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-    },
-  });
-}
-
-// 🚫 Mandat annulé
-async function handleMandateCancelled(event: any) {
-  const mandateId = event.links.mandate;
-
-  const subscription = await prisma.userSubscription.findFirst({
-    where: { gocardlessMandateId: mandateId },
-  });
-
-  if (!subscription) return;
-
-  console.log(`🚫 Mandat annulé pour user: ${subscription.userId}`);
-
-  // Repasser en free
-  await prisma.userSubscription.update({
-    where: { userId: subscription.userId },
-    data: {
-      plan: "free_user",
-      status: "canceled",
-      mandateStatus: "cancelled",
-      updatedAt: new Date(),
-    },
-  });
-
-  await updateUserLimitsToFree(subscription.userId);
-}
-
-// ❌ Mandat échoué
-async function handleMandateFailed(event: any) {
-  const mandateId = event.links.mandate;
-
-  const subscription = await prisma.userSubscription.findFirst({
-    where: { gocardlessMandateId: mandateId },
-  });
-
-  if (!subscription) return;
-
-  console.log(`❌ Mandat échoué pour user: ${subscription.userId}`);
-
-  await prisma.userSubscription.update({
-    where: { userId: subscription.userId },
-    data: {
-      mandateStatus: "failed",
-      status: "incomplete",
-      updatedAt: new Date(),
-    },
-  });
-
-  // TODO: Envoyer email utilisateur
-}
-
-// 🔄 Abonnement créé
-async function handleSubscriptionCreated(event: any) {
-  const subscriptionId = event.links.subscription;
-
-  const subscription = await gcClient.subscriptions.find(subscriptionId);
-  const customerId = subscription.links?.customer;
-
-  if (!customerId) return;
-
-  const user = await prisma.user.findFirst({
-    where: { gocardlessCustomerId: customerId },
-  });
-
-  if (!user) return;
-
-  console.log(`🔄 Abonnement créé pour user: ${user.id}`);
-
-  await prisma.userSubscription.update({
-    where: { userId: user.id },
-    data: {
-      gocardlessSubscriptionId: subscriptionId,
-      nextPaymentDate: subscription.upcoming_payments?.[0]?.charge_date
-        ? new Date(subscription.upcoming_payments[0].charge_date)
-        : null,
-      updatedAt: new Date(),
-    },
-  });
-}
-
-// 💰 Nouveau paiement généré par subscription
-async function handleSubscriptionPaymentCreated(event: any) {
-  const paymentId = event.links.payment;
-  console.log(`💰 Nouveau paiement subscription généré: ${paymentId}`);
-  // Le paiement sera traité par payments.confirmed
-}
-
-// 🔚 Abonnement terminé
-async function handleSubscriptionFinished(event: any) {
-  const subscriptionId = event.links.subscription;
-
-  const userSubscription = await prisma.userSubscription.findFirst({
-    where: { gocardlessSubscriptionId: subscriptionId },
-  });
-
-  if (!userSubscription) return;
-
-  console.log(`🔚 Abonnement terminé pour user: ${userSubscription.userId}`);
-
-  // Repasser en free
-  await prisma.userSubscription.update({
-    where: { userId: userSubscription.userId },
-    data: {
-      plan: "free_user",
-      status: "canceled",
-      updatedAt: new Date(),
-    },
-  });
-
-  await updateUserLimitsToFree(userSubscription.userId);
-}
-
-// Helper: Mettre à jour limites premium
-async function updateUserLimitsToPremium(userId: string) {
-  const [
-    workspacesCount,
-    projectsCount,
-    customQuizzesCount,
-    presetSequencesCount,
-    aiCreditsUsed,
-  ] = await Promise.all([
-    prisma.workspace.count({ where: { ownerId: userId } }),
-    prisma.project.count({ where: { createdBy: userId } }),
-    prisma.quiz.count({ where: { userId, preset: "NONE" } }),
-    prisma.quizSequence.count({ where: { userId } }),
-    prisma.usageRecord
-      .aggregate({
-        where: {
-          userId,
-          resourceType: { in: ["ai_credits", "openai_request"] },
-        },
-        _sum: { quantity: true },
-      })
-      .then((result) => result._sum.quantity || 0),
-  ]);
-
-  await prisma.userLimits.upsert({
-    where: { userId },
-    update: {
-      aiCreditsLimit: -1,
-      workspacesLimit: -1,
-      projectsLimit: -1,
-      customQuizzesLimit: -1,
-      presetSequencesLimit: -1,
-      historyQuizzesLimit: -1,
-      statsChartsLimit: [],
-      workspacesUsed: workspacesCount,
-      projectsUsed: projectsCount,
-      customQuizzesUsed: customQuizzesCount,
-      presetSequencesUsed: presetSequencesCount,
-      aiCreditsUsed: Math.max(0, aiCreditsUsed),
-    },
-    create: {
-      userId,
-      aiCreditsLimit: -1,
-      workspacesLimit: -1,
-      projectsLimit: -1,
-      customQuizzesLimit: -1,
-      presetSequencesLimit: -1,
-      historyQuizzesLimit: -1,
-      statsChartsLimit: [],
-      aiCreditsUsed: Math.max(0, aiCreditsUsed),
-      workspacesUsed: workspacesCount,
-      projectsUsed: projectsCount,
-      customQuizzesUsed: customQuizzesCount,
-      presetSequencesUsed: presetSequencesCount,
-      lastResetAt: new Date(),
-      resetType: "monthly",
-    },
-  });
-}
-
-// Helper: Mettre à jour limites free
-async function updateUserLimitsToFree(userId: string) {
-  await prisma.userLimits.update({
-    where: { userId },
-    data: {
-      aiCreditsLimit: 50,
-      workspacesLimit: 2,
-      projectsLimit: -1,
-      customQuizzesLimit: 5,
-      presetSequencesLimit: 1,
-      historyQuizzesLimit: 5,
-      statsChartsLimit: ["progression-area", "difficulty-radar"],
-      // RESET usage
-      aiCreditsUsed: 0,
-      workspacesUsed: 0,
-      projectsUsed: 0,
-      customQuizzesUsed: 0,
-      presetSequencesUsed: 0,
-      lastResetAt: new Date(),
-    },
-  });
 }
 
 export default gocardlessWebhookHandler;
