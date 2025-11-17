@@ -21,7 +21,7 @@ import {
 import { mapRagSourcesToRealUUIDs } from "../helpers/sourceMapping.js";
 import { ConversationHistoryService } from "../../../services/ai/functionCalling/history/index.js";
 
-// 🚀 NOUVEAUX SERVICES (refactoring architecture)
+// 🚀 NOUVEAUX SERVICES (refactoring architecture) update
 import { DebugLogger } from "../config/debug.js";
 import { ValidationUtils } from "../utils/validation.js";
 import { AssistantHandlerService } from "../services/HandlerService.js";
