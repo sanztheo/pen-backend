@@ -188,6 +188,90 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     let intermediateThinkingBlocks: any[] = []; // 🔥 NOUVEAU: Stocker intermediate thinking pour metadata
 
     try {
+      // 🆕 GESTION DE L'HISTORIQUE DES CONVERSATIONS
+      const {
+        ConversationHistoryService,
+        TokenCounterService,
+        HistoryCompressionService,
+      } = await import(
+        "../../../services/ai/functionCalling/history/index.js"
+      );
+
+      const userId = req.user!.id;
+
+      // Ajouter le message utilisateur à l'historique
+      ConversationHistoryService.addUserMessage(
+        userId,
+        workspaceId,
+        sanitizedInstruction,
+        {
+          web: useWeb,
+          all: sourcesScope === "all",
+          sources: sourcesForAI,
+        },
+      );
+
+      // Récupérer l'historique
+      let history = ConversationHistoryService.getHistory(userId, workspaceId);
+      let conversationHistory: string | null = null;
+
+      if (history && history.messages.length > 1) {
+        // Vérifier si compression nécessaire
+        const tokenCount = TokenCounterService.countHistoryTokens(history);
+        ConversationHistoryService.updateTotalTokens(
+          userId,
+          workspaceId,
+          tokenCount.totalTokens,
+        );
+
+        if (tokenCount.needsCompression) {
+          console.log(
+            `🗜️ [CREATE-HISTORY] Compression nécessaire (${tokenCount.totalTokens.toLocaleString()} tokens > ${TokenCounterService.COMPRESSION_THRESHOLD.toLocaleString()})`,
+          );
+
+          try {
+            // Compresser avec GPT-4o-mini
+            const compressionResult =
+              await HistoryCompressionService.compressHistory(history);
+
+            console.log(
+              `✅ [CREATE-HISTORY] Compression réussie: ${compressionResult.originalTokens.toLocaleString()} → ${compressionResult.compressedTokens.toLocaleString()} tokens (${(compressionResult.compressionRatio * 100).toFixed(2)}%)`,
+            );
+
+            // Remplacer l'historique par la version compressée
+            ConversationHistoryService.replaceWithCompressedHistory(
+              userId,
+              workspaceId,
+              compressionResult.compressedContent,
+            );
+
+            conversationHistory = compressionResult.compressedContent;
+          } catch (compressionError) {
+            console.error(
+              `❌ [CREATE-HISTORY] Erreur compression:`,
+              compressionError,
+            );
+            // Fallback : utiliser l'historique non compressé
+            conversationHistory =
+              ConversationHistoryService.formatHistoryForBrain(
+                userId,
+                workspaceId,
+              );
+          }
+        } else {
+          // Pas besoin de compression
+          conversationHistory =
+            ConversationHistoryService.formatHistoryForBrain(userId, workspaceId);
+          console.log(
+            `📝 [CREATE-HISTORY] Historique chargé (${tokenCount.totalTokens.toLocaleString()} tokens, pas de compression nécessaire)`,
+          );
+        }
+      } else {
+        console.log(
+          `📝 [CREATE-HISTORY] Pas d'historique précédent ou premier message`,
+        );
+      }
+
       const persona = await readPersonalizationFromReq(req);
       const personaSnippet = buildPersonaSnippet(persona, 400);
 
@@ -209,6 +293,7 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
 ${personaSnippet}
 
 '''${LATEX_STRICT_RULES}'''`,
+        conversationHistory, // 🆕 Passer l'historique au brain (PlannerService)
 
         // Callbacks pour streaming temps réel
         onThinking: (thinkingChunk) => {
@@ -370,6 +455,19 @@ ${personaSnippet}
           `data: ${JSON.stringify({ pageId: page.id, title: page.title, projectId: page.projectId, thinking: thinkingContent })}\n\n`,
         );
 
+        // 🆕 SAUVEGARDER LA RÉPONSE AI DANS L'HISTORIQUE
+        ConversationHistoryService.addAIMessage(
+          userId,
+          workspaceId,
+          currentThinking,
+          currentToolCalls,
+          full, // Le contenu généré
+          intermediateThinkingBlocks,
+        );
+        console.log(
+          `📝 [CREATE-HISTORY] Réponse AI sauvegardée dans l'historique`,
+        );
+
         // 🔥 NOUVEAU: Envoyer les métadonnées avec scores pour CREATE mode
         res.write(`event: metadata\n`);
         res.write(
@@ -457,6 +555,28 @@ ${personaSnippet}
     res.write(
       `data: ${JSON.stringify({ pageId: page.id, title: page.title })}\n\n`,
     );
+
+    // 🆕 SAUVEGARDER LA RÉPONSE AI DANS L'HISTORIQUE (mode rapide)
+    try {
+      const {
+        ConversationHistoryService,
+      } = await import(
+        "../../../services/ai/functionCalling/history/index.js"
+      );
+      ConversationHistoryService.addAIMessage(
+        req.user!.id,
+        workspaceId,
+        currentThinking,
+        currentToolCalls,
+        full, // Le contenu généré
+        intermediateThinkingBlocks,
+      );
+      console.log(
+        `📝 [CREATE-HISTORY] Réponse AI sauvegardée dans l'historique (mode rapide)`,
+      );
+    } catch (historyError) {
+      console.error(`❌ [CREATE-HISTORY] Erreur sauvegarde historique:`, historyError);
+    }
 
     // 🔥 NOUVEAU: Envoyer les métadonnées avec scores pour CREATE mode
     res.write(`event: metadata\n`);
