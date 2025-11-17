@@ -13,6 +13,7 @@ export interface GenerateWithToolResultsOptions {
   systemPrompt: string;
   onStream?: (chunk: string) => void;
   wikipediaSources?: WikipediaSource[];
+  conversationHistory?: string | null; // 🆕 Historique de conversation pour contexte
 }
 
 /**

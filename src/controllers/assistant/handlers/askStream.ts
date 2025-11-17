@@ -467,6 +467,7 @@ ${personaSnippet}
 
 '''${LATEX_STRICT_RULES}'''`,
             wikipediaSources,
+            conversationHistory, // 🆕 Injecter l'historique dans phase 2
             onStream: (chunk) => {
               fullFinalResponse += chunk; // 🆕 Capturer la réponse
               sseWriteData(res, chunk);
