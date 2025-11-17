@@ -4,6 +4,7 @@ export interface FirstThinkingPlan {
     totalIterations: number;
     reasoning: string;
     optimizedQuery?: string; // 🎯 NOUVEAU: Query reformulée et optimisée pour les premiers tools
+    shouldUseTools: boolean; // 🆕 L'AI peut décider de ne pas utiliser de tools (ex: salutations, questions simples)
     toolSequence: Array<{
       step: number;
       toolName: string;
@@ -43,6 +44,7 @@ export const isFirstThinkingPlan = (obj: any): obj is FirstThinkingPlan => {
     obj.plan &&
     typeof obj.plan.totalIterations === 'number' &&
     typeof obj.plan.reasoning === 'string' &&
+    typeof obj.plan.shouldUseTools === 'boolean' &&
     Array.isArray(obj.plan.toolSequence)
   );
 };
