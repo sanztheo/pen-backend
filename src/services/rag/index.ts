@@ -404,10 +404,16 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         take: limit * 3 // Pool 3x plus large pour diversifier
       });
 
+      // 🔥 EARLY RETURN: Si aucun chunk trouvé, retourner immédiatement
+      if (allChunks.length === 0) {
+        console.log(`⚠️ [RAG-QUALITY] Aucun chunk trouvé pour les critères donnés`);
+        return [];
+      }
+
       // 🎯 ALGORITHME DE DIVERSIFICATION
       const diversifiedChunks = this.diversifyBySource(allChunks, limit);
 
-      console.log(`📊 [RAG-QUALITY] Chunks sélectionnés par source:`, 
+      console.log(`📊 [RAG-QUALITY] Chunks sélectionnés par source:`,
         this.getSourceStats(diversifiedChunks)
       );
 
@@ -428,9 +434,15 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
   // 🎯 Algorithme de diversification des chunks par source
   private diversifyBySource(chunks: any[], targetLimit: number): any[] {
+    // 🔥 EARLY RETURN: Si aucun chunk, retourner immédiatement
+    if (chunks.length === 0) {
+      console.log(`⚠️ [DIVERSIFICATION] Aucun chunk à diversifier`);
+      return [];
+    }
+
     // Grouper les chunks par source
     const chunksBySource = new Map<string, any[]>();
-    
+
     chunks.forEach(chunk => {
       const sourceId = chunk.source.id;
       if (!chunksBySource.has(sourceId)) {
@@ -440,6 +452,12 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     });
 
     console.log(`📊 [DIVERSIFICATION] ${chunksBySource.size} sources disponibles, cible: ${targetLimit} chunks`);
+
+    // 🔥 SAFETY CHECK: Si aucune source, retourner immédiatement (évite division par zéro)
+    if (chunksBySource.size === 0) {
+      console.log(`⚠️ [DIVERSIFICATION] Aucune source disponible après groupement`);
+      return [];
+    }
 
     // Stratégie : maximum 2-3 chunks par source pour équilibrer
     const maxChunksPerSource = Math.max(2, Math.floor(targetLimit / chunksBySource.size) + 1);
