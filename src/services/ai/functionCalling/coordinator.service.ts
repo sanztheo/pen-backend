@@ -76,6 +76,7 @@ export interface OrchestrationRequest {
   onToolResult?: (toolName: string, result: string) => void;
   onIntermediateThinking?: (chunk: string) => void;
   onScoring?: (toolName: string, progress: string) => void; // 🆕 Callback pour la phase de scoring
+  conversationHistory?: string | null; // 🆕 Historique de conversation formaté
 }
 
 /**
@@ -133,6 +134,7 @@ export class CoordinatorService {
         useWeb: request.useWeb,
         systemPrompt: request.systemPrompt,
         onThinking: request.onThinking,
+        conversationHistory: request.conversationHistory, // 🆕 Passer l'historique au planner
       };
 
       const plan = await PlannerService.generatePlan(planRequest);
@@ -520,6 +522,7 @@ export class CoordinatorService {
         useWeb: request.useWeb,
         systemPrompt: request.systemPrompt,
         onThinking: request.onThinking,
+        conversationHistory: request.conversationHistory, // 🆕 Passer l'historique au planner
       };
 
       const plan = await PlannerService.generatePlan(planRequest);
@@ -531,6 +534,24 @@ export class CoordinatorService {
       console.log(
         `   Tools: ${plan.toolSequence.map((t) => t.toolName).join(" → ")}`,
       );
+
+      // 🆕 Si pas de tools à exécuter (shouldUseTools: false), retourner immédiatement
+      if (plan.toolSequence.length === 0) {
+        console.log(
+          `🎯 [COORDINATOR-OPTIMIZED] Aucun tool à exécuter (shouldUseTools: false), réponse directe`,
+        );
+        const endTime = Date.now();
+        const duration = ((endTime - startTime) / 1000).toFixed(2);
+        console.log(
+          `✅ [COORDINATOR-OPTIMIZED] Orchestration terminée en ${duration}s (aucun tool)`,
+        );
+        return {
+          success: true,
+          toolCalls: [],
+          thinking: plan.reasoning,
+          intermediateThinkingBlocks: [],
+        };
+      }
 
       // ============================================
       // ÉTAPE 2 : VALIDATION DU PLAN
