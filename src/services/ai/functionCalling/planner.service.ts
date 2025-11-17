@@ -208,7 +208,23 @@ Each search_web should explore a complementary angle to local sources.`
 
       // 🆕 Construire le contexte de l'historique si disponible
       const historyContext = conversationHistory
-        ? `\n\n# CONVERSATION HISTORY (CONTEXT)\n\nYou have access to the previous conversation history. Use it to maintain context and continuity in your planning.\n\n${conversationHistory}\n\n# CURRENT QUERY\n\nThe user is now asking:`
+        ? `\n\n# CONVERSATION HISTORY (CONTEXT)
+
+⚠️ CRITICAL: You have access to the previous conversation history below.
+
+**BEFORE using any tools, check if:**
+1. The user is asking about the conversation itself ("what did we talk about?", "résume notre discussion", etc.)
+2. The answer is already in the conversation history
+
+**If YES to either → Set shouldUseTools: false and respond directly from history**
+
+${conversationHistory}
+
+---
+
+# CURRENT QUERY
+
+The user is now asking:`
         : "";
 
       const firstThinkingPrompt = isSearch
@@ -635,25 +651,44 @@ WEB ONLY MODE (no local sources):
       // EMPTY [] if shouldUseTools is false
     ],
     "errorHandling": {
-      "emptySourceId": "Never call read_rag_source with empty ID. Check listed sources first.",
-      "noSourcesFound": "If no sources found in all lists, use search_web."
+      "placeholderIds": "NEVER use placeholder IDs like 'BEST_MATCHING_SOURCE_ID'. Always use real UUIDs from list_available_sources.",
+      "emptySourceId": "Never call read_rag_source without a valid UUID. Must list sources first with list_available_sources.",
+      "noSourcesFound": "If list_available_sources returns empty, DO NOT call read_rag_source. Use search_web instead or set shouldUseTools: false."
     }
   }
 }
 \`\`\`
 
-## 🆕 IMPORTANT: When to use shouldUseTools = false
+## 🆕 CRITICAL: When to use shouldUseTools = false
 
 Set \`shouldUseTools: false\` and \`toolSequence: []\` for:
-- **Simple greetings**: "salut", "bonjour", "hello", "hi", "ça va?"
-- **Thanks/acknowledgments**: "merci", "thanks", "ok", "d'accord"
-- **Simple questions about you**: "qui es-tu?", "what are you?", "comment tu t'appelles?"
-- **Trivial requests**: "test", "essai", requests that don't need external knowledge
+
+**1. Metacognitive questions about the conversation itself:**
+- "de quoi parle notre conversation?", "résume notre discussion", "qu'avons-nous dit?"
+- "what did we talk about?", "summarize our conversation", "recap our discussion"
+- **REASON**: The conversation history is already provided in the context above. Simply read it and respond directly.
+
+**2. Questions answerable from conversation history:**
+- If the conversation history contains sufficient information to answer the query
+- **REASON**: Don't waste API calls on tools when you already have the answer in context
+
+**3. Simple greetings and acknowledgments:**
+- "salut", "bonjour", "hello", "hi", "ça va?", "comment ça va?"
+- "merci", "thanks", "ok", "d'accord", "parfait"
+- **REASON**: No external knowledge needed
+
+**4. Questions about the AI itself:**
+- "qui es-tu?", "what are you?", "comment tu t'appelles?", "que peux-tu faire?"
+- **REASON**: Self-referential questions don't need tools
+
+**5. Trivial requests:**
+- "test", "essai", requests that don't require external knowledge
+- **REASON**: No need to fetch information
 
 Set \`shouldUseTools: true\` for:
-- Knowledge questions requiring sources
-- Requests to search, read, or analyze documents
-- Complex queries needing external information
+- Knowledge questions requiring NEW external information not in history
+- Requests to search, read, or analyze DOCUMENTS/SOURCES
+- Complex queries needing data from RAG sources or web
 
 REQUIRED FIELD - optimizedQuery:
 This field MUST contain a reformulated and optimized version of the user query.
@@ -815,20 +850,43 @@ CRITICAL: The "params" field is REQUIRED for each tool in toolSequence!
         }
       }
       // EMPTY [] if shouldUseTools is false
-    ]
+    ],
+    "errorHandling": {
+      "placeholderIds": "NEVER use placeholder IDs like 'BEST_MATCHING_SOURCE_ID'. Always use real UUIDs from list_available_sources.",
+      "emptySourceId": "Never call read_rag_source without a valid UUID. Must list sources first.",
+      "noSourcesFound": "If no sources available, DO NOT call read_rag_source. Set shouldUseTools: false or use search_web."
+    }
   }
 }
 \`\`\`
 
-## 🆕 IMPORTANT: When NOT to use tools (shouldUseTools = false)
+## 🆕 CRITICAL: When NOT to use tools (shouldUseTools = false)
 
 Set \`shouldUseTools: false\` and \`toolSequence: []\` for:
-- **Simple greetings**: "salut", "bonjour", "hello", "hi", "ça va?", "comment ça va?"
-- **Thanks/acknowledgments**: "merci", "thanks", "ok", "d'accord", "parfait"
-- **Simple questions about you**: "qui es-tu?", "what are you?", "c'est quoi ton nom?"
-- **Trivial requests**: "test", "essai", requests that don't require external knowledge
 
-In these cases, respond directly without tools. Tools should only be used for knowledge-seeking queries.
+**1. Metacognitive questions about the conversation itself:**
+- "de quoi parle notre conversation?", "résume notre discussion", "qu'avons-nous dit?"
+- "what did we talk about?", "summarize our conversation", "recap our discussion"
+- **REASON**: The conversation history is already provided in the context above. Simply read it and respond directly.
+
+**2. Questions answerable from conversation history:**
+- If the conversation history contains sufficient information to answer the query
+- **REASON**: Don't waste API calls on tools when you already have the answer in context
+
+**3. Simple greetings and acknowledgments:**
+- "salut", "bonjour", "hello", "hi", "ça va?", "comment ça va?"
+- "merci", "thanks", "ok", "d'accord", "parfait"
+- **REASON**: No external knowledge needed
+
+**4. Questions about the AI itself:**
+- "qui es-tu?", "what are you?", "c'est quoi ton nom?", "que peux-tu faire?"
+- **REASON**: Self-referential questions don't need tools
+
+**5. Trivial requests:**
+- "test", "essai", requests that don't require external knowledge
+- **REASON**: No need to fetch information
+
+In these cases, respond directly without tools. Tools should ONLY be used when you need NEW external information not already in the conversation history.
 
 ${sourcesContext}${contextualInstructions}${useWebStr}
 
