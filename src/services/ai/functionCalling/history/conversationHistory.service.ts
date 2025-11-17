@@ -6,7 +6,7 @@
  * (including thinking, tools used, and final response) in the database.
  */
 
-import { prisma } from '../../../lib/prisma.js';
+import { prisma } from '../../../../lib/prisma.js';
 import type { AIConversation, AIMessage as PrismaAIMessage } from '@prisma/client';
 
 export interface UserMessage {
