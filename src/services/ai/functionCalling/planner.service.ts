@@ -289,8 +289,27 @@ Each search_web should explore a complementary angle to local sources.`
         throw new Error("Invalid first thinking plan format");
       }
 
-      const { toolSequence, optimizedQuery, reasoning, totalIterations } =
-        firstThinkingPlan.plan;
+      const {
+        toolSequence,
+        optimizedQuery,
+        reasoning,
+        totalIterations,
+        shouldUseTools,
+      } = firstThinkingPlan.plan;
+
+      // 🆕 Si l'AI décide de ne pas utiliser de tools, retourner un plan vide
+      if (!shouldUseTools) {
+        console.log(
+          `🎯 [PLANNER] L'AI a décidé de ne pas utiliser de tools: ${reasoning}`,
+        );
+        return {
+          toolSequence: [],
+          optimizedQuery: query, // Pas de reformulation si pas de tools
+          reasoning,
+          totalIterations: 0,
+          detectedMode,
+        };
+      }
 
       // 🎯 Extraire la query optimisée du plan (ou fallback sur query originale)
       const queryToUse =
@@ -332,59 +351,62 @@ Each search_web should explore a complementary angle to local sources.`
       );
 
       // VALIDATION DU PLAN COMPLET (nombre de tools selon le mode)
-      const hasPreselectedSources = availableSources.length > 0;
-      const planValidation = ToolDependenciesValidator.validatePlan(
-        validatedToolSequence.map((t) => ({ toolName: t.toolName })),
-        detectedMode,
-        hasPreselectedSources,
-      );
-
+      // 🆕 Skip validation si pas de tools (shouldUseTools: false)
       let finalToolSequence = validatedToolSequence;
 
-      if (!planValidation.isValid) {
-        console.error(
-          `❌ [PLANNER] Plan invalide: ${planValidation.reasoning}`,
+      if (validatedToolSequence.length > 0) {
+        const hasPreselectedSources = availableSources.length > 0;
+        const planValidation = ToolDependenciesValidator.validatePlan(
+          validatedToolSequence.map((t) => ({ toolName: t.toolName })),
+          detectedMode,
+          hasPreselectedSources,
         );
 
-        // 🔧 Si un plan corrigé est disponible, l'utiliser au lieu de bloquer
-        if (
-          planValidation.suggestedFix &&
-          planValidation.suggestedFix.toolName === "PLAN_CORRECTION"
-        ) {
-          const correctedPlan = planValidation.suggestedFix.arguments
-            .correctedPlan as Array<{ toolName: string; params?: any }>;
-
-          console.log(
-            `🔧 [PLANNER] Utilisation du plan corrigé automatiquement`,
-          );
-          console.log(
-            `   Ancien: ${validatedToolSequence.map((t) => t.toolName).join(" → ")}`,
-          );
-          console.log(
-            `   Nouveau: ${correctedPlan.map((t) => t.toolName).join(" → ")}`,
-          );
-
-          // Mapper le plan corrigé avec les détails complets
-          finalToolSequence = correctedPlan.map((correctedTool, idx) => {
-            // Retrouver le tool original pour garder ses paramètres
-            const originalTool = validatedToolSequence.find(
-              (t) => t.toolName === correctedTool.toolName,
-            );
-            return (
-              originalTool || {
-                step: idx + 1,
-                toolName: correctedTool.toolName,
-                description: `Tool ${correctedTool.toolName}`,
-              }
-            );
-          });
-        } else {
+        if (!planValidation.isValid) {
           console.error(
-            `   Suggestions: ${planValidation.missingDependencies?.join(", ")}`,
+            `❌ [PLANNER] Plan invalide: ${planValidation.reasoning}`,
           );
-          console.warn(
-            `⚠️ [PLANNER] Poursuite malgré les erreurs de validation du plan`,
-          );
+
+          // 🔧 Si un plan corrigé est disponible, l'utiliser au lieu de bloquer
+          if (
+            planValidation.suggestedFix &&
+            planValidation.suggestedFix.toolName === "PLAN_CORRECTION"
+          ) {
+            const correctedPlan = planValidation.suggestedFix.arguments
+              .correctedPlan as Array<{ toolName: string; params?: any }>;
+
+            console.log(
+              `🔧 [PLANNER] Utilisation du plan corrigé automatiquement`,
+            );
+            console.log(
+              `   Ancien: ${validatedToolSequence.map((t) => t.toolName).join(" → ")}`,
+            );
+            console.log(
+              `   Nouveau: ${correctedPlan.map((t) => t.toolName).join(" → ")}`,
+            );
+
+            // Mapper le plan corrigé avec les détails complets
+            finalToolSequence = correctedPlan.map((correctedTool, idx) => {
+              // Retrouver le tool original pour garder ses paramètres
+              const originalTool = validatedToolSequence.find(
+                (t) => t.toolName === correctedTool.toolName,
+              );
+              return (
+                originalTool || {
+                  step: idx + 1,
+                  toolName: correctedTool.toolName,
+                  description: `Tool ${correctedTool.toolName}`,
+                }
+              );
+            });
+          } else {
+            console.error(
+              `   Suggestions: ${planValidation.missingDependencies?.join(", ")}`,
+            );
+            console.warn(
+              `⚠️ [PLANNER] Poursuite malgré les erreurs de validation du plan`,
+            );
+          }
         }
       }
 
@@ -593,9 +615,10 @@ WEB ONLY MODE (no local sources):
 \`\`\`json
 {
   "plan": {
-    "totalIterations": <integer between 1 and 15>,
-    "reasoning": "<short explanation of sequence choice>",
-    "optimizedQuery": "<REQUIRED REFORMULATION of user query to improve results>",
+    "totalIterations": <integer between 0 and 15>,
+    "reasoning": "<short explanation of sequence choice OR why no tools are needed>",
+    "optimizedQuery": "<REQUIRED REFORMULATION of user query to improve results, or original query if no tools>",
+    "shouldUseTools": <boolean - true if tools needed, false for simple queries/greetings>,
     "toolSequence": [
       {
         "step": <integer>,
@@ -609,6 +632,7 @@ WEB ONLY MODE (no local sources):
         }
       }
       // ...other steps, INTERLEAVED if web enabled (mix local and web, no hierarchy)
+      // EMPTY [] if shouldUseTools is false
     ],
     "errorHandling": {
       "emptySourceId": "Never call read_rag_source with empty ID. Check listed sources first.",
@@ -617,6 +641,19 @@ WEB ONLY MODE (no local sources):
   }
 }
 \`\`\`
+
+## 🆕 IMPORTANT: When to use shouldUseTools = false
+
+Set \`shouldUseTools: false\` and \`toolSequence: []\` for:
+- **Simple greetings**: "salut", "bonjour", "hello", "hi", "ça va?"
+- **Thanks/acknowledgments**: "merci", "thanks", "ok", "d'accord"
+- **Simple questions about you**: "qui es-tu?", "what are you?", "comment tu t'appelles?"
+- **Trivial requests**: "test", "essai", requests that don't need external knowledge
+
+Set \`shouldUseTools: true\` for:
+- Knowledge questions requiring sources
+- Requests to search, read, or analyze documents
+- Complex queries needing external information
 
 REQUIRED FIELD - optimizedQuery:
 This field MUST contain a reformulated and optimized version of the user query.
@@ -763,9 +800,10 @@ CRITICAL: The "params" field is REQUIRED for each tool in toolSequence!
 \`\`\`json
 {
   "plan": {
-    "totalIterations": <1 to 3>,
-    "reasoning": "<short explanation>",
-    "optimizedQuery": "<query reformulation for better results>",
+    "totalIterations": <0 to 3>,
+    "reasoning": "<short explanation OR why no tools needed>",
+    "optimizedQuery": "<query reformulation for better results, or original if no tools>",
+    "shouldUseTools": <boolean - true if tools needed, false for simple queries/greetings>,
     "toolSequence": [
       {
         "step": 1,
@@ -776,10 +814,21 @@ CRITICAL: The "params" field is REQUIRED for each tool in toolSequence!
           // For other tools, provide appropriate params or {} if none needed
         }
       }
+      // EMPTY [] if shouldUseTools is false
     ]
   }
 }
 \`\`\`
+
+## 🆕 IMPORTANT: When NOT to use tools (shouldUseTools = false)
+
+Set \`shouldUseTools: false\` and \`toolSequence: []\` for:
+- **Simple greetings**: "salut", "bonjour", "hello", "hi", "ça va?", "comment ça va?"
+- **Thanks/acknowledgments**: "merci", "thanks", "ok", "d'accord", "parfait"
+- **Simple questions about you**: "qui es-tu?", "what are you?", "c'est quoi ton nom?"
+- **Trivial requests**: "test", "essai", requests that don't require external knowledge
+
+In these cases, respond directly without tools. Tools should only be used for knowledge-seeking queries.
 
 ${sourcesContext}${contextualInstructions}${useWebStr}
 
