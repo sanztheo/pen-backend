@@ -19,6 +19,7 @@ import {
   optimizePrompt,
 } from "../helpers/promptOptimizer.js";
 import { mapRagSourcesToRealUUIDs } from "../helpers/sourceMapping.js";
+import { ConversationHistoryService } from "../../../services/ai/functionCalling/history/index.js";
 
 // 🚀 NOUVEAUX SERVICES (refactoring architecture)
 import { DebugLogger } from "../config/debug.js";
@@ -131,7 +132,8 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
     const { CoordinatorService } = await import(
       "../../../services/ai/functionCalling/index.js"
     );
-    type OrchestrationRequest = import("../../../services/ai/functionCalling/index.js").OrchestrationRequest;
+    type OrchestrationRequest =
+      import("../../../services/ai/functionCalling/index.js").OrchestrationRequest;
     const { indexAndPreparePagesForAI } = await import(
       "../helpers/pageIndexing.js"
     );
@@ -193,9 +195,7 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
         ConversationHistoryService,
         TokenCounterService,
         HistoryCompressionService,
-      } = await import(
-        "../../../services/ai/functionCalling/history/index.js"
-      );
+      } = await import("../../../services/ai/functionCalling/history/index.js");
 
       const userId = req.user!.id;
 
@@ -212,7 +212,10 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
       );
 
       // Récupérer l'historique
-      let history = await ConversationHistoryService.getHistory(userId, workspaceId);
+      let history = await ConversationHistoryService.getHistory(
+        userId,
+        workspaceId,
+      );
       let conversationHistory: string | null = null;
 
       if (history && history.messages.length > 1) {
@@ -261,7 +264,10 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
         } else {
           // Pas besoin de compression
           conversationHistory =
-            await ConversationHistoryService.formatHistoryForBrain(userId, workspaceId);
+            await ConversationHistoryService.formatHistoryForBrain(
+              userId,
+              workspaceId,
+            );
           console.log(
             `📝 [CREATE-HISTORY] Historique chargé (${tokenCount.totalTokens.toLocaleString()} tokens, pas de compression nécessaire)`,
           );
@@ -346,9 +352,8 @@ ${personaSnippet}
       // - 75-83% moins d'appels API
       // - >80% plus rapide (exécution parallèle)
       // - 87-96% moins cher (avec prompt caching)
-      const toolDecision = await CoordinatorService.orchestrateOptimized(
-        orchestrationRequest,
-      );
+      const toolDecision =
+        await CoordinatorService.orchestrateOptimized(orchestrationRequest);
 
       console.log(
         `✅ [CREATE-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés`,
@@ -558,9 +563,7 @@ ${personaSnippet}
 
     // 🆕 SAUVEGARDER LA RÉPONSE AI DANS L'HISTORIQUE (mode rapide)
     try {
-      const {
-        ConversationHistoryService,
-      } = await import(
+      const { ConversationHistoryService } = await import(
         "../../../services/ai/functionCalling/history/index.js"
       );
       await ConversationHistoryService.addAIMessage(
@@ -575,7 +578,10 @@ ${personaSnippet}
         `📝 [CREATE-HISTORY] Réponse AI sauvegardée dans l'historique (mode rapide)`,
       );
     } catch (historyError) {
-      console.error(`❌ [CREATE-HISTORY] Erreur sauvegarde historique:`, historyError);
+      console.error(
+        `❌ [CREATE-HISTORY] Erreur sauvegarde historique:`,
+        historyError,
+      );
     }
 
     // 🔥 NOUVEAU: Envoyer les métadonnées avec scores pour CREATE mode
