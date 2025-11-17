@@ -18,6 +18,8 @@ import {
   analyzeQuery,
   optimizePrompt,
 } from "../helpers/promptOptimizer.js";
+import { ConversationHistoryService } from "../../../services/ai/functionCalling/history/index.js";
+
 import { mapRagSourcesToRealUUIDs } from "../helpers/sourceMapping.js";
 
 // 🚀 NOUVEAUX SERVICES (refactoring architecture)
