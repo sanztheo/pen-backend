@@ -34,6 +34,7 @@ export interface PlanRequest {
   useWeb: boolean;
   systemPrompt?: string;
   onThinking?: (content: string) => void;
+  conversationHistory?: string | null; // 🆕 Historique formaté de la conversation
 }
 
 /**
@@ -80,6 +81,7 @@ export class PlannerService {
       isSearch = false,
       useWeb,
       onThinking,
+      conversationHistory,
     } = request;
 
     // 🆕 DÉTECTION DU MODE (ask, search, create_rapide, create_profond)
@@ -204,6 +206,11 @@ Don't wait until the end to use web - INTERLEAVE it with local sources.
 Each search_web should explore a complementary angle to local sources.`
         : "";
 
+      // 🆕 Construire le contexte de l'historique si disponible
+      const historyContext = conversationHistory
+        ? `\n\n# CONVERSATION HISTORY (CONTEXT)\n\nYou have access to the previous conversation history. Use it to maintain context and continuity in your planning.\n\n${conversationHistory}\n\n# CURRENT QUERY\n\nThe user is now asking:`
+        : "";
+
       const firstThinkingPrompt = isSearch
         ? this.buildSearchModePrompt(
             query,
@@ -213,6 +220,7 @@ Each search_web should explore a complementary angle to local sources.`
             contextualInstructions,
             useWebStr,
             isWebOnlyMode,
+            historyContext,
           )
         : this.buildAskModePrompt(
             query,
@@ -224,6 +232,7 @@ Each search_web should explore a complementary angle to local sources.`
             hasSpecificSources,
             useWeb,
             availableSources,
+            historyContext,
           );
 
       let firstThinkingContent = "";
@@ -403,8 +412,9 @@ Each search_web should explore a complementary angle to local sources.`
     contextualInstructions: string,
     useWebStr: string,
     isWebOnlyMode: boolean,
+    historyContext: string = "",
   ): string {
-    return `You need to create a structured JSON plan to explore a topic in depth.
+    return `${historyContext}You need to create a structured JSON plan to explore a topic in depth.
 
 # MODE REQUIREMENTS: ${detectedMode.toUpperCase()}
 - Minimum tools required: ${toolLimits.minTools}
@@ -645,8 +655,9 @@ GENERATE the JSON plan NOW. No text before or after the JSON.
     hasSpecificSources: boolean,
     useWeb: boolean,
     availableSources: Array<{ id: string; title: string; type: string }>,
+    historyContext: string = "",
   ): string {
-    return `You need to create a SIMPLE JSON plan for QUICK ASK mode.
+    return `${historyContext}You need to create a SIMPLE JSON plan for QUICK ASK mode.
 
 # MODE REQUIREMENTS: ${detectedMode.toUpperCase()}
 - Minimum tools required: ${toolLimits.minTools}

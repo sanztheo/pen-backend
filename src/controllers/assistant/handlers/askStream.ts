@@ -245,6 +245,96 @@ export const assistantAskStream = async (req: Request, res: Response) => {
       let intermediateThinkingBlocks: any[] = []; // 🔥 NOUVEAU: Stocker intermediate thinking pour metadata
 
       try {
+        // 🆕 GESTION DE L'HISTORIQUE DES CONVERSATIONS
+        const {
+          ConversationHistoryService,
+          TokenCounterService,
+          HistoryCompressionService,
+        } = await import(
+          "../../../services/ai/functionCalling/history/index.js"
+        );
+
+        const userId = req.user!.id;
+
+        // Ajouter le message utilisateur à l'historique
+        ConversationHistoryService.addUserMessage(
+          userId,
+          workspaceId,
+          sanitizedQuery,
+          {
+            web: useWeb,
+            all: sourcesScope === "all",
+            sources: sourcesForAI,
+          },
+        );
+
+        // Récupérer l'historique
+        let history = ConversationHistoryService.getHistory(
+          userId,
+          workspaceId,
+        );
+        let conversationHistory: string | null = null;
+
+        if (history && history.messages.length > 1) {
+          // Vérifier si compression nécessaire
+          const tokenCount = TokenCounterService.countHistoryTokens(history);
+          ConversationHistoryService.updateTotalTokens(
+            userId,
+            workspaceId,
+            tokenCount.totalTokens,
+          );
+
+          if (tokenCount.needsCompression) {
+            console.log(
+              `🗜️ [ASK-HISTORY] Compression nécessaire (${tokenCount.totalTokens.toLocaleString()} tokens > ${TokenCounterService.COMPRESSION_THRESHOLD.toLocaleString()})`,
+            );
+
+            try {
+              // Compresser avec GPT-4o-mini
+              const compressionResult =
+                await HistoryCompressionService.compressHistory(history);
+
+              console.log(
+                `✅ [ASK-HISTORY] Compression réussie: ${compressionResult.originalTokens.toLocaleString()} → ${compressionResult.compressedTokens.toLocaleString()} tokens (${(compressionResult.compressionRatio * 100).toFixed(2)}%)`,
+              );
+
+              // Remplacer l'historique par la version compressée
+              ConversationHistoryService.replaceWithCompressedHistory(
+                userId,
+                workspaceId,
+                compressionResult.compressedContent,
+              );
+
+              conversationHistory = compressionResult.compressedContent;
+            } catch (compressionError) {
+              console.error(
+                `❌ [ASK-HISTORY] Erreur compression:`,
+                compressionError,
+              );
+              // Fallback : utiliser l'historique non compressé (peut causer des problèmes de tokens)
+              conversationHistory =
+                ConversationHistoryService.formatHistoryForBrain(
+                  userId,
+                  workspaceId,
+                );
+            }
+          } else {
+            // Pas besoin de compression
+            conversationHistory =
+              ConversationHistoryService.formatHistoryForBrain(
+                userId,
+                workspaceId,
+              );
+            console.log(
+              `📝 [ASK-HISTORY] Historique chargé (${tokenCount.totalTokens.toLocaleString()} tokens, pas de compression nécessaire)`,
+            );
+          }
+        } else {
+          console.log(
+            `📝 [ASK-HISTORY] Pas d'historique précédent ou premier message`,
+          );
+        }
+
         const persona = await readPersonalizationFromReq(req);
         const personaSnippet = buildPersonaSnippet(persona, 400);
         // 🔥 PHASE 1: Décision des tools + explication streamée
@@ -265,6 +355,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
 ${personaSnippet}
 
 '''${LATEX_STRICT_RULES}'''`,
+          conversationHistory, // 🆕 Passer l'historique au brain (PlannerService)
 
           // Callbacks pour streaming temps réel
           onThinking: (thinkingChunk) => {
@@ -329,6 +420,8 @@ ${personaSnippet}
         );
 
         // 🔥 PHASE 2: Génération réponse finale avec résultats des tools
+        let fullFinalResponse = ""; // 🆕 Capturer la réponse finale pour l'historique
+
         if (toolDecision.success && toolDecision.toolCalls.length > 0) {
           // Import FunctionCallingService pour buildContextFromToolResults et generateWithToolResults
           const { FunctionCallingService } = await import(
@@ -375,6 +468,7 @@ ${personaSnippet}
 '''${LATEX_STRICT_RULES}'''`,
             wikipediaSources,
             onStream: (chunk) => {
+              fullFinalResponse += chunk; // 🆕 Capturer la réponse
               sseWriteData(res, chunk);
             },
           });
@@ -399,7 +493,6 @@ ${personaSnippet}
               await extractWikipediaSourcesFromRagSources(ragSources);
           }
 
-          let fullAnswer = "";
           const persona = await readPersonalizationFromReq(req);
           const personaSnippet = buildPersonaSnippet(persona, 400);
           await AIService.generateContent({
@@ -412,7 +505,7 @@ ${personaSnippet}
             temperature: 0.2,
             maxTokens: 4000,
             onStream: (chunk: string) => {
-              fullAnswer += chunk;
+              fullFinalResponse += chunk; // 🆕 Capturer la réponse
               sseWriteData(res, chunk);
             },
           });
@@ -425,10 +518,23 @@ ${personaSnippet}
                 `📚 [ASK-FALLBACK] Ajout footer licence Wikipedia (${wikipediaSources.length} sources)`,
               );
               sseWriteData(res, licenseFooter);
-              fullAnswer += licenseFooter;
+              fullFinalResponse += licenseFooter; // 🆕 Capturer le footer
             }
           }
         }
+
+        // 🆕 SAUVEGARDER LA RÉPONSE AI DANS L'HISTORIQUE
+        ConversationHistoryService.addAIMessage(
+          userId,
+          workspaceId,
+          currentThinking,
+          currentToolCalls,
+          fullFinalResponse,
+          intermediateThinkingBlocks,
+        );
+        console.log(
+          `📝 [ASK-HISTORY] Réponse AI sauvegardée dans l'historique`,
+        );
 
         // Envoyer les métadonnées pour sauvegarde frontend
         res.write(`event: metadata\n`);

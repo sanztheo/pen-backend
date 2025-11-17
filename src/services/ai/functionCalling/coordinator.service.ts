@@ -76,6 +76,7 @@ export interface OrchestrationRequest {
   onToolResult?: (toolName: string, result: string) => void;
   onIntermediateThinking?: (chunk: string) => void;
   onScoring?: (toolName: string, progress: string) => void; // 🆕 Callback pour la phase de scoring
+  conversationHistory?: string | null; // 🆕 Historique de conversation formaté
 }
 
 /**
@@ -133,6 +134,7 @@ export class CoordinatorService {
         useWeb: request.useWeb,
         systemPrompt: request.systemPrompt,
         onThinking: request.onThinking,
+        conversationHistory: request.conversationHistory, // 🆕 Passer l'historique au planner
       };
 
       const plan = await PlannerService.generatePlan(planRequest);
@@ -520,6 +522,7 @@ export class CoordinatorService {
         useWeb: request.useWeb,
         systemPrompt: request.systemPrompt,
         onThinking: request.onThinking,
+        conversationHistory: request.conversationHistory, // 🆕 Passer l'historique au planner
       };
 
       const plan = await PlannerService.generatePlan(planRequest);
