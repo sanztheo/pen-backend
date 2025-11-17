@@ -496,8 +496,23 @@ ${personaSnippet}
 
           const persona = await readPersonalizationFromReq(req);
           const personaSnippet = buildPersonaSnippet(persona, 400);
+
+          // 🆕 Construire le prompt avec historique si disponible
+          const historyPrompt = conversationHistory
+            ? `📜 HISTORIQUE DE CONVERSATION (CONTEXTE)
+
+Voici l'historique de votre conversation précédente avec l'utilisateur. Utilisez-le pour maintenir la continuité et répondre aux questions qui font référence à cet historique.
+
+${conversationHistory}
+
+---
+
+🎯 QUESTION ACTUELLE :
+${sanitizedQuery}`
+            : sanitizedQuery;
+
           await AIService.generateContent({
-            prompt: sanitizedQuery,
+            prompt: historyPrompt,
             context: `System: Réponds de manière claire, précise et structurée, en tant qu'assistant IA intelligent.
 
 ${personaSnippet}
