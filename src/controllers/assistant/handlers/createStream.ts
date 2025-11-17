@@ -200,7 +200,7 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
       const userId = req.user!.id;
 
       // Ajouter le message utilisateur à l'historique
-      ConversationHistoryService.addUserMessage(
+      await ConversationHistoryService.addUserMessage(
         userId,
         workspaceId,
         sanitizedInstruction,
@@ -212,13 +212,13 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
       );
 
       // Récupérer l'historique
-      let history = ConversationHistoryService.getHistory(userId, workspaceId);
+      let history = await ConversationHistoryService.getHistory(userId, workspaceId);
       let conversationHistory: string | null = null;
 
       if (history && history.messages.length > 1) {
         // Vérifier si compression nécessaire
         const tokenCount = TokenCounterService.countHistoryTokens(history);
-        ConversationHistoryService.updateTotalTokens(
+        await ConversationHistoryService.updateTotalTokens(
           userId,
           workspaceId,
           tokenCount.totalTokens,
@@ -239,7 +239,7 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
             );
 
             // Remplacer l'historique par la version compressée
-            ConversationHistoryService.replaceWithCompressedHistory(
+            await ConversationHistoryService.replaceWithCompressedHistory(
               userId,
               workspaceId,
               compressionResult.compressedContent,
@@ -253,7 +253,7 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
             );
             // Fallback : utiliser l'historique non compressé
             conversationHistory =
-              ConversationHistoryService.formatHistoryForBrain(
+              await ConversationHistoryService.formatHistoryForBrain(
                 userId,
                 workspaceId,
               );
@@ -261,7 +261,7 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
         } else {
           // Pas besoin de compression
           conversationHistory =
-            ConversationHistoryService.formatHistoryForBrain(userId, workspaceId);
+            await ConversationHistoryService.formatHistoryForBrain(userId, workspaceId);
           console.log(
             `📝 [CREATE-HISTORY] Historique chargé (${tokenCount.totalTokens.toLocaleString()} tokens, pas de compression nécessaire)`,
           );
@@ -456,7 +456,7 @@ ${personaSnippet}
         );
 
         // 🆕 SAUVEGARDER LA RÉPONSE AI DANS L'HISTORIQUE
-        ConversationHistoryService.addAIMessage(
+        await ConversationHistoryService.addAIMessage(
           userId,
           workspaceId,
           currentThinking,
@@ -563,7 +563,7 @@ ${personaSnippet}
       } = await import(
         "../../../services/ai/functionCalling/history/index.js"
       );
-      ConversationHistoryService.addAIMessage(
+      await ConversationHistoryService.addAIMessage(
         req.user!.id,
         workspaceId,
         currentThinking,

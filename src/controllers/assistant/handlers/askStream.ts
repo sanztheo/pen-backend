@@ -257,7 +257,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
         const userId = req.user!.id;
 
         // Ajouter le message utilisateur à l'historique
-        ConversationHistoryService.addUserMessage(
+        await ConversationHistoryService.addUserMessage(
           userId,
           workspaceId,
           sanitizedQuery,
@@ -269,7 +269,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
         );
 
         // Récupérer l'historique
-        let history = ConversationHistoryService.getHistory(
+        let history = await ConversationHistoryService.getHistory(
           userId,
           workspaceId,
         );
@@ -278,7 +278,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
         if (history && history.messages.length > 1) {
           // Vérifier si compression nécessaire
           const tokenCount = TokenCounterService.countHistoryTokens(history);
-          ConversationHistoryService.updateTotalTokens(
+          await ConversationHistoryService.updateTotalTokens(
             userId,
             workspaceId,
             tokenCount.totalTokens,
@@ -299,7 +299,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
               );
 
               // Remplacer l'historique par la version compressée
-              ConversationHistoryService.replaceWithCompressedHistory(
+              await ConversationHistoryService.replaceWithCompressedHistory(
                 userId,
                 workspaceId,
                 compressionResult.compressedContent,
@@ -313,7 +313,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
               );
               // Fallback : utiliser l'historique non compressé (peut causer des problèmes de tokens)
               conversationHistory =
-                ConversationHistoryService.formatHistoryForBrain(
+                await ConversationHistoryService.formatHistoryForBrain(
                   userId,
                   workspaceId,
                 );
@@ -321,7 +321,7 @@ export const assistantAskStream = async (req: Request, res: Response) => {
           } else {
             // Pas besoin de compression
             conversationHistory =
-              ConversationHistoryService.formatHistoryForBrain(
+              await ConversationHistoryService.formatHistoryForBrain(
                 userId,
                 workspaceId,
               );
@@ -540,7 +540,7 @@ ${personaSnippet}
         }
 
         // 🆕 SAUVEGARDER LA RÉPONSE AI DANS L'HISTORIQUE
-        ConversationHistoryService.addAIMessage(
+        await ConversationHistoryService.addAIMessage(
           userId,
           workspaceId,
           currentThinking,
