@@ -34,6 +34,7 @@ export interface PlanRequest {
   useWeb: boolean;
   systemPrompt?: string;
   onThinking?: (content: string) => void;
+  conversationHistory?: string | null; // 🆕 Historique formaté de la conversation
 }
 
 /**
@@ -80,6 +81,7 @@ export class PlannerService {
       isSearch = false,
       useWeb,
       onThinking,
+      conversationHistory,
     } = request;
 
     // 🆕 DÉTECTION DU MODE (ask, search, create_rapide, create_profond)
@@ -204,6 +206,27 @@ Don't wait until the end to use web - INTERLEAVE it with local sources.
 Each search_web should explore a complementary angle to local sources.`
         : "";
 
+      // 🆕 Construire le contexte de l'historique si disponible
+      const historyContext = conversationHistory
+        ? `\n\n# CONVERSATION HISTORY (CONTEXT)
+
+⚠️ CRITICAL: You have access to the previous conversation history below.
+
+**BEFORE using any tools, check if:**
+1. The user is asking about the conversation itself ("what did we talk about?", "résume notre discussion", etc.)
+2. The answer is already in the conversation history
+
+**If YES to either → Set shouldUseTools: false and respond directly from history**
+
+${conversationHistory}
+
+---
+
+# CURRENT QUERY
+
+The user is now asking:`
+        : "";
+
       const firstThinkingPrompt = isSearch
         ? this.buildSearchModePrompt(
             query,
@@ -213,6 +236,7 @@ Each search_web should explore a complementary angle to local sources.`
             contextualInstructions,
             useWebStr,
             isWebOnlyMode,
+            historyContext,
           )
         : this.buildAskModePrompt(
             query,
@@ -224,6 +248,7 @@ Each search_web should explore a complementary angle to local sources.`
             hasSpecificSources,
             useWeb,
             availableSources,
+            historyContext,
           );
 
       let firstThinkingContent = "";
@@ -280,8 +305,27 @@ Each search_web should explore a complementary angle to local sources.`
         throw new Error("Invalid first thinking plan format");
       }
 
-      const { toolSequence, optimizedQuery, reasoning, totalIterations } =
-        firstThinkingPlan.plan;
+      const {
+        toolSequence,
+        optimizedQuery,
+        reasoning,
+        totalIterations,
+        shouldUseTools,
+      } = firstThinkingPlan.plan;
+
+      // 🆕 Si l'AI décide de ne pas utiliser de tools, retourner un plan vide
+      if (!shouldUseTools) {
+        console.log(
+          `🎯 [PLANNER] L'AI a décidé de ne pas utiliser de tools: ${reasoning}`,
+        );
+        return {
+          toolSequence: [],
+          optimizedQuery: query, // Pas de reformulation si pas de tools
+          reasoning,
+          totalIterations: 0,
+          detectedMode,
+        };
+      }
 
       // 🎯 Extraire la query optimisée du plan (ou fallback sur query originale)
       const queryToUse =
@@ -323,59 +367,62 @@ Each search_web should explore a complementary angle to local sources.`
       );
 
       // VALIDATION DU PLAN COMPLET (nombre de tools selon le mode)
-      const hasPreselectedSources = availableSources.length > 0;
-      const planValidation = ToolDependenciesValidator.validatePlan(
-        validatedToolSequence.map((t) => ({ toolName: t.toolName })),
-        detectedMode,
-        hasPreselectedSources,
-      );
-
+      // 🆕 Skip validation si pas de tools (shouldUseTools: false)
       let finalToolSequence = validatedToolSequence;
 
-      if (!planValidation.isValid) {
-        console.error(
-          `❌ [PLANNER] Plan invalide: ${planValidation.reasoning}`,
+      if (validatedToolSequence.length > 0) {
+        const hasPreselectedSources = availableSources.length > 0;
+        const planValidation = ToolDependenciesValidator.validatePlan(
+          validatedToolSequence.map((t) => ({ toolName: t.toolName })),
+          detectedMode,
+          hasPreselectedSources,
         );
 
-        // 🔧 Si un plan corrigé est disponible, l'utiliser au lieu de bloquer
-        if (
-          planValidation.suggestedFix &&
-          planValidation.suggestedFix.toolName === "PLAN_CORRECTION"
-        ) {
-          const correctedPlan = planValidation.suggestedFix.arguments
-            .correctedPlan as Array<{ toolName: string; params?: any }>;
-
-          console.log(
-            `🔧 [PLANNER] Utilisation du plan corrigé automatiquement`,
-          );
-          console.log(
-            `   Ancien: ${validatedToolSequence.map((t) => t.toolName).join(" → ")}`,
-          );
-          console.log(
-            `   Nouveau: ${correctedPlan.map((t) => t.toolName).join(" → ")}`,
-          );
-
-          // Mapper le plan corrigé avec les détails complets
-          finalToolSequence = correctedPlan.map((correctedTool, idx) => {
-            // Retrouver le tool original pour garder ses paramètres
-            const originalTool = validatedToolSequence.find(
-              (t) => t.toolName === correctedTool.toolName,
-            );
-            return (
-              originalTool || {
-                step: idx + 1,
-                toolName: correctedTool.toolName,
-                description: `Tool ${correctedTool.toolName}`,
-              }
-            );
-          });
-        } else {
+        if (!planValidation.isValid) {
           console.error(
-            `   Suggestions: ${planValidation.missingDependencies?.join(", ")}`,
+            `❌ [PLANNER] Plan invalide: ${planValidation.reasoning}`,
           );
-          console.warn(
-            `⚠️ [PLANNER] Poursuite malgré les erreurs de validation du plan`,
-          );
+
+          // 🔧 Si un plan corrigé est disponible, l'utiliser au lieu de bloquer
+          if (
+            planValidation.suggestedFix &&
+            planValidation.suggestedFix.toolName === "PLAN_CORRECTION"
+          ) {
+            const correctedPlan = planValidation.suggestedFix.arguments
+              .correctedPlan as Array<{ toolName: string; params?: any }>;
+
+            console.log(
+              `🔧 [PLANNER] Utilisation du plan corrigé automatiquement`,
+            );
+            console.log(
+              `   Ancien: ${validatedToolSequence.map((t) => t.toolName).join(" → ")}`,
+            );
+            console.log(
+              `   Nouveau: ${correctedPlan.map((t) => t.toolName).join(" → ")}`,
+            );
+
+            // Mapper le plan corrigé avec les détails complets
+            finalToolSequence = correctedPlan.map((correctedTool, idx) => {
+              // Retrouver le tool original pour garder ses paramètres
+              const originalTool = validatedToolSequence.find(
+                (t) => t.toolName === correctedTool.toolName,
+              );
+              return (
+                originalTool || {
+                  step: idx + 1,
+                  toolName: correctedTool.toolName,
+                  description: `Tool ${correctedTool.toolName}`,
+                }
+              );
+            });
+          } else {
+            console.error(
+              `   Suggestions: ${planValidation.missingDependencies?.join(", ")}`,
+            );
+            console.warn(
+              `⚠️ [PLANNER] Poursuite malgré les erreurs de validation du plan`,
+            );
+          }
         }
       }
 
@@ -403,8 +450,9 @@ Each search_web should explore a complementary angle to local sources.`
     contextualInstructions: string,
     useWebStr: string,
     isWebOnlyMode: boolean,
+    historyContext: string = "",
   ): string {
-    return `You need to create a structured JSON plan to explore a topic in depth.
+    return `${historyContext}You need to create a structured JSON plan to explore a topic in depth.
 
 # MODE REQUIREMENTS: ${detectedMode.toUpperCase()}
 - Minimum tools required: ${toolLimits.minTools}
@@ -583,9 +631,10 @@ WEB ONLY MODE (no local sources):
 \`\`\`json
 {
   "plan": {
-    "totalIterations": <integer between 1 and 15>,
-    "reasoning": "<short explanation of sequence choice>",
-    "optimizedQuery": "<REQUIRED REFORMULATION of user query to improve results>",
+    "totalIterations": <integer between 0 and 15>,
+    "reasoning": "<short explanation of sequence choice OR why no tools are needed>",
+    "optimizedQuery": "<REQUIRED REFORMULATION of user query to improve results, or original query if no tools>",
+    "shouldUseTools": <boolean - true if tools needed, false for simple queries/greetings>,
     "toolSequence": [
       {
         "step": <integer>,
@@ -599,14 +648,47 @@ WEB ONLY MODE (no local sources):
         }
       }
       // ...other steps, INTERLEAVED if web enabled (mix local and web, no hierarchy)
+      // EMPTY [] if shouldUseTools is false
     ],
     "errorHandling": {
-      "emptySourceId": "Never call read_rag_source with empty ID. Check listed sources first.",
-      "noSourcesFound": "If no sources found in all lists, use search_web."
+      "placeholderIds": "NEVER use placeholder IDs like 'BEST_MATCHING_SOURCE_ID'. Always use real UUIDs from list_available_sources.",
+      "emptySourceId": "Never call read_rag_source without a valid UUID. Must list sources first with list_available_sources.",
+      "noSourcesFound": "If list_available_sources returns empty, DO NOT call read_rag_source. Use search_web instead or set shouldUseTools: false."
     }
   }
 }
 \`\`\`
+
+## 🆕 CRITICAL: When to use shouldUseTools = false
+
+Set \`shouldUseTools: false\` and \`toolSequence: []\` for:
+
+**1. Metacognitive questions about the conversation itself:**
+- "de quoi parle notre conversation?", "résume notre discussion", "qu'avons-nous dit?"
+- "what did we talk about?", "summarize our conversation", "recap our discussion"
+- **REASON**: The conversation history is already provided in the context above. Simply read it and respond directly.
+
+**2. Questions answerable from conversation history:**
+- If the conversation history contains sufficient information to answer the query
+- **REASON**: Don't waste API calls on tools when you already have the answer in context
+
+**3. Simple greetings and acknowledgments:**
+- "salut", "bonjour", "hello", "hi", "ça va?", "comment ça va?"
+- "merci", "thanks", "ok", "d'accord", "parfait"
+- **REASON**: No external knowledge needed
+
+**4. Questions about the AI itself:**
+- "qui es-tu?", "what are you?", "comment tu t'appelles?", "que peux-tu faire?"
+- **REASON**: Self-referential questions don't need tools
+
+**5. Trivial requests:**
+- "test", "essai", requests that don't require external knowledge
+- **REASON**: No need to fetch information
+
+Set \`shouldUseTools: true\` for:
+- Knowledge questions requiring NEW external information not in history
+- Requests to search, read, or analyze DOCUMENTS/SOURCES
+- Complex queries needing data from RAG sources or web
 
 REQUIRED FIELD - optimizedQuery:
 This field MUST contain a reformulated and optimized version of the user query.
@@ -645,8 +727,9 @@ GENERATE the JSON plan NOW. No text before or after the JSON.
     hasSpecificSources: boolean,
     useWeb: boolean,
     availableSources: Array<{ id: string; title: string; type: string }>,
+    historyContext: string = "",
   ): string {
-    return `You need to create a SIMPLE JSON plan for QUICK ASK mode.
+    return `${historyContext}You need to create a SIMPLE JSON plan for QUICK ASK mode.
 
 # MODE REQUIREMENTS: ${detectedMode.toUpperCase()}
 - Minimum tools required: ${toolLimits.minTools}
@@ -752,9 +835,10 @@ CRITICAL: The "params" field is REQUIRED for each tool in toolSequence!
 \`\`\`json
 {
   "plan": {
-    "totalIterations": <1 to 3>,
-    "reasoning": "<short explanation>",
-    "optimizedQuery": "<query reformulation for better results>",
+    "totalIterations": <0 to 3>,
+    "reasoning": "<short explanation OR why no tools needed>",
+    "optimizedQuery": "<query reformulation for better results, or original if no tools>",
+    "shouldUseTools": <boolean - true if tools needed, false for simple queries/greetings>,
     "toolSequence": [
       {
         "step": 1,
@@ -765,10 +849,44 @@ CRITICAL: The "params" field is REQUIRED for each tool in toolSequence!
           // For other tools, provide appropriate params or {} if none needed
         }
       }
-    ]
+      // EMPTY [] if shouldUseTools is false
+    ],
+    "errorHandling": {
+      "placeholderIds": "NEVER use placeholder IDs like 'BEST_MATCHING_SOURCE_ID'. Always use real UUIDs from list_available_sources.",
+      "emptySourceId": "Never call read_rag_source without a valid UUID. Must list sources first.",
+      "noSourcesFound": "If no sources available, DO NOT call read_rag_source. Set shouldUseTools: false or use search_web."
+    }
   }
 }
 \`\`\`
+
+## 🆕 CRITICAL: When NOT to use tools (shouldUseTools = false)
+
+Set \`shouldUseTools: false\` and \`toolSequence: []\` for:
+
+**1. Metacognitive questions about the conversation itself:**
+- "de quoi parle notre conversation?", "résume notre discussion", "qu'avons-nous dit?"
+- "what did we talk about?", "summarize our conversation", "recap our discussion"
+- **REASON**: The conversation history is already provided in the context above. Simply read it and respond directly.
+
+**2. Questions answerable from conversation history:**
+- If the conversation history contains sufficient information to answer the query
+- **REASON**: Don't waste API calls on tools when you already have the answer in context
+
+**3. Simple greetings and acknowledgments:**
+- "salut", "bonjour", "hello", "hi", "ça va?", "comment ça va?"
+- "merci", "thanks", "ok", "d'accord", "parfait"
+- **REASON**: No external knowledge needed
+
+**4. Questions about the AI itself:**
+- "qui es-tu?", "what are you?", "c'est quoi ton nom?", "que peux-tu faire?"
+- **REASON**: Self-referential questions don't need tools
+
+**5. Trivial requests:**
+- "test", "essai", requests that don't require external knowledge
+- **REASON**: No need to fetch information
+
+In these cases, respond directly without tools. Tools should ONLY be used when you need NEW external information not already in the conversation history.
 
 ${sourcesContext}${contextualInstructions}${useWebStr}
 

@@ -22,7 +22,7 @@ export class Phase2Service {
   static async generateWithToolResults(
     options: GenerateWithToolResultsOptions,
   ): Promise<GenerateWithToolResultsResult> {
-    const { query, toolResults, systemPrompt, onStream, wikipediaSources } =
+    const { query, toolResults, systemPrompt, onStream, wikipediaSources, conversationHistory } =
       options;
 
     console.log(`🔧 [PHASE-2] Génération réponse finale`);
@@ -159,8 +159,21 @@ ${intentSpecificInstructions}
 - Reste factuel et précis dans tes explications
 - La QUERY UTILISATEUR définit ce que tu dois produire, les tool results sont le CONTEXTE`;
 
-    // 🔥 CRITICAL: Query EN PREMIER pour que l'IA comprenne l'objectif AVANT de voir les résultats
-    const phase2Prompt = `🎯 DEMANDE DE L'UTILISATEUR (C'EST LA BASE DE CE QUE TU DOIS GÉNÉRER) :
+    // 🆕 Construire le contexte de l'historique si disponible
+    const historyContext = conversationHistory
+      ? `📜 HISTORIQUE DE CONVERSATION (CONTEXTE)
+
+Voici l'historique de votre conversation précédente avec l'utilisateur. Utilisez-le pour maintenir la continuité et répondre aux questions qui font référence à cet historique.
+
+${conversationHistory}
+
+---
+
+`
+      : "";
+
+    // 🔥 CRITICAL: Historique EN PREMIER, puis Query, puis résultats
+    const phase2Prompt = `${historyContext}🎯 DEMANDE ACTUELLE DE L'UTILISATEUR (C'EST LA BASE DE CE QUE TU DOIS GÉNÉRER) :
 "${query}"
 
 📊 CONTEXTE ET INFORMATIONS COLLECTÉES (pour enrichir ta réponse) :
