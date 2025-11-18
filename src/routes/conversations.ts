@@ -571,7 +571,7 @@ router.get(
           totalTokens: 0,
           userMessageTokens: 0,
           aiMessageTokens: 0,
-          threshold: 4000,
+          threshold: 200000,
           needsCompression: false,
         });
       }
@@ -641,7 +641,7 @@ router.get(
         totalTokens,
         userMessageTokens,
         aiMessageTokens,
-        threshold: 4000,
+        threshold: 200000,
         needsCompression,
       });
     } catch (error) {
@@ -685,7 +685,7 @@ router.get(
           totalTokens: 0,
           userMessageTokens: 0,
           aiMessageTokens: 0,
-          threshold: 4000,
+          threshold: 200000,
           needsCompression: false,
         });
       }
@@ -755,7 +755,7 @@ router.get(
         totalTokens,
         userMessageTokens,
         aiMessageTokens,
-        threshold: 4000,
+        threshold: 200000,
         needsCompression,
       });
     } catch (error) {
