@@ -343,6 +343,11 @@ export const assistantAskStream = async (req: Request, res: Response) => {
                 })}\n\n`,
               );
 
+              // 🔥 FORCER L'ENVOI IMMÉDIAT au client (flush le buffer)
+              if (typeof (res as any).flush === "function") {
+                (res as any).flush();
+              }
+
               conversationHistory = compressionResult.compressedContent;
             } catch (compressionError) {
               console.error(

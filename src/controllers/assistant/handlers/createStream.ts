@@ -242,6 +242,11 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
             })}\n\n`,
           );
 
+          // 🔥 FORCER L'ENVOI IMMÉDIAT au client (flush le buffer)
+          if (typeof (res as any).flush === "function") {
+            (res as any).flush();
+          }
+
           console.log(
             "🔄 [COMPRESSION] Démarrage compression conversation:",
             workspaceId,
@@ -271,6 +276,11 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
                 status: "completed",
               })}\n\n`,
             );
+
+            // 🔥 FORCER L'ENVOI IMMÉDIAT au client (flush le buffer)
+            if (typeof (res as any).flush === "function") {
+              (res as any).flush();
+            }
 
             console.log("✅ [COMPRESSION] Compression terminée:", workspaceId);
 
