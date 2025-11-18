@@ -4,10 +4,16 @@
  * Manages conversation history for multi-agent systems using Prisma.
  * Stores user messages (with parameters like web, sources) and AI responses
  * (including thinking, tools used, and final response) in the database.
+ *
+ * 🔐 SÉCURITÉ: Chiffre automatiquement les champs sensibles (thinking, intermediateThinkingBlocks)
  */
 
-import { prisma } from '../../../../lib/prisma.js';
-import type { AIConversation, AIMessage as PrismaAIMessage } from '@prisma/client';
+import { prisma } from "../../../../lib/prisma.js";
+import type {
+  AIConversation,
+  AIMessage as PrismaAIMessage,
+} from "@prisma/client";
+import { EncryptionService } from "../../../encryption.service.js";
 
 export interface UserMessage {
   role: "user";
@@ -65,18 +71,20 @@ export class ConversationHistoryService {
         isActive: true,
       },
       orderBy: {
-        updatedAt: 'desc',
+        updatedAt: "desc",
       },
     });
 
     // Si aucune conversation n'existe, en créer une nouvelle
     if (!conversation) {
-      console.log(`🆕 [HISTORY-DB] Création d'une nouvelle conversation pour ${userId}:${workspaceId}`);
+      console.log(
+        `🆕 [HISTORY-DB] Création d'une nouvelle conversation pour ${userId}:${workspaceId}`,
+      );
       conversation = await prisma.aIConversation.create({
         data: {
           userId,
           workspaceId,
-          title: 'Nouvelle conversation',
+          title: "Nouvelle conversation",
           messageCount: 0,
           lastMessageAt: new Date(),
         },
@@ -102,11 +110,11 @@ export class ConversationHistoryService {
           isActive: true,
         },
         orderBy: {
-          updatedAt: 'desc',
+          updatedAt: "desc",
         },
         include: {
           messages: {
-            orderBy: { createdAt: 'asc' },
+            orderBy: { createdAt: "asc" },
           },
         },
       });
@@ -116,31 +124,44 @@ export class ConversationHistoryService {
       }
 
       // Convertir les messages Prisma en format ConversationMessage
-      const messages: ConversationMessage[] = conversation.messages.map((msg) => {
-        if (msg.role === 'USER') {
-          const userMsg: UserMessage = {
-            role: 'user',
-            content: msg.content,
-            timestamp: msg.createdAt.getTime(),
-            parameters: {
-              web: msg.creditsHasWeb ?? false,
-              all: false, // Pas stocké directement, mais on peut déduire des mentions
-              sources: (msg.mentions as any[]) || [],
-            },
-          };
-          return userMsg;
-        } else {
-          const aiMsg: AIMessage = {
-            role: 'assistant',
-            timestamp: msg.createdAt.getTime(),
-            firstThinking: msg.thinking || '',
-            tools: (msg.toolCalls as any[]) || [],
-            finalResponse: msg.content,
-            intermediateThinkingBlocks: (msg.intermediateThinkingBlocks as any[]) || [],
-          };
-          return aiMsg;
-        }
-      });
+      const messages: ConversationMessage[] = conversation.messages.map(
+        (msg) => {
+          if (msg.role === "USER") {
+            const userMsg: UserMessage = {
+              role: "user",
+              content: msg.content,
+              timestamp: msg.createdAt.getTime(),
+              parameters: {
+                web: msg.creditsHasWeb ?? false,
+                all: false, // Pas stocké directement, mais on peut déduire des mentions
+                sources: (msg.mentions as any[]) || [],
+              },
+            };
+            return userMsg;
+          } else {
+            // 🔐 Déchiffrer les données sensibles
+            const decryptedThinking = msg.thinking
+              ? EncryptionService.decrypt(msg.thinking)
+              : "";
+
+            const decryptedIntermediateBlocks = msg.intermediateThinkingBlocks
+              ? EncryptionService.decryptJSON(
+                  msg.intermediateThinkingBlocks as any,
+                )
+              : [];
+
+            const aiMsg: AIMessage = {
+              role: "assistant",
+              timestamp: msg.createdAt.getTime(),
+              firstThinking: decryptedThinking || "",
+              tools: (msg.toolCalls as any[]) || [],
+              finalResponse: msg.content,
+              intermediateThinkingBlocks: decryptedIntermediateBlocks || [],
+            };
+            return aiMsg;
+          }
+        },
+      );
 
       return {
         userId,
@@ -151,7 +172,7 @@ export class ConversationHistoryService {
         updatedAt: conversation.updatedAt.getTime(),
       };
     } catch (error) {
-      console.error('[HISTORY-DB] Erreur lors de la récupération:', error);
+      console.error("[HISTORY-DB] Erreur lors de la récupération:", error);
       return undefined;
     }
   }
@@ -167,17 +188,21 @@ export class ConversationHistoryService {
   ): Promise<void> {
     try {
       // Trouver ou créer la conversation
-      const conversation = await this.findOrCreateConversation(userId, workspaceId);
+      const conversation = await this.findOrCreateConversation(
+        userId,
+        workspaceId,
+      );
 
       // Créer le message utilisateur
       await prisma.aIMessage.create({
         data: {
           conversationId: conversation.id,
-          role: 'USER',
+          role: "USER",
           content,
           mentions: parameters.sources || [],
           creditsHasWeb: parameters.web || false,
-          creditsHasSources: (parameters.sources && parameters.sources.length > 0) || false,
+          creditsHasSources:
+            (parameters.sources && parameters.sources.length > 0) || false,
         },
       });
 
@@ -195,7 +220,10 @@ export class ConversationHistoryService {
         `📝 [HISTORY-DB] Message utilisateur ajouté à conversation ${conversation.id} (${messageCount} messages totaux)`,
       );
     } catch (error) {
-      console.error('[HISTORY-DB] Erreur lors de l\'ajout du message utilisateur:', error);
+      console.error(
+        "[HISTORY-DB] Erreur lors de l'ajout du message utilisateur:",
+        error,
+      );
       throw error;
     }
   }
@@ -220,7 +248,7 @@ export class ConversationHistoryService {
           isActive: true,
         },
         orderBy: {
-          updatedAt: 'desc',
+          updatedAt: "desc",
         },
       });
 
@@ -231,15 +259,21 @@ export class ConversationHistoryService {
         return;
       }
 
-      // Créer le message AI
+      // 🔐 Chiffrer les données sensibles avant stockage
+      const encryptedThinking = EncryptionService.encrypt(firstThinking);
+      const encryptedIntermediateBlocks = intermediateThinkingBlocks
+        ? EncryptionService.encryptJSON(intermediateThinkingBlocks)
+        : null;
+
+      // Créer le message AI avec données chiffrées
       await prisma.aIMessage.create({
         data: {
           conversationId: conversation.id,
-          role: 'ASSISTANT',
+          role: "ASSISTANT",
           content: finalResponse,
-          thinking: firstThinking,
+          thinking: encryptedThinking,
           toolCalls: tools,
-          intermediateThinkingBlocks: intermediateThinkingBlocks || [],
+          intermediateThinkingBlocks: encryptedIntermediateBlocks as any,
         },
       });
 
@@ -256,7 +290,10 @@ export class ConversationHistoryService {
         `📝 [HISTORY-DB] Réponse AI ajoutée (${tools.length} tools utilisés, conversation ${conversation.id})`,
       );
     } catch (error) {
-      console.error('[HISTORY-DB] Erreur lors de l\'ajout de la réponse AI:', error);
+      console.error(
+        "[HISTORY-DB] Erreur lors de l'ajout de la réponse AI:",
+        error,
+      );
       throw error;
     }
   }
@@ -307,7 +344,10 @@ export class ConversationHistoryService {
   /**
    * Efface l'historique d'une conversation (soft delete)
    */
-  static async clearHistory(userId: string, workspaceId: string): Promise<void> {
+  static async clearHistory(
+    userId: string,
+    workspaceId: string,
+  ): Promise<void> {
     try {
       // Marquer toutes les conversations actives comme inactives
       await prisma.aIConversation.updateMany({
@@ -321,9 +361,11 @@ export class ConversationHistoryService {
         },
       });
 
-      console.log(`🗑️ [HISTORY-DB] Historique effacé (soft delete) pour ${userId}:${workspaceId}`);
+      console.log(
+        `🗑️ [HISTORY-DB] Historique effacé (soft delete) pour ${userId}:${workspaceId}`,
+      );
     } catch (error) {
-      console.error('[HISTORY-DB] Erreur lors de l\'effacement:', error);
+      console.error("[HISTORY-DB] Erreur lors de l'effacement:", error);
       throw error;
     }
   }
@@ -344,7 +386,7 @@ export class ConversationHistoryService {
           isActive: true,
         },
         orderBy: {
-          updatedAt: 'desc',
+          updatedAt: "desc",
         },
       });
 
@@ -360,7 +402,10 @@ export class ConversationHistoryService {
         });
       }
     } catch (error) {
-      console.error('[HISTORY-DB] Erreur lors de la mise à jour des tokens:', error);
+      console.error(
+        "[HISTORY-DB] Erreur lors de la mise à jour des tokens:",
+        error,
+      );
       throw error;
     }
   }
@@ -382,7 +427,7 @@ export class ConversationHistoryService {
           isActive: true,
         },
         orderBy: {
-          updatedAt: 'desc',
+          updatedAt: "desc",
         },
       });
 
@@ -398,15 +443,19 @@ export class ConversationHistoryService {
         },
       });
 
+      // 🔐 Chiffrer le contenu compressé
+      const encryptedCompressedThinking = EncryptionService.encrypt(
+        "📦 Historique compressé",
+      );
+
       // Créer un message unique avec le contenu compressé
       await prisma.aIMessage.create({
         data: {
           conversationId: conversation.id,
-          role: 'ASSISTANT',
+          role: "ASSISTANT",
           content: compressedContent,
-          thinking: '📦 Historique compressé',
+          thinking: encryptedCompressedThinking,
           toolCalls: [],
-          intermediateThinkingBlocks: [],
         },
       });
 
@@ -428,7 +477,7 @@ export class ConversationHistoryService {
         `🗜️ [HISTORY-DB] Historique remplacé par version compressée (conversation ${conversation.id})`,
       );
     } catch (error) {
-      console.error('[HISTORY-DB] Erreur lors de la compression:', error);
+      console.error("[HISTORY-DB] Erreur lors de la compression:", error);
       throw error;
     }
   }

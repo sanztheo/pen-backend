@@ -1,7 +1,12 @@
-import { Router } from 'express';
-import { prisma } from '../lib/prisma.js';
-import { authenticateToken, requireUser } from '../middlewares/auth.js';
-import OpenAI from 'openai';
+import { Router } from "express";
+import { prisma } from "../lib/prisma.js";
+import { authenticateToken, requireUser } from "../middlewares/auth.js";
+import {
+  verifyWorkspaceAccess,
+  verifyConversationAccess,
+  verifyWorkspaceOwnership,
+} from "../middlewares/workspaceAccess.js";
+import OpenAI from "openai";
 
 const router = Router();
 
@@ -15,7 +20,7 @@ router.use(authenticateToken);
 router.use(requireUser);
 
 // 📋 GET /conversations - Lister les conversations de l'utilisateur
-router.get('/', async (req, res) => {
+router.get("/", verifyWorkspaceAccess, async (req, res) => {
   try {
     const { workspaceId } = req.query;
     const userId = req.user!.id;
@@ -26,22 +31,21 @@ router.get('/', async (req, res) => {
         ...(workspaceId ? { workspaceId: workspaceId as string } : {}),
         isActive: true,
       },
-      orderBy: [
-        { lastMessageAt: 'desc' },
-        { updatedAt: 'desc' }
-      ],
-      take: 50
+      orderBy: [{ lastMessageAt: "desc" }, { updatedAt: "desc" }],
+      take: 50,
     });
 
     res.json({ conversations });
   } catch (error) {
-    console.error('[GET /conversations] error', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des conversations' });
+    console.error("[GET /conversations] error", error);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération des conversations" });
   }
 });
 
 // 📄 GET /conversations/:id - Récupérer une conversation avec ses messages
-router.get('/:id', async (req, res) => {
+router.get("/:id", verifyConversationAccess, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user!.id;
@@ -54,30 +58,32 @@ router.get('/:id', async (req, res) => {
       },
       include: {
         messages: {
-          orderBy: { createdAt: 'asc' }
-        }
-      }
+          orderBy: { createdAt: "asc" },
+        },
+      },
     });
 
     if (!conversation) {
-      return res.status(404).json({ error: 'Conversation non trouvée' });
+      return res.status(404).json({ error: "Conversation non trouvée" });
     }
 
     res.json({ conversation });
   } catch (error) {
-    console.error('[GET /conversations/:id] error', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération de la conversation' });
+    console.error("[GET /conversations/:id] error", error);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération de la conversation" });
   }
 });
 
 // ➕ POST /conversations - Créer une nouvelle conversation
-router.post('/', async (req, res) => {
+router.post("/", verifyWorkspaceAccess, async (req, res) => {
   try {
     const { workspaceId, firstMessage } = req.body;
     const userId = req.user!.id;
 
     if (!firstMessage || !firstMessage.content) {
-      return res.status(400).json({ error: 'Le premier message est requis' });
+      return res.status(400).json({ error: "Le premier message est requis" });
     }
 
     // Créer la conversation avec un titre temporaire
@@ -85,17 +91,17 @@ router.post('/', async (req, res) => {
       data: {
         userId,
         workspaceId: workspaceId || null,
-        title: 'Nouvelle conversation', // Titre temporaire
+        title: "Nouvelle conversation", // Titre temporaire
         messageCount: 1,
         lastMessageAt: new Date(),
-      }
+      },
     });
 
     // Ajouter le premier message
     await prisma.aIMessage.create({
       data: {
         conversationId: conversation.id,
-        role: 'USER',
+        role: "USER",
         content: firstMessage.content,
         mentions: firstMessage.mentions || [],
         files: firstMessage.files || [],
@@ -103,51 +109,63 @@ router.post('/', async (req, res) => {
         mode: firstMessage.mode || null,
         // 🌐 Mapper useWeb vers creditsHasWeb pour persistance
         creditsHasWeb: firstMessage.useWeb || false,
-        creditsHasSources: (firstMessage.mentions?.length > 0 || firstMessage.files?.length > 0 || firstMessage.wikipediaSources?.length > 0) || false,
-      }
+        creditsHasSources:
+          firstMessage.mentions?.length > 0 ||
+          firstMessage.files?.length > 0 ||
+          firstMessage.wikipediaSources?.length > 0 ||
+          false,
+      },
     });
 
     // Générer le titre automatiquement avec GPT-4.1-nano
     try {
       const titleResponse = await openai.chat.completions.create({
-        model: 'gpt-4o-mini', // Plus rapide et moins cher pour la génération de titres
+        model: "gpt-4o-mini", // Plus rapide et moins cher pour la génération de titres
         messages: [
           {
-            role: 'system',
-            content: 'Tu es un assistant qui génère des titres courts et descriptifs pour des conversations. Génère un titre de maximum 6 mots qui résume le sujet de la première question de l\'utilisateur. Réponds uniquement avec le titre, sans guillemets ni ponctuation finale.'
+            role: "system",
+            content:
+              "Tu es un assistant qui génère des titres courts et descriptifs pour des conversations. Génère un titre de maximum 6 mots qui résume le sujet de la première question de l'utilisateur. Réponds uniquement avec le titre, sans guillemets ni ponctuation finale.",
           },
           {
-            role: 'user',
-            content: `Génère un titre pour cette question: "${firstMessage.content}"`
-          }
+            role: "user",
+            content: `Génère un titre pour cette question: "${firstMessage.content}"`,
+          },
         ],
         max_tokens: 20,
         temperature: 0.7,
       });
 
-      const generatedTitle = titleResponse.choices[0]?.message?.content?.trim() || 'Nouvelle conversation';
-      
+      const generatedTitle =
+        titleResponse.choices[0]?.message?.content?.trim() ||
+        "Nouvelle conversation";
+
       // Mettre à jour le titre de la conversation
       await prisma.aIConversation.update({
         where: { id: conversation.id },
-        data: { title: generatedTitle }
+        data: { title: generatedTitle },
       });
 
       conversation.title = generatedTitle;
     } catch (titleError) {
-      console.warn('[POST /conversations] Erreur génération titre:', titleError);
+      console.warn(
+        "[POST /conversations] Erreur génération titre:",
+        titleError,
+      );
       // Continuer même si la génération de titre échoue
     }
 
     res.status(201).json({ conversation });
   } catch (error) {
-    console.error('[POST /conversations] error', error);
-    res.status(500).json({ error: 'Erreur lors de la création de la conversation' });
+    console.error("[POST /conversations] error", error);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la création de la conversation" });
   }
 });
 
 // ✏️ PUT /conversations/:id - Mettre à jour une conversation
-router.put('/:id', async (req, res) => {
+router.put("/:id", verifyConversationAccess, async (req, res) => {
   try {
     const { id } = req.params;
     const { title, isActive } = req.body;
@@ -161,26 +179,28 @@ router.put('/:id', async (req, res) => {
       data: {
         ...(title !== undefined ? { title } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
-      }
+      },
     });
 
     if (updatedConversation.count === 0) {
-      return res.status(404).json({ error: 'Conversation non trouvée' });
+      return res.status(404).json({ error: "Conversation non trouvée" });
     }
 
     const conversation = await prisma.aIConversation.findUnique({
-      where: { id }
+      where: { id },
     });
 
     res.json({ conversation });
   } catch (error) {
-    console.error('[PUT /conversations/:id] error', error);
-    res.status(500).json({ error: 'Erreur lors de la mise à jour de la conversation' });
+    console.error("[PUT /conversations/:id] error", error);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la mise à jour de la conversation" });
   }
 });
 
 // 🗑️ DELETE /conversations/:id - Supprimer une conversation
-router.delete('/:id', async (req, res) => {
+router.delete("/:id", verifyConversationAccess, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user!.id;
@@ -191,23 +211,25 @@ router.delete('/:id', async (req, res) => {
         userId,
       },
       data: {
-        isActive: false // Soft delete
-      }
+        isActive: false, // Soft delete
+      },
     });
 
     if (deletedConversation.count === 0) {
-      return res.status(404).json({ error: 'Conversation non trouvée' });
+      return res.status(404).json({ error: "Conversation non trouvée" });
     }
 
     res.status(204).send();
   } catch (error) {
-    console.error('[DELETE /conversations/:id] error', error);
-    res.status(500).json({ error: 'Erreur lors de la suppression de la conversation' });
+    console.error("[DELETE /conversations/:id] error", error);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la suppression de la conversation" });
   }
 });
 
 // 📨 GET /conversations/:id/messages - Récupérer les messages d'une conversation
-router.get('/:id/messages', async (req, res) => {
+router.get("/:id/messages", verifyConversationAccess, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user!.id;
@@ -222,47 +244,72 @@ router.get('/:id/messages', async (req, res) => {
     });
 
     if (!conversation) {
-      return res.status(404).json({ error: 'Conversation non trouvée' });
+      return res.status(404).json({ error: "Conversation non trouvée" });
     }
 
     // Récupérer les messages
     const messages = await prisma.aIMessage.findMany({
       where: {
-        conversationId: id
+        conversationId: id,
       },
       orderBy: {
-        createdAt: 'asc'
-      }
+        createdAt: "asc",
+      },
     });
 
     res.json({ messages });
   } catch (error) {
-    console.error('[GET /conversations/:id/messages] error', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des messages' });
+    console.error("[GET /conversations/:id/messages] error", error);
+    res
+      .status(500)
+      .json({ error: "Erreur lors de la récupération des messages" });
   }
 });
 
 // 💬 POST /conversations/:id/messages - Ajouter un message à une conversation
-  router.post('/:id/messages', async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { role, content, mentions, files, wikipediaSources, useWeb, mode, pageId, pageTitle, projectId, thinking, toolCalls, usedFallback, intermediateThinkingBlocks, pageCreationData, creditsMode, creditsReflection, creditsHasWeb, creditsHasSources, creditsUsed } = req.body;
-      const userId = req.user!.id;
+router.post("/:id/messages", verifyConversationAccess, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      role,
+      content,
+      mentions,
+      files,
+      wikipediaSources,
+      useWeb,
+      mode,
+      pageId,
+      pageTitle,
+      projectId,
+      thinking,
+      toolCalls,
+      usedFallback,
+      intermediateThinkingBlocks,
+      pageCreationData,
+      creditsMode,
+      creditsReflection,
+      creditsHasWeb,
+      creditsHasSources,
+      creditsUsed,
+    } = req.body;
+    const userId = req.user!.id;
 
-    console.log('[DEBUG_MODAL] 📥 Backend - Ajout message:', { 
-      conversationId: id, 
-      role, 
-      pageId, 
-      pageTitle, 
+    console.log("[DEBUG_MODAL] 📥 Backend - Ajout message:", {
+      conversationId: id,
+      role,
+      pageId,
+      pageTitle,
       projectId,
       hasPageId: !!pageId,
       hasThinking: !!thinking,
       hasToolCalls: !!(toolCalls && toolCalls.length > 0),
-      hasPageCreationData: !!pageCreationData
+      hasPageCreationData: !!pageCreationData,
     });
 
     if (!content) {
-      return res.status(400).json({ error: 'Le contenu du message est requis' });
+      return res
+        .status(400)
+        .json({ error: "Le contenu du message est requis" });
     }
 
     // Vérifier que la conversation appartient à l'utilisateur
@@ -271,50 +318,57 @@ router.get('/:id/messages', async (req, res) => {
         id,
         userId,
         isActive: true,
-      }
+      },
     });
 
     if (!conversation) {
-      return res.status(404).json({ error: 'Conversation non trouvée' });
+      return res.status(404).json({ error: "Conversation non trouvée" });
     }
 
     // Ajouter le message
-      const message = await prisma.aIMessage.create({
-        data: {
-          conversationId: id,
-          role,
-          content,
-          mentions: mentions || [],
-          files: files || [],
-          wikipediaSources: wikipediaSources || [],
-          mode: mode || null,
-          pageId: pageId || null,
-          pageTitle: pageTitle || null,
-          projectId: projectId || null,
-          isPageDeleted: false, // 🔥 Initialiser à false lors de la création
-          // 🔥 NOUVEAU: Function Calling
-          thinking: thinking || null,
-          toolCalls: toolCalls || [],
-          usedFallback: usedFallback || false,
-          intermediateThinkingBlocks: intermediateThinkingBlocks || [],
-          // 🔥 NOUVEAU: Données complètes du modal de création
-          pageCreationData: pageCreationData || null,
-          // 💰 NOUVEAU: Métadonnées de coût en crédits
-          creditsMode: creditsMode || null,
-          creditsReflection: creditsReflection || null,
-          // 🌐 Mapper useWeb vers creditsHasWeb (priorité à creditsHasWeb si fourni pour rétrocompatibilité)
-          creditsHasWeb: creditsHasWeb !== undefined ? creditsHasWeb : (useWeb || false),
-          creditsHasSources: creditsHasSources !== undefined ? creditsHasSources : ((mentions?.length > 0 || files?.length > 0 || wikipediaSources?.length > 0) || false),
-          creditsUsed: creditsUsed || null,
-        }
-      });
+    const message = await prisma.aIMessage.create({
+      data: {
+        conversationId: id,
+        role,
+        content,
+        mentions: mentions || [],
+        files: files || [],
+        wikipediaSources: wikipediaSources || [],
+        mode: mode || null,
+        pageId: pageId || null,
+        pageTitle: pageTitle || null,
+        projectId: projectId || null,
+        isPageDeleted: false, // 🔥 Initialiser à false lors de la création
+        // 🔥 NOUVEAU: Function Calling
+        thinking: thinking || null,
+        toolCalls: toolCalls || [],
+        usedFallback: usedFallback || false,
+        intermediateThinkingBlocks: intermediateThinkingBlocks || [],
+        // 🔥 NOUVEAU: Données complètes du modal de création
+        pageCreationData: pageCreationData || null,
+        // 💰 NOUVEAU: Métadonnées de coût en crédits
+        creditsMode: creditsMode || null,
+        creditsReflection: creditsReflection || null,
+        // 🌐 Mapper useWeb vers creditsHasWeb (priorité à creditsHasWeb si fourni pour rétrocompatibilité)
+        creditsHasWeb:
+          creditsHasWeb !== undefined ? creditsHasWeb : useWeb || false,
+        creditsHasSources:
+          creditsHasSources !== undefined
+            ? creditsHasSources
+            : mentions?.length > 0 ||
+              files?.length > 0 ||
+              wikipediaSources?.length > 0 ||
+              false,
+        creditsUsed: creditsUsed || null,
+      },
+    });
 
-    console.log('[DEBUG_MODAL] ✅ Message créé dans la DB:', {
+    console.log("[DEBUG_MODAL] ✅ Message créé dans la DB:", {
       messageId: message.id,
       role: message.role,
       pageId: message.pageId,
       pageTitle: message.pageTitle,
-      isPageDeleted: message.isPageDeleted
+      isPageDeleted: message.isPageDeleted,
     });
 
     // Mettre à jour les métadonnées de la conversation
@@ -322,201 +376,463 @@ router.get('/:id/messages', async (req, res) => {
       where: { id },
       data: {
         messageCount: {
-          increment: 1
+          increment: 1,
         },
         lastMessageAt: new Date(),
-      }
+      },
     });
 
     res.status(201).json({ message });
   } catch (error) {
-    console.error('[POST /conversations/:id/messages] error', error);
-    res.status(500).json({ error: 'Erreur lors de l\'ajout du message' });
+    console.error("[POST /conversations/:id/messages] error", error);
+    res.status(500).json({ error: "Erreur lors de l'ajout du message" });
   }
 });
 
 // 🔄 PATCH /conversations/:conversationId/update-page-status - Mettre à jour le statut de page
-router.patch('/:conversationId/update-page-status', async (req, res) => {
-  try {
-    const { conversationId } = req.params;
-    const { oldPageId, pageTitle, newPageId, isPageDeleted, projectId } = req.body;
-    const userId = req.user!.id;
+router.patch(
+  "/:conversationId/update-page-status",
+  verifyConversationAccess,
+  async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      const { oldPageId, pageTitle, newPageId, isPageDeleted, projectId } =
+        req.body;
+      const userId = req.user!.id;
 
-    console.log('[DEBUG_MODAL] 📥 Backend - Requête reçue:', { conversationId, oldPageId, pageTitle, newPageId, isPageDeleted, userId });
-
-    // Vérifier que la conversation appartient à l'utilisateur
-    const conversation = await prisma.aIConversation.findFirst({
-      where: {
-        id: conversationId,
-        userId,
-        isActive: true
-      }
-    });
-
-    if (!conversation) {
-      console.log('[DEBUG_MODAL] ❌ Conversation non trouvée');
-      return res.status(404).json({ error: 'Conversation non trouvée' });
-    }
-
-    console.log('[DEBUG_MODAL] ✅ Conversation trouvée:', conversation.id);
-
-    // Chercher le message par pageTitle OU oldPageId OU pageCreationData
-    const whereConditions = [];
-    
-    // Priorité 1: Chercher par pageTitle (ne change jamais)
-    if (pageTitle) {
-      whereConditions.push({ pageTitle });
-    }
-    
-    // Priorité 2: Chercher par oldPageId (peut être déjà null)
-    if (oldPageId) {
-      whereConditions.push({ pageId: oldPageId });
-    }
-    
-    // Priorité 3: Si on a un oldPageId mais que le message a déjà été supprimé,
-    // chercher dans pageCreationData
-    if (oldPageId && !pageTitle) {
-      whereConditions.push({
-        pageCreationData: {
-          path: ['pageId'],
-          equals: oldPageId
-        }
-      });
-    }
-
-    if (whereConditions.length === 0) {
-      console.log('[DEBUG_MODAL] ❌ Aucun critère de recherche fourni');
-      return res.status(400).json({ error: 'oldPageId ou pageTitle requis' });
-    }
-
-    console.log('[DEBUG_MODAL] 🔍 Recherche du message avec:', whereConditions);
-
-    const message = await prisma.aIMessage.findFirst({
-      where: {
+      console.log("[DEBUG_MODAL] 📥 Backend - Requête reçue:", {
         conversationId,
-        OR: whereConditions
-      }
-    });
+        oldPageId,
+        pageTitle,
+        newPageId,
+        isPageDeleted,
+        userId,
+      });
 
-    if (!message) {
-      console.log('[DEBUG_MODAL] ❌ Message non trouvé dans la conversation');
-      return res.status(404).json({ error: 'Message non trouvé' });
+      // Vérifier que la conversation appartient à l'utilisateur
+      const conversation = await prisma.aIConversation.findFirst({
+        where: {
+          id: conversationId,
+          userId,
+          isActive: true,
+        },
+      });
+
+      if (!conversation) {
+        console.log("[DEBUG_MODAL] ❌ Conversation non trouvée");
+        return res.status(404).json({ error: "Conversation non trouvée" });
+      }
+
+      console.log("[DEBUG_MODAL] ✅ Conversation trouvée:", conversation.id);
+
+      // Chercher le message par pageTitle OU oldPageId OU pageCreationData
+      const whereConditions = [];
+
+      // Priorité 1: Chercher par pageTitle (ne change jamais)
+      if (pageTitle) {
+        whereConditions.push({ pageTitle });
+      }
+
+      // Priorité 2: Chercher par oldPageId (peut être déjà null)
+      if (oldPageId) {
+        whereConditions.push({ pageId: oldPageId });
+      }
+
+      // Priorité 3: Si on a un oldPageId mais que le message a déjà été supprimé,
+      // chercher dans pageCreationData
+      if (oldPageId && !pageTitle) {
+        whereConditions.push({
+          pageCreationData: {
+            path: ["pageId"],
+            equals: oldPageId,
+          },
+        });
+      }
+
+      if (whereConditions.length === 0) {
+        console.log("[DEBUG_MODAL] ❌ Aucun critère de recherche fourni");
+        return res.status(400).json({ error: "oldPageId ou pageTitle requis" });
+      }
+
+      console.log(
+        "[DEBUG_MODAL] 🔍 Recherche du message avec:",
+        whereConditions,
+      );
+
+      const message = await prisma.aIMessage.findFirst({
+        where: {
+          conversationId,
+          OR: whereConditions,
+        },
+      });
+
+      if (!message) {
+        console.log("[DEBUG_MODAL] ❌ Message non trouvé dans la conversation");
+        return res.status(404).json({ error: "Message non trouvé" });
+      }
+
+      console.log("[DEBUG_MODAL] ✅ Message trouvé:", {
+        messageId: message.id,
+        currentPageId: message.pageId,
+        currentIsPageDeleted: message.isPageDeleted,
+      });
+
+      // Mettre à jour
+      const updateData: any = {};
+      if (newPageId !== undefined) updateData.pageId = newPageId;
+      if (isPageDeleted !== undefined) updateData.isPageDeleted = isPageDeleted;
+      if (projectId !== undefined) updateData.projectId = projectId;
+
+      // 🔥 NOUVEAU: Mettre à jour pageCreationData
+      if (message.pageCreationData) {
+        const currentData = message.pageCreationData as any;
+
+        // Cas 1: Suppression de page
+        if (isPageDeleted === true) {
+          updateData.pageCreationData = {
+            ...currentData,
+            pageId: null, // Important: pageId devient null
+            status: "deleted",
+            deletedAt: new Date().toISOString(),
+          };
+          console.log(
+            "[DEBUG_MODAL] 🗑️ Page supprimée - pageCreationData mis à jour",
+          );
+        }
+
+        // Cas 2: Recréation de page
+        if (newPageId && isPageDeleted === false) {
+          updateData.pageCreationData = {
+            ...currentData,
+            pageId: newPageId,
+            status: "created",
+            deletedAt: null,
+            recreatedAt: new Date().toISOString(),
+          };
+          console.log(
+            "[DEBUG_MODAL] ✨ Page recréée - pageCreationData mis à jour avec nouveau ID",
+          );
+        }
+      }
+
+      console.log("[DEBUG_MODAL] 💾 Données à mettre à jour:", updateData);
+
+      const updatedMessage = await prisma.aIMessage.update({
+        where: { id: message.id },
+        data: updateData,
+      });
+
+      console.log("[DEBUG_MODAL] ✅ Message mis à jour avec succès:", {
+        messageId: message.id,
+        isPageDeleted: updatedMessage.isPageDeleted,
+        pageId: updatedMessage.pageId,
+        pageTitle: updatedMessage.pageTitle,
+      });
+
+      res.json({ success: true, message: updatedMessage });
+    } catch (error) {
+      console.error("[DEBUG_MODAL] ❌ Erreur backend:", error);
+      res
+        .status(500)
+        .json({ error: "Erreur lors de la mise à jour du message" });
     }
+  },
+);
 
-    console.log('[DEBUG_MODAL] ✅ Message trouvé:', { messageId: message.id, currentPageId: message.pageId, currentIsPageDeleted: message.isPageDeleted });
+// 📊 GET /conversations/tokens/:workspaceId - Récupérer le nombre de tokens de la conversation active
+router.get(
+  "/tokens/:workspaceId",
+  verifyWorkspaceOwnership,
+  async (req, res) => {
+    try {
+      const { workspaceId } = req.params;
+      const userId = req.user!.id;
 
-    // Mettre à jour
-    const updateData: any = {};
-    if (newPageId !== undefined) updateData.pageId = newPageId;
-    if (isPageDeleted !== undefined) updateData.isPageDeleted = isPageDeleted;
-    if (projectId !== undefined) updateData.projectId = projectId;
+      // 🔥 FIX: Récupérer directement la conversation active depuis la table AIConversation
+      const conversation = await prisma.aIConversation.findFirst({
+        where: {
+          userId,
+          workspaceId,
+          isActive: true,
+        },
+        orderBy: {
+          updatedAt: "desc",
+        },
+        include: {
+          messages: {
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      });
 
-    // 🔥 NOUVEAU: Mettre à jour pageCreationData
-    if (message.pageCreationData) {
-      const currentData = message.pageCreationData as any;
-      
-      // Cas 1: Suppression de page
-      if (isPageDeleted === true) {
-        updateData.pageCreationData = {
-          ...currentData,
-          pageId: null, // Important: pageId devient null
-          status: 'deleted',
-          deletedAt: new Date().toISOString()
-        };
-        console.log('[DEBUG_MODAL] 🗑️ Page supprimée - pageCreationData mis à jour');
+      if (!conversation || conversation.messages.length === 0) {
+        // Pas de conversation ou pas de messages
+        return res.json({
+          totalTokens: 0,
+          userMessageTokens: 0,
+          aiMessageTokens: 0,
+          threshold: 4000,
+          needsCompression: false,
+        });
       }
-      
-      // Cas 2: Recréation de page
-      if (newPageId && isPageDeleted === false) {
-        updateData.pageCreationData = {
-          ...currentData,
-          pageId: newPageId,
-          status: 'created',
-          deletedAt: null,
-          recreatedAt: new Date().toISOString()
-        };
-        console.log('[DEBUG_MODAL] ✨ Page recréée - pageCreationData mis à jour avec nouveau ID');
+
+      // Importer le service de comptage
+      const { TokenCounterService } = await import(
+        "../services/ai/functionCalling/history/tokenCounter.service.js"
+      );
+
+      // 🔥 Compter les tokens directement depuis les messages de la conversation
+      let totalTokens = 0;
+      let userMessageTokens = 0;
+      let aiMessageTokens = 0;
+
+      for (const message of conversation.messages) {
+        // Estimer les tokens du contenu principal
+        const contentTokens = TokenCounterService.countTokens(
+          message.content || "",
+        );
+
+        if (message.role === "USER") {
+          // Ajouter les tokens des paramètres (mentions, sources, etc.)
+          const paramsTokens = TokenCounterService.countTokens(
+            JSON.stringify({
+              mentions: message.mentions || [],
+              files: message.files || [],
+              wikipediaSources: message.wikipediaSources || [],
+              useWeb: message.creditsHasWeb || false,
+            }),
+          );
+          const messageTokens = contentTokens + paramsTokens;
+          userMessageTokens += messageTokens;
+          totalTokens += messageTokens;
+        } else {
+          // Pour les messages assistant, compter thinking + toolCalls + content
+          const thinkingTokens = message.thinking
+            ? TokenCounterService.countTokens(message.thinking)
+            : 0;
+          const toolCallsTokens = message.toolCalls
+            ? TokenCounterService.countTokens(JSON.stringify(message.toolCalls))
+            : 0;
+          const intermediateTokens = message.intermediateThinkingBlocks
+            ? TokenCounterService.countTokens(
+                JSON.stringify(message.intermediateThinkingBlocks),
+              )
+            : 0;
+
+          const messageTokens =
+            contentTokens +
+            thinkingTokens +
+            toolCallsTokens +
+            intermediateTokens;
+          aiMessageTokens += messageTokens;
+          totalTokens += messageTokens;
+        }
       }
+
+      const needsCompression = totalTokens > 4000;
+
+      console.log(`📊 [TOKEN-COUNTER] Conversation ${conversation.id}:`);
+      console.log(`   Total tokens: ${totalTokens}`);
+      console.log(`   User messages: ${userMessageTokens} tokens`);
+      console.log(`   AI messages: ${aiMessageTokens} tokens`);
+      console.log(`   Messages count: ${conversation.messages.length}`);
+
+      res.json({
+        totalTokens,
+        userMessageTokens,
+        aiMessageTokens,
+        threshold: 4000,
+        needsCompression,
+      });
+    } catch (error) {
+      console.error("[GET /conversations/tokens/:workspaceId] error", error);
+      res
+        .status(500)
+        .json({ error: "Erreur lors de la récupération du nombre de tokens" });
     }
+  },
+);
 
-    console.log('[DEBUG_MODAL] 💾 Données à mettre à jour:', updateData);
+// 📊 GET /conversations/tokens/conversation/:conversationId - Obtenir le nombre de tokens d'une conversation par son ID
+router.get(
+  "/tokens/conversation/:conversationId",
+  verifyConversationAccess,
+  async (req: Request, res: Response) => {
+    try {
+      const { conversationId } = req.params;
+      const userId = req.user!.id;
 
-    const updatedMessage = await prisma.aIMessage.update({
-      where: { id: message.id },
-      data: updateData
-    });
+      console.log(
+        `📊 [GET /conversations/tokens/conversation/${conversationId}] user: ${userId}`,
+      );
 
-    console.log('[DEBUG_MODAL] ✅ Message mis à jour avec succès:', {
-      messageId: message.id,
-      isPageDeleted: updatedMessage.isPageDeleted,
-      pageId: updatedMessage.pageId,
-      pageTitle: updatedMessage.pageTitle
-    });
+      // Récupérer la conversation par son ID (pas par workspaceId)
+      const conversation = await prisma.aIConversation.findFirst({
+        where: {
+          id: conversationId,
+          userId,
+        },
+        include: {
+          messages: {
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      });
 
-    res.json({ success: true, message: updatedMessage });
-  } catch (error) {
-    console.error('[DEBUG_MODAL] ❌ Erreur backend:', error);
-    res.status(500).json({ error: 'Erreur lors de la mise à jour du message' });
-  }
-});
+      if (!conversation || conversation.messages.length === 0) {
+        // Pas de conversation ou pas de messages
+        return res.json({
+          totalTokens: 0,
+          userMessageTokens: 0,
+          aiMessageTokens: 0,
+          threshold: 4000,
+          needsCompression: false,
+        });
+      }
+
+      // Importer le service de comptage
+      const { TokenCounterService } = await import(
+        "../services/ai/functionCalling/history/tokenCounter.service.js"
+      );
+
+      // 🔥 Compter les tokens directement depuis les messages de la conversation
+      let totalTokens = 0;
+      let userMessageTokens = 0;
+      let aiMessageTokens = 0;
+
+      for (const message of conversation.messages) {
+        // Estimer les tokens du contenu principal
+        const contentTokens = TokenCounterService.countTokens(
+          message.content || "",
+        );
+
+        if (message.role === "USER") {
+          // Ajouter les tokens des paramètres (mentions, sources, etc.)
+          const paramsTokens = TokenCounterService.countTokens(
+            JSON.stringify({
+              mentions: message.mentions || [],
+              files: message.files || [],
+              wikipediaSources: message.wikipediaSources || [],
+              useWeb: message.creditsHasWeb || false,
+            }),
+          );
+          const messageTokens = contentTokens + paramsTokens;
+          userMessageTokens += messageTokens;
+          totalTokens += messageTokens;
+        } else {
+          // Pour les messages assistant, compter thinking + toolCalls + content
+          const thinkingTokens = message.thinking
+            ? TokenCounterService.countTokens(message.thinking)
+            : 0;
+          const toolCallsTokens = message.toolCalls
+            ? TokenCounterService.countTokens(JSON.stringify(message.toolCalls))
+            : 0;
+          const intermediateTokens = message.intermediateThinkingBlocks
+            ? TokenCounterService.countTokens(
+                JSON.stringify(message.intermediateThinkingBlocks),
+              )
+            : 0;
+
+          const messageTokens =
+            contentTokens +
+            thinkingTokens +
+            toolCallsTokens +
+            intermediateTokens;
+          aiMessageTokens += messageTokens;
+          totalTokens += messageTokens;
+        }
+      }
+
+      const needsCompression = totalTokens > 4000;
+
+      console.log(`📊 [TOKEN-COUNTER] Conversation ${conversation.id}:`);
+      console.log(`   Total tokens: ${totalTokens}`);
+      console.log(`   User messages: ${userMessageTokens} tokens`);
+      console.log(`   AI messages: ${aiMessageTokens} tokens`);
+      console.log(`   Messages count: ${conversation.messages.length}`);
+
+      res.json({
+        totalTokens,
+        userMessageTokens,
+        aiMessageTokens,
+        threshold: 4000,
+        needsCompression,
+      });
+    } catch (error) {
+      console.error(
+        "[GET /conversations/tokens/conversation/:conversationId] error",
+        error,
+      );
+      res
+        .status(500)
+        .json({ error: "Erreur lors de la récupération du nombre de tokens" });
+    }
+  },
+);
 
 // 🔄 POST /conversations/:id/generate-title - Générer un nouveau titre
-router.post('/:id/generate-title', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.id;
+router.post(
+  "/:id/generate-title",
+  verifyConversationAccess,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const userId = req.user!.id;
 
-    // Récupérer la conversation avec le premier message
-    const conversation = await prisma.aIConversation.findFirst({
-      where: {
-        id,
-        userId,
-        isActive: true,
-      },
-      include: {
-        messages: {
-          orderBy: { createdAt: 'asc' },
-          take: 1
-        }
-      }
-    });
-
-    if (!conversation || !conversation.messages[0]) {
-      return res.status(404).json({ error: 'Conversation non trouvée' });
-    }
-
-    const firstMessage = conversation.messages[0];
-
-    // Générer le nouveau titre
-    const titleResponse = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'Tu es un assistant qui génère des titres courts et descriptifs pour des conversations. Génère un titre de maximum 6 mots qui résume le sujet de la première question de l\'utilisateur. Réponds uniquement avec le titre, sans guillemets ni ponctuation finale.'
+      // Récupérer la conversation avec le premier message
+      const conversation = await prisma.aIConversation.findFirst({
+        where: {
+          id,
+          userId,
+          isActive: true,
         },
-        {
-          role: 'user',
-          content: `Génère un titre pour cette question: "${firstMessage.content}"`
-        }
-      ],
-      max_tokens: 20,
-      temperature: 0.7,
-    });
+        include: {
+          messages: {
+            orderBy: { createdAt: "asc" },
+            take: 1,
+          },
+        },
+      });
 
-    const generatedTitle = titleResponse.choices[0]?.message?.content?.trim() || 'Conversation';
+      if (!conversation || !conversation.messages[0]) {
+        return res.status(404).json({ error: "Conversation non trouvée" });
+      }
 
-    // Mettre à jour le titre
-    await prisma.aIConversation.update({
-      where: { id },
-      data: { title: generatedTitle }
-    });
+      const firstMessage = conversation.messages[0];
 
-    res.json({ title: generatedTitle });
-  } catch (error) {
-    console.error('[POST /conversations/:id/generate-title] error', error);
-    res.status(500).json({ error: 'Erreur lors de la génération du titre' });
-  }
-});
+      // Générer le nouveau titre
+      const titleResponse = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "Tu es un assistant qui génère des titres courts et descriptifs pour des conversations. Génère un titre de maximum 6 mots qui résume le sujet de la première question de l'utilisateur. Réponds uniquement avec le titre, sans guillemets ni ponctuation finale.",
+          },
+          {
+            role: "user",
+            content: `Génère un titre pour cette question: "${firstMessage.content}"`,
+          },
+        ],
+        max_tokens: 20,
+        temperature: 0.7,
+      });
+
+      const generatedTitle =
+        titleResponse.choices[0]?.message?.content?.trim() || "Conversation";
+
+      // Mettre à jour le titre
+      await prisma.aIConversation.update({
+        where: { id },
+        data: { title: generatedTitle },
+      });
+
+      res.json({ title: generatedTitle });
+    } catch (error) {
+      console.error("[POST /conversations/:id/generate-title] error", error);
+      res.status(500).json({ error: "Erreur lors de la génération du titre" });
+    }
+  },
+);
 
 export default router;

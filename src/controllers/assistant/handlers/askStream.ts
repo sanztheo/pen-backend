@@ -256,17 +256,18 @@ export const assistantAskStream = async (req: Request, res: Response) => {
 
         const userId = req.user!.id;
 
-        // Ajouter le message utilisateur à l'historique
-        await ConversationHistoryService.addUserMessage(
-          userId,
-          workspaceId,
-          sanitizedQuery,
-          {
-            web: useWeb,
-            all: sourcesScope === "all",
-            sources: sourcesForAI,
-          },
-        );
+        // 🔥 FIX DUPLICATION: Ne PAS ajouter le message utilisateur ici
+        // Le frontend l'a déjà ajouté via conversationManager.ts
+        // await ConversationHistoryService.addUserMessage(
+        //   userId,
+        //   workspaceId,
+        //   sanitizedQuery,
+        //   {
+        //     web: useWeb,
+        //     all: sourcesScope === "all",
+        //     sources: sourcesForAI,
+        //   },
+        // );
 
         // Récupérer l'historique
         let history = await ConversationHistoryService.getHistory(
@@ -289,6 +290,34 @@ export const assistantAskStream = async (req: Request, res: Response) => {
               `🗜️ [ASK-HISTORY] Compression nécessaire (${tokenCount.totalTokens.toLocaleString()} tokens > ${TokenCounterService.COMPRESSION_THRESHOLD.toLocaleString()})`,
             );
 
+            // 🔥 Récupérer le vrai conversationId pour les événements SSE
+            const conversation = await prisma.aIConversation.findFirst({
+              where: {
+                userId,
+                workspaceId,
+                isActive: true,
+              },
+              orderBy: {
+                updatedAt: "desc",
+              },
+            });
+
+            const actualConversationId = conversation?.id || workspaceId;
+
+            // Envoyer événement de début de compression
+            res.write(
+              `event: compression_start\ndata: ${JSON.stringify({
+                conversationId: actualConversationId,
+                totalTokens: tokenCount.totalTokens,
+                status: "compressing",
+              })}\n\n`,
+            );
+
+            // 🔥 FORCER L'ENVOI IMMÉDIAT au client (flush le buffer)
+            if (typeof (res as any).flush === "function") {
+              (res as any).flush();
+            }
+
             try {
               // Compresser avec GPT-4o-mini
               const compressionResult =
@@ -303,6 +332,15 @@ export const assistantAskStream = async (req: Request, res: Response) => {
                 userId,
                 workspaceId,
                 compressionResult.compressedContent,
+              );
+
+              // Envoyer événement de fin de compression
+              res.write(
+                `event: compression_complete\ndata: ${JSON.stringify({
+                  conversationId: actualConversationId,
+                  newTokens: compressionResult.compressedTokens,
+                  status: "completed",
+                })}\n\n`,
               );
 
               conversationHistory = compressionResult.compressedContent;
@@ -539,18 +577,19 @@ ${personaSnippet}
           }
         }
 
-        // 🆕 SAUVEGARDER LA RÉPONSE AI DANS L'HISTORIQUE
-        await ConversationHistoryService.addAIMessage(
-          userId,
-          workspaceId,
-          currentThinking,
-          currentToolCalls,
-          fullFinalResponse,
-          intermediateThinkingBlocks,
-        );
-        console.log(
-          `📝 [ASK-HISTORY] Réponse AI sauvegardée dans l'historique`,
-        );
+        // 🔥 FIX DUPLICATION: Ne PAS ajouter le message assistant ici
+        // Le frontend l'a déjà ajouté via streamHandlers.ts onDone()
+        // await ConversationHistoryService.addAIMessage(
+        //   userId,
+        //   workspaceId,
+        //   currentThinking,
+        //   currentToolCalls,
+        //   fullFinalResponse,
+        //   intermediateThinkingBlocks,
+        // );
+        // console.log(
+        //   `📝 [ASK-HISTORY] Réponse AI sauvegardée dans l'historique`,
+        // );
 
         // Envoyer les métadonnées pour sauvegarde frontend
         res.write(`event: metadata\n`);

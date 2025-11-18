@@ -19,8 +19,15 @@ export interface TokenCount {
  * Service for counting tokens in conversation history
  */
 export class TokenCounterService {
-  // Seuil de tokens avant compression (200k comme demandé)
-  static readonly COMPRESSION_THRESHOLD = 200_000;
+  // Seuil de tokens avant compression (4k pour tests rapides)
+  static readonly COMPRESSION_THRESHOLD = 4_000;
+
+  // Cache pour éviter de recalculer les tokens plusieurs fois pour la même conversation
+  private static tokenCache = new Map<
+    string,
+    { count: TokenCount; timestamp: number }
+  >();
+  private static readonly CACHE_TTL = 5000; // 5 secondes de cache
 
   /**
    * Compte les tokens d'un texte en utilisant tiktoken
@@ -47,6 +54,16 @@ export class TokenCounterService {
    * Compte les tokens d'un historique de conversation complet
    */
   static countHistoryTokens(history: ConversationHistory): TokenCount {
+    // Générer une clé de cache basée sur userId, workspaceId et le nombre de messages
+    const cacheKey = `${history.userId}:${history.workspaceId}:${history.messages.length}`;
+
+    // Vérifier le cache
+    const cached = this.tokenCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      console.log(`📊 [TOKEN-COUNTER] Utilisation du cache pour ${cacheKey}`);
+      return cached.count;
+    }
+
     let totalTokens = 0;
     let userMessageTokens = 0;
     let aiMessageTokens = 0;
@@ -90,12 +107,20 @@ export class TokenCounterService {
       `   Needs compression: ${needsCompression ? "YES" : "NO"} (threshold: ${this.COMPRESSION_THRESHOLD.toLocaleString()})`,
     );
 
-    return {
+    const result = {
       totalTokens,
       userMessageTokens,
       aiMessageTokens,
       needsCompression,
     };
+
+    // Mettre en cache le résultat
+    this.tokenCache.set(cacheKey, {
+      count: result,
+      timestamp: Date.now(),
+    });
+
+    return result;
   }
 
   /**
@@ -111,9 +136,11 @@ export class TokenCounterService {
    * La compression prend l'historique complet en input et génère 3-5k tokens
    * en output.
    */
-  static estimateCompressionCost(
-    inputTokens: number,
-  ): { inputCost: number; outputCost: number; totalCost: number } {
+  static estimateCompressionCost(inputTokens: number): {
+    inputCost: number;
+    outputCost: number;
+    totalCost: number;
+  } {
     // Prix GPT-4o-mini : $0.15 per 1M input tokens, $0.6 per 1M output tokens
     const INPUT_PRICE_PER_MILLION = 0.15;
     const OUTPUT_PRICE_PER_MILLION = 0.6;

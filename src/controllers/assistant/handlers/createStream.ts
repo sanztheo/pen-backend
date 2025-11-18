@@ -232,6 +232,21 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
             `🗜️ [CREATE-HISTORY] Compression nécessaire (${tokenCount.totalTokens.toLocaleString()} tokens > ${TokenCounterService.COMPRESSION_THRESHOLD.toLocaleString()})`,
           );
 
+          // Envoyer événement de début de compression
+          res.write(
+            `event: compression_start\ndata: ${JSON.stringify({
+              conversationId: workspaceId,
+              totalTokens: tokenCount.totalTokens,
+              threshold: 4000,
+              status: "compressing",
+            })}\n\n`,
+          );
+
+          console.log(
+            "🔄 [COMPRESSION] Démarrage compression conversation:",
+            workspaceId,
+          );
+
           try {
             // Compresser avec GPT-4o-mini
             const compressionResult =
@@ -247,6 +262,17 @@ export const assistantCreateStream = async (req: Request, res: Response) => {
               workspaceId,
               compressionResult.compressedContent,
             );
+
+            // Envoyer événement de fin de compression
+            res.write(
+              `event: compression_complete\ndata: ${JSON.stringify({
+                conversationId: workspaceId,
+                newTokens: compressionResult.compressedTokens,
+                status: "completed",
+              })}\n\n`,
+            );
+
+            console.log("✅ [COMPRESSION] Compression terminée:", workspaceId);
 
             conversationHistory = compressionResult.compressedContent;
           } catch (compressionError) {
