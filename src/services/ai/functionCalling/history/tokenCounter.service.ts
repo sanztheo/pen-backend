@@ -19,8 +19,8 @@ export interface TokenCount {
  * Service for counting tokens in conversation history
  */
 export class TokenCounterService {
-  // Seuil de tokens avant compression (4k pour tests rapides)
-  static readonly COMPRESSION_THRESHOLD = 4_000;
+  // Seuil de tokens avant compression (200k en production)
+  static readonly COMPRESSION_THRESHOLD = 200_000;
 
   // Cache pour éviter de recalculer les tokens plusieurs fois pour la même conversation
   private static tokenCache = new Map<
