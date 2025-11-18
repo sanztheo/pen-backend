@@ -657,7 +657,7 @@ router.get(
 router.get(
   "/tokens/conversation/:conversationId",
   verifyConversationAccess,
-  async (req: Request, res: Response) => {
+  async (req, res) => {
     try {
       const { conversationId } = req.params;
       const userId = req.user!.id;
