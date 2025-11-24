@@ -365,12 +365,14 @@ model PaymentLog {
   currency   String   @db.VarChar(10)
   status     String   @db.VarChar(50) // pending, confirmed, failed
   metadata   Json?
+  eventId    String?  @unique @map("event_id") @db.VarChar(255) // 🔒 IDEMPOTENCE: GoCardless event ID
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([providerId])
+  @@index([eventId])
   @@map("payment_logs")
 }
 

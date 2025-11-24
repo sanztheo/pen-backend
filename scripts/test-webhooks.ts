@@ -13,8 +13,7 @@ console.log("🧪 Tests Webhooks GoCardless");
 console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
 const WEBHOOK_SECRET = process.env.GOCARDLESS_WEBHOOK_SECRET!;
-const WEBHOOK_URL =
-  "https://b1f9d464bc5d.ngrok-free.app/api/webhooks/gocardless";
+const WEBHOOK_URL = "http://localhost:3001/api/webhooks/gocardless";
 
 let passCount = 0;
 let failCount = 0;

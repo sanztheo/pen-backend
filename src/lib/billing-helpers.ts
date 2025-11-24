@@ -134,18 +134,18 @@ export function calculateNextPaymentDate(fromDate: Date = new Date()): Date {
 
 /**
  * Vérifie si un événement a déjà été traité (idempotence)
+ * 🔒 SÉCURITÉ: Utilise la colonne eventId unique pour idempotence
  * @param eventId - L'ID de l'événement GoCardless
  * @returns true si l'événement a déjà été traité
  */
 export async function isEventProcessed(eventId: string): Promise<boolean> {
   try {
-    const existingLog = await prisma.paymentLog.findFirst({
+    // 🔒 FIX: Utiliser la colonne eventId unique au lieu de chercher dans metadata
+    const existingLog = await prisma.paymentLog.findUnique({
       where: {
-        metadata: {
-          path: ["eventId"],
-          equals: eventId,
-        },
+        eventId: eventId,
       },
+      select: { id: true },
     });
 
     return !!existingLog;
@@ -160,6 +160,7 @@ export async function isEventProcessed(eventId: string): Promise<boolean> {
 
 /**
  * Enregistre un événement webhook dans PaymentLog
+ * 🔒 SÉCURITÉ: Utilise la colonne eventId pour idempotence
  * @param eventType - Type d'événement (ex: "payments.confirmed")
  * @param status - Status du paiement
  * @param userId - ID de l'utilisateur (optionnel)
@@ -186,6 +187,7 @@ export async function logWebhookEvent(
             metadata.mandateId ||
             metadata.eventId ||
             `webhook_${Date.now()}`,
+          eventId: metadata.eventId || null, // 🔒 FIX: Stocker eventId dans colonne dédiée
           metadata: {
             ...metadata,
             eventType,
@@ -233,14 +235,15 @@ export async function findUserByGocardlessCustomer(
 
 /**
  * Met à jour le statut d'un mandat
+ * 🔒 SÉCURITÉ: Mise à jour cohérente du status subscription
  * @param mandateId - L'ID du mandat GoCardless
- * @param status - Le nouveau statut
+ * @param mandateStatus - Le nouveau statut du mandat
  * @param reference - La référence du mandat (optionnel)
  */
 export async function updateMandateStatus(
   userId: string,
   mandateId: string,
-  status:
+  mandateStatus:
     | "pending_customer_approval"
     | "pending_submission"
     | "submitted"
@@ -253,12 +256,29 @@ export async function updateMandateStatus(
   try {
     const updateData: any = {
       gocardlessMandateId: mandateId,
-      mandateStatus: status,
+      mandateStatus: mandateStatus,
     };
+
+    // 🔒 FIX: Mettre à jour le status de la subscription selon le statut du mandat
+    if (mandateStatus === "active") {
+      updateData.status = "active";
+    } else if (
+      mandateStatus === "cancelled" ||
+      mandateStatus === "failed" ||
+      mandateStatus === "expired"
+    ) {
+      updateData.status = "canceled";
+    }
 
     if (reference) {
       updateData.mandateReference = reference;
     }
+
+    // 🔧 FIX: Récupérer le gocardlessCustomerId du user pour éviter de créer avec un ID vide
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { gocardlessCustomerId: true },
+    });
 
     // Upsert pour créer si n'existe pas, ou mettre à jour si existe
     await prisma.userSubscription.upsert({
@@ -267,13 +287,14 @@ export async function updateMandateStatus(
       create: {
         userId,
         plan: "free_user",
-        gocardlessCustomerId: "", // Sera mis à jour par d'autres handlers
+        status: "active", // 🔒 FIX: Status par défaut lors de la création
+        gocardlessCustomerId: user?.gocardlessCustomerId || "", // ✅ Utilise le customer ID du user
         ...updateData,
       },
     });
 
     console.log(
-      `[BILLING] ✅ Statut du mandat ${mandateId} mis à jour: ${status}`,
+      `[BILLING] ✅ Statut du mandat ${mandateId} mis à jour: ${mandateStatus} (subscription status: ${updateData.status || "unchanged"})`,
     );
   } catch (error) {
     console.error(`[BILLING] Erreur lors de la mise à jour du mandat:`, error);
@@ -313,6 +334,7 @@ export async function updateSubscriptionInfo(
 
 /**
  * Active le plan premium suite à un paiement confirmé
+ * 🔒 SÉCURITÉ: Mise à jour cohérente du status + plan
  * @param userId - L'ID de l'utilisateur
  * @param paymentDate - Date du paiement
  */
@@ -323,10 +345,12 @@ export async function activatePremiumPlan(
   try {
     const nextPaymentDate = calculateNextPaymentDate(paymentDate);
 
+    // 🔒 FIX CRITIQUE: Toujours mettre à jour status + plan ensemble
     await prisma.userSubscription.update({
       where: { userId },
       data: {
         plan: "premium",
+        status: "active", // 🔒 FIX: Ajouter le status pour cohérence DB
         lastPaymentDate: paymentDate,
         nextPaymentDate,
         updatedAt: new Date(),
@@ -336,7 +360,7 @@ export async function activatePremiumPlan(
     await updateUserLimitsToPremium(userId);
 
     console.log(
-      `[BILLING] ✅ Plan premium activé pour user ${userId}, prochain paiement: ${nextPaymentDate.toISOString()}`,
+      `[BILLING] ✅ Plan premium activé (status: active) pour user ${userId}, prochain paiement: ${nextPaymentDate.toISOString()}`,
     );
   } catch (error) {
     console.error(
@@ -349,6 +373,7 @@ export async function activatePremiumPlan(
 
 /**
  * Désactive le plan premium et retour au plan free
+ * 🔒 SÉCURITÉ: Mise à jour cohérente du status + plan
  * @param userId - L'ID de l'utilisateur
  * @param reason - Raison de la désactivation
  */
@@ -357,10 +382,12 @@ export async function deactivatePremiumPlan(
   reason: string = "unknown",
 ) {
   try {
+    // 🔒 FIX CRITIQUE: Mettre à jour status à "canceled" lors de la désactivation
     await prisma.userSubscription.update({
       where: { userId },
       data: {
         plan: "free_user",
+        status: "canceled", // 🔒 FIX: Ajouter le status pour cohérence DB
         canceledAt: new Date(),
         updatedAt: new Date(),
       },
@@ -369,7 +396,7 @@ export async function deactivatePremiumPlan(
     await updateUserLimitsToFree(userId);
 
     console.log(
-      `[BILLING] ✅ Plan premium désactivé pour user ${userId}, raison: ${reason}`,
+      `[BILLING] ✅ Plan premium désactivé (status: canceled) pour user ${userId}, raison: ${reason}`,
     );
   } catch (error) {
     console.error(

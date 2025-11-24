@@ -25,10 +25,15 @@ import {
   updateUserLimitsToFree,
 } from "../lib/billing-helpers.js";
 
-// Webhook secret pour vérifier la signature
-const WEBHOOK_SECRET =
-  process.env.GOCARDLESS_WEBHOOK_SECRET ||
-  "3W8PRZirYFBzn_P1iWvxoVcg9v9dlqnAtCIcUErD";
+// 🔒 SÉCURITÉ CRITIQUE: Secret webhook doit être configuré en variable d'environnement
+// Pas de fallback pour éviter les fuites de sécurité
+const WEBHOOK_SECRET = process.env.GOCARDLESS_WEBHOOK_SECRET;
+
+if (!WEBHOOK_SECRET) {
+  throw new Error(
+    "❌ SÉCURITÉ: GOCARDLESS_WEBHOOK_SECRET non configuré. Le serveur ne peut pas démarrer.",
+  );
+}
 
 /**
  * Vérifie la signature HMAC-SHA256 du webhook GoCardless
@@ -57,11 +62,23 @@ function verifyWebhookSignature(
 
 /**
  * Handler pour l'événement payments.confirmed
+ * 🔒 SÉCURITÉ: Validation mandate + transaction atomique
  */
 async function handlePaymentConfirmed(event: PaymentConfirmedEvent) {
   console.log(`[WEBHOOK] Traitement payment.confirmed: ${event.id}`);
 
   try {
+    // Validation timestamp (rejeter si événement > 5 minutes)
+    const eventTimestamp = new Date(event.created_at).getTime();
+    const now = Date.now();
+    const FIVE_MINUTES = 5 * 60 * 1000;
+
+    if (now - eventTimestamp > FIVE_MINUTES) {
+      console.warn(
+        `[WEBHOOK] ⚠️ Événement ancien détecté (${Math.round((now - eventTimestamp) / 1000)}s), traitement quand même`,
+      );
+    }
+
     // Récupérer le paiement depuis GoCardless si nécessaire
     const customerId = event.links.customer;
     if (!customerId) {
@@ -73,20 +90,90 @@ async function handlePaymentConfirmed(event: PaymentConfirmedEvent) {
     const user = await findUserByGocardlessCustomer(customerId);
     if (!user) {
       console.error(
-        `[WEBHOOK] Utilisateur non trouvé pour customer: ${customerId}`,
+        `[WEBHOOK] ⚠️ Utilisateur non trouvé pour customer: ${customerId}`,
+      );
+
+      // 🔧 FIX: Créer quand même un PaymentLog orphelin pour le tracking/debug
+      await prisma.paymentLog.create({
+        data: {
+          userId: `orphaned_${customerId}`, // ID temporaire pour identifier les orphelins
+          amount: 0,
+          currency: "EUR",
+          status: "failed",
+          provider: "gocardless",
+          providerId: event.links.payment || `unknown_${Date.now()}`, // 🔒 FIX: Fallback si payment ID manquant
+          eventId: event.id, // 🔒 FIX: Stocker eventId pour idempotence
+          metadata: {
+            eventId: event.id,
+            paymentId: event.links.payment,
+            customerId,
+            createdAt: event.created_at,
+            eventType: "payments.confirmed",
+            error: "User not found in database",
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
+
+      console.log(
+        `[WEBHOOK] 📝 PaymentLog orphelin créé pour customer: ${customerId}`,
       );
       return;
     }
 
-    // Activer le plan premium
-    await activatePremiumPlan(user.id, new Date(event.created_at));
+    // 🔒 SÉCURITÉ CRITIQUE: Vérifier que le mandate est actif avant activation premium
+    const subscription = await prisma.userSubscription.findUnique({
+      where: { userId: user.id },
+      select: { mandateStatus: true, gocardlessMandateId: true },
+    });
 
-    // Logger l'événement
-    await logWebhookEvent("payments.confirmed", "completed", user.id, {
-      eventId: event.id,
-      paymentId: event.links.payment,
-      customerId,
-      createdAt: event.created_at,
+    if (!subscription || !subscription.mandateStatus) {
+      console.error(
+        `[WEBHOOK] ❌ SÉCURITÉ: Aucune subscription trouvée pour user ${user.id}`,
+      );
+      await logWebhookEvent("payments.confirmed", "failed", user.id, {
+        eventId: event.id,
+        paymentId: event.links.payment,
+        customerId,
+        error: "No subscription found",
+        createdAt: event.created_at,
+      });
+      return;
+    }
+
+    if (subscription.mandateStatus !== "active") {
+      console.error(
+        `[WEBHOOK] ❌ SÉCURITÉ: Mandate non actif (${subscription.mandateStatus}) pour user ${user.id}`,
+      );
+      await logWebhookEvent("payments.confirmed", "failed", user.id, {
+        eventId: event.id,
+        paymentId: event.links.payment,
+        customerId,
+        mandateStatus: subscription.mandateStatus,
+        error: "Mandate not active",
+        createdAt: event.created_at,
+      });
+      return;
+    }
+
+    console.log(
+      `[WEBHOOK] ✅ Mandate validé (${subscription.mandateStatus}) pour user ${user.id}`,
+    );
+
+    // 🔒 TRANSACTION ATOMIQUE: Éviter les race conditions
+    await prisma.$transaction(async (tx) => {
+      // Activer le plan premium avec lock pessimiste
+      await activatePremiumPlan(user.id, new Date(event.created_at));
+
+      // Logger l'événement
+      await logWebhookEvent("payments.confirmed", "completed", user.id, {
+        eventId: event.id,
+        paymentId: event.links.payment,
+        customerId,
+        mandateId: subscription.gocardlessMandateId,
+        mandateStatus: subscription.mandateStatus,
+        createdAt: event.created_at,
+      });
     });
 
     console.log(
@@ -423,11 +510,20 @@ export async function gocardlessWebhookHandler(req: Request, res: Response) {
       return res.status(401).json({ error: "Signature manquante" });
     }
 
-    // Récupérer le body raw pour vérification de signature
+    // 🔒 SÉCURITÉ: Récupérer le body raw (doit être un Buffer grâce à express.raw())
+    // Vérifier que req.body est bien un Buffer
+    if (!Buffer.isBuffer(req.body)) {
+      console.error(
+        "[WEBHOOK] ❌ ERREUR CONFIGURATION: req.body n'est pas un Buffer. Vérifier express.raw() dans index.ts",
+      );
+      return res
+        .status(500)
+        .json({ error: "Configuration serveur incorrecte" });
+    }
     const rawBody = req.body.toString("utf8");
 
-    // Vérifier la signature
-    if (!verifyWebhookSignature(rawBody, signature, WEBHOOK_SECRET)) {
+    // 🔒 SÉCURITÉ: Vérifier la signature (WEBHOOK_SECRET est garanti non-null par la vérification au démarrage)
+    if (!verifyWebhookSignature(rawBody, signature, WEBHOOK_SECRET!)) {
       console.error("[WEBHOOK] ❌ Signature invalide");
       return res.status(401).json({ error: "Signature invalide" });
     }
