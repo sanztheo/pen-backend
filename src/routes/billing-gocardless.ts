@@ -16,13 +16,17 @@ billingGocardlessRouter.post(
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      // Validate request body
-      const { email, given_name, family_name } = req.body;
+      // Extract user data from authenticated user (req.user) - NOT from req.body for security
+      const email = req.user?.email;
+      const given_name =
+        req.user?.user_metadata?.firstName || email?.split("@")[0] || "";
+      const family_name = req.user?.user_metadata?.lastName || "";
 
-      if (!email || !given_name || !family_name) {
+      if (!email) {
         return res.status(400).json({
-          error: "Missing required fields",
-          required: ["email", "given_name", "family_name"],
+          error: "Incomplete user profile",
+          message:
+            "Email is required. Please complete your profile in settings.",
         });
       }
 
