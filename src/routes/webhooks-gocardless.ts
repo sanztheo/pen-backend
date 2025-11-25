@@ -12,6 +12,7 @@ import {
   MandateCreatedEvent,
   SubscriptionCreatedEvent,
   SubscriptionFinishedEvent,
+  BillingRequestFulfilledEvent,
 } from "../types/gocardless.js";
 import {
   isEventProcessed,
@@ -229,16 +230,36 @@ async function handlePaymentFailed(event: PaymentFailedEvent) {
 
 /**
  * Handler pour l'événement mandates.created
+ * Note: Dans le Billing Request Flow, le mandate ID peut être dans links.mandate
+ * ou il faut attendre billing_requests.fulfilled pour links.mandate_request_mandate
  */
 async function handleMandateCreated(event: MandateCreatedEvent) {
   console.log(`[WEBHOOK] Traitement mandates.created: ${event.id}`);
+  console.log(`[WEBHOOK] Event links:`, JSON.stringify(event.links, null, 2));
 
   try {
+    // Le mandate ID peut être dans links.mandate (standard) ou absent (Billing Request Flow)
     const mandateId = event.links.mandate;
     const customerId = event.links.customer;
 
+    // Si pas de mandate ID ou customer ID, logger et continuer
+    // Le billing_requests.fulfilled handler s'en occupera
     if (!mandateId || !customerId) {
-      console.error("[WEBHOOK] Mandate ID ou Customer ID manquant");
+      console.log(
+        "[WEBHOOK] Mandate ID ou Customer ID manquant dans mandates.created - " +
+          "sera traite par billing_requests.fulfilled",
+      );
+      console.log(
+        `[WEBHOOK] Links disponibles: ${JSON.stringify(event.links)}`,
+      );
+
+      // Logger l'evenement quand meme pour le suivi
+      await logWebhookEvent("mandates.created", "pending", undefined, {
+        eventId: event.id,
+        links: event.links,
+        note: "Waiting for billing_requests.fulfilled",
+        createdAt: event.created_at,
+      });
       return;
     }
 
@@ -449,6 +470,92 @@ async function handleSubscriptionCreated(event: SubscriptionCreatedEvent) {
 }
 
 /**
+ * Handler pour l'événement billing_requests.fulfilled
+ * C'est l'evenement principal pour le Billing Request Flow qui contient le mandate ID
+ */
+async function handleBillingRequestFulfilled(
+  event: BillingRequestFulfilledEvent,
+) {
+  console.log(`[WEBHOOK] Traitement billing_requests.fulfilled: ${event.id}`);
+  console.log(`[WEBHOOK] Event links:`, JSON.stringify(event.links, null, 2));
+
+  try {
+    // Dans billing_requests.fulfilled, le mandate est dans mandate_request_mandate
+    const mandateId = event.links.mandate_request_mandate;
+    const customerId = event.links.customer;
+    const billingRequestId = event.links.billing_request;
+
+    if (!mandateId) {
+      console.error(
+        "[WEBHOOK] mandate_request_mandate manquant dans billing_requests.fulfilled",
+      );
+      console.log(
+        `[WEBHOOK] Links disponibles: ${JSON.stringify(event.links)}`,
+      );
+      return;
+    }
+
+    if (!customerId) {
+      console.error(
+        "[WEBHOOK] Customer ID manquant dans billing_requests.fulfilled",
+      );
+      return;
+    }
+
+    console.log(
+      `[WEBHOOK] Billing Request fulfilled - Mandate: ${mandateId}, Customer: ${customerId}`,
+    );
+
+    const user = await findUserByGocardlessCustomer(customerId);
+    if (!user) {
+      console.error(
+        `[WEBHOOK] Utilisateur non trouve pour customer: ${customerId}`,
+      );
+      // Essayer de logger pour debug
+      await logWebhookEvent("billing_requests.fulfilled", "failed", undefined, {
+        eventId: event.id,
+        mandateId,
+        customerId,
+        billingRequestId,
+        error: "User not found by gocardlessCustomerId",
+        createdAt: event.created_at,
+      });
+      return;
+    }
+
+    console.log(
+      `[WEBHOOK] Utilisateur trouve: ${user.id} pour customer: ${customerId}`,
+    );
+
+    // Mettre a jour le mandat comme actif (fulfilled = le mandat est cree et pret)
+    await updateMandateStatus(user.id, mandateId, "active");
+
+    // Activer le plan premium immediatement
+    // Car billing_requests.fulfilled signifie que tout le flow est complete
+    await activatePremiumPlan(user.id, new Date(event.created_at));
+
+    // Logger l'evenement
+    await logWebhookEvent("billing_requests.fulfilled", "completed", user.id, {
+      eventId: event.id,
+      mandateId,
+      customerId,
+      billingRequestId,
+      createdAt: event.created_at,
+    });
+
+    console.log(
+      `[WEBHOOK] ✅ Billing Request fulfilled - Premium active pour user: ${user.id}`,
+    );
+  } catch (error) {
+    console.error(
+      `[WEBHOOK] ❌ Erreur traitement billing_requests.fulfilled:`,
+      error,
+    );
+    throw error;
+  }
+}
+
+/**
  * Handler pour l'événement subscriptions.finished
  */
 async function handleSubscriptionFinished(event: SubscriptionFinishedEvent) {
@@ -587,6 +694,12 @@ export async function gocardlessWebhookHandler(req: Request, res: Response) {
           case "subscriptions.finished":
             await handleSubscriptionFinished(
               event as SubscriptionFinishedEvent,
+            );
+            break;
+
+          case "billing_requests.fulfilled":
+            await handleBillingRequestFulfilled(
+              event as BillingRequestFulfilledEvent,
             );
             break;
 

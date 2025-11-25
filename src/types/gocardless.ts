@@ -6,7 +6,8 @@ export interface GoCardlessWebhookEvent {
     | "mandates"
     | "subscriptions"
     | "refunds"
-    | "payouts";
+    | "payouts"
+    | "billing_requests";
   action: string;
   links: {
     payment?: string;
@@ -17,6 +18,10 @@ export interface GoCardlessWebhookEvent {
     payout?: string;
     creditor?: string;
     instalment_schedule?: string;
+    // Billing Request Flow specific links
+    billing_request?: string;
+    customer_bank_account?: string;
+    mandate_request_mandate?: string;
   };
   details?: {
     origin?: string;
@@ -110,4 +115,10 @@ export type SubscriptionCreatedEvent = TypedWebhookEvent<
 export type SubscriptionFinishedEvent = TypedWebhookEvent<
   "subscriptions",
   "finished"
+>;
+
+// Billing Request Flow events
+export type BillingRequestFulfilledEvent = TypedWebhookEvent<
+  "billing_requests",
+  "fulfilled"
 >;
