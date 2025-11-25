@@ -277,6 +277,8 @@ billingGocardlessRouter.post(
           mandateStatus: true,
           plan: true,
           status: true,
+          cancelAtPeriodEnd: true,
+          nextPaymentDate: true,
         },
       });
 
@@ -294,6 +296,13 @@ billingGocardlessRouter.post(
       }
 
       // Check if already scheduled for cancellation
+      if (subscription.cancelAtPeriodEnd) {
+        return res.status(400).json({
+          error: "Subscription already scheduled for cancellation",
+          message: `Your subscription will end on ${subscription.nextPaymentDate?.toISOString().split("T")[0] || "the end of period"}`,
+        });
+      }
+
       if (subscription.mandateStatus === "failed") {
         return res.status(400).json({
           error: "Mandate has failed - cannot cancel",
@@ -348,26 +357,15 @@ billingGocardlessRouter.post(
             cancellation_date: new Date().toISOString(),
             cancellation_method: "user_requested",
             cancellation_effective_date:
-              subscription.plan === "premium"
-                ? (
-                    await prisma.userSubscription.findUnique({
-                      where: { userId },
-                      select: { nextPaymentDate: true },
-                    })
-                  )?.nextPaymentDate?.toISOString()
-                : new Date().toISOString(),
+              subscription.nextPaymentDate?.toISOString() ||
+              new Date().toISOString(),
           },
         },
       });
 
       console.log(
         "[Billing GoCardless] Subscription cancellation scheduled. User will remain premium until:",
-        (
-          await prisma.userSubscription.findUnique({
-            where: { userId },
-            select: { nextPaymentDate: true },
-          })
-        )?.nextPaymentDate,
+        subscription.nextPaymentDate,
       );
 
       return res.json({

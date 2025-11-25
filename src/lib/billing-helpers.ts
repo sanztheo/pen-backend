@@ -260,15 +260,15 @@ export async function updateMandateStatus(
     };
 
     // 🔒 FIX: Mettre à jour le status de la subscription selon le statut du mandat
+    // MAIS ne pas toucher au status si cancelAtPeriodEnd est true (l'utilisateur reste premium jusqu'à expiration)
     if (mandateStatus === "active") {
       updateData.status = "active";
-    } else if (
-      mandateStatus === "cancelled" ||
-      mandateStatus === "failed" ||
-      mandateStatus === "expired"
-    ) {
+    } else if (mandateStatus === "failed" || mandateStatus === "expired") {
+      // Échecs et expirations → désactivation immédiate
       updateData.status = "canceled";
     }
+    // NOTE: mandateStatus === "cancelled" ne change PAS le status ici
+    // Car l'utilisateur peut avoir annulé volontairement et doit rester premium jusqu'à nextPaymentDate
 
     if (reference) {
       updateData.mandateReference = reference;
@@ -389,6 +389,7 @@ export async function deactivatePremiumPlan(
       data: {
         plan: "free_user",
         status: "canceled", // 🔒 FIX: Ajouter le status pour cohérence DB
+        cancelAtPeriodEnd: false, // 🔒 FIX: Reset car la période est terminée
         canceledAt: new Date(),
         updatedAt: new Date(),
       },
