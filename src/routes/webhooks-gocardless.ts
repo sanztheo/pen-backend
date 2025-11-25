@@ -332,6 +332,8 @@ async function handleMandateActive(event: MandateActiveEvent) {
 
 /**
  * Handler pour l'événement mandates.cancelled
+ * IMPORTANT: Ne pas désactiver immédiatement si c'est une annulation volontaire
+ * L'utilisateur doit rester premium jusqu'à la fin de la période payée
  */
 async function handleMandateCancelled(event: MandateCancelledEvent) {
   console.log(`[WEBHOOK] Traitement mandates.cancelled: ${event.id}`);
@@ -353,24 +355,82 @@ async function handleMandateCancelled(event: MandateCancelledEvent) {
       return;
     }
 
+    // Vérifier la raison de l'annulation
+    const cancellationReason = event.details?.cause;
+    const isUserRequested =
+      cancellationReason === "user_requested" ||
+      event.metadata?.reason === "user_requested";
+
+    console.log(
+      `[WEBHOOK] Mandate cancelled - Raison: ${cancellationReason}, User requested: ${isUserRequested}`,
+    );
+
     // Mettre à jour le statut du mandat
     await updateMandateStatus(user.id, mandateId, "cancelled");
 
-    // Désactiver le plan premium
-    await deactivatePremiumPlan(user.id, "mandate_cancelled");
+    // Si c'est une annulation volontaire (user_requested), NE PAS désactiver immédiatement
+    // Le worker s'occupera de désactiver à l'expiration (nextPaymentDate)
+    if (isUserRequested) {
+      console.log(
+        `[WEBHOOK] ℹ️ Annulation volontaire - Premium préservé jusqu'à expiration pour user: ${user.id}`,
+      );
 
-    // Logger l'événement
-    await logWebhookEvent("mandates.cancelled", "cancelled", user.id, {
-      eventId: event.id,
-      mandateId,
-      customerId,
-      cancellationReason: event.details?.cause,
-      createdAt: event.created_at,
-    });
+      // Vérifier que cancelAtPeriodEnd est bien défini
+      const subscription = await prisma.userSubscription.findUnique({
+        where: { userId: user.id },
+        select: { cancelAtPeriodEnd: true, nextPaymentDate: true },
+      });
 
-    console.log(
-      `[WEBHOOK] ✅ Mandat annulé et premium désactivé pour user: ${user.id}`,
-    );
+      if (!subscription?.cancelAtPeriodEnd) {
+        console.warn(
+          `[WEBHOOK] ⚠️ cancelAtPeriodEnd non défini pour user ${user.id}, mise à jour...`,
+        );
+        await prisma.userSubscription.update({
+          where: { userId: user.id },
+          data: {
+            cancelAtPeriodEnd: true,
+            canceledAt: new Date(event.created_at),
+          },
+        });
+      }
+
+      // Logger l'événement
+      await logWebhookEvent("mandates.cancelled", "pending", user.id, {
+        eventId: event.id,
+        mandateId,
+        customerId,
+        cancellationReason,
+        isUserRequested: true,
+        willExpireAt: subscription?.nextPaymentDate?.toISOString(),
+        note: "Premium préservé jusqu'à expiration",
+        createdAt: event.created_at,
+      });
+    } else {
+      // Si c'est un échec bancaire ou autre raison, désactiver immédiatement
+      console.log(
+        `[WEBHOOK] ⚠️ Annulation non volontaire (${cancellationReason}) - Désactivation immédiate pour user: ${user.id}`,
+      );
+
+      await deactivatePremiumPlan(
+        user.id,
+        `mandate_cancelled_${cancellationReason}`,
+      );
+
+      // Logger l'événement
+      await logWebhookEvent("mandates.cancelled", "cancelled", user.id, {
+        eventId: event.id,
+        mandateId,
+        customerId,
+        cancellationReason,
+        isUserRequested: false,
+        note: "Désactivation immédiate (non volontaire)",
+        createdAt: event.created_at,
+      });
+
+      console.log(
+        `[WEBHOOK] ✅ Mandat annulé et premium désactivé immédiatement pour user: ${user.id}`,
+      );
+    }
   } catch (error) {
     console.error(`[WEBHOOK] ❌ Erreur traitement mandates.cancelled:`, error);
     throw error;

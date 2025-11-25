@@ -345,12 +345,13 @@ export async function activatePremiumPlan(
   try {
     const nextPaymentDate = calculateNextPaymentDate(paymentDate);
 
-    // 🔒 FIX CRITIQUE: Toujours mettre à jour status + plan ensemble
+    // 🔒 FIX CRITIQUE: Toujours mettre à jour status + plan + paymentMethod ensemble
     await prisma.userSubscription.update({
       where: { userId },
       data: {
         plan: "premium",
         status: "active", // 🔒 FIX: Ajouter le status pour cohérence DB
+        paymentMethod: "gocardless", // 🔒 FIX: Assurer que paymentMethod est toujours défini
         lastPaymentDate: paymentDate,
         nextPaymentDate,
         updatedAt: new Date(),

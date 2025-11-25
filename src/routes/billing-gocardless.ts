@@ -234,6 +234,7 @@ billingGocardlessRouter.get(
         gocardlessCustomerId: subscription.gocardlessCustomerId || undefined,
         gocardlessMandateId: subscription.gocardlessMandateId || undefined,
         mandateStatus: subscription.mandateStatus || undefined,
+        paymentMethod: subscription.paymentMethod || undefined,
         nextPaymentDate:
           subscription.nextPaymentDate?.toISOString() || undefined,
       });
@@ -292,47 +293,22 @@ billingGocardlessRouter.post(
         });
       }
 
-      // Check if mandate is already cancelled
-      if (
-        subscription.mandateStatus === "cancelled" ||
-        subscription.mandateStatus === "failed"
-      ) {
+      // Check if already scheduled for cancellation
+      if (subscription.mandateStatus === "failed") {
         return res.status(400).json({
-          error: "Mandate is already cancelled or failed",
+          error: "Mandate has failed - cannot cancel",
         });
       }
 
       console.log(
-        "[Billing GoCardless] Cancelling mandate:",
-        subscription.gocardlessMandateId,
+        "[Billing GoCardless] Scheduling subscription cancellation for user:",
+        userId,
       );
 
-      try {
-        // Cancel the mandate in GoCardless
-        await gcClient.mandates.cancel(subscription.gocardlessMandateId, {
-          metadata: {
-            cancelled_by: userId,
-            cancelled_at: new Date().toISOString(),
-            reason: "user_requested",
-          },
-        });
+      // IMPORTANT: Do NOT cancel the mandate! Only cancel the subscription (recurring payment)
+      // The mandate should stay active so the user can resubscribe later without redoing SEPA flow
 
-        console.log("[Billing GoCardless] Mandate cancelled successfully");
-      } catch (gcError: any) {
-        // If mandate is already cancelled in GoCardless, continue with DB update
-        if (
-          gcError.statusCode === 409 ||
-          gcError.message?.includes("already cancelled")
-        ) {
-          console.log(
-            "[Billing GoCardless] Mandate was already cancelled in GoCardless",
-          );
-        } else {
-          throw gcError;
-        }
-      }
-
-      // Cancel subscription if exists
+      // Cancel GoCardless subscription (recurring payment) if exists
       if (subscription.gocardlessSubscriptionId) {
         try {
           await gcClient.subscriptions.cancel(
@@ -357,60 +333,41 @@ billingGocardlessRouter.post(
       }
 
       // Update UserSubscription in database
+      // IMPORTANT:
+      // - Do NOT downgrade to free immediately - keep premium until nextPaymentDate
+      // - Do NOT change mandateStatus - mandate stays active for future resubscription
       await prisma.userSubscription.update({
         where: { userId },
         data: {
-          plan: "free_user",
-          mandateStatus: "cancelled",
-          status: "canceled",
+          // mandateStatus stays "active" - we only cancel the subscription, not the mandate
           canceledAt: new Date(),
-          cancelAtPeriodEnd: false,
+          cancelAtPeriodEnd: true,
           updatedAt: new Date(),
           metadata: {
             ...((subscription as any).metadata || {}),
             cancellation_date: new Date().toISOString(),
             cancellation_method: "user_requested",
+            cancellation_effective_date:
+              subscription.plan === "premium"
+                ? (
+                    await prisma.userSubscription.findUnique({
+                      where: { userId },
+                      select: { nextPaymentDate: true },
+                    })
+                  )?.nextPaymentDate?.toISOString()
+                : new Date().toISOString(),
           },
         },
       });
 
-      // Reset user limits to free tier
-      await prisma.userLimits.upsert({
-        where: { userId },
-        create: {
-          userId,
-          aiCreditsLimit: 50,
-          workspacesLimit: 2,
-          projectsLimit: 5,
-          pagesLimit: 50,
-          customQuizzesLimit: 5,
-          presetSequencesLimit: 1,
-          historyQuizzesLimit: 5,
-          pagesSelectionLimit: 2,
-          questionsPerQuizLimit: 10,
-          advancedQuizzesLimit: 10,
-          statsChartsLimit: ["progression-area", "difficulty-radar"],
-          resetType: "monthly",
-        },
-        update: {
-          aiCreditsLimit: 50,
-          workspacesLimit: 2,
-          projectsLimit: 5,
-          pagesLimit: 50,
-          customQuizzesLimit: 5,
-          presetSequencesLimit: 1,
-          historyQuizzesLimit: 5,
-          pagesSelectionLimit: 2,
-          questionsPerQuizLimit: 10,
-          advancedQuizzesLimit: 10,
-          statsChartsLimit: ["progression-area", "difficulty-radar"],
-          resetType: "monthly",
-          updatedAt: new Date(),
-        },
-      });
-
       console.log(
-        "[Billing GoCardless] Subscription cancelled and user reverted to free plan",
+        "[Billing GoCardless] Subscription cancellation scheduled. User will remain premium until:",
+        (
+          await prisma.userSubscription.findUnique({
+            where: { userId },
+            select: { nextPaymentDate: true },
+          })
+        )?.nextPaymentDate,
       );
 
       return res.json({
