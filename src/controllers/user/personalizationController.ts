@@ -41,11 +41,18 @@ export const getPersonalization = async (req: Request, res: Response) => {
 
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { settings: true },
+      select: { settings: true, onboardingCompleted: true },
     });
 
-    const personalization = (user?.settings as any)?.personalization || null;
-    return res.json({ success: true, data: personalization });
+    const personalization = (user?.settings as any)?.personalization || {};
+
+    // Ajouter onboardingCompleted depuis le champ User
+    const result = {
+      ...personalization,
+      onboardingCompleted: user?.onboardingCompleted || false,
+    };
+
+    return res.json({ success: true, data: result });
   } catch (error) {
     console.error("❌ [USER] getPersonalization error:", error);
     return res
@@ -63,6 +70,9 @@ export const updatePersonalization = async (req: Request, res: Response) => {
 
     const incoming = normalizeInput(req.body);
 
+    // Extraire onboardingCompleted pour le sauvegarder séparément dans User
+    const { onboardingCompleted, ...personalizationData } = incoming;
+
     const existing = await prisma.user.findUnique({
       where: { id: req.user.id },
       select: { settings: true },
@@ -72,24 +82,41 @@ export const updatePersonalization = async (req: Request, res: Response) => {
     const currentPersona =
       (currentSettings.personalization as Personalization) || {};
 
+    // Ne merger que les données de personnalisation (sans onboardingCompleted)
     const merged: Personalization = {
       ...currentPersona,
       ...Object.fromEntries(
-        Object.entries(incoming).filter(([_, v]) => v !== undefined),
+        Object.entries(personalizationData).filter(([_, v]) => v !== undefined),
       ),
     };
 
     const newSettings = { ...currentSettings, personalization: merged };
 
+    // Préparer les données de mise à jour
+    const updateData: any = { settings: newSettings };
+
+    // Si onboardingCompleted est fourni, l'ajouter à l'update du User
+    if (onboardingCompleted !== undefined) {
+      updateData.onboardingCompleted = Boolean(onboardingCompleted);
+    }
+
     await prisma.user.update({
       where: { id: req.user.id },
-      data: { settings: newSettings },
+      data: updateData,
     });
+
+    // Retourner les données avec onboardingCompleted si fourni
+    const responseData = {
+      ...merged,
+      ...(onboardingCompleted !== undefined && {
+        onboardingCompleted: Boolean(onboardingCompleted),
+      }),
+    };
 
     return res.json({
       success: true,
       message: "Personnalisation mise à jour",
-      data: merged,
+      data: responseData,
     });
   } catch (error) {
     console.error("❌ [USER] updatePersonalization error:", error);
