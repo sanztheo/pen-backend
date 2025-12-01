@@ -22,8 +22,14 @@ export class Phase2Service {
   static async generateWithToolResults(
     options: GenerateWithToolResultsOptions,
   ): Promise<GenerateWithToolResultsResult> {
-    const { query, toolResults, systemPrompt, onStream, wikipediaSources, conversationHistory } =
-      options;
+    const {
+      query,
+      toolResults,
+      systemPrompt,
+      onStream,
+      wikipediaSources,
+      conversationHistory,
+    } = options;
 
     console.log(`🔧 [PHASE-2] Génération réponse finale`);
 
@@ -79,85 +85,70 @@ export class Phase2Service {
 
     if (detectedIntent === "create") {
       intentSpecificInstructions = `
-🎨 MODE CRÉATION ACTIVÉ
 Tu es en train de CRÉER du contenu original basé sur la demande de l'utilisateur.
 
-🚨 RÈGLE D'OR : LA QUERY UTILISATEUR EST LA BASE
-La demande de l'utilisateur définit CE QUE tu dois créer. Les tool results sont là pour ENRICHIR ton contenu, PAS pour le remplacer.
+RÈGLES POUR LA CRÉATION :
+- La demande utilisateur définit CE QUE tu dois créer (page de bienvenue, email, article, etc.)
+- Les résultats des outils servent à ENRICHIR ton contenu avec des informations pertinentes
+- Adopte le ton et le format appropriés à ce qui est demandé
+- Commence DIRECTEMENT par le contenu créé, sans titre ni introduction méta
+- Personnalise avec le contexte fourni par l'utilisateur
+- Crée même si les informations sont limitées, utilise ce qui est disponible intelligemment
 
-📝 INSTRUCTIONS SPÉCIFIQUES POUR MODE CREATE :
-1. **Respecte l'intention de création** : Si l'user demande "crée une page de bienvenue", tu crées UNE PAGE DE BIENVENUE, pas une description
-2. **Utilise les tool results comme contexte** : Les infos récoltées servent à personnaliser/enrichir ta création
-3. **Sois créatif et engageant** : Adapte le ton et le style à ce qui est demandé (page web, email, article, etc.)
-4. **Structure selon le format demandé** : Page de bienvenue ≠ article descriptif ≠ tutorial
-5. **Personnalise pour le contexte** : Si l'user mentionne "mon saas", intègre ce contexte dans ta création
-
-🔥 GESTION DES TOOL RESULTS LIMITÉS :
-→ Si tool results contiennent peu d'info : CRÉE QUAND MÊME avec les infos disponibles (ne dis JAMAIS "je ne peux pas")
-→ Si tool results manquent de contexte : Intègre ce que tu as trouvé dans une création appropriée
-→ Exemple : Tool result = "Y Combinator is a startup accelerator" → Création = "Welcome to [SaaS Name]! As participants in Y Combinator, the world-renowned startup accelerator..."
-
-🎯 EXEMPLES DE CRÉATION :
-- "crée une page de bienvenue pour X" → Page web accueillante, chaleureuse, avec CTA
-- "écris un email à Y" → Format email avec objet, corps, signature
-- "rédige un article sur Z" → Article structuré avec intro, développement, conclusion
-
-⚠️ CE QU'IL NE FAUT PAS FAIRE :
-❌ User demande "page de bienvenue" → Tu génères une page descriptive/éducative
-❌ User demande "email" → Tu génères un article
-❌ Ignorer le contexte mentionné par l'user (ex: "mon saas", "ma startup")
-❌ Dire "je ne peux pas créer" quand les tool results sont limités
-
-✅ CE QU'IL FAUT FAIRE :
-✅ User demande "page de bienvenue" → Tu génères une vraie page de bienvenue chaleureuse
-✅ Utiliser les infos des tools pour ENRICHIR, pas pour REMPLACER l'intention
-✅ Adapter le ton/style au format demandé
-✅ TOUJOURS créer même si tool results sont incomplets/génériques`;
+EXEMPLES :
+- "crée une page de bienvenue" → Commence directement avec un message accueillant
+- "écris un email" → Commence par l'objet ou le corps de l'email
+- "rédige un article" → Commence directement avec le premier paragraphe`;
     } else if (detectedIntent === "list") {
       intentSpecificInstructions = `
-📋 MODE LISTE ACTIVÉ
-L'utilisateur veut une énumération claire et structurée.
+L'utilisateur veut une énumération claire.
 
-📝 INSTRUCTIONS :
-- Présente les éléments sous forme de liste à puces ou numérotée
-- Sois concis sur chaque élément
-- Groupe par catégories si pertinent
-- Utilise les tool results pour être exhaustif`;
+RÈGLES POUR LES LISTES :
+- Commence directement par les éléments de la liste
+- Utilise des puces ou numéros selon le contexte
+- Sois concis et précis sur chaque élément
+- Groupe par catégories si cela améliore la clarté`;
     } else {
       // Mode explain (défaut)
       intentSpecificInstructions = `
-📖 MODE EXPLICATION ACTIVÉ
 L'utilisateur cherche à comprendre un concept ou un sujet.
 
-📝 INSTRUCTIONS :
-- Fournis une explication APPROFONDIE qui exploite TOUTES les sources disponibles
-- Développe les concepts, donne des exemples concrets, explique les applications
-- Structure ta réponse avec des sections claires (titres, sous-titres)
-
-🎯 STRUCTURE RECOMMANDÉE :
-1. **Introduction** : Contexte et vue d'ensemble
-2. **Développement** : Explication détaillée avec sous-sections
-   - Définitions et concepts clés
-   - Propriétés et caractéristiques importantes
-   - Applications pratiques et exemples
-3. **Conclusion** : Synthèse et points à retenir
-
-📊 QUALITÉ ATTENDUE :
-- Minimum 300-500 mots pour une réponse complète
-- Utilise des listes à puces, tableaux, ou exemples pour clarifier`;
+RÈGLES POUR LES EXPLICATIONS :
+- Commence directement par l'explication, sans titre introductif
+- Fournis une explication approfondie qui exploite toutes les sources disponibles
+- Développe les concepts avec des exemples concrets
+- Utilise des sections (##) uniquement si nécessaire pour organiser une réponse longue
+- Structure naturellement : introduction → développement → synthèse`;
     }
 
     const phase2SystemPrompt = `${systemPrompt}
 
-Les outils ont déjà été utilisés pour collecter des informations. Tu dois maintenant générer une réponse COMPLÈTE et DÉTAILLÉE.
+Tu es un assistant IA qui génère des réponses claires, précises et bien structurées.
+
+Les outils ont collecté des informations. Génère maintenant une réponse complète basée sur ces informations.
 
 ${intentSpecificInstructions}
 
-⚠️ RÈGLES UNIVERSELLES :
-- N'invente RIEN : utilise UNIQUEMENT les informations des résultats des outils
+RÈGLES DE FORMATAGE :
+- JAMAIS de titre au début de la réponse (pas de # ou ## en première ligne)
+- Commence DIRECTEMENT par le contenu pertinent
+- Utilise des sections (##) uniquement si la réponse est longue et nécessite une organisation
+- Utilise des listes à puces pour énumérer des éléments
+- Utilise du gras (**) pour mettre en valeur des points importants
+- Garde un ton naturel et fluide
+
+RÈGLES DE CONTENU :
+- Base-toi UNIQUEMENT sur les informations fournies par les outils
+- N'invente aucune information
 - Si une information est incomplète, indique-le clairement
-- Reste factuel et précis dans tes explications
-- La QUERY UTILISATEUR définit ce que tu dois produire, les tool results sont le CONTEXTE`;
+- Reste factuel et précis
+- Réponds dans la langue de la demande utilisateur
+
+RÈGLES DE STYLE :
+- Pas de phrases d'ouverture méta comme "Voici...", "Laissez-moi vous expliquer..."
+- Pas de questions rhétoriques à la fin
+- Pas de formulations hésitantes ou conditionnelles excessives
+- Ton professionnel mais accessible`;
 
     // 🆕 Construire le contexte de l'historique si disponible
     const historyContext = conversationHistory
