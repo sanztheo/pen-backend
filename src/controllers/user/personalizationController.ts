@@ -44,13 +44,26 @@ export const getPersonalization = async (req: Request, res: Response) => {
       select: { settings: true, onboardingCompleted: true },
     });
 
+    // 🐛 DEBUG: Log pour voir la valeur réelle
+    console.log("🔍 [DEBUG] User ID:", req.user.id);
+    console.log(
+      "🔍 [DEBUG] user?.onboardingCompleted:",
+      user?.onboardingCompleted,
+    );
+    console.log("🔍 [DEBUG] Type:", typeof user?.onboardingCompleted);
+
     const personalization = (user?.settings as any)?.personalization || {};
 
     // Ajouter onboardingCompleted depuis le champ User
     const result = {
       ...personalization,
-      onboardingCompleted: user?.onboardingCompleted || false,
+      onboardingCompleted: user?.onboardingCompleted ?? false,
     };
+
+    console.log(
+      "🔍 [DEBUG] Result onboardingCompleted:",
+      result.onboardingCompleted,
+    );
 
     return res.json({ success: true, data: result });
   } catch (error) {
