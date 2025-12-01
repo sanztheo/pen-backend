@@ -19,6 +19,7 @@ model User {
   updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
   id                    String               @id @db.VarChar(255)
   autocompletionEnabled Boolean              @default(true) @map("autocompletion_enabled")
+  onboardingCompleted   Boolean              @default(false) @map("onboarding_completed")
   settings              Json?                @default("{}")
   activityLogs          ActivityLog[]
   pages                 Page[]               @relation("PageAuthor")
