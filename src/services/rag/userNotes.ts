@@ -256,7 +256,7 @@ export class UserNotesRAGSystem {
       // Insérer tous les chunks avec SQL brut (Prisma ne supporte pas vector nativement)
       for (const chunk of chunksBatch) {
         await prisma.$executeRaw`
-          INSERT INTO "RAGChunk" (
+          INSERT INTO "rag_chunks" (
             "id", "sourceId", "chunkIndex", "content", "cleanContent",
             "embedding", "tokenCount", "pageNumber", "sectionTitle",
             "startOffset", "endOffset", "quality", "language", "createdAt", "updatedAt"

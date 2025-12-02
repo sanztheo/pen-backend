@@ -470,7 +470,7 @@ export class UserPagesRAGSystem {
       // Utiliser SQL brut pour insérer les embeddings (Prisma ne supporte pas vector nativement)
       for (const chunk of batch) {
         await prisma.$executeRaw`
-          INSERT INTO "RAGChunk" (
+          INSERT INTO "rag_chunks" (
             "id", "sourceId", "chunkIndex", "content", "cleanContent",
             "embedding", "tokenCount", "sectionTitle", "quality",
             "createdAt", "updatedAt"
