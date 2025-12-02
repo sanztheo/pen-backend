@@ -1,6 +1,6 @@
 // 🔄 RAG Deduplication System - Évite les doublons d'embeddings
-import { prismaEmbeddings as prisma } from '../../lib/prismaEmbeddings.js';
-import type { RAGSourceType } from '@prisma/client';
+import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
+import type { RAGSourceType } from "../../../node_modules/.prisma/client-embeddings/index.js";
 
 export interface DeduplicationResult {
   exists: boolean;
@@ -18,7 +18,6 @@ export interface SourceFingerprint {
 }
 
 export class RAGDeduplicationService {
-  
   /**
    * 🔍 Vérifie si une source Wikipedia existe déjà
    * @param userId - ID de l'utilisateur
@@ -27,36 +26,37 @@ export class RAGDeduplicationService {
    * @returns Résultat de déduplication
    */
   async checkWikipediaExists(
-    userId: string, 
-    workspaceId: string | null, 
-    title: string
+    userId: string,
+    workspaceId: string | null,
+    title: string,
   ): Promise<DeduplicationResult> {
-    
     // 🌍 ÉTAPE 1: Rechercher d'abord dans les sources GLOBALES partagées
     const globalSource = await prisma.rAGSource.findFirst({
       where: {
         isGlobal: true,
-        sourceType: 'WIKIPEDIA',
+        sourceType: "WIKIPEDIA",
         title: {
           equals: title,
-          mode: 'insensitive'
-        } as any
+          mode: "insensitive",
+        } as any,
       },
       include: {
         _count: {
-          select: { chunks: true }
-        }
-      }
+          select: { chunks: true },
+        },
+      },
     });
 
     if (globalSource && (globalSource as any)._count.chunks > 0) {
-      console.log(`🌍 [DEDUP-GLOBAL] Source Wikipedia globale trouvée: "${title}" (${(globalSource as any)._count.chunks} chunks)`);
+      console.log(
+        `🌍 [DEDUP-GLOBAL] Source Wikipedia globale trouvée: "${title}" (${(globalSource as any)._count.chunks} chunks)`,
+      );
       return {
         exists: true,
         sourceId: globalSource.id,
         chunksCount: (globalSource as any)._count.chunks,
         lastUpdated: globalSource.updatedAt,
-        shouldUpdate: false // Source globale complète, pas besoin de mise à jour
+        shouldUpdate: false, // Source globale complète, pas besoin de mise à jour
       };
     }
 
@@ -65,18 +65,18 @@ export class RAGDeduplicationService {
       where: {
         userId,
         workspaceId,
-        sourceType: 'WIKIPEDIA',
+        sourceType: "WIKIPEDIA",
         isGlobal: false,
         title: {
           equals: title,
-          mode: 'insensitive'
-        } as any
+          mode: "insensitive",
+        } as any,
       },
       include: {
         _count: {
-          select: { chunks: true }
-        }
-      }
+          select: { chunks: true },
+        },
+      },
     });
 
     if (!userSource) {
@@ -85,13 +85,13 @@ export class RAGDeduplicationService {
 
     // Vérifier si l'embedding est complet (au moins 1 chunk)
     const hasChunks = (userSource as any)._count.chunks > 0;
-    
+
     return {
       exists: true,
       sourceId: userSource.id,
       chunksCount: (userSource as any)._count.chunks,
       lastUpdated: userSource.updatedAt,
-      shouldUpdate: !hasChunks
+      shouldUpdate: !hasChunks,
     };
   }
 
@@ -105,63 +105,67 @@ export class RAGDeduplicationService {
   async checkMultipleWikipedia(
     userId: string,
     workspaceId: string | null,
-    titles: string[]
+    titles: string[],
   ): Promise<Map<string, DeduplicationResult>> {
-    
     const results = new Map<string, DeduplicationResult>();
-    
+
     // 🌍 ÉTAPE 1: Recherche en batch des sources GLOBALES
     const globalSources = await prisma.rAGSource.findMany({
       where: {
         isGlobal: true,
-        sourceType: 'WIKIPEDIA',
+        sourceType: "WIKIPEDIA",
         title: {
           in: titles,
-          mode: 'insensitive'
-        } as any
+          mode: "insensitive",
+        } as any,
       },
       include: {
         _count: {
-          select: { chunks: true }
-        }
-      }
+          select: { chunks: true },
+        },
+      },
     });
 
     // 👤 ÉTAPE 2: Recherche en batch des sources USER (pour les titres non trouvés en global)
-    const globalTitles = globalSources.map(s => s.title.toLowerCase());
-    const remainingTitles = titles.filter(t => !globalTitles.includes(t.toLowerCase()));
-    
-    const userSources = remainingTitles.length > 0 ? await prisma.rAGSource.findMany({
-      where: {
-        userId,
-        workspaceId,
-        sourceType: 'WIKIPEDIA',
-        isGlobal: false,
-        title: {
-          in: remainingTitles,
-          mode: 'insensitive'
-        } as any
-      },
-      include: {
-        _count: {
-          select: { chunks: true }
-        }
-      }
-    }) : [];
+    const globalTitles = globalSources.map((s) => s.title.toLowerCase());
+    const remainingTitles = titles.filter(
+      (t) => !globalTitles.includes(t.toLowerCase()),
+    );
+
+    const userSources =
+      remainingTitles.length > 0
+        ? await prisma.rAGSource.findMany({
+            where: {
+              userId,
+              workspaceId,
+              sourceType: "WIKIPEDIA",
+              isGlobal: false,
+              title: {
+                in: remainingTitles,
+                mode: "insensitive",
+              } as any,
+            },
+            include: {
+              _count: {
+                select: { chunks: true },
+              },
+            },
+          })
+        : [];
 
     // Combiner les sources globales et utilisateur
     const existingSources = [...globalSources, ...userSources];
 
     // Créer un map des sources existantes (insensible à la casse)
-    const existingMap = new Map<string, typeof existingSources[0]>();
-    existingSources.forEach(source => {
+    const existingMap = new Map<string, (typeof existingSources)[0]>();
+    existingSources.forEach((source) => {
       existingMap.set(source.title.toLowerCase(), source);
     });
 
     // Analyser chaque titre
-    titles.forEach(title => {
+    titles.forEach((title) => {
       const existing = existingMap.get(title.toLowerCase());
-      
+
       if (!existing) {
         results.set(title, { exists: false });
       } else {
@@ -171,7 +175,7 @@ export class RAGDeduplicationService {
           sourceId: existing.id,
           chunksCount: (existing as any)._count.chunks,
           lastUpdated: existing.updatedAt,
-          shouldUpdate: !hasChunks
+          shouldUpdate: !hasChunks,
         });
       }
     });
@@ -191,35 +195,38 @@ export class RAGDeduplicationService {
     userId: string,
     workspaceId: string | null,
     contentHash: string,
-    fileName?: string
+    fileName?: string,
   ): Promise<DeduplicationResult> {
-    
     // Recherche par hash de contenu (plus fiable que le nom)
     const existingSource = await prisma.rAGSource.findFirst({
       where: {
         userId,
         workspaceId,
-        sourceType: 'PDF',
+        sourceType: "PDF",
         OR: [
           {
             metadata: {
-              path: ['contentHash'],
-              equals: contentHash
-            }
+              path: ["contentHash"],
+              equals: contentHash,
+            },
           },
-          ...(fileName ? [{
-            title: {
-              equals: fileName,
-              mode: 'insensitive'
-            } as any
-          }] : [])
-        ]
+          ...(fileName
+            ? [
+                {
+                  title: {
+                    equals: fileName,
+                    mode: "insensitive",
+                  } as any,
+                },
+              ]
+            : []),
+        ],
       },
       include: {
         _count: {
-          select: { chunks: true }
-        }
-      }
+          select: { chunks: true },
+        },
+      },
     });
 
     if (!existingSource) {
@@ -227,13 +234,13 @@ export class RAGDeduplicationService {
     }
 
     const hasChunks = (existingSource as any)._count.chunks > 0;
-    
+
     return {
       exists: true,
       sourceId: existingSource.id,
       chunksCount: (existingSource as any)._count.chunks,
       lastUpdated: existingSource.updatedAt,
-      shouldUpdate: !hasChunks
+      shouldUpdate: !hasChunks,
     };
   }
 
@@ -245,27 +252,30 @@ export class RAGDeduplicationService {
    */
   async getDeduplicationStats(userId: string, workspaceId: string | null) {
     const stats = await prisma.rAGSource.groupBy({
-      by: ['sourceType'],
+      by: ["sourceType"],
       where: {
         userId,
-        workspaceId
+        workspaceId,
       },
       _count: {
-        id: true
-      }
+        id: true,
+      },
     });
 
     return {
       totalSources: await prisma.rAGSource.count({
-        where: { userId, workspaceId }
+        where: { userId, workspaceId },
       }),
-      byType: stats.reduce((acc, stat) => {
-        acc[stat.sourceType] = {
-          count: stat._count?.id || 0
-        };
-        return acc;
-      }, {} as Record<string, { count: number }>),
-      lastUpdated: new Date()
+      byType: stats.reduce(
+        (acc, stat) => {
+          acc[stat.sourceType] = {
+            count: stat._count?.id || 0,
+          };
+          return acc;
+        },
+        {} as Record<string, { count: number }>,
+      ),
+      lastUpdated: new Date(),
     };
   }
 
@@ -279,9 +289,8 @@ export class RAGDeduplicationService {
   async cleanupIncompleteEmbeddings(
     userId: string,
     workspaceId: string | null,
-    maxAge: number = 24
+    maxAge: number = 24,
   ): Promise<number> {
-    
     const cutoffDate = new Date();
     cutoffDate.setHours(cutoffDate.getHours() - maxAge);
 
@@ -291,12 +300,12 @@ export class RAGDeduplicationService {
         userId,
         workspaceId,
         createdAt: {
-          lt: cutoffDate
+          lt: cutoffDate,
         },
         chunks: {
-          none: {} // Aucun chunk associé
-        }
-      }
+          none: {}, // Aucun chunk associé
+        },
+      },
     });
 
     return result.count;
@@ -311,18 +320,18 @@ export class RAGDeduplicationService {
     try {
       // Supprimer tous les chunks existants
       await prisma.rAGChunk.deleteMany({
-        where: { sourceId }
+        where: { sourceId },
       });
 
       // Marquer la source comme à jour
       await prisma.rAGSource.update({
         where: { id: sourceId },
-        data: { updatedAt: new Date() }
+        data: { updatedAt: new Date() },
       });
 
       return true;
     } catch (error) {
-      console.error('🚨 Erreur lors de la mise à jour forcée:', error);
+      console.error("🚨 Erreur lors de la mise à jour forcée:", error);
       return false;
     }
   }

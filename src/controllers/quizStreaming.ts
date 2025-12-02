@@ -7,6 +7,7 @@ import {
 } from "../services/quiz/types.js";
 import { OpenAIAssistantService } from "../services/quiz/assistant/index.js";
 import { prisma } from "../lib/prisma.js";
+import { prismaEmbeddings } from "../lib/prismaEmbeddings.js";
 import { v4 as uuidv4 } from "uuid";
 import {
   Question,
@@ -1083,9 +1084,8 @@ export class QuizStreamingController {
         };
 
         // Utiliser le générateur de correction streaming
-        const correctionGenerator = await import(
-          "../services/quiz/generators/correctionGenerator.js"
-        );
+        const correctionGenerator =
+          await import("../services/quiz/generators/correctionGenerator.js");
         const generator =
           correctionGenerator.CorrectionGenerator.correctQuizStreaming(
             questions,
@@ -1159,9 +1159,8 @@ export class QuizStreamingController {
               );
 
               // 🗑️ Invalider le cache de l'historique après complétion du quiz
-              const { invalidateQuizHistoryCache } = await import(
-                "../lib/redis.js"
-              );
+              const { invalidateQuizHistoryCache } =
+                await import("../lib/redis.js");
               invalidateQuizHistoryCache(userId).catch((err) =>
                 console.warn(
                   "⚠️ [CORRECTION-STREAMING] Échec invalidation cache:",
