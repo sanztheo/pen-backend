@@ -1,5 +1,6 @@
 import { Redis } from "ioredis";
 import { prisma } from "./prisma.js";
+import { prismaEmbeddings } from "./prismaEmbeddings.js";
 
 // 🚀 Configuration Redis avec fallback gracieux
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
@@ -301,7 +302,7 @@ export const cacheActiveRAGSession = async (
     console.log(`❌ [REDIS-CACHE] RAG Session MISS: ${userId}/${workspaceId}`);
     const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const session = await prisma.rAGSession.findFirst({
+    const session = await prismaEmbeddings.rAGSession.findFirst({
       where: {
         userId,
         workspaceId,
@@ -319,7 +320,7 @@ export const cacheActiveRAGSession = async (
   } catch (error) {
     console.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
     const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    return await prisma.rAGSession.findFirst({
+    return await prismaEmbeddings.rAGSession.findFirst({
       where: {
         userId,
         workspaceId,

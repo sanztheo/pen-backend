@@ -3,7 +3,7 @@
  * Traitement des notes utilisateur pour l'indexation RAG
  */
 
-import { prisma } from '../../lib/prisma.js';
+import { prismaEmbeddings as prisma } from '../../lib/prismaEmbeddings.js';
 import type { RAGChunkInput } from './index.js';
 
 export interface UserNoteContent {

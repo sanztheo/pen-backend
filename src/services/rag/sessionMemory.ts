@@ -1,5 +1,5 @@
 // 🧠 RAG Session Memory - Mémoire persistante entre sessions
-import { prisma } from '../../lib/prisma.js';
+import { prismaEmbeddings as prisma } from '../../lib/prismaEmbeddings.js';
 import { cacheActiveRAGSession, invalidateRAGSessionCache } from '../../lib/redis.js';
 import type { RAGSearchResult } from './index.js';
 

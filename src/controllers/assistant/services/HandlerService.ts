@@ -148,7 +148,7 @@ export class AssistantHandlerService {
       const ragSourceIds = [];
       for (const ragSource of ragSources) {
         // Chercher d'abord dans les sources globales (Wikipedia)
-        let sourceRecord = await prisma.rAGSource.findFirst({
+        let sourceRecord = await prismaEmbeddings.rAGSource.findFirst({
           where: {
             title: ragSource.title,
             isGlobal: true,
@@ -159,7 +159,7 @@ export class AssistantHandlerService {
 
         // Si pas trouvé et qu'on a un ID explicite, chercher par ID (fichiers utilisateur)
         if (!sourceRecord && ragSource.id) {
-          sourceRecord = await prisma.rAGSource.findFirst({
+          sourceRecord = await prismaEmbeddings.rAGSource.findFirst({
             where: {
               id: ragSource.id,
               userId,
@@ -173,7 +173,7 @@ export class AssistantHandlerService {
 
         // Si toujours pas trouvé, chercher par titre dans les fichiers utilisateur
         if (!sourceRecord) {
-          sourceRecord = await prisma.rAGSource.findFirst({
+          sourceRecord = await prismaEmbeddings.rAGSource.findFirst({
             where: {
               title: { contains: ragSource.title },
               userId,

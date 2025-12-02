@@ -204,7 +204,7 @@ export class QuizController {
                   newlyProcessed++;
 
                   // 🔍 Vérifier immédiatement que des chunks ont été créés
-                  const chunkCount = await prisma.rAGChunk.count({
+                  const chunkCount = await prismaEmbeddings.rAGChunk.count({
                     where: { sourceId }
                   });
                   console.log(`📊 [QUIZ-RAG] Chunks générés pour "${page.title}": ${chunkCount}`);

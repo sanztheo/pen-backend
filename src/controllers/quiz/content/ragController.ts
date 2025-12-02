@@ -65,7 +65,7 @@ export class RAGController {
 
         // 🔄 Vérifier et reprocesser les pages échouées ou manquantes
         for (const page of pages) {
-          const existingSource = await prisma.rAGSource.findFirst({
+          const existingSource = await prismaEmbeddings.rAGSource.findFirst({
             where: {
               sourceType: 'WORKSPACE_PAGE',
               userId: userId,
@@ -130,7 +130,7 @@ export class RAGController {
                   console.log(`✅ [QUIZ-RAG] Page ${page.title} reprocessed successfully → sourceId: ${sourceId}`);
 
                   // Vérifier que des chunks ont été créés
-                  const chunkCount = await prisma.rAGChunk.count({
+                  const chunkCount = await prismaEmbeddings.rAGChunk.count({
                     where: { sourceId }
                   });
                   console.log(`📊 [QUIZ-RAG] Chunks créés: ${chunkCount}`);
@@ -147,7 +147,7 @@ export class RAGController {
         }
 
         // 🔍 Récupérer les sources RAG correspondant aux pages sélectionnées
-        const completedRagSources = await prisma.rAGSource.findMany({
+        const completedRagSources = await prismaEmbeddings.rAGSource.findMany({
           where: {
             sourceType: 'WORKSPACE_PAGE',
             userId: userId,
