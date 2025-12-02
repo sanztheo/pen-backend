@@ -1,7 +1,7 @@
 // 📄 User Files RAG System - Traitement intelligent des fichiers utilisateur
-import { prismaEmbeddings as prisma } from '../../lib/prismaEmbeddings.js';
-import crypto from 'crypto';
-import type { RAGChunkInput } from './index.js';
+import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
+import crypto from "crypto";
+import type { RAGChunkInput } from "./index.js";
 
 export interface UserFileContent {
   buffer: Buffer;
@@ -12,14 +12,13 @@ export interface UserFileContent {
 }
 
 export class UserFilesRAGSystem {
-  
   /**
    * 🔑 Calcule le hash SHA-256 du contenu pour déduplication
    * @param buffer - Buffer du fichier
    * @returns Hash hexadécimal
    */
   private calculateContentHash(buffer: Buffer): string {
-    return crypto.createHash('sha256').update(buffer).digest('hex');
+    return crypto.createHash("sha256").update(buffer).digest("hex");
   }
 
   /**
@@ -32,7 +31,7 @@ export class UserFilesRAGSystem {
   async findExistingByHash(
     userId: string,
     workspaceId: string,
-    contentHash: string
+    contentHash: string,
   ): Promise<{
     id: string;
     lastUsedAt: Date | null;
@@ -44,18 +43,18 @@ export class UserFilesRAGSystem {
         where: {
           userId,
           workspaceId,
-          sourceType: { in: ['PDF', 'TEXT_FILE'] },
+          sourceType: { in: ["PDF", "TEXT_FILE"] },
           isGlobal: false,
           metadata: {
-            path: ['contentHash'],
-            equals: contentHash
-          }
+            path: ["contentHash"],
+            equals: contentHash,
+          },
         },
         include: {
           _count: {
-            select: { chunks: true }
-          }
-        }
+            select: { chunks: true },
+          },
+        },
       });
 
       if (!existingSource) return null;
@@ -64,7 +63,7 @@ export class UserFilesRAGSystem {
         id: existingSource.id,
         lastUsedAt: existingSource.lastUsedAt,
         status: existingSource.status,
-        chunksCount: (existingSource as any)._count.chunks
+        chunksCount: (existingSource as any)._count.chunks,
       };
     } catch (error) {
       console.error(`❌ [USER-FILE] Erreur recherche source par hash:`, error);
@@ -78,77 +77,89 @@ export class UserFilesRAGSystem {
    * @param mimeType - Type MIME
    * @returns Texte extrait
    */
-  private async extractFileContent(buffer: Buffer, mimeType: string): Promise<string> {
+  private async extractFileContent(
+    buffer: Buffer,
+    mimeType: string,
+  ): Promise<string> {
     try {
       switch (mimeType) {
-        case 'application/pdf': {
+        case "application/pdf": {
           // PDF via pdf-parse
           let pdfParseFn: any;
           try {
-            const mod = await import('pdf-parse/lib/pdf-parse.js');
+            const mod = await import("pdf-parse/lib/pdf-parse.js");
             pdfParseFn = (mod as any).default || (mod as any);
           } catch {
-            const mod = await import('pdf-parse');
+            const mod = await import("pdf-parse");
             pdfParseFn = (mod as any).default || (mod as any);
           }
           const pdfData = await pdfParseFn(buffer);
-          return pdfData?.text || '';
+          return pdfData?.text || "";
         }
 
-        case 'text/plain':
-        case 'text/markdown':
+        case "text/plain":
+        case "text/markdown":
           // TXT/MD direct
-          return buffer.toString('utf-8');
+          return buffer.toString("utf-8");
 
-        case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-        case 'application/msword': {
+        case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        case "application/msword": {
           // DOC/DOCX via mammoth
           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-ignore - module installé via npm
-          const mammoth = await import('mammoth');
+          const mammoth = await import("mammoth");
           const result = await mammoth.extractRawText({ buffer });
-          return result.value || '';
+          return result.value || "";
         }
 
-        case 'text/csv': {
+        case "text/csv": {
           // CSV via papaparse
           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-ignore - module installé via npm
-          const Papa = await import('papaparse');
-          const text = buffer.toString('utf-8');
+          const Papa = await import("papaparse");
+          const text = buffer.toString("utf-8");
           const parsed = Papa.default.parse(text, { header: true });
           // Convertir en texte lisible
           return parsed.data
-            .map((row: any) => Object.entries(row).map(([k, v]) => `${k}: ${v}`).join(', '))
-            .join('\n');
+            .map((row: any) =>
+              Object.entries(row)
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(", "),
+            )
+            .join("\n");
         }
 
-        case 'application/json': {
+        case "application/json": {
           // JSON formaté
-          const text = buffer.toString('utf-8');
+          const text = buffer.toString("utf-8");
           const parsed = JSON.parse(text);
           return JSON.stringify(parsed, null, 2);
         }
 
-        case 'text/html': {
+        case "text/html": {
           // HTML → Markdown via turndown
           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-ignore - module installé via npm
-          const TurndownService = (await import('turndown')).default;
+          const TurndownService = (await import("turndown")).default;
           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-ignore
           const turndownService = new TurndownService();
-          const html = buffer.toString('utf-8');
+          const html = buffer.toString("utf-8");
           return turndownService.turndown(html);
         }
 
         default:
           console.warn(`⚠️ [USER-FILE] Type MIME non supporté: ${mimeType}`);
-          return buffer.toString('utf-8');
+          return buffer.toString("utf-8");
       }
     } catch (error) {
-      console.error(`❌ [USER-FILE] Erreur extraction contenu (${mimeType}):`, error);
-      throw new Error(`Impossible d'extraire le contenu: ${error instanceof Error ? error.message : 'Erreur inconnue'}`);
+      console.error(
+        `❌ [USER-FILE] Erreur extraction contenu (${mimeType}):`,
+        error,
+      );
+      throw new Error(
+        `Impossible d'extraire le contenu: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
+      );
     }
   }
 
@@ -165,8 +176,8 @@ export class UserFilesRAGSystem {
 
     // Nettoyage basique
     const cleaned = text
-      .replace(/\r\n/g, '\n')
-      .replace(/\n{3,}/g, '\n\n')
+      .replace(/\r\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
       .trim();
 
     if (!cleaned) {
@@ -175,7 +186,7 @@ export class UserFilesRAGSystem {
 
     // Découpage par paragraphes si possible
     const paragraphs = cleaned.split(/\n\n+/);
-    let currentChunk = '';
+    let currentChunk = "";
     let chunkIndex = 0;
 
     for (const paragraph of paragraphs) {
@@ -187,9 +198,9 @@ export class UserFilesRAGSystem {
           chunks.push({
             content: currentChunk.trim(),
             quality: this.assessContentQuality(currentChunk),
-            sectionTitle: fileName
+            sectionTitle: fileName,
           });
-          currentChunk = '';
+          currentChunk = "";
           chunkIndex++;
         }
 
@@ -201,7 +212,7 @@ export class UserFilesRAGSystem {
               chunks.push({
                 content: currentChunk.trim(),
                 quality: this.assessContentQuality(currentChunk),
-                sectionTitle: fileName
+                sectionTitle: fileName,
               });
               chunkIndex++;
             }
@@ -212,18 +223,20 @@ export class UserFilesRAGSystem {
         }
       } else {
         // Ajouter le paragraphe au chunk actuel
-        if (this.estimateTokens(currentChunk + '\n\n' + paragraph) > maxChunkSize) {
+        if (
+          this.estimateTokens(currentChunk + "\n\n" + paragraph) > maxChunkSize
+        ) {
           if (currentChunk) {
             chunks.push({
               content: currentChunk.trim(),
               quality: this.assessContentQuality(currentChunk),
-              sectionTitle: fileName
+              sectionTitle: fileName,
             });
             chunkIndex++;
           }
           currentChunk = paragraph;
         } else {
-          currentChunk += (currentChunk ? '\n\n' : '') + paragraph;
+          currentChunk += (currentChunk ? "\n\n" : "") + paragraph;
         }
       }
     }
@@ -233,11 +246,13 @@ export class UserFilesRAGSystem {
       chunks.push({
         content: currentChunk.trim(),
         quality: this.assessContentQuality(currentChunk),
-        sectionTitle: fileName
+        sectionTitle: fileName,
       });
     }
 
-    console.log(`🧩 [USER-FILE] Chunking: ${text.length} chars → ${chunks.length} chunks`);
+    console.log(
+      `🧩 [USER-FILE] Chunking: ${text.length} chars → ${chunks.length} chunks`,
+    );
     return chunks;
   }
 
@@ -261,13 +276,16 @@ export class UserFilesRAGSystem {
 
     // Pénaliser les chunks trop courts
     if (content.length < 100) score *= 0.5;
-    
+
     // Pénaliser les chunks avec beaucoup de caractères spéciaux/répétitions
-    const specialCharsRatio = (content.match(/[^a-zA-Z0-9\sàâäéèêëïîôùûüÿçœæ]/g) || []).length / content.length;
+    const specialCharsRatio =
+      (content.match(/[^a-zA-Z0-9\sàâäéèêëïîôùûüÿçœæ]/g) || []).length /
+      content.length;
     if (specialCharsRatio > 0.3) score *= 0.7;
 
     // Bonus si le chunk contient des mots significatifs
-    const meaningfulWords = content.match(/\b[a-zA-Zàâäéèêëïîôùûüÿçœæ]{4,}\b/g) || [];
+    const meaningfulWords =
+      content.match(/\b[a-zA-Zàâäéèêëïîôùûüÿçœæ]{4,}\b/g) || [];
     if (meaningfulWords.length > 10) score *= 1.2;
 
     return Math.min(1.0, Math.max(0.1, score));
@@ -280,16 +298,21 @@ export class UserFilesRAGSystem {
    */
   private async generateEmbedding(text: string): Promise<number[]> {
     try {
-      const { ragSystem } = await import('./index.js');
+      const { ragSystem } = await import("./index.js");
       const t0 = Date.now();
-      console.log(`🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${text.substring(0, 50)}..."`);
-      
-      const embedding = await ragSystem.embeddingService.generateEmbedding(text);
-      
-      console.log(`✅ [EMBEDDING-FAST] Embedding généré en ${Date.now() - t0}ms: ${embedding.length} dimensions`);
+      console.log(
+        `🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${text.substring(0, 50)}..."`,
+      );
+
+      const embedding =
+        await ragSystem.embeddingService.generateEmbedding(text);
+
+      console.log(
+        `✅ [EMBEDDING-FAST] Embedding généré en ${Date.now() - t0}ms: ${embedding.length} dimensions`,
+      );
       return embedding;
     } catch (error) {
-      console.error('❌ [USER-FILE] Erreur génération embedding:', error);
+      console.error("❌ [USER-FILE] Erreur génération embedding:", error);
       throw error;
     }
   }
@@ -300,10 +323,7 @@ export class UserFilesRAGSystem {
    * @returns Contenu nettoyé
    */
   private cleanContent(content: string): string {
-    return content
-      .replace(/\s+/g, ' ')
-      .replace(/\n+/g, '\n')
-      .trim();
+    return content.replace(/\s+/g, " ").replace(/\n+/g, "\n").trim();
   }
 
   /**
@@ -311,39 +331,80 @@ export class UserFilesRAGSystem {
    * @param sourceId - ID de la source RAG
    * @param chunks - Chunks à traiter
    */
-  private async processFileChunks(sourceId: string, chunks: RAGChunkInput[]): Promise<void> {
-    const { mapWithConcurrency, chunkArray } = await import('../../utils/concurrency.js');
-    const concurrency = Math.max(1, parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || '2', 10));
-    const batchSize = Math.max(1, parseInt(process.env.RAG_DB_BATCH_SIZE || '100', 10));
+  private async processFileChunks(
+    sourceId: string,
+    chunks: RAGChunkInput[],
+  ): Promise<void> {
+    const { mapWithConcurrency, chunkArray } =
+      await import("../../utils/concurrency.js");
+    const concurrency = Math.max(
+      1,
+      parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10),
+    );
+    const batchSize = Math.max(
+      1,
+      parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10),
+    );
 
     const t0 = Date.now();
-    console.log(`⚙️  [USER-FILE] Embedding ${chunks.length} chunks (x${concurrency})…`);
+    console.log(
+      `⚙️  [USER-FILE] Embedding ${chunks.length} chunks (x${concurrency})…`,
+    );
 
-    const prepared = await mapWithConcurrency(chunks, concurrency, async (chunk, i) => {
-      try {
-        const embedding = await this.generateEmbedding(chunk.content);
-        return {
-          sourceId,
-          chunkIndex: i,
-          content: chunk.content,
-          cleanContent: this.cleanContent(chunk.content),
-          embedding: JSON.stringify(embedding),
-          tokenCount: this.estimateTokens(chunk.content),
-          sectionTitle: chunk.sectionTitle,
-          quality: chunk.quality || 1.0
-        } as any;
-      } catch (error) {
-        console.error(`❌ [USER-FILE] Erreur embedding chunk ${i}:`, error);
-        return null as any;
-      }
-    });
+    const prepared = await mapWithConcurrency(
+      chunks,
+      concurrency,
+      async (chunk, i) => {
+        try {
+          const embedding = await this.generateEmbedding(chunk.content);
+          return {
+            sourceId,
+            chunkIndex: i,
+            content: chunk.content,
+            cleanContent: this.cleanContent(chunk.content),
+            embedding: JSON.stringify(embedding),
+            tokenCount: this.estimateTokens(chunk.content),
+            sectionTitle: chunk.sectionTitle,
+            quality: chunk.quality || 1.0,
+          } as any;
+        } catch (error) {
+          console.error(`❌ [USER-FILE] Erreur embedding chunk ${i}:`, error);
+          return null as any;
+        }
+      },
+    );
 
     const filtered = prepared.filter(Boolean) as any[];
     let inserted = 0;
     for (const batch of chunkArray(filtered, batchSize)) {
-      await prisma.rAGChunk.createMany({ data: batch, skipDuplicates: true });
-      inserted += batch.length;
-      console.log(`💾 [USER-FILE] Inséré ${inserted}/${filtered.length} chunks…`);
+      // Utiliser SQL brut pour insérer les embeddings (Prisma ne supporte pas vector nativement)
+      for (const chunk of batch) {
+        await prisma.$executeRaw`
+          INSERT INTO "RAGChunk" (
+            "id", "sourceId", "chunkIndex", "content", "cleanContent",
+            "embedding", "tokenCount", "sectionTitle", "quality",
+            "createdAt", "updatedAt"
+          )
+          VALUES (
+            gen_random_uuid(),
+            ${chunk.sourceId}::uuid,
+            ${chunk.chunkIndex},
+            ${chunk.content},
+            ${chunk.cleanContent},
+            ${chunk.embedding}::vector,
+            ${chunk.tokenCount},
+            ${chunk.sectionTitle},
+            ${chunk.quality},
+            NOW(),
+            NOW()
+          )
+          ON CONFLICT DO NOTHING
+        `;
+        inserted++;
+      }
+      console.log(
+        `💾 [USER-FILE] Inséré ${inserted}/${filtered.length} chunks…`,
+      );
     }
 
     console.log(`✅ [USER-FILE] Terminé en ${Date.now() - t0} ms`);
@@ -356,7 +417,9 @@ export class UserFilesRAGSystem {
    */
   async processUserFile(file: UserFileContent): Promise<string | null> {
     try {
-      console.log(`📄 [USER-FILE] Traitement: "${file.fileName}" (${file.mimeType})`);
+      console.log(
+        `📄 [USER-FILE] Traitement: "${file.fileName}" (${file.mimeType})`,
+      );
 
       // 1. Calculer le hash du contenu
       const contentHash = this.calculateContentHash(file.buffer);
@@ -366,58 +429,74 @@ export class UserFilesRAGSystem {
       const existingSource = await this.findExistingByHash(
         file.userId,
         file.workspaceId,
-        contentHash
+        contentHash,
       );
 
       // 3. Logique de déduplication
       if (existingSource) {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        
-        const lastUsed = existingSource.lastUsedAt ? new Date(existingSource.lastUsedAt) : null;
+
+        const lastUsed = existingSource.lastUsedAt
+          ? new Date(existingSource.lastUsedAt)
+          : null;
         const isOlderThan7Days = !lastUsed || lastUsed < sevenDaysAgo;
 
         // Si hash identique ET moins de 7 jours → réutiliser
-        if (!isOlderThan7Days && existingSource.status === 'COMPLETED' && existingSource.chunksCount > 0) {
-          console.log(`♻️ [DEDUP-FILE] Réutilisation: "${file.fileName}" (${existingSource.chunksCount} chunks existants)`);
-          
+        if (
+          !isOlderThan7Days &&
+          existingSource.status === "COMPLETED" &&
+          existingSource.chunksCount > 0
+        ) {
+          console.log(
+            `♻️ [DEDUP-FILE] Réutilisation: "${file.fileName}" (${existingSource.chunksCount} chunks existants)`,
+          );
+
           await prisma.rAGSource.update({
             where: { id: existingSource.id },
-            data: { lastUsedAt: new Date() }
+            data: { lastUsedAt: new Date() },
           });
-          
+
           return existingSource.id;
         }
 
         // Si > 7 jours OU chunks manquants → ré-embedder
-        console.log(`🔄 [DEDUP-FILE] Re-embedding nécessaire: "${file.fileName}" (raison: ${isOlderThan7Days ? '>7 jours' : 'chunks manquants'})`);
-        
+        console.log(
+          `🔄 [DEDUP-FILE] Re-embedding nécessaire: "${file.fileName}" (raison: ${isOlderThan7Days ? ">7 jours" : "chunks manquants"})`,
+        );
+
         // Supprimer les anciens chunks
         await prisma.rAGChunk.deleteMany({
-          where: { sourceId: existingSource.id }
+          where: { sourceId: existingSource.id },
         });
       }
 
       // 4. Extraction du texte
       console.log(`📝 [USER-FILE] Extraction du contenu...`);
-      const extractedText = await this.extractFileContent(file.buffer, file.mimeType);
-      
+      const extractedText = await this.extractFileContent(
+        file.buffer,
+        file.mimeType,
+      );
+
       if (!extractedText || extractedText.trim().length < 10) {
-        throw new Error('Contenu extrait vide ou trop court');
+        throw new Error("Contenu extrait vide ou trop court");
       }
 
-      console.log(`✅ [USER-FILE] Texte extrait: ${extractedText.length} caractères`);
+      console.log(
+        `✅ [USER-FILE] Texte extrait: ${extractedText.length} caractères`,
+      );
 
       // 5. Chunking intelligent
       const chunks = this.intelligentChunking(extractedText, file.fileName);
-      
+
       if (chunks.length === 0) {
-        throw new Error('Aucun chunk généré après découpage');
+        throw new Error("Aucun chunk généré après découpage");
       }
 
       // 6. Déterminer le type de source
-      const sourceType = file.mimeType === 'application/pdf' ? 'PDF' : 'TEXT_FILE';
-      const fileExtension = file.fileName.split('.').pop() || '';
+      const sourceType =
+        file.mimeType === "application/pdf" ? "PDF" : "TEXT_FILE";
+      const fileExtension = file.fileName.split(".").pop() || "";
 
       // 7. Créer ou mettre à jour la source
       let source;
@@ -425,7 +504,7 @@ export class UserFilesRAGSystem {
         source = await prisma.rAGSource.update({
           where: { id: existingSource.id },
           data: {
-            title: file.fileName.replace(/\.[^/.]+$/, ''),
+            title: file.fileName.replace(/\.[^/.]+$/, ""),
             fileName: file.fileName,
             fileSize: file.buffer.length,
             mimeType: file.mimeType,
@@ -434,12 +513,12 @@ export class UserFilesRAGSystem {
               originalFileName: file.fileName,
               extractedText,
               uploadedAt: new Date().toISOString(),
-              fileExtension
+              fileExtension,
             },
-            status: 'PROCESSING',
+            status: "PROCESSING",
             lastUsedAt: new Date(),
-            updatedAt: new Date()
-          }
+            updatedAt: new Date(),
+          },
         });
         console.log(`🆕 [USER-FILE] Source mise à jour: ${source.id}`);
       } else {
@@ -448,7 +527,7 @@ export class UserFilesRAGSystem {
             userId: file.userId,
             workspaceId: file.workspaceId,
             sourceType,
-            title: file.fileName.replace(/\.[^/.]+$/, ''),
+            title: file.fileName.replace(/\.[^/.]+$/, ""),
             fileName: file.fileName,
             fileSize: file.buffer.length,
             mimeType: file.mimeType,
@@ -457,12 +536,12 @@ export class UserFilesRAGSystem {
               originalFileName: file.fileName,
               extractedText,
               uploadedAt: new Date().toISOString(),
-              fileExtension
+              fileExtension,
             },
-            status: 'PROCESSING',
+            status: "PROCESSING",
             isGlobal: false,
-            lastUsedAt: new Date()
-          }
+            lastUsedAt: new Date(),
+          },
         });
         console.log(`🆕 [USER-FILE] Nouvelle source: ${source.id}`);
       }
@@ -474,16 +553,20 @@ export class UserFilesRAGSystem {
       await prisma.rAGSource.update({
         where: { id: source.id },
         data: {
-          status: 'COMPLETED',
-          totalChunks: chunks.length
-        }
+          status: "COMPLETED",
+          totalChunks: chunks.length,
+        },
       });
 
-      console.log(`✅ [USER-FILE] Terminé: "${file.fileName}" (${chunks.length} chunks)`);
+      console.log(
+        `✅ [USER-FILE] Terminé: "${file.fileName}" (${chunks.length} chunks)`,
+      );
       return source.id;
-
     } catch (error) {
-      console.error(`❌ [USER-FILE] Erreur traitement fichier "${file.fileName}":`, error);
+      console.error(
+        `❌ [USER-FILE] Erreur traitement fichier "${file.fileName}":`,
+        error,
+      );
       throw error;
     }
   }
@@ -491,4 +574,3 @@ export class UserFilesRAGSystem {
 
 // Instance singleton
 export const userFilesRAG = new UserFilesRAGSystem();
-
