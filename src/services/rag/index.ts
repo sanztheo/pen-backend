@@ -925,7 +925,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       // Utiliser SQL brut pour insérer les embeddings (Prisma ne supporte pas vector nativement)
       for (const chunk of batch) {
         await prismaEmbeddings.$executeRaw`
-          INSERT INTO "RAGChunk" (
+          INSERT INTO "rag_chunks" (
             "id", "sourceId", "chunkIndex", "content", "cleanContent",
             "embedding", "tokenCount", "pageNumber", "sectionTitle",
             "startOffset", "endOffset", "quality", "createdAt", "updatedAt"
