@@ -29,8 +29,8 @@ const getDatabaseUrl = (): string => {
     params.set("statement_timeout", "30000"); // 30s max par requête SQL
     params.set("idle_in_transaction_session_timeout", "60000"); // Ferme transactions inactives après 60s
   } else {
-    // 💻 DÉVELOPPEMENT: Configuration légère (augmentée pour streaming + tools)
-    params.set("connection_limit", "20"); // 🔥 Augmenté: 20 connexions (streaming SSE + tools + cleanup)
+    // 💻 DÉVELOPPEMENT: Configuration optimisée (streaming + tools + workers)
+    params.set("connection_limit", "30"); // 🔥 Optimisé: 30 connexions (streaming SSE + tools + workers + cleanup)
     params.set("pool_timeout", "20");
     params.set("connect_timeout", "10");
     params.set("statement_timeout", "30000");
