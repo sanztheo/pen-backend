@@ -259,7 +259,7 @@ export class UserNotesRAGSystem {
           INSERT INTO "rag_chunks" (
             "id", "source_id", "chunk_index", "content", "clean_content",
             "embedding", "token_count", "page_number", "section_title",
-            "start_offset", "end_offset", "quality", "language", "created_at", "updated_at"
+            "start_offset", "end_offset", "quality", "language", "created_at"
           )
           VALUES (
             gen_random_uuid(),
