@@ -928,7 +928,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
           INSERT INTO "rag_chunks" (
             "id", "source_id", "chunk_index", "content", "clean_content",
             "embedding", "token_count", "page_number", "section_title",
-            "start_offset", "end_offset", "quality", "created_at", "updated_at"
+            "start_offset", "end_offset", "quality", "created_at"
           )
           VALUES (
             gen_random_uuid(),
@@ -943,7 +943,6 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
             ${chunk.startOffset},
             ${chunk.endOffset},
             ${chunk.quality},
-            NOW(),
             NOW()
           )
           ON CONFLICT DO NOTHING

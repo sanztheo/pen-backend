@@ -493,7 +493,7 @@ export class WikipediaRAGSystem {
           INSERT INTO "rag_chunks" (
             "id", "source_id", "chunk_index", "content", "clean_content",
             "embedding", "token_count", "section_title", "quality",
-            "created_at", "updated_at"
+            "created_at"
           )
           VALUES (
             gen_random_uuid(),
@@ -505,7 +505,6 @@ export class WikipediaRAGSystem {
             ${chunk.tokenCount},
             ${chunk.sectionTitle},
             ${chunk.quality},
-            NOW(),
             NOW()
           )
           ON CONFLICT DO NOTHING
