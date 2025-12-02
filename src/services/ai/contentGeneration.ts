@@ -89,7 +89,7 @@ export class ContentGenerationService {
         }
 
         const isFixedTempModelStream =
-          typeof model === "string" && /(o1|o3|nano)/i.test(model);
+          typeof model === "string" && /(o1|o3|nano|gpt-5)/i.test(model);
         const payloadStream: any = { model, messages, stream: true };
         if (isFixedTempModelStream) {
           // Ne jamais dépasser la limite provider
@@ -98,6 +98,10 @@ export class ContentGenerationService {
             PROVIDER_HARD_CAP,
           );
           // pas de temperature
+          // GPT-5 utilise également reasoning_effort si nécessaire
+          if (model.includes("gpt-5")) {
+            payloadStream.reasoning_effort = "low";
+          }
         } else {
           payloadStream.max_tokens = targetTokens;
           payloadStream.temperature = options.temperature ?? 0.7;
@@ -190,9 +194,13 @@ export class ContentGenerationService {
             const maxFollowTokens = isNanoModel
               ? Math.min(PROVIDER_HARD_CAP, options.maxTokens || 30000)
               : Math.min(6000, options.maxTokens || 2000);
-            if (isFixedTempModelStream)
+            if (isFixedTempModelStream) {
               payloadFollow.max_completion_tokens = maxFollowTokens;
-            else {
+              // GPT-5 utilise également reasoning_effort si nécessaire
+              if (model.includes("gpt-5")) {
+                payloadFollow.reasoning_effort = "low";
+              }
+            } else {
               payloadFollow.max_tokens = maxFollowTokens;
               payloadFollow.temperature = options.temperature ?? 0.7;
             }
@@ -246,13 +254,17 @@ export class ContentGenerationService {
         });
       }
 
-      // Adapter la charge utile pour les modèles o1/o3/nano (température fixe et champ max_completion_tokens)
+      // Adapter la charge utile pour les modèles o1/o3/nano/gpt-5 (température fixe et champ max_completion_tokens)
       const isFixedTempModel =
-        typeof model === "string" && /(o1|o3|nano)/i.test(model);
+        typeof model === "string" && /(o1|o3|nano|gpt-5)/i.test(model);
       const payload: any = { model, messages };
       if (isFixedTempModel) {
         payload.max_completion_tokens = targetTokens;
-        // Ne pas envoyer temperature (non supporté / fixé)
+        // Ne pas envoyer temperature (non supporté / fixé pour ces modèles)
+        // GPT-5 utilise également reasoning_effort si nécessaire
+        if (model.includes("gpt-5")) {
+          payload.reasoning_effort = "low";
+        }
       } else {
         payload.max_tokens = targetTokens;
         payload.temperature = options.temperature ?? 0.7;

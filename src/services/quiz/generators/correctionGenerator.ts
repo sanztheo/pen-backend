@@ -518,7 +518,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
           prompt: optimizedPrompt,
           maxTokens,
           temperature: 0.3,
-          model: AIService.getDefaultModel(),
+          model: AIService.getQuizCorrectionModel(),
         });
 
         console.log(
@@ -592,7 +592,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
           correctedAt: new Date(),
           aiModel:
             (aiCorrections.length > 0
-              ? AIService.getDefaultModel()
+              ? AIService.getQuizCorrectionModel()
               : "Auto-correction") || "unknown",
           correctionTime: Date.now() - startTime,
         },
@@ -766,7 +766,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         },
         metadata: {
           correctedAt: new Date(),
-          aiModel: AIService.getDefaultModel() || "unknown",
+          aiModel: AIService.getQuizCorrectionModel() || "unknown",
           correctionTime: Date.now() - startTime,
           personalizedTips: detailedAnalysis.personalizedTips,
         },
@@ -1204,7 +1204,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
           prompt: optimizedPrompt,
           maxTokens,
           temperature: 0.3,
-          model: AIService.getDefaultModel(),
+          model: AIService.getQuizCorrectionModel(),
         });
 
         console.log(
@@ -1275,7 +1275,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
           correctedAt: new Date(),
           aiModel:
             (aiCorrections.length > 0
-              ? AIService.getDefaultModel()
+              ? AIService.getQuizCorrectionModel()
               : "Auto-correction") || "unknown",
           correctionTime: Date.now() - startTime,
         },
@@ -1621,7 +1621,7 @@ Réponds UNIQUEMENT en JSON array valide.`;
         prompt: suggestionsPrompt,
         maxTokens: Math.min(questionsNeedingSuggestions.length * 150, 3000),
         temperature: 0.5,
-        model: AIService.getDefaultModel(),
+        model: AIService.getQuizCorrectionModel(),
       });
 
       const suggestionsData = JsonUtils.extractJsonFromText(result.content);
@@ -1665,7 +1665,7 @@ Réponds UNIQUEMENT en JSON array valide.`;
       prompt: basePrompt,
       maxTokens: 8000,
       temperature: 0.3,
-      model: AIService.getDefaultModel(),
+      model: AIService.getQuizCorrectionModel(),
     });
 
     const correctionData = JsonUtils.extractJsonFromText(result.content);
@@ -1853,7 +1853,7 @@ Format JSON STRICT requis.`;
         prompt: analysisPrompt,
         maxTokens: 8000,
         temperature: 0.7,
-        model: AIService.getDefaultModel(),
+        model: AIService.getQuizCorrectionModel(),
       });
 
       console.log("🧠 [ANALYSIS] Réponse IA reçue, parsing...");
