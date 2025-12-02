@@ -1,13 +1,13 @@
 // assistant/service.ts - Service principal OpenAI Assistant pour les quiz
-import OpenAI from 'openai';
-import { 
-  createThread as createAssistantThread, 
-  addMessageToThread, 
-  runAssistantOnThread, 
-  waitForRunCompletion 
-} from './thread.js';
-import { ASSISTANT_ID, ASSISTANT_ID_DOCUMENTS } from './index.js';
-import { assistantFileManager } from './fileManager.js';
+import OpenAI from "openai";
+import {
+  createThread as createAssistantThread,
+  addMessageToThread,
+  runAssistantOnThread,
+  waitForRunCompletion,
+} from "./thread.js";
+import { ASSISTANT_ID, ASSISTANT_ID_DOCUMENTS } from "./index.js";
+import { assistantFileManager } from "./fileManager.js";
 import {
   STATIC_BASE_INSTRUCTIONS,
   STATIC_DOCUMENT_INSTRUCTIONS,
@@ -16,32 +16,33 @@ import {
   buildCachedPrompt,
   buildFullCachedPrompt,
   buildDynamicQuizContent,
-  buildDynamicCorrectionContent
-} from './promptCache.js';
-import { getProfessorCorrectionPrompt } from './professorPersonas.js';
+  buildDynamicCorrectionContent,
+} from "./promptCache.js";
+import { getProfessorCorrectionPrompt } from "./professorPersonas.js";
+import { AIService } from "../../ai/base.js";
 
 const SPECIALTY_LABELS: Record<string, string> = {
-  MATHEMATIQUES: 'Mathématiques',
-  PHYSIQUE_CHIMIE: 'Physique-Chimie',
-  SVT: 'Sciences de la Vie et de la Terre',
-  HISTOIRE_GEO: 'Histoire-Géographie',
-  SES: 'Sciences Économiques et Sociales',
-  LANGUES: 'Langues Vivantes',
-  LITTERATURE: 'Littérature',
-  ARTS: 'Arts',
-  NSI: 'Numérique et Sciences Informatiques',
-  SI: 'Sciences de l\'Ingénieur',
-  PHILOSOPHIE: 'Philosophie',
-  EPS: 'Éducation Physique et Sportive',
-  LANGUES_CULTURES_ANTIQUITE: 'Langues et Cultures de l\'Antiquité',
-  BIOLOGIE_ECOLOGIE: 'Biologie-Écologie',
-  SCIENCES_INGENIEUR: 'Sciences de l\'Ingénieur',
-  ARTS_PLASTIQUES: 'Arts Plastiques',
-  MUSIQUE: 'Musique',
-  THEATRE: 'Théâtre',
-  CINEMA_AUDIOVISUEL: 'Cinéma-Audiovisuel',
-  DANSE: 'Danse',
-  HISTOIRE_ARTS: 'Histoire des Arts'
+  MATHEMATIQUES: "Mathématiques",
+  PHYSIQUE_CHIMIE: "Physique-Chimie",
+  SVT: "Sciences de la Vie et de la Terre",
+  HISTOIRE_GEO: "Histoire-Géographie",
+  SES: "Sciences Économiques et Sociales",
+  LANGUES: "Langues Vivantes",
+  LITTERATURE: "Littérature",
+  ARTS: "Arts",
+  NSI: "Numérique et Sciences Informatiques",
+  SI: "Sciences de l'Ingénieur",
+  PHILOSOPHIE: "Philosophie",
+  EPS: "Éducation Physique et Sportive",
+  LANGUES_CULTURES_ANTIQUITE: "Langues et Cultures de l'Antiquité",
+  BIOLOGIE_ECOLOGIE: "Biologie-Écologie",
+  SCIENCES_INGENIEUR: "Sciences de l'Ingénieur",
+  ARTS_PLASTIQUES: "Arts Plastiques",
+  MUSIQUE: "Musique",
+  THEATRE: "Théâtre",
+  CINEMA_AUDIOVISUEL: "Cinéma-Audiovisuel",
+  DANSE: "Danse",
+  HISTOIRE_ARTS: "Histoire des Arts",
 };
 
 const formatSpecialtyLabel = (specialty?: string): string | undefined => {
@@ -49,7 +50,7 @@ const formatSpecialtyLabel = (specialty?: string): string | undefined => {
     return undefined;
   }
 
-  return SPECIALTY_LABELS[specialty] || specialty.replace(/_/g, ' ');
+  return SPECIALTY_LABELS[specialty] || specialty.replace(/_/g, " ");
 };
 
 // 🆕 Schéma JSON strict pour les questions
@@ -63,30 +64,28 @@ const QUIZ_QUESTION_SCHEMA = {
         properties: {
           id: {
             type: "string",
-            description: "Identifiant unique de la question (format: q_timestamp_index)"
+            description:
+              "Identifiant unique de la question (format: q_timestamp_index)",
           },
           question: {
             type: "string",
-            description: "Énoncé de la question en français, adapté au niveau éducatif"
+            description:
+              "Énoncé de la question en français, adapté au niveau éducatif",
           },
           type: {
             type: "string",
             enum: [
               "MULTIPLE_CHOICE",
-              "TRUE_FALSE", 
+              "TRUE_FALSE",
               "OPEN_QUESTION",
-              "MATCHING"
+              "MATCHING",
             ],
-            description: "Type de question selon les standards français"
+            description: "Type de question selon les standards français",
           },
           difficulty: {
             type: "string",
-            enum: [
-              "facile",
-              "moyen",
-              "difficile"
-            ],
-            description: "Niveau de difficulté adapté au public cible"
+            enum: ["facile", "moyen", "difficile"],
+            description: "Niveau de difficulté adapté au public cible",
           },
           options: {
             type: "array",
@@ -95,21 +94,22 @@ const QUIZ_QUESTION_SCHEMA = {
               properties: {
                 id: {
                   type: "string",
-                  description: "Identifiant de l'option (A, B, C, D)"
+                  description: "Identifiant de l'option (A, B, C, D)",
                 },
                 text: {
                   type: "string",
-                  description: "Texte de l'option de réponse"
+                  description: "Texte de l'option de réponse",
                 },
                 isCorrect: {
                   type: "boolean",
-                  description: "Indique si cette option est la bonne réponse"
-                }
+                  description: "Indique si cette option est la bonne réponse",
+                },
               },
               required: ["id", "text", "isCorrect"],
-              additionalProperties: false
+              additionalProperties: false,
             },
-            description: "Options de réponse (obligatoire pour MULTIPLE_CHOICE et TRUE_FALSE, array vide pour OPEN_QUESTION et MATCHING)"
+            description:
+              "Options de réponse (obligatoire pour MULTIPLE_CHOICE et TRUE_FALSE, array vide pour OPEN_QUESTION et MATCHING)",
           },
           leftColumn: {
             type: "array",
@@ -118,17 +118,19 @@ const QUIZ_QUESTION_SCHEMA = {
               properties: {
                 id: {
                   type: "string",
-                  description: "Identifiant de l'élément de gauche (1, 2, 3, 4...)"
+                  description:
+                    "Identifiant de l'élément de gauche (1, 2, 3, 4...)",
                 },
                 text: {
                   type: "string",
-                  description: "Texte de l'élément à associer"
-                }
+                  description: "Texte de l'élément à associer",
+                },
               },
               required: ["id", "text"],
-              additionalProperties: false
+              additionalProperties: false,
             },
-            description: "Colonne de gauche pour MATCHING (éléments à associer) - obligatoire pour MATCHING, vide pour autres types"
+            description:
+              "Colonne de gauche pour MATCHING (éléments à associer) - obligatoire pour MATCHING, vide pour autres types",
           },
           rightColumn: {
             type: "array",
@@ -137,17 +139,19 @@ const QUIZ_QUESTION_SCHEMA = {
               properties: {
                 id: {
                   type: "string",
-                  description: "Identifiant de l'élément de droite (A, B, C, D...)"
+                  description:
+                    "Identifiant de l'élément de droite (A, B, C, D...)",
                 },
                 text: {
                   type: "string",
-                  description: "Texte de la définition/réponse"
-                }
+                  description: "Texte de la définition/réponse",
+                },
               },
               required: ["id", "text"],
-              additionalProperties: false
+              additionalProperties: false,
             },
-            description: "Colonne de droite pour MATCHING (définitions/réponses) - obligatoire pour MATCHING, vide pour autres types"
+            description:
+              "Colonne de droite pour MATCHING (définitions/réponses) - obligatoire pour MATCHING, vide pour autres types",
           },
           correctMatches: {
             type: "array",
@@ -156,66 +160,71 @@ const QUIZ_QUESTION_SCHEMA = {
               properties: {
                 leftId: {
                   type: "string",
-                  description: "ID de l'élément de gauche"
+                  description: "ID de l'élément de gauche",
                 },
                 rightId: {
                   type: "string",
-                  description: "ID de l'élément de droite correspondant"
-                }
+                  description: "ID de l'élément de droite correspondant",
+                },
               },
               required: ["leftId", "rightId"],
-              additionalProperties: false
+              additionalProperties: false,
             },
-            description: "Paires correctes pour MATCHING - obligatoire pour MATCHING, vide pour autres types"
+            description:
+              "Paires correctes pour MATCHING - obligatoire pour MATCHING, vide pour autres types",
           },
           expectedAnswer: {
             type: "string",
-            description: "Pour OPEN_QUESTION : réponse modèle attendue rédigée par l'IA basée sur les documents sources"
+            description:
+              "Pour OPEN_QUESTION : réponse modèle attendue rédigée par l'IA basée sur les documents sources",
           },
           explanation: {
             type: "string",
-            description: "Explication détaillée de la réponse correcte"
+            description: "Explication détaillée de la réponse correcte",
           },
           points: {
             type: "integer",
-            description: "Points attribués à cette question (toujours 1 pour quiz personnalisés)",
+            description:
+              "Points attribués à cette question (toujours 1 pour quiz personnalisés)",
             minimum: 1,
-            maximum: 1
+            maximum: 1,
           },
           subject: {
             type: "string",
-            description: "Matière ou sujet de la question"
+            description: "Matière ou sujet de la question",
           },
           schoolLevel: {
             type: "string",
-            description: "Niveau scolaire cible"
+            description: "Niveau scolaire cible",
           },
           hasGraphic: {
             type: "boolean",
-            description: "Indique si la question est basée sur un graphique"
+            description: "Indique si la question est basée sur un graphique",
           },
           graphicId: {
             type: "string",
-            description: "ID du graphique associé (si hasGraphic = true)"
+            description: "ID du graphique associé (si hasGraphic = true)",
           },
           graphicLibrary: {
             type: "string",
             enum: ["apexcharts", "plotly"],
-            description: "Bibliothèque du graphique associé"
+            description: "Bibliothèque du graphique associé",
           },
           graphicType: {
             type: "string",
             enum: ["2d", "3d"],
-            description: "Type du graphique associé"
+            description: "Type du graphique associé",
           },
           basedOnDocument: {
             type: "boolean",
-            description: "Indique si la question est basée sur un document Wikipedia"
+            description:
+              "Indique si la question est basée sur un document Wikipedia",
           },
           documentReference: {
             type: "string",
-            description: "Référence au document Wikipedia utilisé (si basedOnDocument = true)"
-          }
+            description:
+              "Référence au document Wikipedia utilisé (si basedOnDocument = true)",
+          },
         },
         required: [
           "id",
@@ -236,15 +245,15 @@ const QUIZ_QUESTION_SCHEMA = {
           "graphicLibrary",
           "graphicType",
           "basedOnDocument",
-          "documentReference"
+          "documentReference",
         ],
-        additionalProperties: false
+        additionalProperties: false,
       },
-      description: "Array de questions éducatives structurées"
-    }
+      description: "Array de questions éducatives structurées",
+    },
   },
   required: ["questions"],
-  additionalProperties: false
+  additionalProperties: false,
 };
 
 // 🆕 Schémas JSON strict pour la correction
@@ -258,87 +267,80 @@ const QUIZ_CORRECTION_STANDARD_SCHEMA = {
         properties: {
           questionId: {
             type: "string",
-            description: "ID de la question corrigée"
+            description: "ID de la question corrigée",
           },
           isCorrect: {
             type: "boolean",
-            description: "Indique si la réponse est correcte"
+            description: "Indique si la réponse est correcte",
           },
           pointsObtained: {
             type: "number",
-            description: "Points obtenus pour cette question (peut être partiel)"
+            description:
+              "Points obtenus pour cette question (peut être partiel)",
           },
           pointsTotal: {
             type: "number",
-            description: "Points maximum pour cette question"
+            description: "Points maximum pour cette question",
           },
           correctAnswer: {
             type: "string",
-            description: "La bonne réponse attendue"
+            description: "La bonne réponse attendue",
           },
           explanation: {
             type: "string",
-            description: "Explication détaillée de la correction en français"
+            description: "Explication détaillée de la correction en français",
           },
           feedback: {
             type: "string",
-            description: "Conseil pédagogique personnalisé pour l'amélioration"
-          }
+            description: "Conseil pédagogique personnalisé pour l'amélioration",
+          },
         },
         required: [
           "questionId",
-          "isCorrect", 
+          "isCorrect",
           "pointsObtained",
           "pointsTotal",
           "correctAnswer",
           "explanation",
-          "feedback"
+          "feedback",
         ],
-        additionalProperties: false
-      }
+        additionalProperties: false,
+      },
     },
     globalScore: {
       type: "object",
       properties: {
         pointsObtained: {
           type: "number",
-          description: "Total des points obtenus"
+          description: "Total des points obtenus",
         },
         pointsTotal: {
           type: "number",
-          description: "Total des points possibles"
+          description: "Total des points possibles",
         },
         percentage: {
           type: "number",
-          description: "Pourcentage de réussite"
+          description: "Pourcentage de réussite",
         },
         grade: {
           type: "string",
-          description: "Appréciation globale française (Très bien, Bien, Assez bien, etc.)"
-        }
+          description:
+            "Appréciation globale française (Très bien, Bien, Assez bien, etc.)",
+        },
       },
-      required: [
-        "pointsObtained",
-        "pointsTotal",
-        "percentage",
-        "grade"
-      ],
-      additionalProperties: false
+      required: ["pointsObtained", "pointsTotal", "percentage", "grade"],
+      additionalProperties: false,
     },
     recommendations: {
       type: "array",
       items: {
-        type: "string"
+        type: "string",
       },
-      description: "Recommandations personnalisées pour l'amélioration"
-    }
+      description: "Recommandations personnalisées pour l'amélioration",
+    },
   },
-  required: [
-    "corrections",
-    "globalScore",
-    "recommendations"
-  ],
-  additionalProperties: false
+  required: ["corrections", "globalScore", "recommendations"],
+  additionalProperties: false,
 };
 
 const QUIZ_CORRECTION_COMPLETE_SCHEMA = {
@@ -351,54 +353,49 @@ const QUIZ_CORRECTION_COMPLETE_SCHEMA = {
         properties: {
           questionId: {
             type: "string",
-            description: "ID de la question corrigée"
+            description: "ID de la question corrigée",
           },
           isCorrect: {
             type: "boolean",
-            description: "Indique si la réponse est correcte"
+            description: "Indique si la réponse est correcte",
           },
           pointsObtained: {
             type: "number",
-            description: "Points obtenus pour cette question"
+            description: "Points obtenus pour cette question",
           },
           pointsTotal: {
             type: "number",
-            description: "Points maximum pour cette question"
+            description: "Points maximum pour cette question",
           },
           correctAnswer: {
             type: "string",
-            description: "La bonne réponse intégrant graphique ET document"
+            description: "La bonne réponse intégrant graphique ET document",
           },
           sourceType: {
             type: "string",
-            enum: [
-              "graphic",
-              "document", 
-              "mixed",
-              "knowledge"
-            ],
-            description: "Type de source principal pour la réponse"
+            enum: ["graphic", "document", "mixed", "knowledge"],
+            description: "Type de source principal pour la réponse",
           },
           graphicAnalysis: {
             type: "string",
-            description: "Analyse du graphique (si applicable)"
+            description: "Analyse du graphique (si applicable)",
           },
           documentReference: {
             type: "string",
-            description: "Référence au document (si applicable)"
+            description: "Référence au document (si applicable)",
           },
           crossAnalysis: {
             type: "string",
-            description: "Analyse croisée graphique + document (si applicable)"
+            description: "Analyse croisée graphique + document (si applicable)",
           },
           explanation: {
             type: "string",
-            description: "Explication complète intégrant toutes les sources"
+            description: "Explication complète intégrant toutes les sources",
           },
           multimediaFeedback: {
             type: "string",
-            description: "Conseils pour améliorer l'analyse multimédia"
-          }
+            description: "Conseils pour améliorer l'analyse multimédia",
+          },
         },
         required: [
           "questionId",
@@ -411,67 +408,62 @@ const QUIZ_CORRECTION_COMPLETE_SCHEMA = {
           "documentReference",
           "crossAnalysis",
           "explanation",
-          "multimediaFeedback"
+          "multimediaFeedback",
         ],
-        additionalProperties: false
-      }
+        additionalProperties: false,
+      },
     },
     globalCompetencies: {
       type: "object",
       properties: {
         visualAnalysis: {
           type: "number",
-          description: "Compétence d'analyse visuelle (graphiques) (0-10)"
+          description: "Compétence d'analyse visuelle (graphiques) (0-10)",
         },
         textualAnalysis: {
           type: "number",
-          description: "Compétence d'analyse textuelle (documents) (0-10)"
+          description: "Compétence d'analyse textuelle (documents) (0-10)",
         },
         dataIntegration: {
           type: "number",
-          description: "Capacité d'intégration multi-sources (0-10)"
+          description: "Capacité d'intégration multi-sources (0-10)",
         },
         scientificReasoning: {
           type: "number",
-          description: "Raisonnement scientifique global (0-10)"
+          description: "Raisonnement scientifique global (0-10)",
         },
         criticalThinking: {
           type: "number",
-          description: "Esprit critique et analyse (0-10)"
-        }
+          description: "Esprit critique et analyse (0-10)",
+        },
       },
       required: [
         "visualAnalysis",
         "textualAnalysis",
         "dataIntegration",
         "scientificReasoning",
-        "criticalThinking"
+        "criticalThinking",
       ],
-      additionalProperties: false
+      additionalProperties: false,
     },
     globalScore: {
       type: "object",
       properties: {
         pointsObtained: {
-          type: "number"
+          type: "number",
         },
         pointsTotal: {
-          type: "number"
+          type: "number",
         },
         percentage: {
-          type: "number"
+          type: "number",
         },
         grade: {
-          type: "string"
-        }
+          type: "string",
+        },
       },
-      required: [
-        "pointsObtained",
-        "pointsTotal",
-        "percentage",
-        "grade"
-      ],
-      additionalProperties: false
+      required: ["pointsObtained", "pointsTotal", "percentage", "grade"],
+      additionalProperties: false,
     },
     learningPath: {
       type: "array",
@@ -480,36 +472,32 @@ const QUIZ_CORRECTION_COMPLETE_SCHEMA = {
         properties: {
           competency: {
             type: "string",
-            description: "Compétence à améliorer"
+            description: "Compétence à améliorer",
           },
           recommendation: {
             type: "string",
-            description: "Recommandation d'apprentissage personnalisée"
+            description: "Recommandation d'apprentissage personnalisée",
           },
           resources: {
             type: "array",
             items: {
-              type: "string"
+              type: "string",
             },
-            description: "Ressources pédagogiques suggérées"
-          }
+            description: "Ressources pédagogiques suggérées",
+          },
         },
-        required: [
-          "competency",
-          "recommendation",
-          "resources"
-        ],
-        additionalProperties: false
-      }
-    }
+        required: ["competency", "recommendation", "resources"],
+        additionalProperties: false,
+      },
+    },
   },
   required: [
     "corrections",
     "globalCompetencies",
     "globalScore",
-    "learningPath"
+    "learningPath",
   ],
-  additionalProperties: false
+  additionalProperties: false,
 };
 
 /**
@@ -522,12 +510,14 @@ export class OpenAIAssistantService {
   constructor(assistantId?: string) {
     this.assistantId = assistantId || ASSISTANT_ID;
     if (!this.assistantId) {
-      throw new Error('ASSISTANT_ID non défini dans les variables d\'environnement');
+      throw new Error(
+        "ASSISTANT_ID non défini dans les variables d'environnement",
+      );
     }
-    
+
     // 🆕 Initialiser le client OpenAI pour les chat completions
     this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
+      apiKey: process.env.OPENAI_API_KEY,
     });
   }
 
@@ -536,58 +526,86 @@ export class OpenAIAssistantService {
    */
   async generateSingleQuestion(request: any): Promise<any> {
     try {
-      console.log('🚀 [STREAMING] Génération via Chat Completion + JSON strict (gpt-4o-mini)');
-      console.log(`🧠 [STREAMING-DEBUG] ragContext dans request: ${request.ragContext ? `${request.ragContext.length} caractères` : 'VIDE ou undefined'}`);
-      
+      const generationModel = AIService.getQuizGenerationModel();
+      console.log(
+        `🚀 [STREAMING] Génération via Chat Completion + JSON strict (${generationModel})`,
+      );
+      console.log(
+        `🧠 [STREAMING-DEBUG] ragContext dans request: ${request.ragContext ? `${request.ragContext.length} caractères` : "VIDE ou undefined"}`,
+      );
+
       // Construire les messages pour chat completion
       const systemPrompt = this.buildSystemPrompt();
       const userPrompt = this.buildSingleQuestionPrompt(request);
-      
-      console.log('📤 [STREAMING] Envoi à gpt-4o-mini avec JSON strict');
-      
-      // Appel chat completion avec JSON strict
-      const completion = await this.openai.chat.completions.create({
-        model: "gpt-4o-mini", // 🎯 Modèle requis pour JSON strict
+
+      console.log(`📤 [STREAMING] Envoi à ${generationModel} avec JSON strict`);
+
+      // Configuration de base pour l'appel API
+      const apiConfig: any = {
+        model: generationModel,
         messages: [
           {
             role: "system",
-            content: systemPrompt
+            content: systemPrompt,
           },
           {
-            role: "user", 
-            content: userPrompt
-          }
+            role: "user",
+            content: userPrompt,
+          },
         ],
         response_format: {
           type: "json_schema",
           json_schema: {
             name: "quiz_question_generation",
-            strict: true, // 🎯 JSON strict activé
-            schema: QUIZ_QUESTION_SCHEMA
-          }
+            strict: true,
+            schema: QUIZ_QUESTION_SCHEMA,
+          },
         },
-        temperature: 0.7,
-        max_tokens: 2000
-      });
-      
+      };
+
+      // 🆕 Configuration spécifique GPT-5
+      if (generationModel.includes("gpt-5")) {
+        apiConfig.reasoning_effort = "low";
+        apiConfig.max_completion_tokens = 2000;
+        // GPT-5 n'accepte que temperature=1 (défaut), on ne le spécifie pas
+        console.log(
+          "🧠 [STREAMING] GPT-5-mini détecté : reasoning_effort=low, max_completion_tokens=2000, temperature=1 (défaut)",
+        );
+      } else {
+        apiConfig.temperature = 0.7;
+        apiConfig.max_tokens = 2000;
+      }
+
+      // Appel chat completion avec JSON strict
+      const completion = await this.openai.chat.completions.create(apiConfig);
+
       const responseContent = completion.choices[0]?.message?.content;
       if (!responseContent) {
-        throw new Error('Aucune réponse du modèle');
+        throw new Error("Aucune réponse du modèle");
       }
-      
+
       // Parser la réponse JSON
       const result = JSON.parse(responseContent);
-      
-      if (result && result.questions && Array.isArray(result.questions) && result.questions.length > 0) {
-        console.log('✅ [STREAMING] Question générée avec succès via chat completion');
+
+      if (
+        result &&
+        result.questions &&
+        Array.isArray(result.questions) &&
+        result.questions.length > 0
+      ) {
+        console.log(
+          "✅ [STREAMING] Question générée avec succès via chat completion",
+        );
         return result;
       }
-      
-      console.error('❌ [STREAMING] Réponse inattendue du chat completion:', result);
-      throw new Error('Aucune question valide générée');
-      
+
+      console.error(
+        "❌ [STREAMING] Réponse inattendue du chat completion:",
+        result,
+      );
+      throw new Error("Aucune question valide générée");
     } catch (error) {
-      console.error('❌ [STREAMING] Erreur génération question:', error);
+      console.error("❌ [STREAMING] Erreur génération question:", error);
       throw error;
     }
   }
@@ -626,10 +644,10 @@ Tu DOIS impérativement retourner une réponse au format JSON strict fourni.`;
    * 🆕 Construit le prompt utilisateur pour générer une seule question (optimisé chat completion)
    */
   private buildSingleQuestionPrompt(request: any): string {
-    const { 
-      schoolLevel, 
-      questionTypes, 
-      specificSubject, 
+    const {
+      schoolLevel,
+      questionTypes,
+      specificSubject,
       existingQuestions = [],
       lyceeSpecialties = [],
       focusSpecialty,
@@ -637,12 +655,14 @@ Tu DOIS impérativement retourner une réponse au format JSON strict fourni.`;
       higherEdField,
       ragContext,
       coursesOnly = false,
-      difficulty = 'moyen'
+      difficulty = "moyen",
     } = request;
 
     // 🧠 Debug: Vérifier toutes les propriétés
     console.log(`🔍 [CHAT-COMPLETION-DEBUG] Propriétés reçues:`);
-    console.log(`  - ragContext: ${ragContext ? `${ragContext.length} chars` : 'undefined/null'}`);
+    console.log(
+      `  - ragContext: ${ragContext ? `${ragContext.length} chars` : "undefined/null"}`,
+    );
     console.log(`  - coursesOnly: ${coursesOnly}`);
     console.log(`  - specificSubject: ${specificSubject}`);
     console.log(`  - questionType: ${questionTypes[0]}`);
@@ -654,8 +674,8 @@ Tu DOIS impérativement retourner une réponse au format JSON strict fourni.`;
 
 PARAMÈTRES :
 - Niveau scolaire : ${schoolLevel}
-- Type de question : ${questionTypes[0] || 'MULTIPLE_CHOICE'}
-- Sujet : ${specificSubject || 'Général'}
+- Type de question : ${questionTypes[0] || "MULTIPLE_CHOICE"}
+- Sujet : ${specificSubject || "Général"}
 - Difficulté : ${difficulty}
 - ID question : ${questionId}
 
@@ -665,14 +685,16 @@ PARAMÈTRES :
 - NE PAS varier les points selon la difficulté`;
 
     if (lyceeSpecialties.length > 0) {
-      const formattedSpecialties = lyceeSpecialties.map((specialty: string) => formatSpecialtyLabel(specialty) || specialty);
-      prompt += `\n- Spécialités Lycée : ${formattedSpecialties.join(', ')}`;
+      const formattedSpecialties = lyceeSpecialties.map(
+        (specialty: string) => formatSpecialtyLabel(specialty) || specialty,
+      );
+      prompt += `\n- Spécialités Lycée : ${formattedSpecialties.join(", ")}`;
     }
 
     if (focusSpecialtyLabel) {
       prompt += `\n- Spécialité ciblée pour cette question : ${focusSpecialtyLabel}`;
     } else if (focusSpecialty) {
-      prompt += `\n- Spécialité ciblée pour cette question : ${formatSpecialtyLabel(String(focusSpecialty)) || String(focusSpecialty).replace(/_/g, ' ')}`;
+      prompt += `\n- Spécialité ciblée pour cette question : ${formatSpecialtyLabel(String(focusSpecialty)) || String(focusSpecialty).replace(/_/g, " ")}`;
     }
 
     if (higherEdField) {
@@ -681,7 +703,9 @@ PARAMÈTRES :
 
     // Intégration du contexte RAG
     if (ragContext && ragContext.trim().length > 0) {
-      console.log(`🧠 [CHAT-COMPLETION] Contexte RAG reçu: ${ragContext.length} caractères, coursesOnly: ${coursesOnly}`);
+      console.log(
+        `🧠 [CHAT-COMPLETION] Contexte RAG reçu: ${ragContext.length} caractères, coursesOnly: ${coursesOnly}`,
+      );
       if (coursesOnly) {
         prompt += `\n\n🎯 CONTENU OBLIGATOIRE À UTILISER :
 Tu DOIS baser ta question UNIQUEMENT sur ce contenu. N'utilise PAS tes connaissances générales.
@@ -702,14 +726,14 @@ ${ragContext}`;
     // Éviter les doublons
     if (existingQuestions.length > 0) {
       prompt += `\n\n🚫 QUESTIONS DÉJÀ GÉNÉRÉES (${existingQuestions.length}) - ÉVITER LES DOUBLONS :
-${existingQuestions.map((q: any, i: number) => `${i + 1}. ${q.question}`).join('\n')}
+${existingQuestions.map((q: any, i: number) => `${i + 1}. ${q.question}`).join("\n")}
 
 ⚠️ IMPORTANT : Génère une question COMPLÈTEMENT DIFFÉRENTE et ORIGINALE.`;
     }
 
     // Instructions spécifiques selon le type
     switch (questionTypes[0]) {
-      case 'MULTIPLE_CHOICE':
+      case "MULTIPLE_CHOICE":
         prompt += `\n\n📝 INSTRUCTIONS QCM :
 - Crée exactement 4 options (A, B, C, D)
 - Une seule option correcte
@@ -719,7 +743,7 @@ ${existingQuestions.map((q: any, i: number) => `${i + 1}. ${q.question}`).join('
 - rightColumn = [] (array vide)
 - correctMatches = [] (array vide)`;
         break;
-      case 'TRUE_FALSE':
+      case "TRUE_FALSE":
         prompt += `\n\n📝 INSTRUCTIONS VRAI/FAUX :
 - Crée exactement 2 options : "Vrai" et "Faux"
 - Affirmation claire et précise
@@ -728,7 +752,7 @@ ${existingQuestions.map((q: any, i: number) => `${i + 1}. ${q.question}`).join('
 - rightColumn = [] (array vide)
 - correctMatches = [] (array vide)`;
         break;
-      case 'OPEN_QUESTION':
+      case "OPEN_QUESTION":
         prompt += `\n\n📝 INSTRUCTIONS QUESTION OUVERTE :
 - Question nécessitant une réponse développée
 - Fournis une réponse modèle détaillée
@@ -737,7 +761,7 @@ ${existingQuestions.map((q: any, i: number) => `${i + 1}. ${q.question}`).join('
 - rightColumn = [] (array vide)
 - correctMatches = [] (array vide)`;
         break;
-      case 'MATCHING':
+      case "MATCHING":
         prompt += `\n\n📝 INSTRUCTIONS MATCHING :
 - Question d'association d'éléments (terme → définition)
 - Minimum 4 paires à associer
@@ -783,76 +807,102 @@ Assure-toi que tous les champs obligatoires sont remplis avec des valeurs approp
    * Génère un quiz personnalisé via l'assistant
    */
   async generateQuiz(options: {
-    preset: 'BREVET' | 'BAC' | 'PARTIELS';
+    preset: "BREVET" | "BAC" | "PARTIELS";
     subject: string;
     numQuestions: number;
-    difficulty?: 'facile' | 'moyen' | 'difficile';
+    difficulty?: "facile" | "moyen" | "difficile";
     includeGraphics?: boolean;
     includeDocuments?: boolean;
     questionTypes?: string[];
     documentTopics?: string[];
   }): Promise<any> {
-    console.log('🚀 Assistant Principal (system prompt supprimé) avec Prompt Caching 2024');
+    console.log(
+      "🚀 Assistant Principal (system prompt supprimé) avec Prompt Caching 2024",
+    );
     const threadId = await createAssistantThread();
-    
-    // Contenu dynamique (paramètres variables)  
+
+    // Contenu dynamique (paramètres variables)
     const dynamicContent = buildDynamicQuizContent({
-      level: options.preset === 'BREVET' ? 'COLLEGE' : options.preset === 'BAC' ? 'LYCEE' : 'SUPERIEUR',
+      level:
+        options.preset === "BREVET"
+          ? "COLLEGE"
+          : options.preset === "BAC"
+            ? "LYCEE"
+            : "SUPERIEUR",
       preset: options.preset,
       subject: options.subject,
       questionCount: options.numQuestions,
-      questionTypes: options.questionTypes || ['QCM'],
+      questionTypes: options.questionTypes || ["QCM"],
       difficulty: options.difficulty,
       includeDocuments: options.includeDocuments,
       includeGraphics: options.includeGraphics,
-      documentTopics: options.documentTopics
+      documentTopics: options.documentTopics,
     });
-    
+
     // Construction du prompt COMPLET (system + user) optimisé pour le cache
-    const optimizedPrompt = buildFullCachedPrompt('PRINCIPAL', dynamicContent, {
+    const optimizedPrompt = buildFullCachedPrompt("PRINCIPAL", dynamicContent, {
       includeDocuments: options.includeDocuments,
       includeGraphics: options.includeGraphics,
-      includeCorrection: false
+      includeCorrection: false,
     });
-    
-    console.log(`📊 Assistant Principal Caching - Prompt: ${Math.round(optimizedPrompt.length/1024)}KB`);
-    
+
+    console.log(
+      `📊 Assistant Principal Caching - Prompt: ${Math.round(optimizedPrompt.length / 1024)}KB`,
+    );
+
     await addMessageToThread(threadId, optimizedPrompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     return await waitForRunCompletion(threadId, runId);
   }
 
   /**
    * Génère un quiz basé sur un preset prédéfini
    */
-  async generatePresetQuiz(preset: 'BREVET' | 'BAC' | 'PARTIELS', subject?: string, questionCount: number = 10): Promise<any> {
-    console.log('🚀 Preset Quiz avec Prompt Caching OpenAI 2024');
+  async generatePresetQuiz(
+    preset: "BREVET" | "BAC" | "PARTIELS",
+    subject?: string,
+    questionCount: number = 10,
+  ): Promise<any> {
+    console.log("🚀 Preset Quiz avec Prompt Caching OpenAI 2024");
     const threadId = await createAssistantThread();
-    
+
     // PROMPT CACHING: Instructions complètes pour preset (documents + graphiques)
-    const staticInstructions = STATIC_BASE_INSTRUCTIONS + "\n\n" + 
-                               STATIC_DOCUMENT_INSTRUCTIONS + "\n\n" + 
-                               STATIC_GRAPHICS_INSTRUCTIONS;
-    
+    const staticInstructions =
+      STATIC_BASE_INSTRUCTIONS +
+      "\n\n" +
+      STATIC_DOCUMENT_INSTRUCTIONS +
+      "\n\n" +
+      STATIC_GRAPHICS_INSTRUCTIONS;
+
     // Paramètres dynamiques pour preset
     const dynamicContent = buildDynamicQuizContent({
-      level: preset === 'BREVET' ? 'COLLEGE' : preset === 'BAC' ? 'LYCEE' : 'SUPERIEUR',
+      level:
+        preset === "BREVET"
+          ? "COLLEGE"
+          : preset === "BAC"
+            ? "LYCEE"
+            : "SUPERIEUR",
       preset: preset,
       subject: subject || `Sujet général ${preset}`,
       questionCount: questionCount,
-      questionTypes: ['QCM', 'VRAI_FAUX'],
+      questionTypes: ["QCM", "VRAI_FAUX"],
       includeDocuments: true, // Presets utilisent toujours des documents
-      includeGraphics: preset === 'BAC', // Graphiques pour BAC uniquement
-      specificSubject: subject
+      includeGraphics: preset === "BAC", // Graphiques pour BAC uniquement
+      specificSubject: subject,
     });
-    
-    const optimizedPrompt = buildCachedPrompt(staticInstructions, dynamicContent);
-    console.log(`📊 Preset Caching - Taille: ${Math.round(optimizedPrompt.length/1024)}KB`);
-    
+
+    const optimizedPrompt = buildCachedPrompt(
+      staticInstructions,
+      dynamicContent,
+    );
+    console.log(
+      `📊 Preset Caching - Taille: ${Math.round(optimizedPrompt.length / 1024)}KB`,
+    );
+
     await addMessageToThread(threadId, optimizedPrompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     return await waitForRunCompletion(threadId, runId);
   }
 
@@ -863,37 +913,46 @@ Assure-toi que tous les champs obligatoires sont remplis avec des valeurs approp
    */
   async correctStandardQuiz(
     quizId: string,
-    answers: Array<{questionId: string, answer: string, timeSpent?: number}>,
-    questions?: Array<{id: string, question: string, options: Array<{id: string, text: string}>, correctAnswerId: string}>,
+    answers: Array<{ questionId: string; answer: string; timeSpent?: number }>,
+    questions?: Array<{
+      id: string;
+      question: string;
+      options: Array<{ id: string; text: string }>;
+      correctAnswerId: string;
+    }>,
     options: {
       includeRecommendations?: boolean;
       personalizedFeedback?: boolean;
-    } = {}
+    } = {},
   ): Promise<any> {
-    console.log('🚀 Correction optimisée (system prompt supprimé) avec Prompt Caching 2024');
+    console.log(
+      "🚀 Correction optimisée (system prompt supprimé) avec Prompt Caching 2024",
+    );
     const threadId = await createAssistantThread();
-    
+
     // Contenu dynamique pour la correction
     const dynamicContent = buildDynamicCorrectionContent({
       quizId,
       answers,
       questions,
       personalizedFeedback: options.personalizedFeedback,
-      includeRecommendations: options.includeRecommendations
+      includeRecommendations: options.includeRecommendations,
     });
-    
+
     // Prompt complet pour correction
-    const optimizedPrompt = buildFullCachedPrompt('PRINCIPAL', dynamicContent, {
+    const optimizedPrompt = buildFullCachedPrompt("PRINCIPAL", dynamicContent, {
       includeDocuments: false,
       includeGraphics: false,
-      includeCorrection: true
+      includeCorrection: true,
     });
-    
-    console.log(`📊 Correction Caching - Prompt: ${Math.round(optimizedPrompt.length/1024)}KB`);
+
+    console.log(
+      `📊 Correction Caching - Prompt: ${Math.round(optimizedPrompt.length / 1024)}KB`,
+    );
 
     await addMessageToThread(threadId, optimizedPrompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     return await waitForRunCompletion(threadId, runId);
   }
 
@@ -902,26 +961,26 @@ Assure-toi que tous les champs obligatoires sont remplis avec des valeurs approp
    */
   async correctGraphicsQuiz(
     quizId: string,
-    answers: Array<{questionId: string, answer: string, timeSpent?: number}>,
+    answers: Array<{ questionId: string; answer: string; timeSpent?: number }>,
     graphicsData: Array<{
       graphicId: string;
       config: any;
-      library: 'apexcharts' | 'plotly';
+      library: "apexcharts" | "plotly";
       dataValues: number[];
       // 🆕 PROPRIÉTÉS ADDITIONNELLES ENRICHIES:
-      type?: string;              // Type de graphique (2d/3d)
-      description?: string;       // Description textuelle pour l'IA
-      htmlContainer?: string;     // Container HTML
-      questionText?: string;      // Texte de la question associée
-      questionId?: string;        // ID de la question pour référence
+      type?: string; // Type de graphique (2d/3d)
+      description?: string; // Description textuelle pour l'IA
+      htmlContainer?: string; // Container HTML
+      questionText?: string; // Texte de la question associée
+      questionId?: string; // ID de la question pour référence
     }>,
     options: {
       analyzeVisualSkills?: boolean;
       includeTrendAnalysis?: boolean;
-    } = {}
+    } = {},
   ): Promise<any> {
     const threadId = await createAssistantThread();
-    
+
     const prompt = `Corrige ce quiz avec graphiques en utilisant correct_quiz_with_graphics.
 
 Données du quiz:
@@ -932,14 +991,14 @@ Données graphiques sources:
 ${JSON.stringify(graphicsData, null, 2)}
 
 Options d'analyse:
-- Compétences visuelles: ${options.analyzeVisualSkills ? 'Oui' : 'Non'}
-- Analyse des tendances: ${options.includeTrendAnalysis ? 'Oui' : 'Non'}
+- Compétences visuelles: ${options.analyzeVisualSkills ? "Oui" : "Non"}
+- Analyse des tendances: ${options.includeTrendAnalysis ? "Oui" : "Non"}
 
 Évalue les compétences de lecture graphique et d'analyse des données.`;
 
     await addMessageToThread(threadId, prompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     return await waitForRunCompletion(threadId, runId);
   }
 
@@ -948,7 +1007,7 @@ Options d'analyse:
    */
   async correctDocumentaryQuiz(
     quizId: string,
-    answers: Array<{questionId: string, answer: string, timeSpent?: number}>,
+    answers: Array<{ questionId: string; answer: string; timeSpent?: number }>,
     documentsData: Array<{
       documentId: string;
       title: string;
@@ -959,10 +1018,10 @@ Options d'analyse:
     options: {
       analyzeComprehension?: boolean;
       includeTextualEvidence?: boolean;
-    } = {}
+    } = {},
   ): Promise<any> {
     const threadId = await createAssistantThread();
-    
+
     const prompt = `Corrige ce quiz documentaire en utilisant correct_quiz_with_documents.
 
 Données du quiz:
@@ -973,14 +1032,14 @@ Documents Wikipedia sources:
 ${JSON.stringify(documentsData, null, 2)}
 
 Options d'analyse:
-- Compréhension textuelle: ${options.analyzeComprehension ? 'Oui' : 'Non'}
-- Preuves textuelles: ${options.includeTextualEvidence ? 'Oui' : 'Non'}
+- Compréhension textuelle: ${options.analyzeComprehension ? "Oui" : "Non"}
+- Preuves textuelles: ${options.includeTextualEvidence ? "Oui" : "Non"}
 
 Évalue les compétences d'analyse documentaire et de synthèse.`;
 
     await addMessageToThread(threadId, prompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     return await waitForRunCompletion(threadId, runId);
   }
 
@@ -990,25 +1049,34 @@ Options d'analyse:
    */
   async correctDocumentaryQuizWithFiles(
     quizId: string,
-    answers: Array<{questionId: string, answer: string, timeSpent?: number}>,
-    documentsData: Array<{ reference: string, questionId: string }>, // Données des questions documentaires
-    questions: Array<{id: string, type: string, question: string, options?: any[]}>, // NOUVEAU: Questions complètes avec types
+    answers: Array<{ questionId: string; answer: string; timeSpent?: number }>,
+    documentsData: Array<{ reference: string; questionId: string }>, // Données des questions documentaires
+    questions: Array<{
+      id: string;
+      type: string;
+      question: string;
+      options?: any[];
+    }>, // NOUVEAU: Questions complètes avec types
     options: {
       analyzeComprehension?: boolean;
       includeTextualEvidence?: boolean;
-    } = {}  
+    } = {},
   ): Promise<any> {
     try {
-      const uniqueFileIds = [...new Set(documentsData.map(d => d.reference))];
-      console.log(`📝 Correction quiz documentaire avec ${uniqueFileIds.length} fichiers complets...`);
-      
+      const uniqueFileIds = [...new Set(documentsData.map((d) => d.reference))];
+      console.log(
+        `📝 Correction quiz documentaire avec ${uniqueFileIds.length} fichiers complets...`,
+      );
+
       const threadId = await createAssistantThread();
-      
+
       // Séparer les questions par type pour un traitement adapté
-      const openQuestions = questions.filter(q => q.type === 'OPEN_QUESTION');
-      const multipleChoiceQuestions = questions.filter(q => q.type === 'MULTIPLE_CHOICE');
-      const documentaryQuestions = questions.filter(q => 
-        documentsData.some(doc => doc.questionId === q.id)
+      const openQuestions = questions.filter((q) => q.type === "OPEN_QUESTION");
+      const multipleChoiceQuestions = questions.filter(
+        (q) => q.type === "MULTIPLE_CHOICE",
+      );
+      const documentaryQuestions = questions.filter((q) =>
+        documentsData.some((doc) => doc.questionId === q.id),
       );
 
       const prompt = `Corrige ce quiz COMPLET en utilisant correct_quiz_with_documents.
@@ -1021,20 +1089,22 @@ Options d'analyse:
 - Questions documentaires: ${documentaryQuestions.length}
 
 🔹 QUESTIONS DÉTAILLÉES:
-${questions.map(q => {
-  const userAnswer = answers.find(a => a.questionId === q.id);
-  const docData = documentsData.find(doc => doc.questionId === q.id);
-  return `
+${questions
+  .map((q) => {
+    const userAnswer = answers.find((a) => a.questionId === q.id);
+    const docData = documentsData.find((doc) => doc.questionId === q.id);
+    return `
 Question ${q.id} (Type: ${q.type}):
 Question: ${q.question}
-${q.options ? `Options: ${q.options.map(opt => `${opt.id}. ${opt.text}`).join(', ')}` : ''}
-Réponse utilisateur: "${userAnswer?.answer || 'Pas de réponse'}"
-${docData ? `Document de référence: ${docData.reference}` : 'Aucun document'}
+${q.options ? `Options: ${q.options.map((opt) => `${opt.id}. ${opt.text}`).join(", ")}` : ""}
+Réponse utilisateur: "${userAnswer?.answer || "Pas de réponse"}"
+${docData ? `Document de référence: ${docData.reference}` : "Aucun document"}
 ---`;
-}).join('\n')}
+  })
+  .join("\n")}
 
 🔹 DOCUMENTS DISPONIBLES:
-- Files IDs: ${uniqueFileIds.join(', ')}
+- Files IDs: ${uniqueFileIds.join(", ")}
 - Vous avez accès au CONTENU COMPLET de ces documents
 
 🔹 INSTRUCTIONS SPÉCIFIQUES PAR TYPE:
@@ -1057,15 +1127,17 @@ ${docData ? `Document de référence: ${docData.reference}` : 'Aucun document'}
 CORRECTION OBLIGATOIRE DES ${questions.length} QUESTIONS AVEC TYPES APPROPRIÉS !`;
 
       await addMessageToThread(threadId, prompt);
-      
+
       // OPTIMISATION: Utiliser l'Assistant spécialisé pour documents (gpt-4o-mini)
       const documentAssistantId = ASSISTANT_ID_DOCUMENTS;
-      console.log(`🚀 Utilisation de l'Assistant optimisé pour correction documents: ${documentAssistantId}`);
+      console.log(
+        `🚀 Utilisation de l'Assistant optimisé pour correction documents: ${documentAssistantId}`,
+      );
       const runId = await runAssistantOnThread(threadId, documentAssistantId);
-      
-      // TIMEOUT RÉDUIT: gpt-4o-mini est 10x plus rapide  
+
+      // TIMEOUT RÉDUIT: gpt-4o-mini est 10x plus rapide
       const result = await waitForRunCompletion(threadId, runId, 60);
-      
+
       // Ajouter les métadonnées de correction
       if (result) {
         result.fileCorrectionMetadata = {
@@ -1073,16 +1145,17 @@ CORRECTION OBLIGATOIRE DES ${questions.length} QUESTIONS AVEC TYPES APPROPRIÉS 
           fileIds: uniqueFileIds,
           totalQuestions: answers.length,
           documentaryQuestions: documentsData.length,
-          correctionMethod: 'full_documents_via_files',
-          timestamp: new Date().toISOString()
+          correctionMethod: "full_documents_via_files",
+          timestamp: new Date().toISOString(),
         };
       }
-      
-      console.log(`✅ Correction terminée avec ${uniqueFileIds.length} fichiers complets`);
+
+      console.log(
+        `✅ Correction terminée avec ${uniqueFileIds.length} fichiers complets`,
+      );
       return result;
-      
     } catch (error) {
-      console.error('❌ Erreur correction avec fichiers:', error);
+      console.error("❌ Erreur correction avec fichiers:", error);
       throw error;
     }
   }
@@ -1092,18 +1165,18 @@ CORRECTION OBLIGATOIRE DES ${questions.length} QUESTIONS AVEC TYPES APPROPRIÉS 
    */
   async correctCompleteQuiz(
     quizId: string,
-    answers: Array<{questionId: string, answer: string, timeSpent?: number}>,
+    answers: Array<{ questionId: string; answer: string; timeSpent?: number }>,
     graphicsData: Array<{
       graphicId: string;
       config: any;
-      library: 'apexcharts' | 'plotly';
+      library: "apexcharts" | "plotly";
       dataValues: number[];
       // 🆕 PROPRIÉTÉS ADDITIONNELLES ENRICHIES:
-      type?: string;              // Type de graphique (2d/3d)
-      description?: string;       // Description textuelle pour l'IA
-      htmlContainer?: string;     // Container HTML
-      questionText?: string;      // Texte de la question associée
-      questionId?: string;        // ID de la question pour référence
+      type?: string; // Type de graphique (2d/3d)
+      description?: string; // Description textuelle pour l'IA
+      htmlContainer?: string; // Container HTML
+      questionText?: string; // Texte de la question associée
+      questionId?: string; // ID de la question pour référence
     }>,
     documentsData: Array<{
       documentId: string;
@@ -1116,10 +1189,10 @@ CORRECTION OBLIGATOIRE DES ${questions.length} QUESTIONS AVEC TYPES APPROPRIÉS 
       analyzeCrossReferences?: boolean;
       generateLearningPath?: boolean;
       detailedCompetencies?: boolean;
-    } = {}
+    } = {},
   ): Promise<any> {
     const threadId = await createAssistantThread();
-    
+
     const prompt = `Corrige ce quiz complet multimédia en utilisant correct_quiz_complete.
 
 Données du quiz:
@@ -1133,15 +1206,15 @@ Documents Wikipedia sources:
 ${JSON.stringify(documentsData, null, 2)}
 
 Options d'analyse avancée:
-- Références croisées: ${options.analyzeCrossReferences ? 'Oui' : 'Non'}
-- Parcours d'apprentissage: ${options.generateLearningPath ? 'Oui' : 'Non'}
-- Compétences détaillées: ${options.detailedCompetencies ? 'Oui' : 'Non'}
+- Références croisées: ${options.analyzeCrossReferences ? "Oui" : "Non"}
+- Parcours d'apprentissage: ${options.generateLearningPath ? "Oui" : "Non"}
+- Compétences détaillées: ${options.detailedCompetencies ? "Oui" : "Non"}
 
 Fais une analyse croisée graphiques + documents avec parcours personnalisé.`;
 
     await addMessageToThread(threadId, prompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     return await waitForRunCompletion(threadId, runId);
   }
 
@@ -1149,47 +1222,63 @@ Fais une analyse croisée graphiques + documents avec parcours personnalisé.`;
    * Méthode de correction générique (compatibilité)
    */
   async correctQuiz(
-    quizId: string, 
-    answers: Array<{question_id: string, user_answer: string}>,
+    quizId: string,
+    answers: Array<{ question_id: string; user_answer: string }>,
     options: {
-      type?: 'standard' | 'with_graphics' | 'with_documents' | 'complete';
+      type?: "standard" | "with_graphics" | "with_documents" | "complete";
       graphicsData?: any[];
       documentsData?: any[];
       [key: string]: any;
-    } = {}
+    } = {},
   ): Promise<any> {
-    const formattedAnswers = answers.map(a => ({
+    const formattedAnswers = answers.map((a) => ({
       questionId: a.question_id,
-      answer: a.user_answer
+      answer: a.user_answer,
     }));
 
     // 🆕 Utiliser les nouvelles méthodes Chat Completion
     switch (options.type) {
-      case 'with_graphics':
-        return this.correctCompleteQuizChatCompletion(quizId, formattedAnswers, {
-          graphicsData: options.graphicsData || [],
-          documentsData: [],
-          correctionType: 'graphics',
-          questions: options.questions
-        });
-      case 'with_documents':
-        return this.correctCompleteQuizChatCompletion(quizId, formattedAnswers, {
-          graphicsData: [],
-          documentsData: options.documentsData || [],
-          correctionType: 'documents',
-          questions: options.questions
-        });
-      case 'complete':
-        return this.correctCompleteQuizChatCompletion(quizId, formattedAnswers, {
-          graphicsData: options.graphicsData || [],
-          documentsData: options.documentsData || [],
-          correctionType: 'complete',
-          questions: options.questions
-        });
+      case "with_graphics":
+        return this.correctCompleteQuizChatCompletion(
+          quizId,
+          formattedAnswers,
+          {
+            graphicsData: options.graphicsData || [],
+            documentsData: [],
+            correctionType: "graphics",
+            questions: options.questions,
+          },
+        );
+      case "with_documents":
+        return this.correctCompleteQuizChatCompletion(
+          quizId,
+          formattedAnswers,
+          {
+            graphicsData: [],
+            documentsData: options.documentsData || [],
+            correctionType: "documents",
+            questions: options.questions,
+          },
+        );
+      case "complete":
+        return this.correctCompleteQuizChatCompletion(
+          quizId,
+          formattedAnswers,
+          {
+            graphicsData: options.graphicsData || [],
+            documentsData: options.documentsData || [],
+            correctionType: "complete",
+            questions: options.questions,
+          },
+        );
       default:
-        return this.correctStandardQuizChatCompletion(quizId, formattedAnswers, {
-          questions: options.questions
-        });
+        return this.correctStandardQuizChatCompletion(
+          quizId,
+          formattedAnswers,
+          {
+            questions: options.questions,
+          },
+        );
     }
   }
 
@@ -1197,19 +1286,27 @@ Fais une analyse croisée graphiques + documents avec parcours personnalisé.`;
    * Génère un graphique pédagogique
    */
   async generateGraphic(options: {
-    chartType: 'line' | 'bar' | 'pie' | 'scatter' | 'area' | 'histogram' | 'box' | 'heatmap';
+    chartType:
+      | "line"
+      | "bar"
+      | "pie"
+      | "scatter"
+      | "area"
+      | "histogram"
+      | "box"
+      | "heatmap";
     title: string;
     data: any;
-    library: 'apexcharts' | 'plotly';
+    library: "apexcharts" | "plotly";
     educationalContext?: string;
   }): Promise<any> {
     const threadId = await createAssistantThread();
-    
+
     const prompt = `Génère un graphique pédagogique avec les spécifications suivantes: ${JSON.stringify(options)}. Utilise la fonction generate_graphic.`;
-    
+
     await addMessageToThread(threadId, prompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     return await waitForRunCompletion(threadId, runId);
   }
 
@@ -1217,18 +1314,18 @@ Fais une analyse croisée graphiques + documents avec parcours personnalisé.`;
    * Recherche et enrichit un sujet avec des documents
    */
   async enrichSubjectWithDocuments(
-    subject: string, 
-    preset: 'BREVET' | 'BAC' | 'PARTIELS',
+    subject: string,
+    preset: "BREVET" | "BAC" | "PARTIELS",
     keywords?: string[],
-    maxDocuments = 3
+    maxDocuments = 3,
   ): Promise<any> {
     const threadId = await createAssistantThread();
-    
-    const prompt = `Enrichis le sujet "${subject}" pour le niveau ${preset} avec des documents Wikipedia pertinents. Utilise generate_subject_with_documents${keywords ? ` avec les mots-clés: ${keywords.join(', ')}` : ''} et un maximum de ${maxDocuments} documents.`;
-    
+
+    const prompt = `Enrichis le sujet "${subject}" pour le niveau ${preset} avec des documents Wikipedia pertinents. Utilise generate_subject_with_documents${keywords ? ` avec les mots-clés: ${keywords.join(", ")}` : ""} et un maximum de ${maxDocuments} documents.`;
+
     await addMessageToThread(threadId, prompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     return await waitForRunCompletion(threadId, runId);
   }
 
@@ -1237,10 +1334,10 @@ Fais une analyse croisée graphiques + documents avec parcours personnalisé.`;
    */
   async chat(message: string): Promise<any> {
     const threadId = await createAssistantThread();
-    
+
     await addMessageToThread(threadId, message);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     return await waitForRunCompletion(threadId, runId);
   }
 
@@ -1250,61 +1347,65 @@ Fais une analyse croisée graphiques + documents avec parcours personnalisé.`;
    * Génère un quiz avec graphiques pédagogiques
    */
   async generateQuizWithGraphics(options: {
-    preset: 'BREVET' | 'BAC' | 'PARTIELS';
+    preset: "BREVET" | "BAC" | "PARTIELS";
     subject: string;
     numQuestions: number;
-    graphicType?: '2d' | '3d';
-    library?: 'apexcharts' | 'plotly';
-    difficulty?: 'facile' | 'moyen' | 'difficile';
+    graphicType?: "2d" | "3d";
+    library?: "apexcharts" | "plotly";
+    difficulty?: "facile" | "moyen" | "difficile";
     questionTypes?: string[];
   }): Promise<any> {
     const threadId = await createAssistantThread();
-    
-    const questionTypesText = options.questionTypes && options.questionTypes.length > 0 ?
-      `\n🚨 TYPES DE QUESTIONS OBLIGATOIRES : Utilise EXCLUSIVEMENT ces types : ${options.questionTypes.join(', ')}\n⛔ INTERDIT : Tout autre type de question non spécifié par l'utilisateur` :
-      '\n📝 Types de questions : Utilise la répartition par défaut du system prompt';
+
+    const questionTypesText =
+      options.questionTypes && options.questionTypes.length > 0
+        ? `\n🚨 TYPES DE QUESTIONS OBLIGATOIRES : Utilise EXCLUSIVEMENT ces types : ${options.questionTypes.join(", ")}\n⛔ INTERDIT : Tout autre type de question non spécifié par l'utilisateur`
+        : "\n📝 Types de questions : Utilise la répartition par défaut du system prompt";
 
     const prompt = `Génère un quiz avec graphiques pour ${options.preset} sur "${options.subject}".${questionTypesText}
     
-1. D'abord utilise generate_graphic pour créer un graphique pédagogique ${options.graphicType || '2d'} avec ${options.library || 'apexcharts'}
+1. D'abord utilise generate_graphic pour créer un graphique pédagogique ${options.graphicType || "2d"} avec ${options.library || "apexcharts"}
 2. Puis utilise generate_questions_array pour créer ${options.numQuestions} questions basées sur ce graphique
-3. Niveau de difficulté: ${options.difficulty || 'moyen'}
+3. Niveau de difficulté: ${options.difficulty || "moyen"}
 
 Assure-toi que les questions exploitent bien l'analyse graphique.`;
 
     await addMessageToThread(threadId, prompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     const result = await waitForRunCompletion(threadId, runId);
-    
+
     // NOUVEAU: Créer subjects pour les presets si un subject existe, sinon créer un subject par défaut
     if (result) {
       if (result.subject && result.subject.questions) {
         result.subjects = [result.subject];
         result.subjectBased = true;
-        console.log('✅ Subject transformé en subjects pour mode preset (graphics):', {
-          subjectTitle: result.subject.title,
-          questionsCount: result.subject.questions.length
-        });
+        console.log(
+          "✅ Subject transformé en subjects pour mode preset (graphics):",
+          {
+            subjectTitle: result.subject.title,
+            questionsCount: result.subject.questions.length,
+          },
+        );
       } else if (result.questions && result.questions.length > 0) {
         // Créer un subject par défaut si pas de subject mais des questions
         result.subject = {
-          id: 'default-graphics-subject',
+          id: "default-graphics-subject",
           title: `Quiz ${options.preset} - ${options.subject}`,
           questions: result.questions,
           graphics: result.graphics,
-          difficulty: options.difficulty || 'moyen'
+          difficulty: options.difficulty || "moyen",
         };
         result.subjects = [result.subject];
         result.subjectBased = true;
-        console.log('✅ Subject par défaut créé pour quiz graphique:', {
+        console.log("✅ Subject par défaut créé pour quiz graphique:", {
           subjectTitle: result.subject.title,
           questionsCount: result.questions.length,
-          graphicsCount: result.graphics?.length || 0
+          graphicsCount: result.graphics?.length || 0,
         });
       }
     }
-    
+
     return result;
   }
 
@@ -1312,41 +1413,43 @@ Assure-toi que les questions exploitent bien l'analyse graphique.`;
    * Génère un quiz avec documents Wikipedia
    */
   async generateQuizWithDocuments(options: {
-    preset: 'BREVET' | 'BAC' | 'PARTIELS';
+    preset: "BREVET" | "BAC" | "PARTIELS";
     subject: string;
     numQuestions: number;
     documentTopics?: string[];
-    difficulty?: 'facile' | 'moyen' | 'difficile';
+    difficulty?: "facile" | "moyen" | "difficile";
     questionTypes?: string[];
   }): Promise<any> {
     const threadId = await createAssistantThread();
-    
-    const topicsText = options.documentTopics ? 
-      ` avec les topics: ${options.documentTopics.join(', ')}` : '';
 
-    const questionTypesText = options.questionTypes && options.questionTypes.length > 0 ?
-      `\n🚨 TYPES DE QUESTIONS OBLIGATOIRES : Utilise EXCLUSIVEMENT ces types : ${options.questionTypes.join(', ')}\n⛔ INTERDIT : Tout autre type de question non spécifié par l'utilisateur` :
-      '\n📝 Types de questions : Utilise la répartition par défaut du system prompt (60% basées sur documents, 40% connaissances générales)';
-    
+    const topicsText = options.documentTopics
+      ? ` avec les topics: ${options.documentTopics.join(", ")}`
+      : "";
+
+    const questionTypesText =
+      options.questionTypes && options.questionTypes.length > 0
+        ? `\n🚨 TYPES DE QUESTIONS OBLIGATOIRES : Utilise EXCLUSIVEMENT ces types : ${options.questionTypes.join(", ")}\n⛔ INTERDIT : Tout autre type de question non spécifié par l'utilisateur`
+        : "\n📝 Types de questions : Utilise la répartition par défaut du system prompt (60% basées sur documents, 40% connaissances générales)";
+
     const prompt = `Génère un quiz documentaire pour ${options.preset} sur "${options.subject}".${questionTypesText}
     
 1. D'abord utilise generate_subject_with_documents pour enrichir le sujet avec des documents Wikipedia${topicsText}
 2. Puis utilise generate_questions_array pour créer ${options.numQuestions} questions
-3. Niveau de difficulté: ${options.difficulty || 'moyen'}
+3. Niveau de difficulté: ${options.difficulty || "moyen"}
 
 Équilibre bien questions documentaires et questions de connaissances.`;
 
     await addMessageToThread(threadId, prompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     const result = await waitForRunCompletion(threadId, runId);
-    
+
     // Transformer documents en sourceDocuments pour la compatibilité
     if (result && result.documents && result.documents.length > 0) {
       result.sourceDocuments = result.documents;
       result.hasDocuments = true;
     }
-    
+
     return result;
   }
 
@@ -1355,7 +1458,7 @@ Assure-toi que les questions exploitent bien l'analyse graphique.`;
    * Contourne la limite des Function Calls en uploadant les documents comme fichiers
    */
   async generateQuizWithFullDocuments(options: {
-    preset: 'BREVET' | 'BAC' | 'PARTIELS';
+    preset: "BREVET" | "BAC" | "PARTIELS";
     subject: string;
     numQuestions: number;
     documents: Array<{
@@ -1366,30 +1469,37 @@ Assure-toi que les questions exploitent bien l'analyse graphique.`;
       similarity?: number;
       source?: string;
     }>;
-    difficulty?: 'facile' | 'moyen' | 'difficile';
+    difficulty?: "facile" | "moyen" | "difficile";
     questionTypes?: string[];
   }): Promise<any> {
     try {
-      console.log(`📚 Génération quiz avec ${options.documents.length} documents complets...`);
-      
+      console.log(
+        `📚 Génération quiz avec ${options.documents.length} documents complets...`,
+      );
+
       // 1. Upload des documents comme fichiers Assistant
-      const fileIds = await assistantFileManager.uploadDocuments(options.documents);
-      
+      const fileIds = await assistantFileManager.uploadDocuments(
+        options.documents,
+      );
+
       // 2. Créer le thread Assistant
       const threadId = await createAssistantThread();
-      
+
       // 3. Prompt spécialisé pour les documents uploadés
-      const documentsInfo = options.documents.map(doc => `- "${doc.title}" (ID: ${doc.id})`).join('\n');
-      
-      const questionTypesText = options.questionTypes && options.questionTypes.length > 0 ?
-        `   - 🚨 TYPES DE QUESTIONS OBLIGATOIRES : Utilise EXCLUSIVEMENT ces types : ${options.questionTypes.join(', ')}\n   - ⛔ INTERDIT : Tout autre type de question non spécifié par l'utilisateur` :
-        `   - 📝 Types de questions : Respecte la répartition par défaut de 80% questions ouvertes (OPEN_QUESTION) et 20% QCM (MULTIPLE_CHOICE)`;
+      const documentsInfo = options.documents
+        .map((doc) => `- "${doc.title}" (ID: ${doc.id})`)
+        .join("\n");
+
+      const questionTypesText =
+        options.questionTypes && options.questionTypes.length > 0
+          ? `   - 🚨 TYPES DE QUESTIONS OBLIGATOIRES : Utilise EXCLUSIVEMENT ces types : ${options.questionTypes.join(", ")}\n   - ⛔ INTERDIT : Tout autre type de question non spécifié par l'utilisateur`
+          : `   - 📝 Types de questions : Respecte la répartition par défaut de 80% questions ouvertes (OPEN_QUESTION) et 20% QCM (MULTIPLE_CHOICE)`;
 
       const prompt = `Génère un quiz documentaire COMPLET pour ${options.preset} sur "${options.subject}".
 
 🔹 DOCUMENTS DISPONIBLES: ${fileIds.length} fichiers Wikipedia uploadés avec contenu INTEGRAL
    - ${documentsInfo}
-🔹 IDs des fichiers techniques: ${fileIds.join(', ')}
+🔹 IDs des fichiers techniques: ${fileIds.join(", ")}
 
 SÉQUENCE OBLIGATOIRE À SUIVRE:
 1. ÉTAPE 1: Utilise generate_subject_with_documents en référençant les fichiers uploadés. Dans les métadonnées, utilise les VRAIS titres des documents fournis ci-dessus.
@@ -1397,7 +1507,7 @@ SÉQUENCE OBLIGATOIRE À SUIVRE:
    - 60% des questions basées sur le contenu RÉEL des documents uploadés.
    - 40% des questions de connaissances générales du niveau ${options.preset} sur le sujet "${options.subject}".
 ${questionTypesText}
-   - Niveau: ${options.difficulty || 'moyen'}
+   - Niveau: ${options.difficulty || "moyen"}
 
 INSTRUCTIONS CRITIQUES:
 - Tu DOIS appeler les 2 fonctions dans l'ordre: generate_subject_with_documents PUIS generate_questions_array.
@@ -1408,56 +1518,64 @@ INSTRUCTIONS CRITIQUES:
 IMPORTANT: Cette génération nécessite OBLIGATOIREMENT les 2 étapes. Ne t'arrête pas après la première fonction !`;
 
       await addMessageToThread(threadId, prompt);
-      
+
       // CORRECTION: Utiliser l'Assistant principal pour la génération (gpt-4o)
       const assistantId = ASSISTANT_ID;
-      console.log(`🚀 Utilisation de l'Assistant principal pour génération avec documents: ${assistantId}`);
+      console.log(
+        `🚀 Utilisation de l'Assistant principal pour génération avec documents: ${assistantId}`,
+      );
       const runId = await runAssistantOnThread(threadId, assistantId);
-      
+
       // TIMEOUT ADAPTÉ: gpt-4o pour génération avec prompts détaillés
       const result = await waitForRunCompletion(threadId, runId, 120); // 120 × 10s = 20 minutes
-      
+
       // 4. Ajouter les métadonnées des fichiers au résultat et les documents sources
       if (result) {
         result.fileUploadMetadata = {
           uploadedFiles: fileIds.length,
           fileIds: fileIds,
-          documentsInfo: options.documents.map(doc => ({
+          documentsInfo: options.documents.map((doc) => ({
             title: doc.title,
             topic: doc.topic,
-            contentLength: doc.content.length
-          }))
+            contentLength: doc.content.length,
+          })),
         };
-        
+
         // 5. CORRECTION: Utiliser les VRAIS documents au lieu des références fictives
         // Les documents réels sont dans options.documents avec le contenu complet
-        result.sourceDocuments = options.documents.map(doc => ({
+        result.sourceDocuments = options.documents.map((doc) => ({
           id: doc.id,
           title: doc.title,
           content: doc.content, // Le VRAI contenu tronqué intelligemment
           topic: doc.topic,
           similarity: doc.similarity || 1.0,
-          source: doc.source || 'Wikipedia'
+          source: doc.source || "Wikipedia",
         }));
         result.hasDocuments = true;
-        console.log(`✅ Documents réels ajoutés: ${result.sourceDocuments.length} avec contenu complet`);
-        
+        console.log(
+          `✅ Documents réels ajoutés: ${result.sourceDocuments.length} avec contenu complet`,
+        );
+
         // 6. CORRECTION: Créer subjects pour les presets si un subject existe
         if (result.subject && result.subject.questions) {
           result.subjects = [result.subject];
           result.subjectBased = true;
-          console.log('✅ Subject transformé en subjects pour mode preset:', {
+          console.log("✅ Subject transformé en subjects pour mode preset:", {
             subjectTitle: result.subject.title,
-            questionsCount: result.subject.questions.length
+            questionsCount: result.subject.questions.length,
           });
         }
       }
-      
-      console.log(`✅ Quiz généré avec succès en utilisant ${fileIds.length} fichiers complets`);
+
+      console.log(
+        `✅ Quiz généré avec succès en utilisant ${fileIds.length} fichiers complets`,
+      );
       return result;
-      
     } catch (error) {
-      console.error('❌ Erreur génération quiz avec documents complets:', error);
+      console.error(
+        "❌ Erreur génération quiz avec documents complets:",
+        error,
+      );
       throw error;
     }
   }
@@ -1466,57 +1584,62 @@ IMPORTANT: Cette génération nécessite OBLIGATOIREMENT les 2 étapes. Ne t'arr
    * Génère un quiz complet avec graphiques ET documents
    */
   async generateCompleteQuiz(options: {
-    preset: 'BREVET' | 'BAC' | 'PARTIELS';
+    preset: "BREVET" | "BAC" | "PARTIELS";
     subject: string;
     numQuestions: number;
-    graphicType?: '2d' | '3d';
-    library?: 'apexcharts' | 'plotly';
+    graphicType?: "2d" | "3d";
+    library?: "apexcharts" | "plotly";
     documentTopics?: string[];
-    difficulty?: 'facile' | 'moyen' | 'difficile';
+    difficulty?: "facile" | "moyen" | "difficile";
     questionTypes?: string[];
   }): Promise<any> {
     const threadId = await createAssistantThread();
-    
-    const topicsText = options.documentTopics ? 
-      ` avec les topics: ${options.documentTopics.join(', ')}` : '';
-      
-    const questionTypesText = options.questionTypes && options.questionTypes.length > 0 ?
-      `\n🚨 TYPES DE QUESTIONS OBLIGATOIRES : Utilise EXCLUSIVEMENT ces types : ${options.questionTypes.join(', ')}\n⛔ INTERDIT : Tout autre type de question non spécifié par l'utilisateur` :
-      '\n📝 Types de questions : Utilise la répartition par défaut du system prompt';
-    
+
+    const topicsText = options.documentTopics
+      ? ` avec les topics: ${options.documentTopics.join(", ")}`
+      : "";
+
+    const questionTypesText =
+      options.questionTypes && options.questionTypes.length > 0
+        ? `\n🚨 TYPES DE QUESTIONS OBLIGATOIRES : Utilise EXCLUSIVEMENT ces types : ${options.questionTypes.join(", ")}\n⛔ INTERDIT : Tout autre type de question non spécifié par l'utilisateur`
+        : "\n📝 Types de questions : Utilise la répartition par défaut du system prompt";
+
     const prompt = `Génère un quiz complet multimédia pour ${options.preset} sur "${options.subject}".${questionTypesText}
     
 1. Utilise generate_subject_with_documents pour enrichir avec documents Wikipedia${topicsText}
-2. Utilise generate_graphic pour créer des graphiques pédagogiques ${options.graphicType || '2d'} (${options.library || 'apexcharts'})
+2. Utilise generate_graphic pour créer des graphiques pédagogiques ${options.graphicType || "2d"} (${options.library || "apexcharts"})
 3. Utilise generate_questions_array pour ${options.numQuestions} questions:
    - 30% basées sur graphiques
    - 40% basées sur documents  
    - 30% connaissances générales
-4. Niveau: ${options.difficulty || 'moyen'}
+4. Niveau: ${options.difficulty || "moyen"}
 
 Crée une expérience d'apprentissage riche et variée.`;
 
     await addMessageToThread(threadId, prompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     const result = await waitForRunCompletion(threadId, runId);
-    
+
     // Transformer documents en sourceDocuments pour la compatibilité
     if (result && result.documents && result.documents.length > 0) {
       result.sourceDocuments = result.documents;
       result.hasDocuments = true;
     }
-    
+
     // CORRECTION: Créer subjects pour les presets si un subject existe
     if (result && result.subject && result.subject.questions) {
       result.subjects = [result.subject];
       result.subjectBased = true;
-      console.log('✅ Subject transformé en subjects pour mode preset (complete):', {
-        subjectTitle: result.subject.title,
-        questionsCount: result.subject.questions.length
-      });
+      console.log(
+        "✅ Subject transformé en subjects pour mode preset (complete):",
+        {
+          subjectTitle: result.subject.title,
+          questionsCount: result.subject.questions.length,
+        },
+      );
     }
-    
+
     return result;
   }
 
@@ -1524,52 +1647,55 @@ Crée une expérience d'apprentissage riche et variée.`;
    * Génère un quiz standard sans contexte spécial
    */
   async generateStandardQuiz(options: {
-    preset: 'BREVET' | 'BAC' | 'PARTIELS';
+    preset: "BREVET" | "BAC" | "PARTIELS";
     subject: string;
     numQuestions: number;
-    difficulty?: 'facile' | 'moyen' | 'difficile';
+    difficulty?: "facile" | "moyen" | "difficile";
     specialties?: string[];
     targetGrade?: number;
     questionTypes?: string[];
   }): Promise<any> {
     const threadId = await createAssistantThread();
-    
-    const questionTypesText = options.questionTypes && options.questionTypes.length > 0 ?
-      `\n🚨 TYPES DE QUESTIONS OBLIGATOIRES : Utilise EXCLUSIVEMENT ces types : ${options.questionTypes.join(', ')}\n⛔ INTERDIT : Tout autre type de question non spécifié par l'utilisateur` :
-      '\n📝 Types de questions : Utilise la répartition par défaut du system prompt';
+
+    const questionTypesText =
+      options.questionTypes && options.questionTypes.length > 0
+        ? `\n🚨 TYPES DE QUESTIONS OBLIGATOIRES : Utilise EXCLUSIVEMENT ces types : ${options.questionTypes.join(", ")}\n⛔ INTERDIT : Tout autre type de question non spécifié par l'utilisateur`
+        : "\n📝 Types de questions : Utilise la répartition par défaut du system prompt";
 
     let prompt = `Génère un quiz standard pour ${options.preset} sur "${options.subject}".${questionTypesText}
     
 Utilise generate_questions_array pour créer ${options.numQuestions} questions de connaissances générales.
-Niveau de difficulté: ${options.difficulty || 'moyen'}`;
+Niveau de difficulté: ${options.difficulty || "moyen"}`;
 
     if (options.specialties && options.specialties.length > 0) {
-      prompt += `\nSpécialités ciblées: ${options.specialties.join(', ')}`;
+      prompt += `\nSpécialités ciblées: ${options.specialties.join(", ")}`;
     }
-    
+
     if (options.targetGrade) {
       prompt += `\nNote cible: ${options.targetGrade}/20`;
     }
-    
+
     prompt += `\n\nConcentre-toi sur les fondamentaux et la progression pédagogique.`;
 
     await addMessageToThread(threadId, prompt);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
+
     const assistantResponse = await waitForRunCompletion(threadId, runId);
-    
+
     // Structurer la réponse avec un titre approprié
     return {
       id: `quiz_${Date.now()}`,
       title: `Quiz ${options.preset} - ${options.subject}`,
-      questions: Array.isArray(assistantResponse) ? assistantResponse : assistantResponse.questions || [],
+      questions: Array.isArray(assistantResponse)
+        ? assistantResponse
+        : assistantResponse.questions || [],
       metadata: {
         generatedAt: new Date(),
         preset: options.preset,
         subject: options.subject,
-        difficulty: options.difficulty || 'moyen',
-        numQuestions: options.numQuestions
-      }
+        difficulty: options.difficulty || "moyen",
+        numQuestions: options.numQuestions,
+      },
     };
   }
 
@@ -1586,14 +1712,24 @@ Niveau de difficulté: ${options.difficulty || 'moyen'}`;
    * Envoie un message dans un thread existant
    */
   async sendMessage(threadId: string, message: string): Promise<any> {
-    console.log('🔍 sendMessage - ThreadId:', threadId, 'Type:', typeof threadId);
-    console.log('🔍 sendMessage - AssistantId:', this.assistantId);
-    
+    console.log(
+      "🔍 sendMessage - ThreadId:",
+      threadId,
+      "Type:",
+      typeof threadId,
+    );
+    console.log("🔍 sendMessage - AssistantId:", this.assistantId);
+
     await addMessageToThread(threadId, message);
     const runId = await runAssistantOnThread(threadId, this.assistantId);
-    
-    console.log('🔍 sendMessage - Avant waitForRunCompletion, ThreadId:', threadId, 'RunId:', runId);
-    
+
+    console.log(
+      "🔍 sendMessage - Avant waitForRunCompletion, ThreadId:",
+      threadId,
+      "RunId:",
+      runId,
+    );
+
     return await waitForRunCompletion(threadId, runId);
   }
 
@@ -1603,15 +1739,15 @@ Niveau de difficulté: ${options.difficulty || 'moyen'}`;
   async ping(): Promise<boolean> {
     try {
       const threadId = await createAssistantThread();
-      await addMessageToThread(threadId, 'ping');
+      await addMessageToThread(threadId, "ping");
       const runId = await runAssistantOnThread(threadId, this.assistantId);
-      
+
       // On attend juste que ça se lance, pas forcément que ça finisse
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       return true;
     } catch (error) {
-      console.error('Erreur ping Assistant:', error);
+      console.error("Erreur ping Assistant:", error);
       return false;
     }
   }
@@ -1628,13 +1764,13 @@ Niveau de difficulté: ${options.difficulty || 'moyen'}`;
       retryDelay?: number;
       validateJson?: boolean;
       operationName?: string;
-    } = {}
+    } = {},
   ): Promise<T> {
     const {
       maxRetries = 3,
       retryDelay = 1000,
       validateJson = true,
-      operationName = 'Assistant operation'
+      operationName = "Assistant operation",
     } = options;
 
     let lastError: Error | null = null;
@@ -1642,31 +1778,33 @@ Niveau de difficulté: ${options.difficulty || 'moyen'}`;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         console.log(`🔄 ${operationName} - Tentative ${attempt}/${maxRetries}`);
-        
+
         const result = await operation();
-        
+
         if (validateJson && result) {
           this.validateAssistantResponse(result);
         }
-        
+
         console.log(`✅ ${operationName} - Succès à la tentative ${attempt}`);
         return result;
-        
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        
-        console.error(`❌ ${operationName} - Échec tentative ${attempt}:`, lastError.message);
-        
+
+        console.error(
+          `❌ ${operationName} - Échec tentative ${attempt}:`,
+          lastError.message,
+        );
+
         if (attempt < maxRetries) {
           const delay = retryDelay * Math.pow(2, attempt - 1); // Backoff exponentiel
           console.log(`⏳ Attente ${delay}ms avant retry...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
 
     throw new Error(
-      `${operationName} a échoué après ${maxRetries} tentatives. Dernière erreur: ${lastError?.message}`
+      `${operationName} a échoué après ${maxRetries} tentatives. Dernière erreur: ${lastError?.message}`,
     );
   }
 
@@ -1675,15 +1813,15 @@ Niveau de difficulté: ${options.difficulty || 'moyen'}`;
    */
   private validateAssistantResponse(response: any): void {
     if (!response) {
-      throw new Error('Réponse Assistant vide');
+      throw new Error("Réponse Assistant vide");
     }
 
     // Validation basique du format
-    if (typeof response === 'string') {
+    if (typeof response === "string") {
       try {
         JSON.parse(response);
       } catch (error) {
-        throw new Error('Réponse Assistant n\'est pas un JSON valide');
+        throw new Error("Réponse Assistant n'est pas un JSON valide");
       }
     }
 
@@ -1691,18 +1829,20 @@ Niveau de difficulté: ${options.difficulty || 'moyen'}`;
     if (response.tool_calls && Array.isArray(response.tool_calls)) {
       for (const toolCall of response.tool_calls) {
         if (!toolCall.function || !toolCall.function.name) {
-          throw new Error('Appel de fonction manquant dans la réponse Assistant');
+          throw new Error(
+            "Appel de fonction manquant dans la réponse Assistant",
+          );
         }
 
         // Valider que c'est une de nos 7 fonctions
         const validFunctions = [
-          'generate_graphic',
-          'generate_questions_array', 
-          'generate_subject_with_documents',
-          'correct_quiz_standard',
-          'correct_quiz_with_graphics',
-          'correct_quiz_with_documents',
-          'correct_quiz_complete'
+          "generate_graphic",
+          "generate_questions_array",
+          "generate_subject_with_documents",
+          "correct_quiz_standard",
+          "correct_quiz_with_graphics",
+          "correct_quiz_with_documents",
+          "correct_quiz_complete",
         ];
 
         if (!validFunctions.includes(toolCall.function.name)) {
@@ -1723,16 +1863,16 @@ Niveau de difficulté: ${options.difficulty || 'moyen'}`;
    * Log détaillé pour debugging
    */
   private logOperation(
-    operation: string, 
-    params: any, 
-    result?: any, 
-    error?: Error
+    operation: string,
+    params: any,
+    result?: any,
+    error?: Error,
   ): void {
     const timestamp = new Date().toISOString();
-    
+
     console.log(`🤖 [${timestamp}] Assistant Operation: ${operation}`);
     console.log(`📥 Params:`, JSON.stringify(params, null, 2));
-    
+
     if (error) {
       console.error(`❌ Error:`, error.message);
       console.error(`📚 Stack:`, error.stack);
@@ -1747,13 +1887,13 @@ Niveau de difficulté: ${options.difficulty || 'moyen'}`;
    */
   async generateWithRetry<T>(
     generatorFn: () => Promise<T>,
-    operationName: string
+    operationName: string,
   ): Promise<T> {
     return this.executeWithRetry(generatorFn, {
       maxRetries: 3,
       retryDelay: 2000,
       validateJson: true,
-      operationName: `Génération: ${operationName}`
+      operationName: `Génération: ${operationName}`,
     });
   }
 
@@ -1762,13 +1902,13 @@ Niveau de difficulté: ${options.difficulty || 'moyen'}`;
    */
   async correctWithRetry<T>(
     correctorFn: () => Promise<T>,
-    operationName: string
+    operationName: string,
   ): Promise<T> {
     return this.executeWithRetry(correctorFn, {
       maxRetries: 2, // Moins de retry pour la correction
       retryDelay: 1500,
       validateJson: true,
-      operationName: `Correction: ${operationName}`
+      operationName: `Correction: ${operationName}`,
     });
   }
 
@@ -1782,87 +1922,126 @@ Niveau de difficulté: ${options.difficulty || 'moyen'}`;
   /**
    * 🆕 Corrige un quiz standard avec Chat Completion + JSON strict
    */
-  async correctStandardQuizChatCompletion(quizId: string, answers: any[], options?: any): Promise<any> {
+  async correctStandardQuizChatCompletion(
+    quizId: string,
+    answers: any[],
+    options?: any,
+  ): Promise<any> {
     try {
-      console.log('🚀 [CORRECTION] Correction standard via Chat Completion + JSON strict (gpt-4o-mini)');
-      
+      const correctionModel = AIService.getQuizCorrectionModel();
+      console.log(
+        `🚀 [CORRECTION] Correction standard via Chat Completion + JSON strict (${correctionModel})`,
+      );
+
       // 🐛 [DEBUG] Log des données reçues
-      console.log('🐛 [DEBUG] [CORRECTION] Données reçues:', {
+      console.log("🐛 [DEBUG] [CORRECTION] Données reçues:", {
         quizId,
         answersCount: answers.length,
-        answers: answers.map(a => ({ questionId: a.questionId, answer: a.answer })),
+        answers: answers.map((a) => ({
+          questionId: a.questionId,
+          answer: a.answer,
+        })),
         questionsCount: options?.questions?.length || 0,
-        questions: options?.questions?.map((q: any) => ({ 
-          id: q.id, 
-          type: q.type, 
-          correctOption: q.options?.find((opt: any) => opt.isCorrect)?.id 
-        })) || []
+        questions:
+          options?.questions?.map((q: any) => ({
+            id: q.id,
+            type: q.type,
+            correctOption: q.options?.find((opt: any) => opt.isCorrect)?.id,
+          })) || [],
       });
-      
+
       // Construire les messages pour correction
       const systemPrompt = this.buildCorrectionSystemPrompt();
-      const userPrompt = this.buildStandardCorrectionPrompt(quizId, answers, options);
-      
+      const userPrompt = this.buildStandardCorrectionPrompt(
+        quizId,
+        answers,
+        options,
+      );
+
       // 🐛 [DEBUG] Log du prompt utilisateur (tronqué)
-      console.log('🐛 [DEBUG] [CORRECTION] Prompt utilisateur (500 premiers caractères):', userPrompt.substring(0, 500) + '...');
-      
-      console.log('📤 [CORRECTION] Envoi à gpt-4o-mini avec JSON strict');
-      
-      // Appel chat completion avec JSON strict
-      const completion = await this.openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      console.log(
+        "🐛 [DEBUG] [CORRECTION] Prompt utilisateur (500 premiers caractères):",
+        userPrompt.substring(0, 500) + "...",
+      );
+
+      console.log(
+        `📤 [CORRECTION] Envoi à ${correctionModel} avec JSON strict`,
+      );
+
+      // Configuration de base pour l'appel API
+      const apiConfig: any = {
+        model: correctionModel,
         messages: [
           {
             role: "system",
-            content: systemPrompt
+            content: systemPrompt,
           },
           {
-            role: "user", 
-            content: userPrompt
-          }
+            role: "user",
+            content: userPrompt,
+          },
         ],
         response_format: {
           type: "json_schema",
           json_schema: {
             name: "quiz_correction_standard",
             strict: true,
-            schema: QUIZ_CORRECTION_STANDARD_SCHEMA
-          }
+            schema: QUIZ_CORRECTION_STANDARD_SCHEMA,
+          },
         },
-        temperature: 0.3, // Plus faible pour la correction
-        max_tokens: 4000
-      });
-      
+      };
+
+      // 🆕 Configuration spécifique GPT-5
+      if (correctionModel.includes("gpt-5")) {
+        apiConfig.reasoning_effort = "low";
+        apiConfig.max_completion_tokens = 4000;
+        // GPT-5 n'accepte que temperature=1 (défaut), on ne le spécifie pas
+        console.log(
+          "🧠 [CORRECTION] GPT-5-mini détecté : reasoning_effort=low, max_completion_tokens=4000, temperature=1 (défaut)",
+        );
+      } else {
+        apiConfig.temperature = 0.3; // Plus faible pour la correction
+        apiConfig.max_tokens = 4000;
+      }
+
+      // Appel chat completion avec JSON strict
+      const completion = await this.openai.chat.completions.create(apiConfig);
+
       const responseContent = completion.choices[0]?.message?.content;
       if (!responseContent) {
-        throw new Error('Aucune réponse du modèle pour la correction');
+        throw new Error("Aucune réponse du modèle pour la correction");
       }
-      
+
       // Parser la réponse JSON
       const result = JSON.parse(responseContent);
-      
+
       // 🐛 [DEBUG] Log du résultat de correction
-      console.log('🐛 [DEBUG] [CORRECTION] Résultat IA:', {
+      console.log("🐛 [DEBUG] [CORRECTION] Résultat IA:", {
         correctionsCount: result?.corrections?.length || 0,
-        corrections: result?.corrections?.map((corr: any) => ({
-          questionId: corr.questionId,
-          isCorrect: corr.isCorrect,
-          pointsObtained: corr.pointsObtained,
-          correctAnswer: corr.correctAnswer,
-          userAnswerFromResult: corr.userAnswer // Si disponible
-        })) || []
+        corrections:
+          result?.corrections?.map((corr: any) => ({
+            questionId: corr.questionId,
+            isCorrect: corr.isCorrect,
+            pointsObtained: corr.pointsObtained,
+            correctAnswer: corr.correctAnswer,
+            userAnswerFromResult: corr.userAnswer, // Si disponible
+          })) || [],
       });
-      
+
       if (result && result.corrections && Array.isArray(result.corrections)) {
-        console.log('✅ [CORRECTION] Correction standard générée avec succès via chat completion');
+        console.log(
+          "✅ [CORRECTION] Correction standard générée avec succès via chat completion",
+        );
         return result;
       }
-      
-      console.error('❌ [CORRECTION] Réponse inattendue du chat completion:', result);
-      throw new Error('Aucune correction valide générée');
-      
+
+      console.error(
+        "❌ [CORRECTION] Réponse inattendue du chat completion:",
+        result,
+      );
+      throw new Error("Aucune correction valide générée");
     } catch (error) {
-      console.error('❌ [CORRECTION] Erreur correction standard:', error);
+      console.error("❌ [CORRECTION] Erreur correction standard:", error);
       throw error;
     }
   }
@@ -1870,59 +2049,90 @@ Niveau de difficulté: ${options.difficulty || 'moyen'}`;
   /**
    * 🆕 Corrige un quiz complet avec Chat Completion + JSON strict
    */
-  async correctCompleteQuizChatCompletion(quizId: string, answers: any[], options?: any): Promise<any> {
+  async correctCompleteQuizChatCompletion(
+    quizId: string,
+    answers: any[],
+    options?: any,
+  ): Promise<any> {
     try {
-      console.log('🚀 [CORRECTION] Correction complète via Chat Completion + JSON strict (gpt-4o-mini)');
-      
+      const correctionModel = AIService.getQuizCorrectionModel();
+      console.log(
+        `🚀 [CORRECTION] Correction complète via Chat Completion + JSON strict (${correctionModel})`,
+      );
+
       // Construire les messages pour correction complète
       const systemPrompt = this.buildCompleteCorrectionSystemPrompt();
-      const userPrompt = this.buildCompleteCorrectionPrompt(quizId, answers, options);
-      
-      console.log('📤 [CORRECTION] Envoi à gpt-4o-mini avec JSON strict (schéma complet)');
-      
-      // Appel chat completion avec JSON strict
-      const completion = await this.openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const userPrompt = this.buildCompleteCorrectionPrompt(
+        quizId,
+        answers,
+        options,
+      );
+
+      console.log(
+        `📤 [CORRECTION] Envoi à ${correctionModel} avec JSON strict (schéma complet)`,
+      );
+
+      // Configuration de base pour l'appel API
+      const apiConfig: any = {
+        model: correctionModel,
         messages: [
           {
             role: "system",
-            content: systemPrompt
+            content: systemPrompt,
           },
           {
-            role: "user", 
-            content: userPrompt
-          }
+            role: "user",
+            content: userPrompt,
+          },
         ],
         response_format: {
           type: "json_schema",
           json_schema: {
             name: "quiz_correction_complete",
             strict: true,
-            schema: QUIZ_CORRECTION_COMPLETE_SCHEMA
-          }
+            schema: QUIZ_CORRECTION_COMPLETE_SCHEMA,
+          },
         },
-        temperature: 0.3,
-        max_tokens: 6000
-      });
-      
+      };
+
+      // 🆕 Configuration spécifique GPT-5
+      if (correctionModel.includes("gpt-5")) {
+        apiConfig.reasoning_effort = "low";
+        apiConfig.max_completion_tokens = 6000;
+        // GPT-5 n'accepte que temperature=1 (défaut), on ne le spécifie pas
+        console.log(
+          "🧠 [CORRECTION] GPT-5-mini détecté : reasoning_effort=low, max_completion_tokens=6000, temperature=1 (défaut)",
+        );
+      } else {
+        apiConfig.temperature = 0.3;
+        apiConfig.max_tokens = 6000;
+      }
+
+      // Appel chat completion avec JSON strict
+      const completion = await this.openai.chat.completions.create(apiConfig);
+
       const responseContent = completion.choices[0]?.message?.content;
       if (!responseContent) {
-        throw new Error('Aucune réponse du modèle pour la correction complète');
+        throw new Error("Aucune réponse du modèle pour la correction complète");
       }
-      
+
       // Parser la réponse JSON
       const result = JSON.parse(responseContent);
-      
+
       if (result && result.corrections && Array.isArray(result.corrections)) {
-        console.log('✅ [CORRECTION] Correction complète générée avec succès via chat completion');
+        console.log(
+          "✅ [CORRECTION] Correction complète générée avec succès via chat completion",
+        );
         return result;
       }
-      
-      console.error('❌ [CORRECTION] Réponse inattendue du chat completion:', result);
-      throw new Error('Aucune correction complète valide générée');
-      
+
+      console.error(
+        "❌ [CORRECTION] Réponse inattendue du chat completion:",
+        result,
+      );
+      throw new Error("Aucune correction complète valide générée");
     } catch (error) {
-      console.error('❌ [CORRECTION] Erreur correction complète:', error);
+      console.error("❌ [CORRECTION] Erreur correction complète:", error);
       throw error;
     }
   }
@@ -1988,14 +2198,18 @@ Tu DOIS retourner une évaluation complète au format JSON strict fourni.`;
   /**
    * 🆕 Construit le prompt pour la correction standard
    */
-  private buildStandardCorrectionPrompt(quizId: string, answers: any[], options?: any): string {
+  private buildStandardCorrectionPrompt(
+    quizId: string,
+    answers: any[],
+    options?: any,
+  ): string {
     // Récupérer les questions depuis les options si disponibles
     const questions = options?.questions || [];
 
     // 👨‍🏫 INTÉGRATION DU PERSONA PROFESSORAL ADAPTATIF
     const professorPersona = getProfessorCorrectionPrompt(
-      options?.schoolLevel || 'LYCEE_SECONDE',
-      options?.collegeGrade
+      options?.schoolLevel || "LYCEE_SECONDE",
+      options?.collegeGrade,
     );
 
     let prompt = `${professorPersona}
@@ -2006,30 +2220,38 @@ QUIZ ID : ${quizId}
 NOMBRE DE RÉPONSES : ${answers.length}
 
 DÉTAIL DES QUESTIONS ET RÉPONSES :
-${answers.map((answer, index) => {
-  const question = questions.find((q: any) => q.id === answer.questionId);
-  let questionDetails = '';
-  
-  if (question) {
-    questionDetails = `
-   Question: ${question.question || 'Non disponible'}
-   Type: ${question.type || 'UNKNOWN'}`;
-    
-    // Pour les QCM, afficher les options et la bonne réponse
-    if (question.type === 'MULTIPLE_CHOICE' && question.options && question.options.length > 0) {
-      const correctOption = question.options.find((opt: any) => opt.isCorrect === true);
-      questionDetails += `
-   Options disponibles: ${question.options.map((opt: any) => `${opt.id}. ${opt.text}${opt.isCorrect ? ' [CORRECTE]' : ''}`).join(', ')}
-   Réponse correcte attendue: ${correctOption ? correctOption.id : 'AUCUNE_DEFINIE'}`;
-    }
-  }
+${answers
+  .map((answer, index) => {
+    const question = questions.find((q: any) => q.id === answer.questionId);
+    let questionDetails = "";
 
-  return `
+    if (question) {
+      questionDetails = `
+   Question: ${question.question || "Non disponible"}
+   Type: ${question.type || "UNKNOWN"}`;
+
+      // Pour les QCM, afficher les options et la bonne réponse
+      if (
+        question.type === "MULTIPLE_CHOICE" &&
+        question.options &&
+        question.options.length > 0
+      ) {
+        const correctOption = question.options.find(
+          (opt: any) => opt.isCorrect === true,
+        );
+        questionDetails += `
+   Options disponibles: ${question.options.map((opt: any) => `${opt.id}. ${opt.text}${opt.isCorrect ? " [CORRECTE]" : ""}`).join(", ")}
+   Réponse correcte attendue: ${correctOption ? correctOption.id : "AUCUNE_DEFINIE"}`;
+      }
+    }
+
+    return `
 ${index + 1}. Question ID: ${answer.questionId}${questionDetails}
    Réponse donnée: "${answer.answer}"
-   Temps passé: ${answer.timeSpent || 'Non renseigné'}s
+   Temps passé: ${answer.timeSpent || "Non renseigné"}s
 ---`;
-}).join('')}
+  })
+  .join("")}
 
 INSTRUCTIONS DE CORRECTION SPÉCIFIQUES PAR TYPE :
 
@@ -2088,14 +2310,18 @@ GÉNÈRE une correction complète et pédagogique au format JSON strict requis.`
   /**
    * 🆕 Construit le prompt pour la correction complète
    */
-  private buildCompleteCorrectionPrompt(quizId: string, answers: any[], options?: any): string {
+  private buildCompleteCorrectionPrompt(
+    quizId: string,
+    answers: any[],
+    options?: any,
+  ): string {
     // Récupérer les questions depuis les options si disponibles
     const questions = options?.questions || [];
 
     // 👨‍🏫 INTÉGRATION DU PERSONA PROFESSORAL ADAPTATIF
     const professorPersona = getProfessorCorrectionPrompt(
-      options?.schoolLevel || 'LYCEE_SECONDE',
-      options?.collegeGrade
+      options?.schoolLevel || "LYCEE_SECONDE",
+      options?.collegeGrade,
     );
 
     let prompt = `${professorPersona}
@@ -2107,31 +2333,39 @@ NOMBRE DE RÉPONSES : ${answers.length}
 TYPE : Quiz multimédia avec analyse croisée
 
 DÉTAIL DES QUESTIONS ET RÉPONSES :
-${answers.map((answer, index) => {
-  const question = questions.find((q: any) => q.id === answer.questionId);
-  let questionDetails = '';
-  
-  if (question) {
-    questionDetails = `
-   Question: ${question.question || 'Non disponible'}
-   Type: ${question.type || 'UNKNOWN'}`;
-    
-    // Pour les QCM, afficher les options et la bonne réponse
-    if (question.type === 'MULTIPLE_CHOICE' && question.options && question.options.length > 0) {
-      const correctOption = question.options.find((opt: any) => opt.isCorrect === true);
-      questionDetails += `
-   Options disponibles: ${question.options.map((opt: any) => `${opt.id}. ${opt.text}${opt.isCorrect ? ' [CORRECTE]' : ''}`).join(', ')}
-   Réponse correcte attendue: ${correctOption ? correctOption.id : 'AUCUNE_DEFINIE'}`;
-    }
-  }
+${answers
+  .map((answer, index) => {
+    const question = questions.find((q: any) => q.id === answer.questionId);
+    let questionDetails = "";
 
-  return `
+    if (question) {
+      questionDetails = `
+   Question: ${question.question || "Non disponible"}
+   Type: ${question.type || "UNKNOWN"}`;
+
+      // Pour les QCM, afficher les options et la bonne réponse
+      if (
+        question.type === "MULTIPLE_CHOICE" &&
+        question.options &&
+        question.options.length > 0
+      ) {
+        const correctOption = question.options.find(
+          (opt: any) => opt.isCorrect === true,
+        );
+        questionDetails += `
+   Options disponibles: ${question.options.map((opt: any) => `${opt.id}. ${opt.text}${opt.isCorrect ? " [CORRECTE]" : ""}`).join(", ")}
+   Réponse correcte attendue: ${correctOption ? correctOption.id : "AUCUNE_DEFINIE"}`;
+      }
+    }
+
+    return `
 ${index + 1}. Question ID: ${answer.questionId}${questionDetails}
    Réponse donnée: "${answer.answer}"
-   Type de source: ${answer.sourceType || 'Mixed'}
-   Temps passé: ${answer.timeSpent || 'Non renseigné'}s
+   Type de source: ${answer.sourceType || "Mixed"}
+   Temps passé: ${answer.timeSpent || "Non renseigné"}s
 ---`;
-}).join('')}
+  })
+  .join("")}
 
 INSTRUCTIONS DE CORRECTION SPÉCIFIQUES PAR TYPE :
 

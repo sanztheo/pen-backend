@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import OpenAI from "openai";
 
 // 🔥 LAZY INITIALIZATION: N'initialise OpenAI que quand nécessaire
 let openai: OpenAI | null = null;
@@ -6,13 +6,14 @@ let openai: OpenAI | null = null;
 function getOpenAIInstance(): OpenAI {
   if (!openai) {
     openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
+      apiKey: process.env.OPENAI_API_KEY,
     });
   }
   return openai;
 }
 
-const DEFAULT_MODEL = process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL;
+const DEFAULT_MODEL =
+  process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL;
 
 export interface AIGenerationOptions {
   prompt: string;
@@ -41,12 +42,14 @@ export interface AIGenerationResult {
  * Classe principale pour les services IA
  */
 export class AIService {
-  
   /**
    * Vérifier si l'IA est configurée correctement
    */
   static isConfigured(): boolean {
-    return !!process.env.OPENAI_API_KEY && !!(process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL);
+    return (
+      !!process.env.OPENAI_API_KEY &&
+      !!(process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL)
+    );
   }
 
   /**
@@ -55,7 +58,9 @@ export class AIService {
   static async testConnection(): Promise<boolean> {
     try {
       if (!this.isConfigured()) {
-        console.error('❌ OPENAI_API_KEY ou OPENAI_DASHBOARD_MODEL/OPENAI_MODEL non configurés');
+        console.error(
+          "❌ OPENAI_API_KEY ou OPENAI_DASHBOARD_MODEL/OPENAI_MODEL non configurés",
+        );
         return false;
       }
 
@@ -63,16 +68,22 @@ export class AIService {
       const response = await client.chat.completions.create({
         model: DEFAULT_MODEL!,
         messages: [
-          { role: 'user', content: 'Test de connexion - réponds juste "OK"' }
+          { role: "user", content: 'Test de connexion - réponds juste "OK"' },
         ],
-        max_tokens: 10
+        max_tokens: 10,
       });
 
-      const isSuccess = response.choices[0]?.message?.content?.toLowerCase().includes('ok') || false;
-      console.log(isSuccess ? '✅ Connexion OpenAI réussie' : '⚠️ Réponse inattendue de OpenAI');
+      const isSuccess =
+        response.choices[0]?.message?.content?.toLowerCase().includes("ok") ||
+        false;
+      console.log(
+        isSuccess
+          ? "✅ Connexion OpenAI réussie"
+          : "⚠️ Réponse inattendue de OpenAI",
+      );
       return isSuccess;
     } catch (error) {
-      console.error('❌ Erreur connexion OpenAI:', error);
+      console.error("❌ Erreur connexion OpenAI:", error);
       return false;
     }
   }
@@ -91,6 +102,20 @@ export class AIService {
     return DEFAULT_MODEL;
   }
 
+  /**
+   * Obtenir le modèle pour la génération de quiz
+   */
+  static getQuizGenerationModel(): string {
+    return process.env.OPENAI_QUIZ_GENERATION || "gpt-4o-mini";
+  }
+
+  /**
+   * Obtenir le modèle pour la correction de quiz
+   */
+  static getQuizCorrectionModel(): string {
+    return process.env.OPENAI_QUIZ_CORRECTION || "gpt-4o-mini";
+  }
+
   /** Assistant dédié à la sélection de pages (function calling) */
   static getSearchAssistantId(): string | undefined {
     return process.env.ASSISTANT_ID_SEARCH_FILE;
@@ -103,56 +128,77 @@ export class AIService {
   /**
    * Générer du contenu avec l'IA
    */
-  static async generateContent(options: AIGenerationOptions): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration.js');
+  static async generateContent(
+    options: AIGenerationOptions,
+  ): Promise<AIGenerationResult> {
+    const { ContentGenerationService } = await import("./contentGeneration.js");
     return ContentGenerationService.generateContent(options);
   }
 
   /**
    * Générer un bloc spécifique
    */
-  static async generateBlock(type: string, prompt: string, context?: string): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration.js');
+  static async generateBlock(
+    type: string,
+    prompt: string,
+    context?: string,
+  ): Promise<AIGenerationResult> {
+    const { ContentGenerationService } = await import("./contentGeneration.js");
     return ContentGenerationService.generateBlock(type, prompt, context);
   }
 
   /**
    * Améliorer du contenu existant
    */
-  static async improveContent(content: string, instructions?: string): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration.js');
+  static async improveContent(
+    content: string,
+    instructions?: string,
+  ): Promise<AIGenerationResult> {
+    const { ContentGenerationService } = await import("./contentGeneration.js");
     return ContentGenerationService.improveContent(content, instructions);
   }
 
   /**
    * Continuer un texte existant
    */
-  static async continueContent(content: string, length: 'court' | 'moyen' | 'long' = 'moyen'): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration.js');
+  static async continueContent(
+    content: string,
+    length: "court" | "moyen" | "long" = "moyen",
+  ): Promise<AIGenerationResult> {
+    const { ContentGenerationService } = await import("./contentGeneration.js");
     return ContentGenerationService.continueContent(content, length);
   }
 
   /**
    * Résumer du contenu
    */
-  static async summarizeContent(content: string, style: 'bullet' | 'paragraph' = 'paragraph'): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration.js');
+  static async summarizeContent(
+    content: string,
+    style: "bullet" | "paragraph" = "paragraph",
+  ): Promise<AIGenerationResult> {
+    const { ContentGenerationService } = await import("./contentGeneration.js");
     return ContentGenerationService.summarizeContent(content, style);
   }
 
   /**
    * Générer des idées/suggestions
    */
-  static async generateIdeas(topic: string, count: number = 5): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration.js');
+  static async generateIdeas(
+    topic: string,
+    count: number = 5,
+  ): Promise<AIGenerationResult> {
+    const { ContentGenerationService } = await import("./contentGeneration.js");
     return ContentGenerationService.generateIdeas(topic, count);
   }
 
   /**
    * Traduire du contenu
    */
-  static async translateContent(content: string, targetLanguage: string): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration.js');
+  static async translateContent(
+    content: string,
+    targetLanguage: string,
+  ): Promise<AIGenerationResult> {
+    const { ContentGenerationService } = await import("./contentGeneration.js");
     return ContentGenerationService.translateContent(content, targetLanguage);
   }
 
@@ -160,7 +206,7 @@ export class AIService {
    * Corriger l'orthographe et la grammaire
    */
   static async correctText(content: string): Promise<AIGenerationResult> {
-    const { ContentGenerationService } = await import('./contentGeneration.js');
+    const { ContentGenerationService } = await import("./contentGeneration.js");
     return ContentGenerationService.correctText(content);
   }
 
@@ -168,11 +214,11 @@ export class AIService {
    * Autocomplétion intelligente
    */
   static async autocomplete(
-    content: string, 
-    cursorPosition: number, 
-    blockType?: string, 
+    content: string,
+    cursorPosition: number,
+    blockType?: string,
     maxSuggestions: number = 3,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<{
     suggestions: string[];
     context: {
@@ -181,22 +227,35 @@ export class AIService {
       detectedIntent: string;
     };
   }> {
-    const { AutocompleteService } = await import('./autocomplete.js');
-    return AutocompleteService.autocomplete(content, cursorPosition, blockType, maxSuggestions, signal);
+    const { AutocompleteService } = await import("./autocomplete.js");
+    return AutocompleteService.autocomplete(
+      content,
+      cursorPosition,
+      blockType,
+      maxSuggestions,
+      signal,
+    );
   }
 
   /**
    * Autocomplétion avec streaming
    */
   static async autocompleteStream(
-    content: string, 
-    cursorPosition: number, 
-    blockType?: string, 
+    content: string,
+    cursorPosition: number,
+    blockType?: string,
     maxSuggestions: number = 3,
     onStreamChunk?: (result: any) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): Promise<any> {
-    const { AutocompleteService } = await import('./autocomplete.js');
-    return AutocompleteService.autocompleteStream(content, cursorPosition, blockType, maxSuggestions, onStreamChunk, signal);
+    const { AutocompleteService } = await import("./autocomplete.js");
+    return AutocompleteService.autocompleteStream(
+      content,
+      cursorPosition,
+      blockType,
+      maxSuggestions,
+      onStreamChunk,
+      signal,
+    );
   }
-} 
+}
