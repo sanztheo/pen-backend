@@ -4,6 +4,7 @@
  */
 
 import { prisma } from "../../../lib/prisma.js";
+import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
 
 export interface RagSourceInput {
   id?: string | number;
