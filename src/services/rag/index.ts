@@ -922,11 +922,34 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     // Insérer en batch pour réduire les allers-retours DB
     let inserted = 0;
     for (const batch of chunkArray(prepared, batchSize)) {
-      await prismaEmbeddings.rAGChunk.createMany({
-        data: batch,
-        skipDuplicates: true,
-      });
-      inserted += batch.length;
+      // Utiliser SQL brut pour insérer les embeddings (Prisma ne supporte pas vector nativement)
+      for (const chunk of batch) {
+        await prismaEmbeddings.$executeRaw`
+          INSERT INTO "RAGChunk" (
+            "id", "sourceId", "chunkIndex", "content", "cleanContent",
+            "embedding", "tokenCount", "pageNumber", "sectionTitle",
+            "startOffset", "endOffset", "quality", "createdAt", "updatedAt"
+          )
+          VALUES (
+            gen_random_uuid(),
+            ${chunk.sourceId}::uuid,
+            ${chunk.chunkIndex},
+            ${chunk.content},
+            ${chunk.cleanContent},
+            ${chunk.embedding}::vector,
+            ${chunk.tokenCount},
+            ${chunk.pageNumber},
+            ${chunk.sectionTitle},
+            ${chunk.startOffset},
+            ${chunk.endOffset},
+            ${chunk.quality},
+            NOW(),
+            NOW()
+          )
+          ON CONFLICT DO NOTHING
+        `;
+        inserted++;
+      }
       console.log(`💾 [RAG] Inséré ${inserted}/${prepared.length} chunks…`);
     }
 

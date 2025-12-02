@@ -3,8 +3,8 @@
  * Traitement des notes utilisateur pour l'indexation RAG
  */
 
-import { prismaEmbeddings as prisma } from '../../lib/prismaEmbeddings.js';
-import type { RAGChunkInput } from './index.js';
+import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
+import type { RAGChunkInput } from "./index.js";
 
 export interface UserNoteContent {
   userId: string;
@@ -22,7 +22,7 @@ export class UserNotesRAGSystem {
   async findExistingSource(
     userId: string,
     workspaceId: string,
-    noteTitle: string
+    noteTitle: string,
   ): Promise<{
     id: string;
     updatedAt: Date;
@@ -31,21 +31,24 @@ export class UserNotesRAGSystem {
     try {
       const source = await prisma.rAGSource.findFirst({
         where: {
-          sourceType: 'USER_NOTES',
+          sourceType: "USER_NOTES",
           userId,
           workspaceId,
-          title: noteTitle
+          title: noteTitle,
         },
         select: {
           id: true,
           updatedAt: true,
-          status: true
-        }
+          status: true,
+        },
       });
 
       return source || null;
     } catch (error) {
-      console.error(`❌ [USER-NOTES] Erreur recherche source existante:`, error);
+      console.error(
+        `❌ [USER-NOTES] Erreur recherche source existante:`,
+        error,
+      );
       return null;
     }
   }
@@ -61,7 +64,7 @@ export class UserNotesRAGSystem {
       const existingSource = await this.findExistingSource(
         note.userId,
         note.workspaceId,
-        note.title
+        note.title,
       );
 
       let source;
@@ -70,20 +73,20 @@ export class UserNotesRAGSystem {
         console.log(`♻️ [USER-NOTES] Mise à jour: "${note.title}"`);
 
         await prisma.rAGChunk.deleteMany({
-          where: { sourceId: existingSource.id }
+          where: { sourceId: existingSource.id },
         });
 
         source = await prisma.rAGSource.update({
           where: { id: existingSource.id },
           data: {
-            status: 'PROCESSING',
+            status: "PROCESSING",
             lastUsedAt: new Date(),
             updatedAt: new Date(),
             metadata: {
               contentLength: note.content.length,
-              lastModified: note.updatedAt.toISOString()
-            }
-          }
+              lastModified: note.updatedAt.toISOString(),
+            },
+          },
         });
       } else {
         // Création d'une nouvelle source
@@ -93,16 +96,16 @@ export class UserNotesRAGSystem {
           data: {
             userId: note.userId,
             workspaceId: note.workspaceId,
-            sourceType: 'USER_NOTES',
+            sourceType: "USER_NOTES",
             title: note.title,
             isGlobal: false,
-            status: 'PROCESSING',
+            status: "PROCESSING",
             lastUsedAt: new Date(),
             metadata: {
               contentLength: note.content.length,
-              lastModified: note.updatedAt.toISOString()
-            }
-          }
+              lastModified: note.updatedAt.toISOString(),
+            },
+          },
         });
       }
 
@@ -115,9 +118,9 @@ export class UserNotesRAGSystem {
         await prisma.rAGSource.update({
           where: { id: source.id },
           data: {
-            status: 'FAILED',
-            errorMessage: 'Contenu insuffisant pour génération de chunks'
-          }
+            status: "FAILED",
+            errorMessage: "Contenu insuffisant pour génération de chunks",
+          },
         });
 
         return null;
@@ -130,12 +133,14 @@ export class UserNotesRAGSystem {
       await prisma.rAGSource.update({
         where: { id: source.id },
         data: {
-          status: 'COMPLETED',
-          totalChunks: chunks.length
-        }
+          status: "COMPLETED",
+          totalChunks: chunks.length,
+        },
       });
 
-      console.log(`✅ [USER-NOTES] Note indexée avec succès: "${note.title}" (${chunks.length} chunks)`);
+      console.log(
+        `✅ [USER-NOTES] Note indexée avec succès: "${note.title}" (${chunks.length} chunks)`,
+      );
 
       return source.id;
     } catch (error) {
@@ -147,7 +152,9 @@ export class UserNotesRAGSystem {
   /**
    * 📦 Découpe le contenu des notes en chunks pertinents
    */
-  private async chunkUserNoteContent(note: UserNoteContent): Promise<RAGChunkInput[]> {
+  private async chunkUserNoteContent(
+    note: UserNoteContent,
+  ): Promise<RAGChunkInput[]> {
     const chunks: RAGChunkInput[] = [];
 
     if (!note.content || note.content.trim().length === 0) {
@@ -156,9 +163,9 @@ export class UserNotesRAGSystem {
 
     // Chunking simple par paragraphes
     const paragraphs = note.content
-      .split('\n\n')
-      .map(p => p.trim())
-      .filter(p => p.length > 0);
+      .split("\n\n")
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
 
     let offset = 0;
 
@@ -176,7 +183,7 @@ export class UserNotesRAGSystem {
           startOffset: offset,
           endOffset: offset + paragraph.length,
           quality: 1.0,
-          language: 'fr'
+          language: "fr",
         });
       }
 
@@ -194,11 +201,13 @@ export class UserNotesRAGSystem {
         startOffset: 0,
         endOffset: note.content.length,
         quality: 1.0,
-        language: 'fr'
+        language: "fr",
       });
     }
 
-    console.log(`📦 [USER-NOTES] ${chunks.length} chunks générés pour: "${note.title}"`);
+    console.log(
+      `📦 [USER-NOTES] ${chunks.length} chunks générés pour: "${note.title}"`,
+    );
 
     return chunks;
   }
@@ -208,12 +217,14 @@ export class UserNotesRAGSystem {
    */
   private async processUserNoteChunks(
     sourceId: string,
-    chunks: RAGChunkInput[]
+    chunks: RAGChunkInput[],
   ): Promise<void> {
-    const { ragSystem } = await import('./index.js');
+    const { ragSystem } = await import("./index.js");
 
     try {
-      console.log(`🧠 [USER-NOTES] Génération embeddings pour ${chunks.length} chunks...`);
+      console.log(
+        `🧠 [USER-NOTES] Génération embeddings pour ${chunks.length} chunks...`,
+      );
 
       const chunksBatch = [];
 
@@ -221,7 +232,9 @@ export class UserNotesRAGSystem {
         const chunk = chunks[i];
 
         // Générer embedding
-        const embedding = await ragSystem.embeddingService.generateEmbedding(chunk.cleanContent || chunk.content);
+        const embedding = await ragSystem.embeddingService.generateEmbedding(
+          chunk.cleanContent || chunk.content,
+        );
 
         chunksBatch.push({
           sourceId,
@@ -235,17 +248,43 @@ export class UserNotesRAGSystem {
           startOffset: chunk.startOffset,
           endOffset: chunk.endOffset,
           quality: chunk.quality || 1.0,
-          language: chunk.language || 'en',
-          createdAt: new Date()
+          language: chunk.language || "en",
+          createdAt: new Date(),
         });
       }
 
-      // Insérer tous les chunks
-      await prisma.rAGChunk.createMany({
-        data: chunksBatch
-      });
+      // Insérer tous les chunks avec SQL brut (Prisma ne supporte pas vector nativement)
+      for (const chunk of chunksBatch) {
+        await prisma.$executeRaw`
+          INSERT INTO "RAGChunk" (
+            "id", "sourceId", "chunkIndex", "content", "cleanContent",
+            "embedding", "tokenCount", "pageNumber", "sectionTitle",
+            "startOffset", "endOffset", "quality", "language", "createdAt", "updatedAt"
+          )
+          VALUES (
+            gen_random_uuid(),
+            ${chunk.sourceId}::uuid,
+            ${chunk.chunkIndex},
+            ${chunk.content},
+            ${chunk.cleanContent},
+            ${chunk.embedding}::vector,
+            ${chunk.tokenCount},
+            ${chunk.pageNumber},
+            ${chunk.sectionTitle},
+            ${chunk.startOffset},
+            ${chunk.endOffset},
+            ${chunk.quality},
+            ${chunk.language},
+            ${chunk.createdAt},
+            NOW()
+          )
+          ON CONFLICT DO NOTHING
+        `;
+      }
 
-      console.log(`✅ [USER-NOTES] ${chunks.length} chunks indexés avec embeddings`);
+      console.log(
+        `✅ [USER-NOTES] ${chunks.length} chunks indexés avec embeddings`,
+      );
     } catch (error) {
       console.error(`❌ [USER-NOTES] Erreur traitement chunks:`, error);
       throw error;
