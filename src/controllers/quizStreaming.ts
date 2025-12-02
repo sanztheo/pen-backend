@@ -222,7 +222,7 @@ export class QuizStreamingController {
 
         try {
           // Compter les chunks disponibles pour les pages sélectionnées
-          const chunksCount = await prisma.rAGChunk.count({
+          const chunksCount = await prismaEmbeddings.rAGChunk.count({
             where: {
               source: {
                 sourceType: "WORKSPACE_PAGE",
@@ -248,7 +248,7 @@ export class QuizStreamingController {
             );
 
             // Diagnostic des sources RAG
-            const ragSources = await prisma.rAGSource.findMany({
+            const ragSources = await prismaEmbeddings.rAGSource.findMany({
               where: {
                 sourceType: "WORKSPACE_PAGE",
                 userId: userId,

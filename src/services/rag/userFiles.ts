@@ -1,5 +1,5 @@
 // 📄 User Files RAG System - Traitement intelligent des fichiers utilisateur
-import { prisma } from '../../lib/prisma.js';
+import { prismaEmbeddings as prisma } from '../../lib/prismaEmbeddings.js';
 import crypto from 'crypto';
 import type { RAGChunkInput } from './index.js';
 

@@ -1,5 +1,5 @@
 // 🌐 Wikipedia RAG System - Traitement intelligent des articles
-import { prisma } from '../../lib/prisma.js';
+import { prismaEmbeddings as prisma } from '../../lib/prismaEmbeddings.js';
 import { deduplicationService } from './deduplication.js';
 import type { RAGChunkInput } from './index.js';
 

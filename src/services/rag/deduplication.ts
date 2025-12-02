@@ -1,5 +1,5 @@
 // 🔄 RAG Deduplication System - Évite les doublons d'embeddings
-import { prisma } from '../../lib/prisma.js';
+import { prismaEmbeddings as prisma } from '../../lib/prismaEmbeddings.js';
 import type { RAGSourceType } from '@prisma/client';
 
 export interface DeduplicationResult {

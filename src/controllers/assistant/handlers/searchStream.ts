@@ -26,6 +26,7 @@ import { DebugLogger } from "../config/debug.js";
 import { ValidationUtils } from "../utils/validation.js";
 import { AssistantHandlerService } from "../services/HandlerService.js";
 import { prisma } from "../../../lib/prisma.js";
+import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
 import { indexAndPreparePagesForAI } from "../helpers/pageIndexing.js";
 import {
   readPersonalizationFromReq,
@@ -146,9 +147,8 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
         `🔧 [SEARCH] Function Calling activé - sourcesScope: ${sourcesScope}, ragSources: ${ragSources?.length || 0}`,
       );
 
-      const { CoordinatorService } = await import(
-        "../../../services/ai/functionCalling/index.js"
-      );
+      const { CoordinatorService } =
+        await import("../../../services/ai/functionCalling/index.js");
       type OrchestrationRequest =
         import("../../../services/ai/functionCalling/index.js").OrchestrationRequest;
 
@@ -196,7 +196,7 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
         const { default: prisma } = await import("../../../lib/prisma.js");
 
         // Récupérer toutes les sources du workspace de l'utilisateur
-        const allWorkspaceSources = await prisma.rAGSource.findMany({
+        const allWorkspaceSources = await prismaEmbeddings.rAGSource.findMany({
           where: {
             workspaceId,
             userId,
@@ -236,9 +236,8 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           ConversationHistoryService,
           TokenCounterService,
           HistoryCompressionService,
-        } = await import(
-          "../../../services/ai/functionCalling/history/index.js"
-        );
+        } =
+          await import("../../../services/ai/functionCalling/history/index.js");
 
         const userId = req.user!.id;
 
@@ -476,9 +475,8 @@ ${personaSnippet}
 
         if (toolDecision.success && toolDecision.toolCalls.length > 0) {
           // Import FunctionCallingService pour buildContextFromToolResults et generateWithToolResults
-          const { FunctionCallingService } = await import(
-            "../../../services/ai/functionCalling/index.js"
-          );
+          const { FunctionCallingService } =
+            await import("../../../services/ai/functionCalling/index.js");
           console.log(`🔧 [SEARCH-PHASE-2] Génération réponse finale...`);
 
           const toolResults =
@@ -490,9 +488,8 @@ ${personaSnippet}
           const {
             extractWikipediaSourcesFromToolCalls,
             extractWikipediaSourcesFromRagSources,
-          } = await import(
-            "../../../services/ai/functionCalling/utils/wikipediaExtractor.js"
-          );
+          } =
+            await import("../../../services/ai/functionCalling/utils/wikipediaExtractor.js");
           let wikipediaSources = await extractWikipediaSourcesFromToolCalls(
             toolDecision.toolCalls,
           );
@@ -546,9 +543,8 @@ ${personaSnippet}
           const {
             extractWikipediaSourcesFromRagSources,
             buildWikipediaLicenseFooter,
-          } = await import(
-            "../../../services/ai/functionCalling/utils/wikipediaExtractor.js"
-          );
+          } =
+            await import("../../../services/ai/functionCalling/utils/wikipediaExtractor.js");
           let wikipediaSources: any[] = [];
           if (ragSources && ragSources.length > 0) {
             wikipediaSources =

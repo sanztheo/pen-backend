@@ -44,7 +44,7 @@ export async function mapRagSourcesToRealUUIDs(
   );
 
   // Rechercher les sources dans la DB par titre
-  const dbSources = await prisma.rAGSource.findMany({
+  const dbSources = await prismaEmbeddings.rAGSource.findMany({
     where: {
       title: { in: titles },
       sourceType: "WIKIPEDIA",

@@ -1,5 +1,5 @@
 // 📄 User Pages RAG System - Traitement intelligent des pages workspace
-import { prisma } from '../../lib/prisma.js';
+import { prismaEmbeddings as prisma } from '../../lib/prismaEmbeddings.js';
 import type { RAGChunkInput } from './index.js';
 
 export interface UserPageContent {

@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '../../../lib/prisma.js';
+import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
 import { WebSearchService } from '../webSearch.service.js';
 
 export interface ToolContext {
@@ -73,7 +74,7 @@ export class ToolExecutor {
 
     try {
       // 🔥 Query 1: Sources du workspace de l'utilisateur
-      const workspaceSources = await prisma.rAGSource.findMany({
+      const workspaceSources = await prismaEmbeddings.rAGSource.findMany({
         where: {
           workspaceId,
           userId: context.userId
@@ -92,7 +93,7 @@ export class ToolExecutor {
       });
 
       // 🔥 Query 2: Sources Wikipedia GLOBALES partagées
-      const globalWikiSources = await prisma.rAGSource.findMany({
+      const globalWikiSources = await prismaEmbeddings.rAGSource.findMany({
         where: {
           isGlobal: true,
           sourceType: 'WIKIPEDIA',
@@ -178,7 +179,7 @@ export class ToolExecutor {
     console.log(`🌍 [LIST-GLOBAL-WIKI] Listing sources Wikipedia globales`);
 
     try {
-      const wikiSources = await prisma.rAGSource.findMany({
+      const wikiSources = await prismaEmbeddings.rAGSource.findMany({
         where: {
           isGlobal: true,
           sourceType: 'WIKIPEDIA',
@@ -241,7 +242,7 @@ export class ToolExecutor {
       
       // 🔥 FALLBACK: Try to fetch sources from database
       try {
-        const dbSources = await prisma.rAGSource.findMany({
+        const dbSources = await prismaEmbeddings.rAGSource.findMany({
           where: {
             workspaceId: context.workspaceId,
             userId: context.userId
@@ -457,7 +458,7 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
     console.log(`🔍 [CHECK-RAG-STATUS] Vérification de ${ids.length} sources`);
 
     try {
-      const sources = await prisma.rAGSource.findMany({
+      const sources = await prismaEmbeddings.rAGSource.findMany({
         where: { id: { in: ids } },
         select: {
           id: true,
@@ -538,7 +539,7 @@ Sélectionne les sources pertinentes (max ${maxResults}):`;
     }
 
     // Récupérer les informations de la source
-    const source = await prisma.rAGSource.findUnique({
+    const source = await prismaEmbeddings.rAGSource.findUnique({
       where: { id: sourceId },
       select: { title: true, sourceType: true }
     });

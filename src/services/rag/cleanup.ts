@@ -1,5 +1,5 @@
 // 🧹 RAG Cleanup Service - Nettoyage automatique des embeddings non utilisés
-import { prisma } from '../../lib/prisma.js';
+import { prismaEmbeddings as prisma } from '../../lib/prismaEmbeddings.js';
 
 export interface CleanupStats {
   sourcesDeleted: number;

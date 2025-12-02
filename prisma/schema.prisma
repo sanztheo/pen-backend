@@ -34,9 +34,6 @@ model User {
   invitedMembers        WorkspaceMember[]    @relation("InvitedBy")
   workspaceMembers      WorkspaceMember[]
   ownedWorkspaces       Workspace[]          @relation("WorkspaceOwner")
-  // 🚀 RAG Relations
-  ragSources            RAGSource[]
-  ragSessions           RAGSession[]
   // 💬 AI Conversations
   aiConversations       AIConversation[]
   // 📊 Quiz Dashboard Layout
@@ -60,9 +57,6 @@ model Workspace {
   projects       Project[]
   members        WorkspaceMember[]
   owner          User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  // 🚀 RAG Relations
-  ragSources     RAGSource[]
-  ragSessions    RAGSession[]
   // 💬 AI Conversations
   aiConversations AIConversation[]
 
@@ -512,72 +506,6 @@ model OpenaiUsageLog {
   @@map("openai_usage_log")
 }
 
-// 🚀 RAG SYSTEM - Sources et Chunks intelligents
-model RAGSource {
-  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String?          @map("user_id") @db.VarChar(255)  // 🔥 OPTIONNEL pour sources globales
-  workspaceId  String?          @map("workspace_id") @db.Uuid
-  sourceType   RAGSourceType    @map("source_type")
-  title        String           @db.VarChar(500)
-  originalUrl  String?          @map("original_url") @db.Text
-  fileName     String?          @map("file_name") @db.VarChar(255)
-  fileSize     Int?             @map("file_size")
-  mimeType     String?          @map("mime_type") @db.VarChar(100)
-  totalPages   Int?             @map("total_pages")
-  totalChunks  Int              @default(0) @map("total_chunks")
-  metadata     Json             @default("{}")
-  status       RAGSourceStatus  @default(PROCESSING)
-  errorMessage String?          @map("error_message") @db.Text
-  isGlobal     Boolean          @default(false) @map("is_global")  // 🔥 NOUVEAU: source globale partagée
-  lastUsedAt   DateTime?        @map("last_used_at") @db.Timestamptz(6)  // 🔥 NOUVEAU: dernière utilisation
-  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  
-  // Relations
-  user      User?          @relation(fields: [userId], references: [id], onDelete: Cascade)  // 🔥 OPTIONNEL
-  workspace Workspace?     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  chunks    RAGChunk[]
-  sessions  RAGSession[]   @relation("SessionSources")
-
-  @@index([userId, sourceType])
-  @@index([workspaceId])
-  @@index([status])
-  @@index([isGlobal, sourceType, title])  // 🔥 NOUVEAU: Index pour sources globales
-  @@index([title, sourceType])            // 🔥 NOUVEAU: Recherche rapide par titre
-  @@map("rag_sources")
-}
-
-model RAGChunk {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sourceId      String    @map("source_id") @db.Uuid
-  chunkIndex    Int       @map("chunk_index")
-  content       String    @db.Text
-  cleanContent  String    @map("clean_content") @db.Text
-  // Stockage des embeddings (pgvector requis)
-  embedding     String?   @db.Text // Format JSON temporaire, sera migré vers vector
-  tokenCount    Int       @map("token_count")
-  
-  // Métadonnées contextuelles
-  pageNumber    Int?      @map("page_number")
-  sectionTitle  String?   @map("section_title") @db.VarChar(255)
-  startOffset   Int?      @map("start_offset")
-  endOffset     Int?      @map("end_offset")
-  
-  // Qualité du chunk
-  quality       Float     @default(1.0) // Score de qualité (0-1)
-  language      String    @default("fr") @db.VarChar(5)
-  
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  
-  // Relations
-  source        RAGSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  
-  @@unique([sourceId, chunkIndex])
-  @@index([sourceId])
-  @@index([quality])
-  @@map("rag_chunks")
-}
-
 // 💬 Conversations avec l'IA
 model AIConversation {
   id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -659,41 +587,6 @@ model AIMessage {
   @@map("ai_messages")
 }
 
-// 🧠 Mémoire de session persistante
-model RAGSession {
-  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String      @map("user_id") @db.VarChar(255)
-  workspaceId String?     @map("workspace_id") @db.Uuid
-  sessionKey  String      @unique @map("session_key") @db.VarChar(100) // identifiant unique
-  title       String?     @db.VarChar(255)
-  
-  // Conversation et contexte
-  queries     Json        @default("[]") // Historique des questions
-  responses   Json        @default("[]") // Historique des réponses
-  context     Json        @default("{}") // Context accumulé
-  
-  // Sources utilisées dans cette session
-  sourcesUsed RAGSource[] @relation("SessionSources")
-  
-  // Métadonnées de session
-  totalQueries     Int      @default(0) @map("total_queries")
-  lastQueryAt      DateTime? @map("last_query_at") @db.Timestamptz(6)
-  isActive         Boolean  @default(true) @map("is_active")
-  
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  
-  // Relations
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  
-  @@index([userId])
-  @@index([workspaceId])
-  @@index([sessionKey])
-  @@index([isActive, lastQueryAt])
-  @@map("rag_sessions")
-}
-
 // 🔐 Webhook Event pour idempotence
 model WebhookEvent {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -704,23 +597,6 @@ model WebhookEvent {
   @@index([eventId])
   @@index([processedAt])
   @@map("webhook_events")
-}
-
-// Enums pour le système RAG
-enum RAGSourceType {
-  PDF
-  WIKIPEDIA
-  WEB_PAGE
-  WORKSPACE_PAGE
-  TEXT_FILE
-  USER_NOTES
-}
-
-enum RAGSourceStatus {
-  PROCESSING
-  COMPLETED
-  FAILED
-  INDEXING
 }
 
 enum AIMessageRole {

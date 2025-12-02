@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '../../../../lib/prisma.js';
+import { prismaEmbeddings } from "../../../../lib/prismaEmbeddings.js";
 import type { ToolCallRecord, WikipediaSource } from '../types/index.js';
 
 /**
@@ -37,7 +38,7 @@ export async function extractWikipediaSourcesFromToolCalls(
           });
 
           if (validUUIDs.length > 0) {
-            const sources = await prisma.rAGSource.findMany({
+            const sources = await prismaEmbeddings.rAGSource.findMany({
               where: {
                 id: { in: validUUIDs },
                 sourceType: 'WIKIPEDIA'
@@ -111,7 +112,7 @@ export async function extractWikipediaSourcesFromRagSources(
   const titles = wikiSources.map(s => s.title);
 
   try {
-    const sources = await prisma.rAGSource.findMany({
+    const sources = await prismaEmbeddings.rAGSource.findMany({
       where: {
         title: { in: titles },
         sourceType: 'WIKIPEDIA',

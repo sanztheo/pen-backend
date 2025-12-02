@@ -7,6 +7,7 @@ import { assistantAsk, assistantSearch, assistantCreate, assistantAskStream, ass
 // @ts-ignore - type packages may be missing in dev
 import multer from 'multer';
 import { prisma } from '../lib/prisma.js';
+import { prismaEmbeddings } from "../lib/prismaEmbeddings.js";
 
 const router = Router();
 
@@ -251,7 +252,7 @@ router.post('/rag/context', async (req: any, res) => {
             console.warn(`🔥 [RAG-FILES] ID invalide pour "${file.title}": ${file.id} - Recherche par titre`);
 
             // Fallback: Rechercher par titre si l'ID n'est pas un UUID valide
-            const fileRecord = await prisma.rAGSource.findFirst({
+            const fileRecord = await prismaEmbeddings.rAGSource.findFirst({
               where: {
                 title: file.title,
                 userId: req.user.id,
@@ -272,7 +273,7 @@ router.post('/rag/context', async (req: any, res) => {
           }
 
           // Recherche par ID directement (les fichiers ont un ID UUID valide)
-          const fileRecord = await prisma.rAGSource.findFirst({
+          const fileRecord = await prismaEmbeddings.rAGSource.findFirst({
             where: {
               id: file.id,
               userId: req.user.id,
@@ -304,7 +305,7 @@ router.post('/rag/context', async (req: any, res) => {
       const { prisma } = await import('../lib/prisma.js');
       for (const source of sourcesToProcess) {
         try {
-          const sourceRecord = await prisma.rAGSource.findFirst({
+          const sourceRecord = await prismaEmbeddings.rAGSource.findFirst({
             where: {
               title: source.title,
               isGlobal: true,
@@ -333,7 +334,7 @@ router.post('/rag/context', async (req: any, res) => {
       const { prisma } = await import('../lib/prisma.js');
       for (const source of sourcesToProcess) {
         try {
-          const sourceRecord = await prisma.rAGSource.findFirst({
+          const sourceRecord = await prismaEmbeddings.rAGSource.findFirst({
             where: {
               title: source.title,
               isGlobal: true,
