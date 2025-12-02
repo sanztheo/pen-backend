@@ -257,9 +257,9 @@ export class UserNotesRAGSystem {
       for (const chunk of chunksBatch) {
         await prisma.$executeRaw`
           INSERT INTO "rag_chunks" (
-            "id", "sourceId", "chunkIndex", "content", "cleanContent",
-            "embedding", "tokenCount", "pageNumber", "sectionTitle",
-            "startOffset", "endOffset", "quality", "language", "createdAt", "updatedAt"
+            "id", "source_id", "chunk_index", "content", "clean_content",
+            "embedding", "token_count", "page_number", "section_title",
+            "start_offset", "end_offset", "quality", "language", "created_at", "updated_at"
           )
           VALUES (
             gen_random_uuid(),

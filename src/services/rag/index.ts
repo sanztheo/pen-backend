@@ -926,9 +926,9 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       for (const chunk of batch) {
         await prismaEmbeddings.$executeRaw`
           INSERT INTO "rag_chunks" (
-            "id", "sourceId", "chunkIndex", "content", "cleanContent",
-            "embedding", "tokenCount", "pageNumber", "sectionTitle",
-            "startOffset", "endOffset", "quality", "createdAt", "updatedAt"
+            "id", "source_id", "chunk_index", "content", "clean_content",
+            "embedding", "token_count", "page_number", "section_title",
+            "start_offset", "end_offset", "quality", "created_at", "updated_at"
           )
           VALUES (
             gen_random_uuid(),
