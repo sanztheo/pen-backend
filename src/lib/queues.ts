@@ -59,24 +59,41 @@ export const aiQuizQueue = new Queue("ai-quiz", {
   },
 });
 
+// 📰 Queue pour articles scientifiques Futura
+export const futuraQueue = new Queue("futura", {
+  ...defaultQueueOptions,
+  defaultJobOptions: {
+    ...defaultQueueOptions.defaultJobOptions,
+    priority: 3, // Priorité basse (tâche en arrière-plan)
+    removeOnComplete: {
+      age: 86400, // Garder les jobs complétés 24h
+      count: 100,
+    },
+  },
+});
+
 // 📊 Logging de la configuration
 console.log("🎯 [QUEUES] Queues BullMQ initialisées:");
 console.log("   - ai-generation (priorité: 5)");
 console.log("   - ai-assistant (priorité: 7)");
 console.log("   - ai-quiz (priorité: 5)");
+console.log("   - futura (priorité: 3)");
 
 // 🔧 Fonctions utilitaires pour monitoring
 export const getQueueStats = async () => {
-  const [genCounts, assistantCounts, quizCounts] = await Promise.all([
-    aiGenerationQueue.getJobCounts(),
-    aiAssistantQueue.getJobCounts(),
-    aiQuizQueue.getJobCounts(),
-  ]);
+  const [genCounts, assistantCounts, quizCounts, futuraCounts] =
+    await Promise.all([
+      aiGenerationQueue.getJobCounts(),
+      aiAssistantQueue.getJobCounts(),
+      aiQuizQueue.getJobCounts(),
+      futuraQueue.getJobCounts(),
+    ]);
 
   return {
     aiGeneration: genCounts,
     aiAssistant: assistantCounts,
     aiQuiz: quizCounts,
+    futura: futuraCounts,
   };
 };
 
@@ -87,6 +104,7 @@ export const closeQueues = async () => {
     aiGenerationQueue.close(),
     aiAssistantQueue.close(),
     aiQuizQueue.close(),
+    futuraQueue.close(),
   ]);
   console.log("✅ [QUEUES] Queues fermées");
 };
