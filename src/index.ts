@@ -48,6 +48,10 @@ import { backendConfig, CLIENT_URL } from "./utils/config.js";
 import { startWorkers, stopWorkers } from "./workers/index.js";
 import { closeQueues } from "./lib/queues.js";
 import { startMonitoring, stopMonitoring } from "./lib/monitoring.js";
+import {
+  initFuturaScheduler,
+  stopFuturaScheduler,
+} from "./lib/futuraScheduler.js";
 
 // 🛡️ RATE LIMITING IMPORTS
 import {
@@ -638,6 +642,9 @@ server.listen(PORT, async () => {
       // 🎯 Démarrer les workers BullMQ pour jobs asynchrones
       startWorkers();
 
+      // 📅 Initialiser le planificateur d'articles Futura (rafraîchissement hebdomadaire)
+      await initFuturaScheduler();
+
       // 📊 Démarrer le monitoring système (toutes les 5 minutes)
       startMonitoring(5);
     } else {
@@ -652,6 +659,7 @@ server.listen(PORT, async () => {
 process.on("SIGTERM", async () => {
   console.log("🛑 [SHUTDOWN] Signal SIGTERM reçu, arrêt gracieux...");
   stopMonitoring();
+  await stopFuturaScheduler();
   await stopWorkers();
   await closeQueues();
   process.exit(0);
@@ -660,6 +668,7 @@ process.on("SIGTERM", async () => {
 process.on("SIGINT", async () => {
   console.log("🛑 [SHUTDOWN] Signal SIGINT reçu, arrêt gracieux...");
   stopMonitoring();
+  await stopFuturaScheduler();
   await stopWorkers();
   await closeQueues();
   process.exit(0);

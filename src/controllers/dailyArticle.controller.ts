@@ -1,6 +1,6 @@
-import { Request, Response } from 'express';
-import { FuturaRssService } from '../services/futuraRss.service.js';
-import { secureError } from '../lib/secureLogging.js';
+import { Request, Response } from "express";
+import { FuturaRssService } from "../services/futuraRss.service.js";
+import { secureError } from "../lib/secureLogging.js";
 
 export class DailyArticleController {
   /**
@@ -14,7 +14,9 @@ export class DailyArticleController {
 
       // Si aucun article du jour n'est disponible, récupérer le dernier article disponible
       if (!article) {
-        console.log('⚠️ [DAILY-ARTICLE] Aucun article du jour, récupération du dernier disponible...');
+        console.log(
+          "⚠️ [DAILY-ARTICLE] Aucun article du jour, récupération du dernier disponible...",
+        );
         article = await FuturaRssService.getLatestAvailableArticle();
       }
 
@@ -22,7 +24,7 @@ export class DailyArticleController {
       if (!article) {
         return res.status(404).json({
           success: false,
-          error: 'Aucun article disponible'
+          error: "Aucun article disponible",
         });
       }
 
@@ -35,20 +37,22 @@ export class DailyArticleController {
           url: article.url,
           imageUrl: article.imageUrl,
           publishedAt: article.publishedAt,
-          fetchedAt: article.fetchedAt
+          fetchedAt: article.fetchedAt,
         },
         metadata: {
-          source: 'Futura Sciences',
+          source: "Futura Sciences",
           fetchedAt: article.fetchedAt,
-          isToday: this.isToday(article.fetchedAt)
-        }
+          isToday: this.isToday(article.fetchedAt),
+        },
       });
-
     } catch (error) {
-      secureError('[DAILY-ARTICLE-API] Erreur récupération article', error);
+      secureError("[DAILY-ARTICLE-API] Erreur récupération article", error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Erreur lors de la récupération de l\'article'
+        error:
+          error instanceof Error
+            ? error.message
+            : "Erreur lors de la récupération de l'article",
       });
     }
   }
@@ -72,26 +76,27 @@ export class DailyArticleController {
    */
   async refreshDailyArticle(req: Request, res: Response) {
     try {
-
       const latestArticle = await FuturaRssService.fetchLatestArticle();
 
       if (!latestArticle) {
         return res.status(500).json({
           success: false,
-          error: 'Impossible de récupérer un article depuis Futura Sciences'
+          error: "Impossible de récupérer un article depuis Futura Sciences",
         });
       }
 
-      // Forcer la création d'un nouvel article même s'il y en a déjà un aujourd'hui
-      const savedArticle = await FuturaRssService.saveDailyArticle(latestArticle, true);
+      // Forcer la création d'un nouvel article même s'il y en a déjà un cette semaine
+      const savedArticle = await FuturaRssService.saveWeeklyArticle(
+        latestArticle,
+        true,
+      );
 
       if (!savedArticle) {
         return res.status(500).json({
           success: false,
-          error: 'Erreur lors de la sauvegarde de l\'article'
+          error: "Erreur lors de la sauvegarde de l'article",
         });
       }
-
 
       res.json({
         success: true,
@@ -102,16 +107,18 @@ export class DailyArticleController {
           url: savedArticle.url,
           imageUrl: savedArticle.imageUrl,
           publishedAt: savedArticle.publishedAt,
-          fetchedAt: savedArticle.fetchedAt
+          fetchedAt: savedArticle.fetchedAt,
         },
-        message: 'Article rafraîchi avec succès'
+        message: "Article rafraîchi avec succès",
       });
-
     } catch (error) {
-      secureError('[DAILY-ARTICLE-API] Erreur refresh article', error);
+      secureError("[DAILY-ARTICLE-API] Erreur refresh article", error);
       res.status(500).json({
         success: false,
-        error: error instanceof Error ? error.message : 'Erreur lors du rafraîchissement de l\'article'
+        error:
+          error instanceof Error
+            ? error.message
+            : "Erreur lors du rafraîchissement de l'article",
       });
     }
   }
