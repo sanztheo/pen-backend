@@ -1,7 +1,11 @@
 import OpenAI from "openai";
 
-// 🔥 LAZY INITIALIZATION: N'initialise OpenAI que quand nécessaire
+const DEFAULT_MODEL =
+  process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL;
+
+// 🔥 LAZY INITIALIZATION: N'initialise les clients que quand nécessaire
 let openai: OpenAI | null = null;
+let grok: OpenAI | null = null;
 
 function getOpenAIInstance(): OpenAI {
   if (!openai) {
@@ -12,8 +16,21 @@ function getOpenAIInstance(): OpenAI {
   return openai;
 }
 
-const DEFAULT_MODEL =
-  process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL;
+function getGrokInstance(): OpenAI {
+  if (!grok) {
+    if (!process.env.GROK_API_KEY) {
+      console.warn("⚠️ GROK_API_KEY manquante, fallback sur OpenAI");
+      return getOpenAIInstance();
+    }
+    grok = new OpenAI({
+      apiKey: process.env.GROK_API_KEY,
+      baseURL: "https://api.x.ai/v1", // 🧠 xAI Base URL
+    });
+  }
+  return grok;
+}
+
+
 
 export interface AIGenerationOptions {
   prompt: string;
@@ -24,6 +41,8 @@ export interface AIGenerationOptions {
   signal?: AbortSignal;
   // 🚀 Nouveau : Support du streaming
   onStream?: (chunk: string) => void;
+  // 🧠 Nouveau : Support du reasoning/thinking (Grok, o1, etc.)
+  onThinking?: (chunk: string) => void;
 }
 
 export interface AIGenerationResult {
@@ -93,6 +112,13 @@ export class AIService {
    */
   static getOpenAI(): OpenAI {
     return getOpenAIInstance();
+  }
+
+  /**
+   * Obtenir l'instance Grok (xAI) configurée
+   */
+  static getGrok(): OpenAI {
+    return getGrokInstance();
   }
 
   /**

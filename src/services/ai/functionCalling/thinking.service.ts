@@ -127,6 +127,7 @@ export class ThinkingService {
     result: PhaseResult,
     plan: ToolPlan,
     context: any,
+    model?: string, // 🧠 Nouveau paramètre modèle
   ): Promise<ReflectionResult> {
     // Vérifier si on doit réfléchir
     if (!this.shouldReflect(result, plan.reflectionTriggers)) {
@@ -143,10 +144,21 @@ export class ThinkingService {
       `🧠 [THINKING] Réflexion stratégique nécessaire pour phase "${result.phase}"`,
     );
 
-    // Appel OpenAI avec contexte caché
+    // Sélection du client (Grok vs OpenAI)
+    let client: any;
+    const isGrok = typeof model === "string" && model.toLowerCase().includes("grok");
+    
+    if (isGrok) {
+      console.log("🧠 [THINKING] Utilisation de xAI (Grok)");
+      client = AIService.getGrok();
+    } else {
+      client = AIService.getOpenAI();
+    }
+
+    // Appel OpenAI/Grok avec contexte caché
     const cachedContext = CacheService.getCachedContext();
-    const reflection = await AIService.getOpenAI().chat.completions.create({
-      model: "gpt-5.1",
+    const reflection = await client.chat.completions.create({
+      model: model || "gpt-5.1",
       messages: [
         {
           role: "system",

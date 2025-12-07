@@ -445,6 +445,7 @@ ${personaSnippet}
               (res as any).flush();
             }
           },
+          model: "grok-4-1-fast-non-reasoning", // 🧠 Modèle spécifique demandé
         };
 
         // 🚀 ARCHITECTURE OPTIMISÉE: Utilise orchestrateOptimized() pour gains de performance
@@ -503,11 +504,11 @@ ${personaSnippet}
             toolResults,
             systemPrompt: `System: Réponds de manière claire, précise et structurée, en tant qu'assistant IA intelligent.
 
-${personaSnippet}
-
 '''${LATEX_STRICT_RULES}'''`,
             wikipediaSources,
             conversationHistory, // 🆕 Injecter l'historique dans phase 2
+            personalization: persona, // 🆕 Injecter la personnalisation proprement
+            model: "grok-4-1-fast-non-reasoning", // 🧠 Modèle spécifique demandé
             onStream: (chunk) => {
               fullFinalResponse += chunk; // 🆕 Capturer la réponse
               sseWriteData(res, chunk);

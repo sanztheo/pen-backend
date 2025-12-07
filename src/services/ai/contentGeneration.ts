@@ -66,7 +66,17 @@ export class ContentGenerationService {
         Math.max(options.maxTokens || 0, MIN_COMPLETION_TOKENS),
         MAX_COMPLETION_TOKENS,
       );
-      const openai = AIService.getOpenAI();
+
+      // 🧠 SÉLECTION DU CLIENT (OpenAI vs Grok)
+      let client: any;
+      const isGrok = typeof model === "string" && model.toLowerCase().includes("grok");
+      
+      if (isGrok) {
+        console.log("🧠 [PROVIDER] Utilisation de xAI (Grok)");
+        client = AIService.getGrok();
+      } else {
+        client = AIService.getOpenAI();
+      }
 
       const messages = [
         ...(options.context
@@ -91,27 +101,29 @@ export class ContentGenerationService {
         const isFixedTempModelStream =
           typeof model === "string" && /(o1|o3|nano|gpt-5)/i.test(model);
         const payloadStream: any = { model, messages, stream: true };
+        
         if (isFixedTempModelStream) {
           // Ne jamais dépasser la limite provider
           payloadStream.max_completion_tokens = Math.min(
             Math.max(targetTokens, 5000),
             PROVIDER_HARD_CAP,
           );
-          // pas de temperature
           // GPT-5 utilise également reasoning_effort si nécessaire
           if (model.includes("gpt-5")) {
             payloadStream.reasoning_effort = "low";
           }
         } else {
+          // Pour Grok et autres modèles standards
           payloadStream.max_tokens = targetTokens;
           payloadStream.temperature = options.temperature ?? 0.7;
         }
 
-        const stream = (await openai.chat.completions.create(payloadStream, {
+        const stream = (await client.chat.completions.create(payloadStream, {
           signal: controller.signal, // 🚫 Passer le signal à OpenAI
         })) as any;
 
         let fullContent = "";
+        let accumulatedReasoning = ""; // 🆕 Accumulateur de raisonnement
         let usage: any = undefined;
         let finishReason = "unknown";
 
@@ -125,9 +137,23 @@ export class ContentGenerationService {
               throw new Error("Requête annulée");
             }
 
-            const content = chunk.choices[0]?.delta?.content || "";
+            const delta = chunk.choices[0]?.delta as any;
+            const content = delta?.content || "";
+            const reasoning = delta?.reasoning_content || ""; // 🧠 Capture Grok/OpenAI reasoning
+            
+            if (reasoning) {
+              accumulatedReasoning += reasoning;
+              // Stream thinking to frontend
+              if (options.onThinking) {
+                options.onThinking(reasoning);
+              }
+              // Log live thinking chunks (stdout pour voir le flux en temps réel)
+              process.stdout.write(reasoning); 
+            }
+
             if (content) {
               fullContent += content;
+
               // 🚀 Optimisation streaming : envoyer des chunks plus petits si nécessaire
               if (content.length > 60) {
                 // Diviser les gros chunks en plus petits morceaux pour un affichage plus fluide
@@ -169,10 +195,16 @@ export class ContentGenerationService {
         }
 
         const responseTime = Date.now() - startTime;
-        console.log(`✅ [OpenAI] Streaming terminé en ${responseTime}ms`, {
+        console.log(`✅ [OpenAI/Grok] Streaming terminé en ${responseTime}ms`, {
           contentLength: fullContent.length,
+          reasoningLength: accumulatedReasoning.length,
           finishReason,
         });
+
+        // 🧠 Log complet du thinking si existant (DEMANDE UTILISATEUR)
+        if (accumulatedReasoning.length > 0) {
+          console.log("\n🧠 [COMPLETE THINKING]:\n" + accumulatedReasoning + "\n-------------------\n");
+        }
 
         // Optionnel: si coupé par longueur et que l'appelant a demandé plus de tokens, tenter une continuation simple
         if (finishReason === "length" && (options.maxTokens || 0) > 0) {
@@ -204,7 +236,7 @@ export class ContentGenerationService {
               payloadFollow.max_tokens = maxFollowTokens;
               payloadFollow.temperature = options.temperature ?? 0.7;
             }
-            const stream2 = (await openai.chat.completions.create(
+            const stream2 = (await client.chat.completions.create(
               payloadFollow,
             )) as any;
             for await (const chunk of stream2) {

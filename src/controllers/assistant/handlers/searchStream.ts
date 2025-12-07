@@ -438,6 +438,7 @@ ${personaSnippet}
               (res as any).flush();
             }
           },
+          model: "grok-4-1-fast-reasoning", // 🧠 Modèle spécifique demandé
         };
 
         // 🚀 ARCHITECTURE OPTIMISÉE: Utilise orchestrateOptimized() pour gains de performance
@@ -512,11 +513,11 @@ ${personaSnippet}
             toolResults,
             systemPrompt: `System: Réponds de façon claire, précise et structurée, en apportant des détails et de la profondeur à tes explications.
 
-${personaSnippet}
-
 '''${LATEX_STRICT_RULES}'''`,
             wikipediaSources,
             conversationHistory, // 🆕 Injecter l'historique dans phase 2
+            personalization: persona, // 🆕 Injecter la personnalisation proprement
+            model: "grok-4-1-fast-reasoning", // 🧠 Modèle spécifique demandé
             onStream: (chunk) => {
               fullFinalResponse += chunk; // 🆕 Capturer la réponse
               sseWriteData(res, chunk);
