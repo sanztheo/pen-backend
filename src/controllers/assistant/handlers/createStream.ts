@@ -336,7 +336,7 @@ ${personaSnippet}
 
 '''${LATEX_STRICT_RULES}'''`,
         conversationHistory, // 🆕 Passer l'historique au brain (PlannerService)
-
+        model: "grok-4-1-fast-reasoning", // 🧠 Modèle spécifique demandé (rapide - profond)
         // Callbacks pour streaming temps réel
         onThinking: (thinkingChunk) => {
           const timestamp = new Date().toISOString();
@@ -418,7 +418,7 @@ ${personaSnippet}
 
     if (reflection === "profond") {
       try {
-        // 🎯 Mode profond: Utiliser Gemini avec thinking
+        // 🎯 Mode profond: Utiliser Grok (via AIService) avec thinking
         const optimizedPrompt = optimizePrompt(
           "create",
           sanitizedInstruction,
@@ -431,11 +431,12 @@ ${personaSnippet}
 
         let full = "";
         let thinkingContent = currentThinking;
-        await GeminiService.generateWithThinking({
+        await AIService.generateContent({
+          model: "grok-4-1-fast-reasoning", // 🧠 Modèle Grok Reasoning
           prompt: optimizedPrompt.userMessage,
           context: `${personaSnippet ? personaSnippet + "\n\n" : ""}${optimizedPrompt.systemMessage}`,
           temperature: optimizedPrompt.temperature,
-          maxTokens: 40000, // 🔥 CORRECTION: 40000 pour mode profond CREATE (comme create.ts)
+          maxTokens: 40000,
           onStream: (chunk: string) => {
             const normalized = String(chunk || "");
             full += normalized;
@@ -443,6 +444,10 @@ ${personaSnippet}
           },
           onThinking: (thinking: string) => {
             thinkingContent += thinking;
+            // 🧠 Format compatible avec le frontend pour "vrai" reflexion
+            res.write(`event: thinking\n`);
+            res.write(`data: ${JSON.stringify({ content: thinking, timestamp: new Date().toISOString() })}\n\n`);
+            // Aussi envoyer format status pour compatibilité existante si besoin
             res.write(`event: status\n`);
             res.write(`data: 🤔 ${thinking}\n\n`);
             if ((res as any).flush) {
@@ -541,6 +546,7 @@ ${personaSnippet}
 
     let full = "";
     await AIService.generateContent({
+      model: "grok-4-1-fast-reasoning", // 🧠 Modèle spécifique demandé
       prompt: optimizedPrompt.userMessage,
       context: `${personaSnippet ? personaSnippet + "\n\n" : ""}${optimizedPrompt.systemMessage}`,
       temperature: optimizedPrompt.temperature,

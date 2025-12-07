@@ -23,6 +23,7 @@ export interface ScoreToolResultInput {
   result: string;
   query: string;
   expectedInfo?: string;
+  model?: string; // 🧠 Modèle spécifique
   context?: {
     previousScores?: ToolResultScore[];
     useWeb?: boolean;
@@ -30,6 +31,7 @@ export interface ScoreToolResultInput {
     mode?: "ask" | "search";
   };
 }
+
 
 export interface StrategyAdjustment {
   shouldExploreMore: boolean; // Explorer d'autres sources ?
@@ -41,6 +43,7 @@ export interface StrategyAdjustment {
   priority: "low" | "medium" | "high" | "critical";
 }
 
+
 export class ScoringService {
   /**
    * 🎯 Score un résultat de tool (0.0 à 1.0)
@@ -48,9 +51,7 @@ export class ScoringService {
   static async scoreToolResult(
     input: ScoreToolResultInput,
   ): Promise<ToolResultScore> {
-    const { toolName, result, query, expectedInfo, context } = input;
-
-    console.log(`📊 [SCORING] Évaluation du résultat de ${toolName}...`);
+    const { toolName, result, query, expectedInfo, context, model } = input;
 
     // 🔥 RÈGLES HEURISTIQUES RAPIDES (pas d'IA pour économiser les crédits)
     const heuristicScore = this.calculateHeuristicScore(
@@ -70,9 +71,19 @@ export class ScoringService {
       return heuristicScore;
     }
 
-    // 🤖 Pour les cas ambigus, utiliser l'IA (GPT-4o-mini pour économiser)
+    // 🤖 Pour les cas ambigus, utiliser l'IA
     try {
-      const openai = AIService.getOpenAI();
+      // 🧠 SÉLECTION DU CLIENT (OpenAI vs Grok)
+      let client: any;
+      const modelToUse = model || "gpt-5.1";
+      const isGrok = typeof modelToUse === "string" && modelToUse.toLowerCase().includes("grok");
+      
+      if (isGrok) {
+        console.log("📊 [SCORING] Utilisation de xAI (Grok)");
+        client = AIService.getGrok();
+      } else {
+        client = AIService.getOpenAI();
+      }
 
       const scoringPrompt = `Tu es un évaluateur de qualité de résultats d'outils IA.
 
@@ -114,8 +125,8 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
   "suggestions": ["<suggestion 1>", "<suggestion 2>"]
 }`;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-5.1",
+      const response = await client.chat.completions.create({
+        model: modelToUse,
         messages: [
           {
             role: "system",
@@ -127,8 +138,8 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
             content: scoringPrompt,
           },
         ],
-        temperature: 0.1, // Very low temperature for consistent scoring
-        max_completion_tokens: 350, // GPT-5 uses max_completion_tokens instead of max_tokens
+        temperature: 0.1,
+        max_completion_tokens: 350,
         response_format: { type: "json_object" },
       });
 
