@@ -12,6 +12,7 @@
 
 import { AIService } from "../base.js";
 import { ScoringService } from "./scoring.service.js";
+import { BatchScoringService } from "./batchScoring.service.js";
 import {
   ToolDependenciesValidator,
   type ToolExecutionContext,
@@ -742,82 +743,130 @@ export class CoordinatorService {
       }
 
       // ============================================
-      // ÉTAPE 4 : SCORING PARALLÈLE (optimisé!)
+      // ÉTAPE 4 : BATCH SCORING (1 appel API au lieu de N!)
       // ============================================
       
       // 🚀 FAST MODE: Pour mode "ask", on skip le scoring (gain ~78s)
       const isFastMode = !request.isSearch && batchResult.successRate > 0.9;
       
+      // Filtrer les résultats valides pour le scoring
+      const validResults = batchResult.results.filter(r => !r.error && r.result);
+      const useBatchScoring = BatchScoringService.shouldUseBatch(validResults.length);
+      
       if (isFastMode) {
         console.log("⚡ [COORDINATOR-OPTIMIZED] FAST MODE: Scoring désactivé pour mode 'ask'");
+      } else if (useBatchScoring) {
+        console.log(`📊 [COORDINATOR-OPTIMIZED] ÉTAPE 4/4: BATCH Scoring (${validResults.length} résultats → 1 appel)...`);
       } else {
-        console.log("📊 [COORDINATOR-OPTIMIZED] ÉTAPE 4/4: Scoring parallèle...");
+        console.log(`📊 [COORDINATOR-OPTIMIZED] ÉTAPE 4/4: Scoring standard (${validResults.length} résultats)...`);
       }
 
       // 🆕 Notifier le frontend du début du scoring
       if (request.onScoring) {
         request.onScoring(
           "all",
-          isFastMode ? "Mode rapide activé" : `Analyse parallèle de ${batchResult.results.length} résultats...`,
+          isFastMode ? "Mode rapide activé" : useBatchScoring ? `Batch scoring de ${validResults.length} résultats...` : `Analyse de ${validResults.length} résultats...`,
         );
       }
 
-      // 🚀 SCORING PARALLÈLE avec Promise.all (au lieu de séquentiel)
-      const scoringPromises = batchResult.results.map(async (result, i) => {
-        const step = plan.toolSequence[i];
-        
-        // Fast mode ou erreur = pas de scoring
-        if (isFastMode || result.error || !result.result) {
+      let toolCalls: OrchestrationResult["toolCalls"];
+
+      if (isFastMode) {
+        // 🚀 FAST MODE: Pas de scoring du tout
+        toolCalls = batchResult.results.map((result, i) => ({
+          name: result.tool,
+          arguments: plan.toolSequence[i].params || {},
+          result: result.result || `Error: ${result.error?.message}`,
+          thinking: "",
+          score: null,
+          timestamp: Date.now(),
+        }));
+      } else if (useBatchScoring) {
+        // 🚀 BATCH SCORING: 1 appel pour tous les résultats
+        const batchInputs = validResults.map((result, i) => ({
+          tool: result.tool,
+          result: result.result,
+          description: plan.toolSequence[batchResult.results.indexOf(result)]?.description,
+        }));
+
+        const batchScores = await BatchScoringService.batchScore({
+          query: plan.optimizedQuery || request.query,
+          results: batchInputs,
+          model: request.model,
+          mode: request.isSearch ? "search" : "ask",
+        });
+
+        // Reconstruire toolCalls avec les scores batch
+        let scoreIndex = 0;
+        toolCalls = batchResult.results.map((result, i) => {
+          const hasValidResult = !result.error && result.result;
+          const score = hasValidResult ? batchScores[scoreIndex++] || null : null;
+          
           return {
             name: result.tool,
-            arguments: step.params || {},
+            arguments: plan.toolSequence[i].params || {},
             result: result.result || `Error: ${result.error?.message}`,
-            thinking: "",
-            score: null,
-            timestamp: Date.now(),
-          };
-        }
-
-        try {
-          const score = await ScoringService.scoreToolResult({
-            toolName: result.tool,
-            result: result.result,
-            query: plan.optimizedQuery || request.query,
-            expectedInfo: step.description,
-            model: request.model,
-            context: {
-              useWeb: request.useWeb,
-              hasSpecificSource: request.availableSources.length > 0,
-              mode: request.isSearch ? "search" : "ask",
-            },
-          });
-
-          return {
-            name: result.tool,
-            arguments: step.params || {},
-            result: result.result,
             thinking: "",
             score,
             timestamp: Date.now(),
           };
-        } catch (scoreError) {
-          console.warn(
-            `⚠️ [COORDINATOR-OPTIMIZED] Erreur scoring tool ${result.tool}:`,
-            scoreError,
-          );
-          return {
-            name: result.tool,
-            arguments: step.params || {},
-            result: result.result,
-            thinking: "",
-            score: null,
-            timestamp: Date.now(),
-          };
-        }
-      });
+        });
+      } else {
+        // 🔄 SCORING INDIVIDUEL (pour < 3 résultats, plus précis)
+        const scoringPromises = batchResult.results.map(async (result, i) => {
+          const step = plan.toolSequence[i];
+          
+          if (result.error || !result.result) {
+            return {
+              name: result.tool,
+              arguments: step.params || {},
+              result: result.result || `Error: ${result.error?.message}`,
+              thinking: "",
+              score: null,
+              timestamp: Date.now(),
+            };
+          }
 
-      // 🚀 Exécution parallèle de tous les scorings
-      const toolCalls = await Promise.all(scoringPromises);
+          try {
+            const score = await ScoringService.scoreToolResult({
+              toolName: result.tool,
+              result: result.result,
+              query: plan.optimizedQuery || request.query,
+              expectedInfo: step.description,
+              model: request.model,
+              context: {
+                useWeb: request.useWeb,
+                hasSpecificSource: request.availableSources.length > 0,
+                mode: request.isSearch ? "search" : "ask",
+              },
+            });
+
+            return {
+              name: result.tool,
+              arguments: step.params || {},
+              result: result.result,
+              thinking: "",
+              score,
+              timestamp: Date.now(),
+            };
+          } catch (scoreError) {
+            console.warn(
+              `⚠️ [COORDINATOR-OPTIMIZED] Erreur scoring tool ${result.tool}:`,
+              scoreError,
+            );
+            return {
+              name: result.tool,
+              arguments: step.params || {},
+              result: result.result,
+              thinking: "",
+              score: null,
+              timestamp: Date.now(),
+            };
+          }
+        });
+
+        toolCalls = await Promise.all(scoringPromises);
+      }
 
       // 🆕 Notifier le frontend de la fin du scoring
       if (request.onScoring) {
