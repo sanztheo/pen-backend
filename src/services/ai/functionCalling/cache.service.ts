@@ -230,4 +230,92 @@ Execution strategy:
       `💾 [CACHE] Workspace metadata updated: ${sourceCount} sources`,
     );
   }
+
+  // ============================================
+  // 🚀 SCORE CACHE - Évite les recalculs
+  // ============================================
+
+  private static scoreCache = new Map<string, { score: any; timestamp: number }>();
+  private static SCORE_TTL = 10 * 60 * 1000; // 10 minutes
+
+  /**
+   * Génère une clé de cache pour un score
+   * Basée sur : toolName + hash du résultat (premiers 500 chars) + query
+   */
+  static generateScoreCacheKey(toolName: string, result: string, query: string): string {
+    // Hash simple basé sur les premiers 500 caractères du résultat
+    const resultHash = this.simpleHash(result.slice(0, 500));
+    const queryHash = this.simpleHash(query.toLowerCase().trim());
+    return `score_${toolName}_${resultHash}_${queryHash}`;
+  }
+
+  /**
+   * Hash simple pour générer une clé courte
+   */
+  private static simpleHash(str: string): string {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(36);
+  }
+
+  /**
+   * Récupère un score depuis le cache
+   * @returns Le score caché ou null si non trouvé/expiré
+   */
+  static getCachedScore(toolName: string, result: string, query: string): any | null {
+    const key = this.generateScoreCacheKey(toolName, result, query);
+    const cached = this.scoreCache.get(key);
+
+    if (cached && Date.now() - cached.timestamp < this.SCORE_TTL) {
+      console.log(`💾 [SCORE-CACHE] HIT: ${toolName} (économise 1 appel API)`);
+      return cached.score;
+    }
+
+    return null;
+  }
+
+  /**
+   * Stocke un score dans le cache
+   */
+  static setCachedScore(toolName: string, result: string, query: string, score: any): void {
+    const key = this.generateScoreCacheKey(toolName, result, query);
+    this.scoreCache.set(key, {
+      score,
+      timestamp: Date.now(),
+    });
+    console.log(`💾 [SCORE-CACHE] SET: ${toolName}`);
+  }
+
+  /**
+   * Nettoie les scores expirés du cache
+   */
+  static cleanExpiredScores(): void {
+    const now = Date.now();
+    let cleaned = 0;
+    
+    for (const [key, value] of this.scoreCache.entries()) {
+      if (now - value.timestamp >= this.SCORE_TTL) {
+        this.scoreCache.delete(key);
+        cleaned++;
+      }
+    }
+    
+    if (cleaned > 0) {
+      console.log(`🧹 [SCORE-CACHE] Nettoyé ${cleaned} scores expirés`);
+    }
+  }
+
+  /**
+   * Statistiques du cache des scores
+   */
+  static getScoreCacheStats(): { size: number; hitRate: string } {
+    return {
+      size: this.scoreCache.size,
+      hitRate: "N/A", // Pourrait être implémenté avec des compteurs
+    };
+  }
 }
