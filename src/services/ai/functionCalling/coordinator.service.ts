@@ -77,6 +77,7 @@ export interface OrchestrationRequest {
   onToolResult?: (toolName: string, result: string) => void;
   onIntermediateThinking?: (chunk: string) => void;
   onScoring?: (toolName: string, progress: string) => void; // 🆕 Callback pour la phase de scoring
+  onPartialResponse?: (text: string, isPartial: boolean) => void; // 🆕 Callback pour réponse incrémentale (2 vagues)
   conversationHistory?: string | null; // 🆕 Historique de conversation formaté
   model?: string; // 🧠 Modèle spécifique à utiliser (ex: grok-4-1-fast-reasoning)
 }
@@ -654,22 +655,73 @@ export class CoordinatorService {
         query: plan.optimizedQuery || request.query,
       };
 
-      const batchResult = await OptimizedExecutorService.executeBatch(
-        executionPlan,
-        executionContext,
-        {
-          onToolStart: (toolName, params) => {
-            if (request.onToolCall) {
-              request.onToolCall(toolName, params);
-            }
-          },
-          onToolComplete: (toolName, result) => {
-            if (request.onToolResult) {
-              request.onToolResult(toolName, result);
-            }
-          },
-        },
-      );
+      // 🚀 Utiliser executeBatchIncremental pour réponse en 2 vagues
+      const useIncremental = request.onPartialResponse && plan.toolSequence.length >= 4;
+      
+      const batchResult = useIncremental
+        ? await OptimizedExecutorService.executeBatchIncremental(
+            executionPlan,
+            executionContext,
+            {
+              onToolStart: (toolName, params) => {
+                if (request.onToolCall) {
+                  request.onToolCall(toolName, params);
+                }
+              },
+              onToolComplete: (toolName, result) => {
+                if (request.onToolResult) {
+                  request.onToolResult(toolName, result);
+                }
+              },
+              onPartialResults: async (partialResults, ratio) => {
+                console.log(`📝 [COORDINATOR-INCREMENTAL] Génération réponse partielle (${(ratio * 100).toFixed(0)}% complété)...`);
+                // Générer une réponse partielle avec les premiers résultats
+                try {
+                  const { FunctionCallingService } = await import("./index.js");
+                  const partialContext = FunctionCallingService.buildContextFromToolResults(
+                    partialResults.map((r, i) => ({
+                      name: r.tool,
+                      arguments: plan.toolSequence[i]?.params || {},
+                      result: r.result || "",
+                      timestamp: Date.now(),
+                    }))
+                  );
+                  
+                  // Générer rapidement une réponse partielle
+                  let partialResponse = "";
+                  await FunctionCallingService.generateWithToolResults({
+                    query: request.query,
+                    toolResults: partialContext,
+                    systemPrompt: `${request.systemPrompt}\n\nIMPORTANT: Ceci est une réponse PARTIELLE basée sur ${partialResults.length} sources. Sois concis, la réponse complète suivra.`,
+                    model: request.model,
+                    onStream: (chunk: string) => {
+                      partialResponse += chunk;
+                    },
+                  });
+                  
+                  request.onPartialResponse?.(partialResponse, true);
+                } catch (partialError) {
+                  console.warn(`⚠️ [COORDINATOR-INCREMENTAL] Erreur réponse partielle:`, partialError);
+                }
+              },
+            },
+          )
+        : await OptimizedExecutorService.executeBatch(
+            executionPlan,
+            executionContext,
+            {
+              onToolStart: (toolName, params) => {
+                if (request.onToolCall) {
+                  request.onToolCall(toolName, params);
+                }
+              },
+              onToolComplete: (toolName, result) => {
+                if (request.onToolResult) {
+                  request.onToolResult(toolName, result);
+                }
+              },
+            },
+          );
 
       console.log(
         `✅ [COORDINATOR-OPTIMIZED] Exécution terminée: ${batchResult.results.length} tools en ${batchResult.duration}ms`,
