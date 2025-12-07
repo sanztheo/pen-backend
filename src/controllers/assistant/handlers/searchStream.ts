@@ -512,11 +512,10 @@ ${personaSnippet}
             toolResults,
             systemPrompt: `System: Réponds de façon claire, précise et structurée, en apportant des détails et de la profondeur à tes explications.
 
-${personaSnippet}
-
 '''${LATEX_STRICT_RULES}'''`,
             wikipediaSources,
             conversationHistory, // 🆕 Injecter l'historique dans phase 2
+            personalization: persona, // 🆕 Injecter la personnalisation proprement
             onStream: (chunk) => {
               fullFinalResponse += chunk; // 🆕 Capturer la réponse
               sseWriteData(res, chunk);
