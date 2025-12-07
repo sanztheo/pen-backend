@@ -503,11 +503,10 @@ ${personaSnippet}
             toolResults,
             systemPrompt: `System: Réponds de manière claire, précise et structurée, en tant qu'assistant IA intelligent.
 
-${personaSnippet}
-
 '''${LATEX_STRICT_RULES}'''`,
             wikipediaSources,
             conversationHistory, // 🆕 Injecter l'historique dans phase 2
+            personalization: persona, // 🆕 Injecter la personnalisation proprement
             onStream: (chunk) => {
               fullFinalResponse += chunk; // 🆕 Capturer la réponse
               sseWriteData(res, chunk);

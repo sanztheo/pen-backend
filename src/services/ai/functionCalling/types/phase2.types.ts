@@ -14,6 +14,7 @@ export interface GenerateWithToolResultsOptions {
   onStream?: (chunk: string) => void;
   wikipediaSources?: WikipediaSource[];
   conversationHistory?: string | null; // 🆕 Historique de conversation pour contexte
+  personalization?: any; // 🆕 Données de personnalisation utilisateur
 }
 
 /**
