@@ -742,67 +742,82 @@ export class CoordinatorService {
       }
 
       // ============================================
-      // ÉTAPE 4 : SCORING (0 API calls, fait localement)
+      // ÉTAPE 4 : SCORING PARALLÈLE (optimisé!)
       // ============================================
-      console.log("📊 [COORDINATOR-OPTIMIZED] ÉTAPE 4/4: Scoring...");
+      
+      // 🚀 FAST MODE: Pour mode "ask", on skip le scoring (gain ~78s)
+      const isFastMode = !request.isSearch && batchResult.successRate > 0.9;
+      
+      if (isFastMode) {
+        console.log("⚡ [COORDINATOR-OPTIMIZED] FAST MODE: Scoring désactivé pour mode 'ask'");
+      } else {
+        console.log("📊 [COORDINATOR-OPTIMIZED] ÉTAPE 4/4: Scoring parallèle...");
+      }
 
       // 🆕 Notifier le frontend du début du scoring
       if (request.onScoring) {
         request.onScoring(
           "all",
-          `Analyse de ${batchResult.results.length} résultats...`,
+          isFastMode ? "Mode rapide activé" : `Analyse parallèle de ${batchResult.results.length} résultats...`,
         );
       }
 
-      const toolCalls: OrchestrationResult["toolCalls"] = [];
-
-      for (let i = 0; i < batchResult.results.length; i++) {
-        const result = batchResult.results[i];
+      // 🚀 SCORING PARALLÈLE avec Promise.all (au lieu de séquentiel)
+      const scoringPromises = batchResult.results.map(async (result, i) => {
         const step = plan.toolSequence[i];
+        
+        // Fast mode ou erreur = pas de scoring
+        if (isFastMode || result.error || !result.result) {
+          return {
+            name: result.tool,
+            arguments: step.params || {},
+            result: result.result || `Error: ${result.error?.message}`,
+            thinking: "",
+            score: null,
+            timestamp: Date.now(),
+          };
+        }
 
-        // 🆕 Notifier le frontend du scoring en cours
-        if (request.onScoring) {
-          request.onScoring(
-            result.tool,
-            `Évaluation ${i + 1}/${batchResult.results.length}`,
+        try {
+          const score = await ScoringService.scoreToolResult({
+            toolName: result.tool,
+            result: result.result,
+            query: plan.optimizedQuery || request.query,
+            expectedInfo: step.description,
+            model: request.model,
+            context: {
+              useWeb: request.useWeb,
+              hasSpecificSource: request.availableSources.length > 0,
+              mode: request.isSearch ? "search" : "ask",
+            },
+          });
+
+          return {
+            name: result.tool,
+            arguments: step.params || {},
+            result: result.result,
+            thinking: "",
+            score,
+            timestamp: Date.now(),
+          };
+        } catch (scoreError) {
+          console.warn(
+            `⚠️ [COORDINATOR-OPTIMIZED] Erreur scoring tool ${result.tool}:`,
+            scoreError,
           );
+          return {
+            name: result.tool,
+            arguments: step.params || {},
+            result: result.result,
+            thinking: "",
+            score: null,
+            timestamp: Date.now(),
+          };
         }
+      });
 
-        let score = null;
-        if (!result.error && result.result) {
-          try {
-            score = await ScoringService.scoreToolResult({
-              toolName: result.tool,
-              result: result.result,
-              query: plan.optimizedQuery || request.query,
-              expectedInfo: step.description,
-              model: request.model, // 🧠 Passer le modèle
-              context: {
-                previousScores: toolCalls
-                  .map((tc) => tc.score)
-                  .filter((s) => s !== undefined),
-                useWeb: request.useWeb,
-                hasSpecificSource: request.availableSources.length > 0,
-                mode: request.isSearch ? "search" : "ask",
-              },
-            });
-          } catch (scoreError) {
-            console.warn(
-              `⚠️ [COORDINATOR-OPTIMIZED] Erreur scoring tool ${result.tool}:`,
-              scoreError,
-            );
-          }
-        }
-
-        toolCalls.push({
-          name: result.tool,
-          arguments: plan.toolSequence[i].params || {},
-          result: result.result || `Error: ${result.error?.message}`,
-          thinking: "", // Pas de thinking intermédiaire dans le nouveau système
-          score,
-          timestamp: Date.now(),
-        });
-      }
+      // 🚀 Exécution parallèle de tous les scorings
+      const toolCalls = await Promise.all(scoringPromises);
 
       // 🆕 Notifier le frontend de la fin du scoring
       if (request.onScoring) {
