@@ -77,6 +77,7 @@ export interface OrchestrationRequest {
   onIntermediateThinking?: (chunk: string) => void;
   onScoring?: (toolName: string, progress: string) => void; // 🆕 Callback pour la phase de scoring
   conversationHistory?: string | null; // 🆕 Historique de conversation formaté
+  model?: string; // 🧠 Modèle spécifique à utiliser (ex: grok-4-1-fast-reasoning)
 }
 
 /**
@@ -134,7 +135,8 @@ export class CoordinatorService {
         useWeb: request.useWeb,
         systemPrompt: request.systemPrompt,
         onThinking: request.onThinking,
-        conversationHistory: request.conversationHistory, // 🆕 Passer l'historique au planner
+        conversationHistory: request.conversationHistory,
+        model: request.model, // 🧠 Passer le modèle (Grok/OpenAI)
       };
 
       const plan = await PlannerService.generatePlan(planRequest);
@@ -331,6 +333,7 @@ export class CoordinatorService {
               result: executionResult.result,
               query: plan.optimizedQuery || request.query,
               expectedInfo: step.description,
+              model: request.model, // 🧠 Passer le modèle
               context: {
                 previousScores: toolCalls
                   .map((tc) => tc.score)
@@ -522,7 +525,8 @@ export class CoordinatorService {
         useWeb: request.useWeb,
         systemPrompt: request.systemPrompt,
         onThinking: request.onThinking,
-        conversationHistory: request.conversationHistory, // 🆕 Passer l'historique au planner
+        conversationHistory: request.conversationHistory,
+        model: request.model, // 🧠 Passer le modèle (Grok/OpenAI)
       };
 
       const plan = await PlannerService.generatePlan(planRequest);
@@ -723,6 +727,7 @@ export class CoordinatorService {
         phaseResult,
         toolPlan,
         {},
+        request.model, // 🧠 Passer le modèle
       );
 
       if (
@@ -771,6 +776,7 @@ export class CoordinatorService {
               result: result.result,
               query: plan.optimizedQuery || request.query,
               expectedInfo: step.description,
+              model: request.model, // 🧠 Passer le modèle
               context: {
                 previousScores: toolCalls
                   .map((tc) => tc.score)

@@ -35,6 +35,7 @@ export interface PlanRequest {
   systemPrompt?: string;
   onThinking?: (content: string) => void;
   conversationHistory?: string | null; // 🆕 Historique formaté de la conversation
+  model?: string; // 🧠 Modèle spécifique
 }
 
 /**
@@ -95,7 +96,7 @@ export class PlannerService {
       `🔧 [PLANNER] Génération du plan avec ${availableSources.length} sources disponibles`,
     );
 
-    const openai = AIService.getOpenAI();
+
 
     try {
       // 🔥 ÉTAPE 1: First Thinking - Generate JSON plan with tool sequence
@@ -251,9 +252,20 @@ The user is now asking:`
             historyContext,
           );
 
+      let client: any;
+      const model = request.model || "gpt-5.1";
+      const isGrok = typeof model === "string" && model.toLowerCase().includes("grok");
+      
+      if (isGrok) {
+        console.log("🧠 [PLANNER] Utilisation de xAI (Grok) pour la planification");
+        client = AIService.getGrok();
+      } else {
+        client = AIService.getOpenAI();
+      }
+
       let firstThinkingContent = "";
-      const firstThinkingStream = await openai.chat.completions.create({
-        model: "gpt-5.1",
+      const firstThinkingStream = await client.chat.completions.create({
+        model: request.model || "gpt-5.1", // 🧠 Utiliser le modèle demandé ou fallback
         messages: [
           {
             role: "system",
@@ -273,7 +285,14 @@ The user is now asking:`
 
       // Collecter le contenu du premier thinking
       for await (const chunk of firstThinkingStream) {
-        const delta = chunk.choices[0]?.delta;
+        const delta = chunk.choices[0]?.delta as any;
+        const reasoning = delta?.reasoning_content;
+        
+        // 🧠 Capture et stream du reasoning (Real Thinking)
+        if (reasoning && onThinking) {
+          onThinking(reasoning);
+        }
+
         if (delta?.content) {
           firstThinkingContent += delta.content;
           if (onThinking) {

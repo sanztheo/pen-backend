@@ -15,6 +15,7 @@ export interface GenerateWithToolResultsOptions {
   wikipediaSources?: WikipediaSource[];
   conversationHistory?: string | null; // 🆕 Historique de conversation pour contexte
   personalization?: any; // 🆕 Données de personnalisation utilisateur
+  model?: string; // 🧠 Modèle spécifique à utiliser
 }
 
 /**
