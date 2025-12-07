@@ -60,13 +60,14 @@ export class ScoringService {
       query,
     );
 
-    // Si le score heuristique est très clair (>0.8 ou <0.3), pas besoin d'IA
+    // 🚀 OPTIMISÉ: Seuils plus agressifs pour éviter ~80% des appels API
+    // La plupart des résultats search_web sont clairs, pas besoin d'IA
     if (
-      heuristicScore.overallScore > 0.8 ||
-      heuristicScore.overallScore < 0.3
+      heuristicScore.overallScore > 0.7 ||
+      heuristicScore.overallScore < 0.35
     ) {
       console.log(
-        `📊 [SCORING] Score heuristique clair: ${heuristicScore.overallScore.toFixed(2)}`,
+        `📊 [SCORING] Score heuristique clair: ${heuristicScore.overallScore.toFixed(2)} (skip IA)`,
       );
       return heuristicScore;
     }
