@@ -200,6 +200,7 @@ Rappel : La demande utilisateur est LA BASE, les tool results sont le CONTEXTE p
       context: phase2SystemPrompt,
       temperature: 0.3, // 🔥 Légèrement plus créatif pour des réponses plus riches
       maxTokens: 6000, // 🔥 Augmenté pour permettre des réponses détaillées (300-500 mots minimum)
+      model: options.model, // 🧠 Passer le modèle spécifique (Grok/OpenAI)
       onStream: (chunk: string) => {
         fullContent += chunk;
         if (onStream) {
