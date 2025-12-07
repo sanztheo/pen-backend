@@ -8,6 +8,7 @@
  */
 
 import { AIService } from "../base.js";
+import { CacheService } from "./cache.service.js";
 
 export interface ToolResultScore {
   confidence: number; // 0.0-1.0 : qualité du résultat
@@ -53,6 +54,12 @@ export class ScoringService {
   ): Promise<ToolResultScore> {
     const { toolName, result, query, expectedInfo, context, model } = input;
 
+    // 💾 VÉRIFIER LE CACHE D'ABORD
+    const cachedScore = CacheService.getCachedScore(toolName, result, query);
+    if (cachedScore) {
+      return cachedScore;
+    }
+
     // 🔥 RÈGLES HEURISTIQUES RAPIDES (pas d'IA pour économiser les crédits)
     const heuristicScore = this.calculateHeuristicScore(
       toolName,
@@ -69,6 +76,8 @@ export class ScoringService {
       console.log(
         `📊 [SCORING] Score heuristique clair: ${heuristicScore.overallScore.toFixed(2)} (skip IA)`,
       );
+      // 💾 Stocker dans le cache
+      CacheService.setCachedScore(toolName, result, query, heuristicScore);
       return heuristicScore;
     }
 
@@ -162,6 +171,8 @@ RETOURNE UNIQUEMENT UN JSON STRICT :
       console.log(
         `📊 [SCORING] Score IA calculé: ${score.overallScore.toFixed(2)}`,
       );
+      // 💾 Stocker dans le cache
+      CacheService.setCachedScore(toolName, result, query, score);
       return score;
     } catch (error) {
       console.warn(
