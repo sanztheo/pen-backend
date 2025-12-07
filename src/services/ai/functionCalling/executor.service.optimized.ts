@@ -102,6 +102,85 @@ export class OptimizedExecutorService {
   }
 
   /**
+   * 🚀 Exécute un batch avec réponse incrémentale (2 vagues)
+   *
+   * Déclenche un callback dès que 30% des résultats sont prêts,
+   * permettant de générer une réponse partielle.
+   *
+   * @param plan - Plan d'exécution
+   * @param context - Contexte d'exécution
+   * @param callbacks - Callbacks incluant onPartialResults
+   * @returns Résultat d'exécution
+   */
+  static async executeBatchIncremental(
+    plan: ToolExecutionPlan,
+    context: OptimizedExecutionContext,
+    callbacks?: {
+      onToolStart?: (toolName: string, params: any) => void;
+      onToolComplete?: (toolName: string, result: string) => void;
+      onPartialResults?: (results: ToolResult[], completedRatio: number) => void;
+    },
+  ): Promise<BatchExecutionResult> {
+    const startTime = Date.now();
+    const totalTools = plan.tools.length;
+    const partialThreshold = Math.ceil(totalTools * 0.3); // 30%
+    let partialTriggered = false;
+
+    console.log(
+      `⚡ [INCREMENTAL-EXECUTOR] Exécution incrémentale de ${totalTools} outils (seuil: ${partialThreshold})...`,
+    );
+
+    const results: ToolResult[] = [];
+    const promises: Promise<ToolResult>[] = [];
+
+    // Lancer tous les tools en parallèle mais tracker individuellement
+    for (const tool of plan.tools) {
+      const promise = this.executeSingleTool(tool, context, {
+        onToolStart: callbacks?.onToolStart,
+        onToolComplete: (toolName, result) => {
+          callbacks?.onToolComplete?.(toolName, result);
+        },
+      }).then((result) => {
+        results.push(result);
+
+        // 🚀 Déclencher partial dès qu'on atteint le seuil
+        if (!partialTriggered && results.length >= partialThreshold) {
+          partialTriggered = true;
+          const completedRatio = results.length / totalTools;
+          console.log(
+            `📤 [INCREMENTAL-EXECUTOR] Seuil atteint! ${results.length}/${totalTools} (${(completedRatio * 100).toFixed(0)}%)`,
+          );
+          callbacks?.onPartialResults?.(
+            [...results], // Copie pour éviter mutations
+            completedRatio,
+          );
+        }
+
+        return result;
+      });
+      promises.push(promise);
+    }
+
+    // Attendre tous les résultats
+    await Promise.all(promises);
+
+    const duration = Date.now() - startTime;
+    const successCount = results.filter((r) => !r.error).length;
+    const successRate = successCount / results.length;
+
+    console.log(
+      `✅ [INCREMENTAL-EXECUTOR] Batch complété en ${duration}ms (${successCount}/${results.length} succès)`,
+    );
+
+    return {
+      results,
+      duration,
+      apiCallsUsed: 0,
+      successRate,
+    };
+  }
+
+  /**
    * 🔧 Exécute un outil individuel
    *
    * @param tool - Outil à exécuter

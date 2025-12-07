@@ -438,6 +438,19 @@ ${personaSnippet}
               (res as any).flush();
             }
           },
+          
+          // 🆕 Réponse partielle (2 vagues style Perplexity)
+          onPartialResponse: (text, isPartial) => {
+            const timestamp = new Date().toISOString();
+            console.log(`📤 [SEARCH-PARTIAL] Envoi réponse partielle (${text.length} chars)...`);
+            res.write(
+              `event: partial_response\ndata: ${JSON.stringify({ text, isPartial, timestamp })}\n\n`,
+            );
+            if (typeof (res as any).flush === "function") {
+              (res as any).flush();
+            }
+          },
+          
           model: "grok-4-1-fast-reasoning", // 🧠 Modèle spécifique demandé
         };
 
