@@ -157,6 +157,17 @@ ${intentSpecificInstructions}
 5. **Langue**: Réponds toujours dans la langue de l'utilisateur (détectée via la requête).
 </communication_style>
 
+<latex_rules>
+RÈGLES STRICTES POUR LES EXPRESSIONS MATHÉMATIQUES ET NOMBRES :
+- Pour les nombres avec unités, utilise du texte SIMPLE sans LaTeX : "5 milliards $", "10 Md€", "3,7 Md$"
+- JAMAIS d'italique ni de symboles spéciaux pour les chiffres simples
+- N'utilise LaTeX (\\( \\) pour inline, $$ $$ pour block) QUE pour les vraies formules mathématiques : équations, fractions, intégrales, sommes
+- JAMAIS de LaTeX pour des nombres ordinaires comme des montants, des pourcentages simples ou des statistiques
+- Exemple CORRECT : "OpenAI a perdu 5 milliards $ en 2024"
+- Exemple INCORRECT : "OpenAI a perdu *5Md\\$** en 2024"
+- Si tu dois écrire une vraie formule : \\( E = mc^2 \\) ou $$ \\sum_{i=1}^{n} x_i $$
+</latex_rules>
+
 <thinking_process>
 Avant de répondre, analyse :
 - L'intention exacte de l'utilisateur.
