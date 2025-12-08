@@ -33,6 +33,20 @@ import {
   buildPersonaSnippet,
 } from "../helpers/personalization.js";
 import { mapRagSourcesToRealUUIDs } from "../helpers/sourceMapping.js";
+import { ProfilingService } from "../../../services/ai/functionCalling/profiling.service.js";
+
+// 🚀 IMPORTS STATIQUES (plus de await import() dynamiques = moins de latence)
+import { CoordinatorService, type OrchestrationRequest } from "../../../services/ai/functionCalling/index.js";
+import { FunctionCallingService } from "../../../services/ai/functionCalling/index.js";
+import {
+  ConversationHistoryService,
+  TokenCounterService,
+  HistoryCompressionService,
+} from "../../../services/ai/functionCalling/history/index.js";
+import {
+  extractWikipediaSourcesFromToolCalls,
+  extractWikipediaSourcesFromRagSources,
+} from "../../../services/ai/functionCalling/utils/wikipediaExtractor.js";
 
 export const assistantSearchStream = async (req: Request, res: Response) => {
   try {
@@ -69,6 +83,11 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     // 🛡️ SÉCURITÉ: Nettoyage de l'input utilisateur
     const sanitizedQuery = sanitizeUserInput(query);
     const userId = req.user?.id || "anonymous";
+
+    // ⏱️ PROFILING: Démarrer la session de timestamps
+    const profilingSessionId = ProfilingService.generateSessionId();
+    ProfilingService.startSession(profilingSessionId, sanitizedQuery);
+    (req as any).profilingSessionId = profilingSessionId; // Stocker pour le passer aux services
 
     // 🧠 RAG: Gestion intelligente des sources avec validation unifiée
     let contextPageIds: string[] = [];
@@ -111,6 +130,9 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
     // 🚀 Construction contexte avec le service unifié
     DebugLogger.web(`[SEARCH] Déclenchement recherche web - useWeb: ${useWeb}`);
 
+    // ⏱️ PROFILING
+    ProfilingService.addTimestamp(profilingSessionId, 'BUILD_CONTEXT_START');
+
     const contextResult = await AssistantHandlerService.buildContextStrategy(
       "search",
       {
@@ -122,6 +144,9 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
         userId: req.user?.id || "anonymous",
       },
     );
+
+    // ⏱️ PROFILING
+    ProfilingService.addTimestamp(profilingSessionId, 'BUILD_CONTEXT_END');
 
     DebugLogger.web(
       `[SEARCH] Contexte construit - pages: ${contextResult.pages.length}, web: ${contextResult.web.length}, rag: ${contextResult.ragContext?.length || 0}`,
@@ -147,11 +172,6 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
         `🔧 [SEARCH] Function Calling activé - sourcesScope: ${sourcesScope}, ragSources: ${ragSources?.length || 0}`,
       );
 
-      const { CoordinatorService } =
-        await import("../../../services/ai/functionCalling/index.js");
-      type OrchestrationRequest =
-        import("../../../services/ai/functionCalling/index.js").OrchestrationRequest;
-
       // 🔥 Variable pour savoir si des pages spécifiques ont été mentionnées
       const hasSpecificPages = contextPageIds.length > 0;
 
@@ -172,6 +192,9 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
         console.log(
           `📖 [SEARCH] Pages spécifiques détectées - utiliser SEULEMENT ces pages, pas les sources RAG`,
         );
+
+        // ⏱️ PROFILING
+        ProfilingService.addTimestamp(profilingSessionId, 'INDEX_PAGES_START');
 
         // Pour chaque page, s'assurer qu'une RAGSource existe
         sourcesForAI = await indexAndPreparePagesForAI(
@@ -228,16 +251,15 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
 
       let currentThinking = "";
       let currentToolCalls: any[] = [];
-      let intermediateThinkingBlocks: any[] = []; // 🔥 Stocker intermediate thinking pour metadata
+      let intermediateThinkingBlocks: any[] = [];
+
+      // ⏱️ PROFILING
+      ProfilingService.addTimestamp(profilingSessionId, 'SOURCES_PREP_END');
 
       try {
         // 🆕 GESTION DE L'HISTORIQUE DES CONVERSATIONS
-        const {
-          ConversationHistoryService,
-          TokenCounterService,
-          HistoryCompressionService,
-        } =
-          await import("../../../services/ai/functionCalling/history/index.js");
+        // ⏱️ PROFILING
+        ProfilingService.addTimestamp(profilingSessionId, 'HISTORY_LOAD_START');
 
         const userId = req.user!.id;
 
@@ -359,8 +381,17 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
           );
         }
 
+        // ⏱️ PROFILING
+        ProfilingService.addTimestamp(profilingSessionId, 'HISTORY_LOAD_END');
+        ProfilingService.addTimestamp(profilingSessionId, 'PERSONALIZATION_START');
+
         const persona = await readPersonalizationFromReq(req);
         const personaSnippet = buildPersonaSnippet(persona, 400);
+        
+        // ⏱️ PROFILING
+        ProfilingService.addTimestamp(profilingSessionId, 'PERSONALIZATION_END');
+        ProfilingService.addTimestamp(profilingSessionId, 'PHASE_1_START');
+        
         // 🔥 PHASE 1: Décision des tools + explication streamée
         console.log(
           `🔧 [SEARCH-PHASE-1] Démarrage décision tools avec ${sourcesForAI.length} sources...`,
@@ -468,9 +499,12 @@ ${personaSnippet}
         const toolDecision =
           await CoordinatorService.orchestrateOptimized(orchestrationRequest);
 
+        // ⏱️ PROFILING
+        ProfilingService.addTimestamp(profilingSessionId, 'PHASE_1_END');
+
         currentToolCalls = toolDecision.toolCalls;
         intermediateThinkingBlocks =
-          toolDecision.intermediateThinkingBlocks || []; // 🔥 Capturer les intermediate thinking blocks
+          toolDecision.intermediateThinkingBlocks || [];
         console.log(
           `✅ [SEARCH-PHASE-1] Terminé: ${toolDecision.toolCalls.length} tools exécutés, success: ${toolDecision.success}`,
         );
@@ -492,12 +526,12 @@ ${personaSnippet}
         // }
 
         // 🔥 PHASE 2: Génération réponse finale avec résultats des tools
-        let fullFinalResponse = ""; // 🆕 Capturer la réponse finale pour l'historique
+        let fullFinalResponse = "";
+
+        // ⏱️ PROFILING
+        ProfilingService.addTimestamp(profilingSessionId, 'PHASE_2_START');
 
         if (toolDecision.success && toolDecision.toolCalls.length > 0) {
-          // Import FunctionCallingService pour buildContextFromToolResults et generateWithToolResults
-          const { FunctionCallingService } =
-            await import("../../../services/ai/functionCalling/index.js");
           console.log(`🔧 [SEARCH-PHASE-2] Génération réponse finale...`);
 
           const toolResults =
@@ -506,11 +540,6 @@ ${personaSnippet}
             );
 
           // 📚 Extraire les sources Wikipedia pour l'attribution de licence
-          const {
-            extractWikipediaSourcesFromToolCalls,
-            extractWikipediaSourcesFromRagSources,
-          } =
-            await import("../../../services/ai/functionCalling/utils/wikipediaExtractor.js");
           let wikipediaSources = await extractWikipediaSourcesFromToolCalls(
             toolDecision.toolCalls,
           );
@@ -546,6 +575,10 @@ ${personaSnippet}
               sseWriteData(res, chunk);
             },
           });
+
+          // ⏱️ PROFILING
+          ProfilingService.addTimestamp(profilingSessionId, 'PHASE_2_END');
+          ProfilingService.endSession(profilingSessionId);
 
           console.log(`✅ [SEARCH-PHASE-2] Réponse finale streamée`);
         } else {

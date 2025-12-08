@@ -1,0 +1,89 @@
+[
+  {
+    "sessionId": "prof_1765212507747_ynyixz",
+    "query": "parle mo ides finances d'open ai",
+    "startTime": 1765212507747,
+    "entries": [
+      {
+        "event": "🚀 SESSION_START",
+        "timestamp": 1765212507747,
+        "elapsed": 0,
+        "delta": 0
+      },
+      {
+        "event": "BUILD_CONTEXT_START",
+        "timestamp": 1765212507747,
+        "elapsed": 0,
+        "delta": 0
+      },
+      {
+        "event": "BUILD_CONTEXT_END",
+        "timestamp": 1765212513962,
+        "elapsed": 6215,
+        "delta": 6215
+      },
+      {
+        "event": "SOURCES_PREP_END",
+        "timestamp": 1765212513965,
+        "elapsed": 6218,
+        "delta": 3
+      },
+      {
+        "event": "HISTORY_LOAD_START",
+        "timestamp": 1765212513965,
+        "elapsed": 6218,
+        "delta": 0
+      },
+      {
+        "event": "HISTORY_LOAD_END",
+        "timestamp": 1765212514755,
+        "elapsed": 7008,
+        "delta": 790
+      },
+      {
+        "event": "PERSONALIZATION_START",
+        "timestamp": 1765212514755,
+        "elapsed": 7008,
+        "delta": 0
+      },
+      {
+        "event": "PERSONALIZATION_END",
+        "timestamp": 1765212514755,
+        "elapsed": 7008,
+        "delta": 0
+      },
+      {
+        "event": "PHASE_1_START",
+        "timestamp": 1765212514755,
+        "elapsed": 7008,
+        "delta": 0
+      },
+      {
+        "event": "PHASE_1_END",
+        "timestamp": 1765212554199,
+        "elapsed": 46452,
+        "delta": 39444
+      },
+      {
+        "event": "PHASE_2_START",
+        "timestamp": 1765212554199,
+        "elapsed": 46452,
+        "delta": 0
+      },
+      {
+        "event": "PHASE_2_END",
+        "timestamp": 1765212574912,
+        "elapsed": 67165,
+        "delta": 20713
+      },
+      {
+        "event": "✅ SESSION_END",
+        "timestamp": 1765212574912,
+        "elapsed": 67165,
+        "delta": 0
+      }
+    ],
+    "endTime": 1765212574912,
+    "totalDuration": 67165
+  }
+]
