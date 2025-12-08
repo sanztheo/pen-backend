@@ -139,8 +139,8 @@ export const assistantSearchStream = async (req: Request, res: Response) => {
         query: sanitizedQuery,
         workspaceId,
         pageIds: contextPageIds,
-        useWeb,
-        ragSources: shouldSkipInitialRAG ? [] : ragSources, // 🔥 Skip RAG si Function Calling actif
+        useWeb: false, // 🔥 OPTIMISATION CRITIQUE (-6s): Skip recherche web initiale car Function Calling le fera
+        ragSources: shouldSkipInitialRAG ? [] : ragSources,
         userId: req.user?.id || "anonymous",
       },
     );
