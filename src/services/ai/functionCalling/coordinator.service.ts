@@ -98,6 +98,9 @@ export interface OrchestrationResult {
   }>;
   thinking: string;
   intermediateThinkingBlocks: IntermediateThinkingBlock[];
+  // Delta approach (Perplexity-style)
+  wave1Response?: string; // Réponse partielle de la Vague 1
+  partialToolCount?: number; // Nombre de tools utilisés pour Vague 1
 }
 
 export class CoordinatorService {
@@ -656,7 +659,11 @@ export class CoordinatorService {
         query: plan.optimizedQuery || request.query,
       };
 
-      // 🚀 Utiliser executeBatchIncremental pour réponse en 2 vagues
+      // Delta approach (Perplexity-style): Store Wave 1 data for delta generation
+      // Using mutable object to avoid TypeScript scope issues with async callback
+      const wave1DataRef: { current: { response: string; toolCount: number } | null } = { current: null };
+
+      // Use incremental execution for 2-wave response
       const useIncremental = request.onPartialResponse && plan.toolSequence.length >= 4;
       
       const batchResult = useIncremental
@@ -675,8 +682,8 @@ export class CoordinatorService {
                 }
               },
               onPartialResults: async (partialResults, ratio) => {
-                console.log(`📝 [COORDINATOR-INCREMENTAL] Génération réponse partielle STREAMÉE (${(ratio * 100).toFixed(0)}% complété)...`);
-                // Générer une réponse partielle avec les premiers résultats - STREAMÉE
+                console.log(`[COORDINATOR-INCREMENTAL] Wave 1 generation (${(ratio * 100).toFixed(0)}% complete)...`);
+                // Generate partial response with first results - STREAMED
                 try {
                   const { FunctionCallingService } = await import("./index.js");
                   const partialContext = FunctionCallingService.buildContextFromToolResults(
@@ -688,24 +695,30 @@ export class CoordinatorService {
                     }))
                   );
                   
-                  // 🚀 Streamer la réponse partielle en temps réel
+                  // Stream partial response in real-time
                   let partialResponse = "";
                   await FunctionCallingService.generateWithToolResults({
                     query: request.query,
                     toolResults: partialContext,
-                    systemPrompt: `${request.systemPrompt}\n\nIMPORTANT: Ceci est une réponse PARTIELLE basée sur ${partialResults.length} sources. Sois concis, la réponse complète suivra.`,
+                    systemPrompt: `${request.systemPrompt}\n\nIMPORTANT: This is a PARTIAL response based on ${partialResults.length} sources. Be concise, the complete response will follow.`,
                     model: request.model,
                     onStream: (chunk: string) => {
                       partialResponse += chunk;
-                      // 🚀 Envoyer chaque chunk en temps réel!
+                      // Send each chunk in real-time!
                       request.onPartialStream?.(chunk);
                     },
                   });
                   
-                  // Signaler la fin de la vague partielle
+                  // Store Wave 1 data for delta approach
+                  wave1DataRef.current = {
+                    response: partialResponse,
+                    toolCount: partialResults.length,
+                  };
+                  
+                  // Signal end of partial wave
                   request.onPartialResponse?.(partialResponse, true);
                 } catch (partialError) {
-                  console.warn(`⚠️ [COORDINATOR-INCREMENTAL] Erreur réponse partielle:`, partialError);
+                  console.warn(`[COORDINATOR-INCREMENTAL] Wave 1 error:`, partialError);
                 }
               },
             },
@@ -967,7 +980,10 @@ export class CoordinatorService {
         success: true,
         toolCalls,
         thinking: plan.reasoning,
-        intermediateThinkingBlocks: [], // Pas de thinking blocks dans le nouveau système
+        intermediateThinkingBlocks: [],
+        // Delta approach (Perplexity-style)
+        wave1Response: wave1DataRef.current?.response,
+        partialToolCount: wave1DataRef.current?.toolCount,
       };
     } catch (error) {
       console.error(`❌ [COORDINATOR-OPTIMIZED] Erreur orchestration:`, error);
