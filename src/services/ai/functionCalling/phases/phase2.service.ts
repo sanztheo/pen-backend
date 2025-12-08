@@ -158,14 +158,31 @@ ${intentSpecificInstructions}
 </communication_style>
 
 <latex_rules>
-RÈGLES STRICTES POUR LES EXPRESSIONS MATHÉMATIQUES ET NOMBRES :
-- Pour les nombres avec unités, utilise du texte SIMPLE sans LaTeX : "5 milliards $", "10 Md€", "3,7 Md$"
-- JAMAIS d'italique ni de symboles spéciaux pour les chiffres simples
-- N'utilise LaTeX (\\( \\) pour inline, $$ $$ pour block) QUE pour les vraies formules mathématiques : équations, fractions, intégrales, sommes
-- JAMAIS de LaTeX pour des nombres ordinaires comme des montants, des pourcentages simples ou des statistiques
-- Exemple CORRECT : "OpenAI a perdu 5 milliards $ en 2024"
-- Exemple INCORRECT : "OpenAI a perdu *5Md\\$** en 2024"
-- Si tu dois écrire une vraie formule : \\( E = mc^2 \\) ou $$ \\sum_{i=1}^{n} x_i $$
+🚨 RÈGLES ABSOLUES - FORMATAGE DES NOMBRES ET CHIFFRES 🚨
+
+INTERDIT TOTALEMENT :
+- Les astérisques (*) autour des nombres : *5 milliards* ❌
+- Les dollars ($) pour entourer des chiffres : $125$ ❌  
+- Le mélange italique + nombres : *en2025* ❌
+- Les formules LaTeX pour des statistiques simples
+
+OBLIGATOIRE :
+- Écrire les nombres en texte BRUT : "5 milliards $", "125 milliards", "+16%"
+- Utiliser des espaces entre les nombres et unités : "3,7 Md $" pas "3,7Md$"
+- Écrire les années normalement : "en 2025" pas "en2025"
+
+EXEMPLES :
+✅ CORRECT : "OpenAI a généré 3,7 milliards $ en 2024"
+✅ CORRECT : "Projections : 12,7 milliards en 2025, 125 milliards en 2029"
+✅ CORRECT : "Croissance de +16% par rapport à 2024"
+
+❌ FAUX : "OpenAI a généré *3,7milliards$* en 2024"
+❌ FAUX : "*jusqu'à5, 5milliards*"
+❌ FAUX : "$125milliards$ en 2029"
+
+LaTeX UNIQUEMENT pour les VRAIES formules mathématiques :
+- Équations : \\( E = mc^2 \\)
+- Intégrales, sommes, fractions complexes
 </latex_rules>
 
 <thinking_process>
