@@ -13,9 +13,12 @@ export interface GenerateWithToolResultsOptions {
   systemPrompt: string;
   onStream?: (chunk: string) => void;
   wikipediaSources?: WikipediaSource[];
-  conversationHistory?: string | null; // 🆕 Historique de conversation pour contexte
-  personalization?: any; // 🆕 Données de personnalisation utilisateur
-  model?: string; // 🧠 Modèle spécifique à utiliser
+  conversationHistory?: string | null; // Historique de conversation pour contexte
+  personalization?: any; // Données de personnalisation utilisateur
+  model?: string; // Modèle spécifique à utiliser
+  // Delta approach (Perplexity-style)
+  wave1Response?: string; // Réponse partielle de Vague 1 à enrichir
+  partialToolCount?: number; // Nombre de tools utilisés pour Vague 1
 }
 
 /**

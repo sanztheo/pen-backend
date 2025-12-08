@@ -535,11 +535,14 @@ ${personaSnippet}
 
 '''${LATEX_STRICT_RULES}'''`,
             wikipediaSources,
-            conversationHistory, // 🆕 Injecter l'historique dans phase 2
-            personalization: persona, // 🆕 Injecter la personnalisation proprement
-            model: "grok-4-1-fast-reasoning", // 🧠 Modèle spécifique demandé
+            conversationHistory,
+            personalization: persona,
+            model: "grok-4-1-fast-reasoning",
+            // Delta approach (Perplexity-style)
+            wave1Response: toolDecision.wave1Response,
+            partialToolCount: toolDecision.partialToolCount,
             onStream: (chunk) => {
-              fullFinalResponse += chunk; // 🆕 Capturer la réponse
+              fullFinalResponse += chunk;
               sseWriteData(res, chunk);
             },
           });
