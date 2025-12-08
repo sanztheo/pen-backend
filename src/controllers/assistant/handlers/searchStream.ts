@@ -442,13 +442,20 @@ ${personaSnippet}
           // 🆕 Réponse partielle (2 vagues style Perplexity)
           onPartialResponse: (text, isPartial) => {
             const timestamp = new Date().toISOString();
-            console.log(`📤 [SEARCH-PARTIAL] Envoi réponse partielle (${text.length} chars)...`);
+            console.log(`📤 [SEARCH-PARTIAL] Fin vague partielle (${text.length} chars)...`);
+            // Ajouter l'indicateur "enrichissement en cours"
             res.write(
-              `event: partial_response\ndata: ${JSON.stringify({ text, isPartial, timestamp })}\n\n`,
+              `event: partial_complete\ndata: ${JSON.stringify({ isPartial, timestamp })}\n\n`,
             );
             if (typeof (res as any).flush === "function") {
               (res as any).flush();
             }
+          },
+          
+          // 🆕 Streaming en temps réel de la première vague
+          onPartialStream: (chunk) => {
+            // Utiliser le même format que onChunk pour que le frontend l'affiche en streaming
+            sseWriteData(res, chunk);
           },
           
           model: "grok-4-1-fast-reasoning", // 🧠 Modèle spécifique demandé

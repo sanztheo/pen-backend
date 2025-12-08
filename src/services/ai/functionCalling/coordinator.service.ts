@@ -77,7 +77,8 @@ export interface OrchestrationRequest {
   onToolResult?: (toolName: string, result: string) => void;
   onIntermediateThinking?: (chunk: string) => void;
   onScoring?: (toolName: string, progress: string) => void; // 🆕 Callback pour la phase de scoring
-  onPartialResponse?: (text: string, isPartial: boolean) => void; // 🆕 Callback pour réponse incrémentale (2 vagues)
+  onPartialResponse?: (text: string, isPartial: boolean) => void; // 🆕 Callback pour réponse incrémentale (fin de vague)
+  onPartialStream?: (chunk: string) => void; // 🆕 Callback pour streamer les chunks de la première vague
   conversationHistory?: string | null; // 🆕 Historique de conversation formaté
   model?: string; // 🧠 Modèle spécifique à utiliser (ex: grok-4-1-fast-reasoning)
 }
@@ -674,8 +675,8 @@ export class CoordinatorService {
                 }
               },
               onPartialResults: async (partialResults, ratio) => {
-                console.log(`📝 [COORDINATOR-INCREMENTAL] Génération réponse partielle (${(ratio * 100).toFixed(0)}% complété)...`);
-                // Générer une réponse partielle avec les premiers résultats
+                console.log(`📝 [COORDINATOR-INCREMENTAL] Génération réponse partielle STREAMÉE (${(ratio * 100).toFixed(0)}% complété)...`);
+                // Générer une réponse partielle avec les premiers résultats - STREAMÉE
                 try {
                   const { FunctionCallingService } = await import("./index.js");
                   const partialContext = FunctionCallingService.buildContextFromToolResults(
@@ -687,7 +688,7 @@ export class CoordinatorService {
                     }))
                   );
                   
-                  // Générer rapidement une réponse partielle
+                  // 🚀 Streamer la réponse partielle en temps réel
                   let partialResponse = "";
                   await FunctionCallingService.generateWithToolResults({
                     query: request.query,
@@ -696,9 +697,12 @@ export class CoordinatorService {
                     model: request.model,
                     onStream: (chunk: string) => {
                       partialResponse += chunk;
+                      // 🚀 Envoyer chaque chunk en temps réel!
+                      request.onPartialStream?.(chunk);
                     },
                   });
                   
+                  // Signaler la fin de la vague partielle
                   request.onPartialResponse?.(partialResponse, true);
                 } catch (partialError) {
                   console.warn(`⚠️ [COORDINATOR-INCREMENTAL] Erreur réponse partielle:`, partialError);
