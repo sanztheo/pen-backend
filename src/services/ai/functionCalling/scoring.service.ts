@@ -95,43 +95,43 @@ export class ScoringService {
         client = AIService.getOpenAI();
       }
 
-      const scoringPrompt = `Tu es un évaluateur de qualité de résultats d'outils IA.
+      const scoringPrompt = `You are a tool result quality evaluator.
 
-OUTIL EXÉCUTÉ : ${toolName}
-QUESTION : "${query}"
-${expectedInfo ? `INFORMATION ATTENDUE : ${expectedInfo}` : ""}
+TOOL EXECUTED: ${toolName}
+QUESTION: "${query}"
+${expectedInfo ? `EXPECTED INFORMATION: ${expectedInfo}` : ""}
 
-RÉSULTAT DE L'OUTIL :
-${result.slice(0, 1000)} ${result.length > 1000 ? "... (tronqué)" : ""}
+TOOL RESULT:
+${result.slice(0, 1000)} ${result.length > 1000 ? "... (truncated)" : ""}
 
-CONTEXTE :
-${context?.hasSpecificSource ? "- Une source spécifique a été sélectionnée par l'utilisateur" : "- Mode exploration libre"}
-${context?.useWeb ? "- Recherche web activée" : "- Recherche web désactivée"}
-${context?.previousScores ? `- Scores précédents: ${context.previousScores.map((s) => s.overallScore.toFixed(2)).join(", ")}` : ""}
+CONTEXT:
+${context?.hasSpecificSource ? "- A specific source was selected by the user" : "- Free exploration mode"}
+${context?.useWeb ? "- Web search enabled" : "- Web search disabled"}
+${context?.previousScores ? `- Previous scores: ${context.previousScores.map((s) => s.overallScore.toFixed(2)).join(", ")}` : ""}
 
-ÉVALUE CE RÉSULTAT SUR 3 DIMENSIONS (0.0 à 1.0) :
+EVALUATE THIS RESULT ON 3 DIMENSIONS (0.0 to 1.0):
 
-1. **Confidence** (qualité du résultat) :
-   - 0.0-0.3 : Erreur, vide, ou inutilisable
-   - 0.4-0.6 : Partiel, incomplet, mais utilisable
-   - 0.7-1.0 : Complet, précis, de haute qualité
+1. **Confidence** (result quality):
+   - 0.0-0.3: Error, empty, or unusable
+   - 0.4-0.6: Partial, incomplete, but usable
+   - 0.7-1.0: Complete, precise, high quality
 
-2. **Relevance** (pertinence pour la question) :
-   - 0.0-0.3 : Hors-sujet, non pertinent
-   - 0.4-0.6 : Partiellement pertinent
-   - 0.7-1.0 : Très pertinent, répond directement
+2. **Relevance** (relevance to the question):
+   - 0.0-0.3: Off-topic, not relevant
+   - 0.4-0.6: Partially relevant
+   - 0.7-1.0: Highly relevant, directly answers
 
-3. **Completeness** (suffisant pour répondre ?) :
-   - 0.0-0.3 : Insuffisant, beaucoup d'informations manquantes
-   - 0.4-0.6 : Partiellement suffisant, pourrait être enrichi
-   - 0.7-1.0 : Suffisant, répond pleinement à la question
+3. **Completeness** (sufficient to answer?):
+   - 0.0-0.3: Insufficient, much information missing
+   - 0.4-0.6: Partially sufficient, could be enriched
+   - 0.7-1.0: Sufficient, fully answers the question
 
-RETOURNE UNIQUEMENT UN JSON STRICT :
+RETURN ONLY STRICT JSON:
 {
   "confidence": <0.0-1.0>,
   "relevance": <0.0-1.0>,
   "completeness": <0.0-1.0>,
-  "reasoning": "<explication courte en 1-2 phrases>",
+  "reasoning": "<short explanation in 1-2 sentences>",
   "suggestions": ["<suggestion 1>", "<suggestion 2>"]
 }`;
 
