@@ -209,8 +209,39 @@ ${conversationHistory}
 `
       : "";
 
-    // CRITICAL: History FIRST, then Query, then results
-    const phase2Prompt = `${historyContext}[USER REQUEST]
+    // Delta approach (Perplexity-style): Enrich Wave 1 instead of regenerating
+    const { wave1Response, partialToolCount } = options;
+    
+    let phase2Prompt: string;
+    
+    if (wave1Response && partialToolCount) {
+      // DELTA MODE: Enrich the partial response with new information
+      console.log(`[PHASE-2] Delta mode: Enriching Wave 1 (${partialToolCount} tools) with additional sources`);
+      
+      phase2Prompt = `${historyContext}[DELTA ENRICHMENT MODE]
+
+You previously generated a PARTIAL response based on ${partialToolCount} sources:
+
+<partial_response>
+${wave1Response}
+</partial_response>
+
+[NEW INFORMATION]
+Additional sources have now been collected:
+${toolResults}
+
+[INSTRUCTIONS]
+ENRICH and IMPROVE the partial response above with the new information.
+- Keep what was correct in the partial response
+- Add new details, facts, and context from the additional sources
+- Correct any inaccuracies if the new sources contradict the partial response
+- Make the response more complete and comprehensive
+- Detected intent: ${detectedIntent.toUpperCase()}
+
+Do NOT start over - BUILD UPON the partial response.`;
+    } else {
+      // NORMAL MODE: Generate from scratch
+      phase2Prompt = `${historyContext}[USER REQUEST]
 The user's current request is the PRIMARY focus. Generate a response that addresses:
 "${query}"
 
@@ -221,6 +252,7 @@ ${toolResults}
 [INSTRUCTIONS]
 Generate the response now, respecting the detected intent (${detectedIntent.toUpperCase()}).
 The user request is the PRIMARY focus. Tool results provide CONTEXT to enrich it.`;
+    }
 
     let fullContent = "";
 

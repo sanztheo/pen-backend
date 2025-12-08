@@ -62,7 +62,7 @@ export class BatchScoringService {
         messages: [
           {
             role: "system",
-            content: "Tu es un évaluateur expert de résultats d'outils IA. Retourne UNIQUEMENT du JSON valide.",
+            content: "You are an expert tool result evaluator. Return ONLY valid JSON without decorative symbols.",
           },
           {
             role: "user",
@@ -97,7 +97,7 @@ export class BatchScoringService {
   }
 
   /**
-   * Construit le prompt batch optimisé
+   * Constructs the optimized batch prompt
    */
   private static buildBatchPrompt(
     query: string,
@@ -107,32 +107,32 @@ export class BatchScoringService {
     const resultsText = results
       .map(
         (r, i) => `
-[RÉSULTAT ${i + 1}]
+[RESULT ${i + 1}]
 Tool: ${r.tool}
-${r.description ? `Attendu: ${r.description}` : ""}
-Contenu (tronqué à 400 chars):
+${r.description ? `Expected: ${r.description}` : ""}
+Content (truncated to 400 chars):
 ${r.result.slice(0, 400)}${r.result.length > 400 ? "..." : ""}
 `
       )
       .join("\n---\n");
 
-    return `ÉVALUE ces ${results.length} résultats d'outils pour la question:
+    return `EVALUATE these ${results.length} tool results for the question:
 "${query}"
 
 Mode: ${mode || "search"}
 
 ${resultsText}
 
-Pour CHAQUE résultat, donne un score de 0.0 à 1.0 sur:
-- confidence: qualité du résultat (0=erreur, 1=parfait)
-- relevance: pertinence pour la question (0=hors-sujet, 1=très pertinent)
-- completeness: suffisant pour répondre? (0=insuffisant, 1=complet)
+For EACH result, provide a score from 0.0 to 1.0 on:
+- confidence: result quality (0=error, 1=perfect)
+- relevance: relevance to the question (0=off-topic, 1=highly relevant)
+- completeness: sufficient to answer? (0=insufficient, 1=complete)
 
-RETOURNE CE JSON EXACT:
+RETURN THIS EXACT JSON:
 {
   "scores": [
     {"confidence": 0.X, "relevance": 0.X, "completeness": 0.X, "reasoning": "..."},
-    ... (un pour chaque résultat)
+    ... (one for each result)
   ]
 }`;
   }
