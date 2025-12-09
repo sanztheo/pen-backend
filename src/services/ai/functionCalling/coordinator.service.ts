@@ -946,21 +946,36 @@ export class CoordinatorService {
       // 🌐 FALLBACK WEB SEARCH (si aucun résultat trouvé)
       // ============================================
       const validScores = toolCalls
-        .filter(tc => tc.score !== null && tc.score !== undefined)
-        .map(tc => tc.score!.normalizedScore);
+        .filter(tc => tc.score !== null && tc.score !== undefined && tc.score.normalizedScore !== undefined)
+        .map(tc => tc.score!.normalizedScore)
+        .filter(score => !isNaN(score)); // Filtrer les NaN
+      
       const averageScore = validScores.length > 0 
         ? validScores.reduce((a, b) => a + b, 0) / validScores.length 
         : 0;
       
+      // Vérifier si les résultats contiennent des données utiles
+      const resultsHaveContent = toolCalls.some(tc => {
+        const result = tc.result || "";
+        // Un résultat est "utile" s'il ne contient pas ces patterns d'échec
+        const isEmptyResult = 
+          result.includes("Aucun résultat") ||
+          result.includes("0 chunks") ||
+          result.includes("aucune source") ||
+          result.includes("No results") ||
+          result.length < 100; // Résultat très court = probablement vide
+        return !isEmptyResult && result.length > 100;
+      });
+      
       // Vérifier si tous les tools ont réellement terminé et si les résultats sont vides
       const allToolsCompleted = toolCalls.length === plan.toolSequence.length;
       const hasSearchedWeb = toolCalls.some(tc => tc.name === "search_web");
-      const noUsefulResults = averageScore < 0.1; // Score très faible = pas de résultats utiles
+      const noUsefulResults = (averageScore < 0.1 || isNaN(averageScore)) && !resultsHaveContent;
       
-      console.log(`📊 [FALLBACK-CHECK] Score moyen: ${averageScore.toFixed(2)}, Web déjà utilisé: ${hasSearchedWeb}, useWeb param: ${request.useWeb}`);
+      console.log(`📊 [FALLBACK-CHECK] Score moyen: ${isNaN(averageScore) ? "N/A" : averageScore.toFixed(2)}, Contenu utile: ${resultsHaveContent}, Web déjà utilisé: ${hasSearchedWeb}`);
       
       if (allToolsCompleted && noUsefulResults && !hasSearchedWeb) {
-        console.log(`🌐 [FALLBACK-WEB] Aucun résultat utile trouvé (score: ${averageScore.toFixed(2)}), déclenchement recherche web automatique...`);
+        console.log(`🌐 [FALLBACK-WEB] Aucun résultat utile trouvé, déclenchement recherche web automatique...`);
         
         // Streamer un thinking pour informer l'utilisateur
         if (request.onIntermediateThinking) {
