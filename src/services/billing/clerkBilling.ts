@@ -34,13 +34,18 @@ export class ClerkBillingService {
       
       if (!subscription) {
         // Créer un abonnement gratuit par défaut avec upsert pour éviter les conflits
+        const now = new Date();
+        const periodEnd = new Date(now);
+        periodEnd.setMonth(periodEnd.getMonth() + 1);
+        
         subscription = await prisma.userSubscription.upsert({
           where: { userId },
           create: {
             userId,
             plan: 'free_user',
             status: 'active',
-            currentPeriodStart: new Date(),
+            currentPeriodStart: now,
+            currentPeriodEnd: periodEnd, // 🔧 FIX: Ajouter la date de fin correcte
           },
           update: {} // Pas de mise à jour si existe déjà
         });
