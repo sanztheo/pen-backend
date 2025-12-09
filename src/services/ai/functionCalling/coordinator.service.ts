@@ -943,6 +943,97 @@ export class CoordinatorService {
       }
 
       // ============================================
+      // 🌐 FALLBACK WEB SEARCH (si aucun résultat trouvé)
+      // ============================================
+      const validScores = toolCalls
+        .filter(tc => tc.score !== null && tc.score !== undefined && tc.score.normalizedScore !== undefined)
+        .map(tc => tc.score!.normalizedScore)
+        .filter(score => !isNaN(score)); // Filtrer les NaN
+      
+      const averageScore = validScores.length > 0 
+        ? validScores.reduce((a, b) => a + b, 0) / validScores.length 
+        : 0;
+      
+      // Vérifier si les résultats contiennent des données utiles
+      const resultsHaveContent = toolCalls.some(tc => {
+        const result = tc.result || "";
+        // Un résultat est "utile" s'il ne contient pas ces patterns d'échec
+        const isEmptyResult = 
+          result.includes("Aucun résultat") ||
+          result.includes("0 chunks") ||
+          result.includes("aucune source") ||
+          result.includes("No results") ||
+          result.length < 100; // Résultat très court = probablement vide
+        return !isEmptyResult && result.length > 100;
+      });
+      
+      // Vérifier si tous les tools ont réellement terminé et si les résultats sont vides
+      const allToolsCompleted = toolCalls.length === plan.toolSequence.length;
+      const hasSearchedWeb = toolCalls.some(tc => tc.name === "search_web");
+      const noUsefulResults = (averageScore < 0.1 || isNaN(averageScore)) && !resultsHaveContent;
+      
+      console.log(`📊 [FALLBACK-CHECK] Score moyen: ${isNaN(averageScore) ? "N/A" : averageScore.toFixed(2)}, Contenu utile: ${resultsHaveContent}, Web déjà utilisé: ${hasSearchedWeb}`);
+      
+      if (allToolsCompleted && noUsefulResults && !hasSearchedWeb) {
+        console.log(`🌐 [FALLBACK-WEB] Aucun résultat utile trouvé, déclenchement recherche web automatique...`);
+        
+        // Streamer un thinking pour informer l'utilisateur
+        if (request.onIntermediateThinking) {
+          request.onIntermediateThinking("Aucune source locale pertinente trouvée. Recherche sur le web en cours...");
+        }
+        
+        // Exécuter search_web manuellement
+        try {
+          const { ToolExecutor } = await import("../tools/executors.js");
+          const webContext = {
+            userId: request.userId,
+            workspaceId: request.workspaceId,
+            query: request.query,
+          };
+          
+          const webStartTime = Date.now();
+          const webResult = await ToolExecutor.executeToolCall(
+            "search_web",
+            { query: request.query },
+            webContext
+          );
+          const webDuration = Date.now() - webStartTime;
+          
+          console.log(`✅ [FALLBACK-WEB] Recherche web terminée en ${webDuration}ms`);
+          
+          // Notifier le frontend du nouveau tool
+          if (request.onToolCall) {
+            request.onToolCall("search_web", { query: request.query });
+          }
+          if (request.onToolResult) {
+            request.onToolResult("search_web", typeof webResult === "string" ? webResult.slice(0, 200) + "..." : "Résultats web obtenus");
+          }
+          
+          // Ajouter le résultat aux toolCalls existants
+          toolCalls.push({
+            name: "search_web",
+            arguments: { query: request.query },
+            result: typeof webResult === "string" ? webResult : JSON.stringify(webResult),
+            thinking: "Fallback automatique: aucune source locale pertinente",
+            score: {
+              relevance: 0.7, // Score par défaut pour web
+              completeness: 0.7,
+              confidence: 0.7,
+              normalizedScore: 0.7,
+              shouldContinue: false,
+              shouldUseWeb: false, // Déjà fait
+              suggestions: [],
+            },
+            timestamp: Date.now(),
+          });
+          
+          console.log(`📈 [FALLBACK-WEB] Tool ajouté aux résultats (total: ${toolCalls.length})`);
+        } catch (webError) {
+          console.error(`❌ [FALLBACK-WEB] Erreur recherche web:`, webError);
+        }
+      }
+
+      // ============================================
       // MÉTRIQUES
       // ============================================
       const endTime = Date.now();
