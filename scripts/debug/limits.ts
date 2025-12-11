@@ -1,7 +1,7 @@
 /**
  * 🔍 Script de debug des limitations utilisateur
  * 
- * Usage: npx tsx scripts/debug-limits.ts [userId]
+ * Usage: npx tsx scripts/debug/limits.ts [userId]
  * 
  * Sans userId, affiche toutes les données pour tous les utilisateurs.
  * Avec userId, affiche les détails pour un utilisateur spécifique.
