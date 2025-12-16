@@ -11,6 +11,10 @@ import {
 } from "../types.js";
 import { PromptUtils } from "../utils/promptUtils.js";
 import { JsonUtils } from "../utils/jsonUtils.js";
+import {
+  getPersonalizationContextForUser,
+  type PersonalizationContext,
+} from "../utils/personalizationUtils.js";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -320,6 +324,26 @@ export class CorrectionGenerator {
     const startTime = Date.now();
 
     try {
+      // 🎯 Récupérer la personnalisation utilisateur pour adapter les feedbacks
+      let personalization: PersonalizationContext | undefined;
+      if (request.userId) {
+        try {
+          personalization = await getPersonalizationContextForUser(
+            request.userId,
+          );
+          if (personalization?.hasPersonalization) {
+            console.log(
+              `👤 [PERSONALIZATION] Contexte correction chargé: ${personalization.classe || "N/A"}, ${personalization.domaine || "N/A"}`,
+            );
+          }
+        } catch (error) {
+          console.warn(
+            "⚠️ [PERSONALIZATION] Impossible de charger la personnalisation:",
+            error,
+          );
+        }
+      }
+
       // 🚀 ÉTAPE 1 : Correction automatique des questions fermées (QCM, Vrai/Faux, Matching)
       const autoCorrections = this.correctClosedQuestions(
         questions,
@@ -465,9 +489,21 @@ CONSIGNES POUR LES QUESTIONS OUVERTES DOCUMENTAIRES :
           userAnswers,
         );
 
+        // 🎯 Intégrer la personnalisation dans le prompt de correction
+        let personalizationSection = "";
+        if (
+          personalization?.hasPersonalization &&
+          personalization.correctionPromptSection
+        ) {
+          personalizationSection = `\n${personalization.correctionPromptSection}\n`;
+          console.log(
+            `👤 [PERSONALIZATION] Section de correction personnalisée ajoutée`,
+          );
+        }
+
         const optimizedPrompt = `
 ${levelPrompt}
-
+${personalizationSection}
 🤖 CORRECTION OPTIMISÉE - QUESTIONS OUVERTES UNIQUEMENT
 Les questions fermées (QCM, Vrai/Faux, Matching) ont déjà été corrigées automatiquement.
 Tu dois corriger UNIQUEMENT les ${openQuestions.length} questions ouvertes ci-dessous.

@@ -30,8 +30,6 @@ function getGrokInstance(): OpenAI {
   return grok;
 }
 
-
-
 export interface AIGenerationOptions {
   prompt: string;
   maxTokens?: number;
@@ -130,16 +128,21 @@ export class AIService {
 
   /**
    * Obtenir le modèle pour la génération de quiz
+   * 🆕 GPT-5-mini : reasoning model avec restrictions
+   * - ❌ temperature non supporté (valeur fixe = 1)
+   * - ❌ max_tokens → utiliser max_completion_tokens
+   * - ✅ reasoning_effort supporté (low, medium, high)
    */
   static getQuizGenerationModel(): string {
-    return process.env.OPENAI_QUIZ_GENERATION || "gpt-4o-mini";
+    return process.env.OPENAI_QUIZ_GENERATION || "gpt-5-mini";
   }
 
   /**
    * Obtenir le modèle pour la correction de quiz
+   * 🆕 GPT-5-mini : reasoning model avec restrictions
    */
   static getQuizCorrectionModel(): string {
-    return process.env.OPENAI_QUIZ_CORRECTION || "gpt-4o-mini";
+    return process.env.OPENAI_QUIZ_CORRECTION || "gpt-5-mini";
   }
 
   /** Assistant dédié à la sélection de pages (function calling) */
