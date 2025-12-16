@@ -14,27 +14,22 @@
  */
 
 // ===== UTILITAIRES =====
-export { validateSourceDocuments } from './utils/validators.js';
+export { validateSourceDocuments } from "./utils/validators.js";
 
 // ===== QUIZ DE BASE =====
-export { QuizController } from './quiz/quizController.js';
-export { PreferencesController } from './quiz/preferencesController.js';
+export { QuizController } from "./quiz/quizController.js";
+export { PreferencesController } from "./quiz/preferencesController.js";
 
 // ===== SÉQUENCES =====
-export { SequenceController } from './sequences/sequenceController.js';
-export { SequenceDebugController } from './sequences/sequenceDebugController.js';
+export { SequenceController } from "./sequences/sequenceController.js";
+export { SequenceDebugController } from "./sequences/sequenceDebugController.js";
 
 // ===== DOCUMENTS =====
-export { DocumentController } from './documents/documentController.js';
-
-// ===== ASSISTANT OPENAI =====
-export { AssistantHealthController } from './assistant/assistantHealthController.js';
-export { AssistantGenerationController } from './assistant/generationController.js';
-export { AssistantCorrectionController } from './assistant/correctionController.js';
+export { DocumentController } from "./documents/documentController.js";
 
 // ===== CONTENU (Pages/Projets/RAG) =====
-export { PagesProjectsController } from './content/pagesProjectsController.js';
-export { RAGController } from './content/ragController.js';
+export { PagesProjectsController } from "./content/pagesProjectsController.js";
+export { RAGController } from "./content/ragController.js";
 
 /**
  * Classe unifiée QuizController pour rétrocompatibilité
@@ -43,23 +38,20 @@ export { RAGController } from './content/ragController.js';
  * pour maintenir la compatibilité avec l'ancien code qui importe
  * directement depuis QuizController.
  */
-import { QuizController as BaseQuizController } from './quiz/quizController.js';
-import { PreferencesController } from './quiz/preferencesController.js';
-import { SequenceController } from './sequences/sequenceController.js';
-import { SequenceDebugController } from './sequences/sequenceDebugController.js';
-import { DocumentController } from './documents/documentController.js';
-import { AssistantHealthController } from './assistant/assistantHealthController.js';
-import { AssistantGenerationController } from './assistant/generationController.js';
-import { AssistantCorrectionController } from './assistant/correctionController.js';
-import { PagesProjectsController } from './content/pagesProjectsController.js';
-import { RAGController } from './content/ragController.js';
+import { QuizController as BaseQuizController } from "./quiz/quizController.js";
+import { PreferencesController } from "./quiz/preferencesController.js";
+import { SequenceController } from "./sequences/sequenceController.js";
+import { SequenceDebugController } from "./sequences/sequenceDebugController.js";
+import { DocumentController } from "./documents/documentController.js";
+import { PagesProjectsController } from "./content/pagesProjectsController.js";
+import { RAGController } from "./content/ragController.js";
 
 /**
  * Helper function to copy all static methods from a class to a target object
  */
 function copyStaticMethods(target: any, source: any) {
-  Object.getOwnPropertyNames(source).forEach(key => {
-    if (key !== 'prototype' && key !== 'length' && key !== 'name') {
+  Object.getOwnPropertyNames(source).forEach((key) => {
+    if (key !== "prototype" && key !== "length" && key !== "name") {
       target[key] = source[key];
     }
   });
@@ -82,10 +74,6 @@ copyStaticMethods(UnifiedQuizControllerObj, SequenceController);
 copyStaticMethods(UnifiedQuizControllerObj, SequenceDebugController);
 // Documents
 copyStaticMethods(UnifiedQuizControllerObj, DocumentController);
-// Assistant
-copyStaticMethods(UnifiedQuizControllerObj, AssistantHealthController);
-copyStaticMethods(UnifiedQuizControllerObj, AssistantGenerationController);
-copyStaticMethods(UnifiedQuizControllerObj, AssistantCorrectionController);
 // Contenu
 copyStaticMethods(UnifiedQuizControllerObj, PagesProjectsController);
 copyStaticMethods(UnifiedQuizControllerObj, RAGController);
