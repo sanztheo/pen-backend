@@ -75,12 +75,6 @@ router.post(
 );
 router.get("/sequence/:sequenceId", QuizController.getSequenceStatus);
 router.post("/sequence/:sequenceId/next", QuizController.generateNextQuiz);
-// 🚀 NOUVELLE ROUTE - Génération parallèle avec 2 assistants (🛡️ PREMIUM REQUIS)
-router.post(
-  "/sequence/:sequenceId/parallel-generate",
-  requirePremiumPlan(),
-  QuizController.generateParallelQuizzes,
-);
 router.get("/sequence/:sequenceId/results", QuizController.getSequenceResults);
 
 // Routes pour corriger et naviguer dans les séquences
