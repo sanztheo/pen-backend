@@ -20,6 +20,11 @@ import {
 } from "./promptCache.js";
 import { getProfessorCorrectionPrompt } from "./professorPersonas.js";
 import { AIService } from "../../ai/base.js";
+import {
+  getPersonalizationContextForUser,
+  generateAttentesInstructions,
+  type PersonalizationContext,
+} from "../utils/personalizationUtils.js";
 
 const SPECIALTY_LABELS: Record<string, string> = {
   MATHEMATIQUES: "Mathématiques",
@@ -534,9 +539,32 @@ export class OpenAIAssistantService {
         `🧠 [STREAMING-DEBUG] ragContext dans request: ${request.ragContext ? `${request.ragContext.length} caractères` : "VIDE ou undefined"}`,
       );
 
-      // Construire les messages pour chat completion
-      const systemPrompt = this.buildSystemPrompt();
-      const userPrompt = this.buildSingleQuestionPrompt(request);
+      // 🎯 Récupérer la personnalisation utilisateur si userId fourni
+      let personalization: PersonalizationContext | undefined;
+      if (request.userId) {
+        try {
+          personalization = await getPersonalizationContextForUser(
+            request.userId,
+          );
+          if (personalization?.hasPersonalization) {
+            console.log(
+              `👤 [PERSONALIZATION] Contexte utilisateur chargé: ${personalization.classe || "N/A"}, ${personalization.domaine || "N/A"}`,
+            );
+          }
+        } catch (error) {
+          console.warn(
+            "⚠️ [PERSONALIZATION] Impossible de charger la personnalisation:",
+            error,
+          );
+        }
+      }
+
+      // Construire les messages pour chat completion avec personnalisation
+      const systemPrompt = this.buildSystemPrompt(personalization);
+      const userPrompt = this.buildSingleQuestionPrompt(
+        request,
+        personalization,
+      );
 
       console.log(`📤 [STREAMING] Envoi à ${generationModel} avec JSON strict`);
 
@@ -611,39 +639,188 @@ export class OpenAIAssistantService {
   }
 
   /**
-   * 🆕 Construit le prompt système pour les chat completions
+   * Construit le prompt systeme structure en XML pour les chat completions
+   * @param personalization - Contexte de personnalisation utilisateur (optionnel)
    */
-  private buildSystemPrompt(): string {
-    return `Tu es un expert en création de quiz éducatifs français (Brevet, BAC, Partiels).
+  private buildSystemPrompt(personalization?: PersonalizationContext): string {
+    // Construction du prompt XML structure
+    let systemPrompt = `<system>
+<identity>
+Tu es QuizMaster, un expert pedagogique specialise dans la creation de quiz educatifs pour le systeme scolaire francais.
+Tu excelles dans la generation de questions pour le Brevet, le BAC et les examens universitaires (Partiels).
+Tu maitrises parfaitement les programmes officiels de l'Education Nationale et les attentes des correcteurs.
+</identity>
 
-MISSION : Générer des questions de quiz de haute qualité, adaptées au système éducatif français.
+<mission>
+Generer des questions de quiz de haute qualite, pedagogiquement pertinentes et parfaitement adaptees au niveau scolaire cible.
+Chaque question doit evaluer des competences specifiques tout en respectant les standards academiques francais.
+</mission>
 
-RÈGLES ABSOLUES :
-- TOUJOURS générer EXACTEMENT 1 question par demande
-- Respecter scrupuleusement le format JSON fourni
-- Adapter le niveau de difficulté au public cible
-- Utiliser un français impeccable et académique
-- Créer des questions originales et pertinentes
+<core_rules priority="critical">
+- TOUJOURS generer EXACTEMENT 1 question par demande
+- Respecter STRICTEMENT le schema JSON fourni - aucune deviation toleree
+- Utiliser un francais academique impeccable, sans fautes
+- Chaque question vaut EXACTEMENT 1 point (points = 1)
+- Ne JAMAIS inventer de faits ou de donnees incorrectes
+</core_rules>
 
-TYPES DE QUESTIONS SUPPORTÉS :
-- MULTIPLE_CHOICE : QCM avec 4 options (A, B, C, D)
-- TRUE_FALSE : Vrai/Faux avec 2 options
-- OPEN_QUESTION : Question ouverte avec réponse attendue
-- MATCHING : Association d'éléments
+<question_types>
+<type name="MULTIPLE_CHOICE">
+- Format: QCM avec exactement 4 options (A, B, C, D)
+- Une seule reponse correcte obligatoire
+- Distracteurs plausibles et pedagogiquement pertinents
+- Eviter les indices dans la formulation des options
+- Champs requis: options (4 elements), leftColumn=[], rightColumn=[], correctMatches=[]
+</type>
 
-QUALITÉ REQUISE :
-- Questions claires et sans ambiguïté
-- Options de réponse plausibles pour les QCM
-- Explications détaillées pour la correction
-- Adaptation parfaite au niveau scolaire demandé
+<type name="TRUE_FALSE">
+- Format: Affirmation avec reponse Vrai ou Faux
+- Enonce clair, precis et sans ambiguite
+- Eviter les doubles negations
+- Champs requis: options (2 elements: Vrai/Faux), leftColumn=[], rightColumn=[], correctMatches=[]
+</type>
 
-Tu DOIS impérativement retourner une réponse au format JSON strict fourni.`;
+<type name="OPEN_QUESTION">
+- Format: Question necessitant une reponse redigee
+- Fournir une reponse modele complete et detaillee dans expectedAnswer
+- Question evaluant la comprehension et l'analyse
+- Champs requis: expectedAnswer (reponse complete), options=[], leftColumn=[], rightColumn=[], correctMatches=[]
+</type>
+
+<type name="MATCHING">
+- Format: Association terme-definition (minimum 4 paires)
+- Elements de gauche: termes, concepts, dates, personnages
+- Elements de droite: definitions, descriptions, evenements
+- Champs requis: leftColumn (4+ elements), rightColumn (4+ elements), correctMatches (paires), options=[]
+</type>
+</question_types>
+
+<quality_standards>
+<pedagogical_quality>
+- Questions alignees avec les objectifs d'apprentissage du niveau cible
+- Progression logique de la difficulte (facile/moyen/difficile)
+- Evaluation de competences variees (memorisation, comprehension, analyse, synthese)
+- Formulation stimulant la reflexion plutot que la simple restitution
+</pedagogical_quality>
+
+<content_quality>
+- Enonces clairs, concis et sans ambiguite
+- Vocabulaire adapte au niveau scolaire
+- Contexte suffisant pour repondre
+- Aucune erreur factuelle ou scientifique
+</content_quality>
+
+<explanation_quality>
+- Explication detaillee justifiant la reponse correcte
+- Reference aux concepts cles du cours
+- Conseils pour eviter les erreurs courantes
+- Pistes d'approfondissement si pertinent
+</explanation_quality>
+</quality_standards>
+
+<difficulty_calibration>
+<level name="facile">
+- Connaissances de base du programme
+- Questions directes et explicites
+- Vocabulaire courant du niveau
+- Ideal pour verification des acquis fondamentaux
+</level>
+
+<level name="moyen">
+- Application des connaissances
+- Mise en relation de concepts
+- Analyse simple de documents ou situations
+- Niveau attendu pour un examen standard
+</level>
+
+<level name="difficile">
+- Synthese et esprit critique
+- Situations inedites ou complexes
+- Raisonnement approfondi requis
+- Niveau excellence/mention
+</level>
+</difficulty_calibration>`;
+
+    // Integration de la personnalisation utilisateur avec structure XML
+    if (personalization?.hasPersonalization) {
+      systemPrompt += `
+
+<student_personalization>`;
+
+      if (personalization.classe) {
+        systemPrompt += `
+<academic_level>${personalization.classe}</academic_level>`;
+      }
+
+      if (personalization.domaine) {
+        systemPrompt += `
+<study_domain>${personalization.domaine}</study_domain>`;
+      }
+
+      if (personalization.filiere) {
+        systemPrompt += `
+<academic_track>${personalization.filiere}</academic_track>`;
+      }
+
+      if (personalization.presentation) {
+        systemPrompt += `
+<student_profile>${personalization.presentation}</student_profile>`;
+      }
+
+      systemPrompt += `
+
+<adaptation_instructions>
+- Adapter le vocabulaire et la complexite au profil de l'etudiant
+- Utiliser des exemples pertinents pour son domaine d'etude
+- Calibrer la difficulte selon son niveau academique
+- Privilegier les sujets en lien avec sa filiere
+</adaptation_instructions>
+</student_personalization>`;
+
+      // Ajouter les instructions basees sur les attentes
+      if (personalization.attentes) {
+        const attentesInstructions = generateAttentesInstructions(
+          personalization.attentes,
+        );
+        if (attentesInstructions) {
+          systemPrompt += `
+
+<student_expectations>
+${attentesInstructions}
+</student_expectations>`;
+        }
+      }
+
+      // Ajouter le promptSection si present
+      if (personalization.promptSection) {
+        systemPrompt += `
+
+<additional_context>
+${personalization.promptSection}
+</additional_context>`;
+      }
+    }
+
+    systemPrompt += `
+
+<output_format>
+Tu DOIS retourner une reponse au format JSON strict selon le schema fourni.
+Tous les champs obligatoires doivent etre remplis avec des valeurs appropriees.
+Les tableaux vides [] sont obligatoires pour les champs non utilises selon le type de question.
+</output_format>
+</system>`;
+
+    return systemPrompt;
   }
 
   /**
-   * 🆕 Construit le prompt utilisateur pour générer une seule question (optimisé chat completion)
+   * Construit le prompt utilisateur structure en XML pour generer une seule question
+   * @param personalization - Contexte de personnalisation utilisateur (optionnel)
    */
-  private buildSingleQuestionPrompt(request: any): string {
+  private buildSingleQuestionPrompt(
+    request: any,
+    personalization?: PersonalizationContext,
+  ): string {
     const {
       schoolLevel,
       questionTypes,
@@ -658,132 +835,248 @@ Tu DOIS impérativement retourner une réponse au format JSON strict fourni.`;
       difficulty = "moyen",
     } = request;
 
-    // 🧠 Debug: Vérifier toutes les propriétés
-    console.log(`🔍 [CHAT-COMPLETION-DEBUG] Propriétés reçues:`);
+    // Debug: Verifier toutes les proprietes
+    console.log(`[CHAT-COMPLETION-DEBUG] Proprietes recues:`);
     console.log(
       `  - ragContext: ${ragContext ? `${ragContext.length} chars` : "undefined/null"}`,
     );
     console.log(`  - coursesOnly: ${coursesOnly}`);
     console.log(`  - specificSubject: ${specificSubject}`);
     console.log(`  - questionType: ${questionTypes[0]}`);
+    console.log(
+      `  - personalization: ${personalization?.hasPersonalization ? "OUI" : "NON"}`,
+    );
 
-    // Générer un ID unique pour la question
+    // Generer un ID unique pour la question
     const questionId = `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    let prompt = `GÉNÈRE UNE QUESTION DE QUIZ
+    // Utiliser le niveau personnalise si disponible, sinon fallback sur schoolLevel
+    const effectiveLevel =
+      personalization?.classe && personalization.hasPersonalization
+        ? personalization.classe
+        : schoolLevel;
 
-PARAMÈTRES :
-- Niveau scolaire : ${schoolLevel}
-- Type de question : ${questionTypes[0] || "MULTIPLE_CHOICE"}
-- Sujet : ${specificSubject || "Général"}
-- Difficulté : ${difficulty}
-- ID question : ${questionId}
+    // Utiliser le domaine personnalise si disponible et pertinent
+    const effectiveSubject =
+      personalization?.domaine &&
+      personalization.hasPersonalization &&
+      !specificSubject
+        ? personalization.domaine
+        : specificSubject || "General";
 
-⚠️ IMPORTANT SYSTÈME DE POINTS :
-- Chaque question DOIT valoir exactement 1 point (points = 1)
-- Le système convertira automatiquement le score final sur 20
-- NE PAS varier les points selon la difficulté`;
+    // Construction du prompt XML structure
+    let prompt = `<request>
+<task>Genere UNE question de quiz educatif</task>
 
+<parameters>
+<question_id>${questionId}</question_id>
+<school_level>${effectiveLevel}</school_level>
+<question_type>${questionTypes[0] || "MULTIPLE_CHOICE"}</question_type>
+<subject>${effectiveSubject}</subject>
+<difficulty>${difficulty}</difficulty>
+</parameters>
+
+<scoring_rule priority="critical">
+Chaque question vaut EXACTEMENT 1 point (points = 1).
+Le systeme convertit automatiquement le score final sur 20.
+Ne JAMAIS varier les points selon la difficulte.
+</scoring_rule>`;
+
+    // Ajouter le contexte de personnalisation utilisateur
+    if (personalization?.hasPersonalization) {
+      prompt += `
+
+<student_context>`;
+      if (personalization.classe) {
+        prompt += `
+<level>${personalization.classe}</level>`;
+      }
+      if (personalization.domaine) {
+        prompt += `
+<domain>${personalization.domaine}</domain>`;
+      }
+      if (personalization.filiere) {
+        prompt += `
+<track>${personalization.filiere}</track>`;
+      }
+      if (personalization.presentation) {
+        prompt += `
+<profile>${personalization.presentation}</profile>`;
+      }
+      prompt += `
+<instruction>Adapte le vocabulaire, la complexite et les exemples a ce profil etudiant.</instruction>
+</student_context>`;
+    }
+
+    // Ajouter les specialites lycee
     if (lyceeSpecialties.length > 0) {
       const formattedSpecialties = lyceeSpecialties.map(
         (specialty: string) => formatSpecialtyLabel(specialty) || specialty,
       );
-      prompt += `\n- Spécialités Lycée : ${formattedSpecialties.join(", ")}`;
+      prompt += `
+
+<high_school_specialties>${formattedSpecialties.join(", ")}</high_school_specialties>`;
     }
 
+    // Ajouter la specialite ciblee
     if (focusSpecialtyLabel) {
-      prompt += `\n- Spécialité ciblée pour cette question : ${focusSpecialtyLabel}`;
+      prompt += `
+<target_specialty>${focusSpecialtyLabel}</target_specialty>`;
     } else if (focusSpecialty) {
-      prompt += `\n- Spécialité ciblée pour cette question : ${formatSpecialtyLabel(String(focusSpecialty)) || String(focusSpecialty).replace(/_/g, " ")}`;
+      prompt += `
+<target_specialty>${formatSpecialtyLabel(String(focusSpecialty)) || String(focusSpecialty).replace(/_/g, " ")}</target_specialty>`;
     }
 
+    // Ajouter la filiere etudes superieures
     if (higherEdField) {
-      prompt += `\n- Filière études supérieures : ${higherEdField}`;
+      prompt += `
+<higher_education_field>${higherEdField}</higher_education_field>`;
     }
 
-    // Intégration du contexte RAG
+    // Integration du contexte RAG avec structure XML
     if (ragContext && ragContext.trim().length > 0) {
       console.log(
-        `🧠 [CHAT-COMPLETION] Contexte RAG reçu: ${ragContext.length} caractères, coursesOnly: ${coursesOnly}`,
+        `[CHAT-COMPLETION] Contexte RAG recu: ${ragContext.length} caracteres, coursesOnly: ${coursesOnly}`,
       );
+
       if (coursesOnly) {
-        prompt += `\n\n🎯 CONTENU OBLIGATOIRE À UTILISER :
-Tu DOIS baser ta question UNIQUEMENT sur ce contenu. N'utilise PAS tes connaissances générales.
+        prompt += `
 
-CONTENU DES PAGES SÉLECTIONNÉES :
+<source_content mode="strict">
+<instruction priority="critical">
+Tu DOIS baser ta question UNIQUEMENT sur ce contenu.
+N'utilise PAS tes connaissances generales.
+La question doit porter sur des elements precis de ce contenu.
+Toute information hors de ce contenu est INTERDITE.
+</instruction>
+<content>
 ${ragContext}
-
-⚠️ CONTRAINTE : La question doit porter sur des éléments précis de ce contenu.`;
+</content>
+</source_content>`;
       } else {
-        prompt += `\n\n📚 CONTENU DE RÉFÉRENCE :
-Base-toi principalement sur ce contenu (70%) et enrichis avec tes connaissances (30%) :
+        prompt += `
 
-CONTENU DES PAGES SÉLECTIONNÉES :
-${ragContext}`;
+<source_content mode="hybrid">
+<instruction>
+Base-toi principalement sur ce contenu (70%) et enrichis avec tes connaissances (30%).
+Privilegle les informations du contenu fourni.
+</instruction>
+<content>
+${ragContext}
+</content>
+</source_content>`;
       }
     }
 
-    // Éviter les doublons
+    // Eviter les doublons avec structure XML
     if (existingQuestions.length > 0) {
-      prompt += `\n\n🚫 QUESTIONS DÉJÀ GÉNÉRÉES (${existingQuestions.length}) - ÉVITER LES DOUBLONS :
-${existingQuestions.map((q: any, i: number) => `${i + 1}. ${q.question}`).join("\n")}
+      prompt += `
 
-⚠️ IMPORTANT : Génère une question COMPLÈTEMENT DIFFÉRENTE et ORIGINALE.`;
+<duplicate_prevention>
+<existing_questions count="${existingQuestions.length}">
+${existingQuestions.map((q: any, i: number) => `<question index="${i + 1}">${q.question}</question>`).join("\n")}
+</existing_questions>
+<instruction priority="critical">
+Genere une question COMPLETEMENT DIFFERENTE et ORIGINALE.
+Evite tout chevauchement thematique ou structurel avec les questions existantes.
+Explore un aspect different du sujet.
+</instruction>
+</duplicate_prevention>`;
     }
 
-    // Instructions spécifiques selon le type
-    switch (questionTypes[0]) {
-      case "MULTIPLE_CHOICE":
-        prompt += `\n\n📝 INSTRUCTIONS QCM :
-- Crée exactement 4 options (A, B, C, D)
-- Une seule option correcte
-- Options plausibles et équilibrées
-- Pas d'indices dans la formulation
-- leftColumn = [] (array vide)
-- rightColumn = [] (array vide)
-- correctMatches = [] (array vide)`;
-        break;
-      case "TRUE_FALSE":
-        prompt += `\n\n📝 INSTRUCTIONS VRAI/FAUX :
-- Crée exactement 2 options : "Vrai" et "Faux"
-- Affirmation claire et précise
-- Évite les formulations ambiguës
-- leftColumn = [] (array vide)
-- rightColumn = [] (array vide)
-- correctMatches = [] (array vide)`;
-        break;
-      case "OPEN_QUESTION":
-        prompt += `\n\n📝 INSTRUCTIONS QUESTION OUVERTE :
-- Question nécessitant une réponse développée
-- Fournis une réponse modèle détaillée
-- options = [] (array vide)
-- leftColumn = [] (array vide)
-- rightColumn = [] (array vide)
-- correctMatches = [] (array vide)`;
-        break;
-      case "MATCHING":
-        prompt += `\n\n📝 INSTRUCTIONS MATCHING :
-- Question d'association d'éléments (terme → définition)
-- Minimum 4 paires à associer
-- options = [] (array vide - OBLIGATOIRE)
-- leftColumn = array de 4+ éléments avec id (1, 2, 3, 4...) et text (ex: termes, concepts)
-- rightColumn = array de 4+ éléments avec id (A, B, C, D...) et text (ex: définitions)
-- correctMatches = array des paires correctes (ex: [{leftId: "1", rightId: "A"}, ...])
-- expectedAnswer = format "1-A, 2-B, 3-C, 4-D" pour référence
+    // Instructions specifiques selon le type de question
+    const questionType = questionTypes[0] || "MULTIPLE_CHOICE";
 
-EXEMPLE DE STRUCTURE MATCHING:
+    prompt += `
+
+<type_specific_instructions type="${questionType}">`;
+
+    switch (questionType) {
+      case "MULTIPLE_CHOICE":
+        prompt += `
+<format>QCM avec exactement 4 options (A, B, C, D)</format>
+<rules>
+- Une seule reponse correcte obligatoire
+- Distracteurs plausibles et pedagogiquement pertinents
+- Options de longueur similaire pour eviter les indices
+- Aucun indice grammatical ou contextuel vers la bonne reponse
+- Ordre logique des options (alphabetique, numerique, ou thematique)
+</rules>
+<required_fields>
+- options: tableau de 4 objets {id: "A/B/C/D", text: "...", isCorrect: true/false}
+- leftColumn: [] (tableau vide)
+- rightColumn: [] (tableau vide)
+- correctMatches: [] (tableau vide)
+- expectedAnswer: "" (chaine vide)
+</required_fields>`;
+        break;
+
+      case "TRUE_FALSE":
+        prompt += `
+<format>Affirmation a evaluer comme Vraie ou Fausse</format>
+<rules>
+- Enonce clair, precis et sans ambiguite
+- Eviter les doubles negations
+- Eviter les termes absolus ("toujours", "jamais") sauf si justifies
+- Affirmation testant une comprehension reelle, pas des pieges
+</rules>
+<required_fields>
+- options: [{id: "A", text: "Vrai", isCorrect: true/false}, {id: "B", text: "Faux", isCorrect: true/false}]
+- leftColumn: [] (tableau vide)
+- rightColumn: [] (tableau vide)
+- correctMatches: [] (tableau vide)
+- expectedAnswer: "" (chaine vide)
+</required_fields>`;
+        break;
+
+      case "OPEN_QUESTION":
+        prompt += `
+<format>Question ouverte necessitant une reponse redigee</format>
+<rules>
+- Question evaluant comprehension, analyse ou synthese
+- Formulation claire du niveau de detail attendu
+- Reponse modele complete et structuree dans expectedAnswer
+- Criteres de correction implicites dans l'explication
+</rules>
+<required_fields>
+- expectedAnswer: reponse modele detaillee (plusieurs phrases)
+- options: [] (tableau vide)
+- leftColumn: [] (tableau vide)
+- rightColumn: [] (tableau vide)
+- correctMatches: [] (tableau vide)
+</required_fields>`;
+        break;
+
+      case "MATCHING":
+        prompt += `
+<format>Association d'elements (terme - definition)</format>
+<rules>
+- Minimum 4 paires a associer
+- Elements de gauche: termes, concepts, dates, personnages
+- Elements de droite: definitions, descriptions, evenements
+- Associations non ambigues et pedagogiquement pertinentes
+- Melanger l'ordre des elements de droite
+</rules>
+<required_fields>
+- leftColumn: [{id: "1", text: "..."}, {id: "2", text: "..."}, ...] (4+ elements)
+- rightColumn: [{id: "A", text: "..."}, {id: "B", text: "..."}, ...] (4+ elements)
+- correctMatches: [{leftId: "1", rightId: "X"}, {leftId: "2", rightId: "Y"}, ...]
+- expectedAnswer: "1-A, 2-B, 3-C, 4-D" (format reference)
+- options: [] (tableau vide - OBLIGATOIRE)
+</required_fields>
+<example>
 {
   "leftColumn": [
-    {"id": "1", "text": "Photosynthèse"},
+    {"id": "1", "text": "Photosynthese"},
     {"id": "2", "text": "Respiration"},
     {"id": "3", "text": "Transpiration"},
     {"id": "4", "text": "Germination"}
   ],
   "rightColumn": [
     {"id": "A", "text": "Processus de croissance d'une graine"},
-    {"id": "B", "text": "Production d'énergie par les cellules"},
-    {"id": "C", "text": "Évaporation d'eau par les feuilles"},
-    {"id": "D", "text": "Synthèse de glucose à partir de lumière"}
+    {"id": "B", "text": "Production d'energie par les cellules"},
+    {"id": "C", "text": "Evaporation d'eau par les feuilles"},
+    {"id": "D", "text": "Synthese de glucose a partir de lumiere"}
   ],
   "correctMatches": [
     {"leftId": "1", "rightId": "D"},
@@ -791,14 +1084,25 @@ EXEMPLE DE STRUCTURE MATCHING:
     {"leftId": "3", "rightId": "C"},
     {"leftId": "4", "rightId": "A"}
   ]
-}`;
+}
+</example>`;
         break;
     }
 
-    prompt += `\n\n🎯 GÉNÈRE MAINTENANT :
-Une question de qualité respectant exactement le format JSON strict requis.
+    prompt += `
+</type_specific_instructions>
 
-Assure-toi que tous les champs obligatoires sont remplis avec des valeurs appropriées.`;
+<execution>
+<action>Genere maintenant UNE question de qualite</action>
+<requirements>
+- Respecte exactement le schema JSON strict fourni
+- Remplis TOUS les champs obligatoires avec des valeurs appropriees
+- Les tableaux vides [] sont OBLIGATOIRES pour les champs non utilises
+- L'explication doit etre pedagogique et detaillee
+- Le sujet et le niveau scolaire doivent correspondre aux parametres
+</requirements>
+</execution>
+</request>`;
 
     return prompt;
   }

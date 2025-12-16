@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router } from "express";
 import {
   createPage,
   getPage,
@@ -7,63 +7,168 @@ import {
   deletePage,
   cleanupArchivedPages,
   getRecentPages,
-  togglePagePin
-} from '../controllers/page.js';
-import { authenticateToken } from '../middlewares/auth.js';
-import { PrismaClient } from '@prisma/client';
-import { cacheBlockNoteContent, invalidateBlockNoteCache } from '../lib/redis.js';
+  togglePagePin,
+} from "../controllers/page.js";
+import { authenticateToken } from "../middlewares/auth.js";
+import { PrismaClient } from "@prisma/client";
+import {
+  cacheBlockNoteContent,
+  invalidateBlockNoteCache,
+} from "../lib/redis.js";
 
 const prisma = new PrismaClient();
 
 const router = Router();
 
+// 📄 Convertit HTML en blocs BlockNote
+interface BlockNoteBlock {
+  id?: string;
+  type: string;
+  props?: Record<string, unknown>;
+  content?: Array<{
+    type: string;
+    text: string;
+    styles?: Record<string, unknown>;
+  }>;
+  children?: BlockNoteBlock[];
+}
+
+function htmlToBlockNoteBlocks(html: string): BlockNoteBlock[] {
+  const blocks: BlockNoteBlock[] = [];
+
+  // 🔧 IMPORTANT: Nettoyer les caractères NULL (\u0000) qui causent une erreur PostgreSQL
+  const cleanedHtml = html.replace(/\u0000/g, "");
+
+  // Parser simple côté serveur (pas de DOM disponible)
+  // On utilise des regex pour extraire les éléments HTML
+  const lines = cleanedHtml
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<\/h[1-6]>/gi, "\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<hr\s*\/?>/gi, "\n---PAGE_BREAK---\n")
+    .split("\n");
+
+  for (const line of lines) {
+    // Nettoyer les tags HTML
+    const text = line
+      .replace(/<[^>]*>/g, "")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .trim();
+
+    if (!text) continue;
+
+    // Détecter le type de bloc
+    if (text === "---PAGE_BREAK---") {
+      // Séparateur de page
+      blocks.push({
+        type: "paragraph",
+        content: [{ type: "text", text: "───────────────", styles: {} }],
+        children: [],
+      });
+    } else if (line.match(/<h1[^>]*>/i)) {
+      blocks.push({
+        type: "heading",
+        props: { level: 1 },
+        content: [{ type: "text", text, styles: {} }],
+        children: [],
+      });
+    } else if (line.match(/<h2[^>]*>/i)) {
+      blocks.push({
+        type: "heading",
+        props: { level: 2 },
+        content: [{ type: "text", text, styles: {} }],
+        children: [],
+      });
+    } else if (line.match(/<h3[^>]*>/i)) {
+      blocks.push({
+        type: "heading",
+        props: { level: 3 },
+        content: [{ type: "text", text, styles: {} }],
+        children: [],
+      });
+    } else if (line.match(/<li[^>]*>/i)) {
+      // Détecter si c'est une liste ordonnée ou non
+      const isOrdered = line.match(/<ol[^>]*>/i) !== null;
+      blocks.push({
+        type: isOrdered ? "numberedListItem" : "bulletListItem",
+        content: [{ type: "text", text, styles: {} }],
+        children: [],
+      });
+    } else {
+      // Paragraphe par défaut
+      blocks.push({
+        type: "paragraph",
+        content: [{ type: "text", text, styles: {} }],
+        children: [],
+      });
+    }
+  }
+
+  // Si aucun bloc créé, ajouter un paragraphe vide
+  if (blocks.length === 0) {
+    blocks.push({
+      type: "paragraph",
+      content: [],
+      children: [],
+    });
+  }
+
+  return blocks;
+}
+
 // Toutes les routes nécessitent une authentification
 router.use(authenticateToken);
 
 // Routes des pages
-router.post('/', createPage);
-router.get('/recent', getRecentPages);
+router.post("/", createPage);
+router.get("/recent", getRecentPages);
 // Recherche simple de pages par titre
-router.get('/search', async (req, res) => {
+router.get("/search", async (req, res) => {
   try {
     const { q } = req.query as { q?: string };
-    const query = (q || '').toString();
+    const query = (q || "").toString();
     if (!query) return res.json({ pages: [] });
-    const { PrismaClient } = await import('@prisma/client');
+    const { PrismaClient } = await import("@prisma/client");
     const prisma = new PrismaClient();
     const pages = await prisma.page.findMany({
       where: {
         isArchived: false,
-        title: { contains: query, mode: 'insensitive' }
+        title: { contains: query, mode: "insensitive" },
       },
       select: { id: true, title: true, projectId: true, workspaceId: true },
-      take: 20
+      take: 20,
     });
     res.json({ pages });
   } catch (e) {
-    console.error('Erreur /pages/search', e);
-    res.status(500).json({ error: 'Erreur recherche pages' });
+    console.error("Erreur /pages/search", e);
+    res.status(500).json({ error: "Erreur recherche pages" });
   }
 });
 
 // 🔎 Recherche dans le contenu des pages (BlockNote)
-router.get('/search-content', async (req, res) => {
+router.get("/search-content", async (req, res) => {
   try {
     const { q } = req.query as { q?: string };
-    const query = (q || '').toString().trim();
+    const query = (q || "").toString().trim();
     if (!query) return res.json({ results: [] });
 
     // Récupérer pages avec contenu JSON
     const pages = await prisma.page.findMany({
       where: { isArchived: false },
       select: { id: true, title: true, blockNoteContent: true },
-      take: 500 // sécurité
+      take: 500, // sécurité
     } as any);
 
     const qLower = query.toLowerCase();
 
     const blocksToText = (blocks: any[]): string => {
-      let text = '';
+      let text = "";
       const walk = (node: any): void => {
         if (!node) return;
         // Inline content
@@ -71,12 +176,12 @@ router.get('/search-content', async (req, res) => {
           node.forEach(walk);
           return;
         }
-        if (typeof node === 'string') {
-          text += node + ' ';
+        if (typeof node === "string") {
+          text += node + " ";
           return;
         }
         if (node.text) {
-          text += String(node.text) + ' ';
+          text += String(node.text) + " ";
         }
         if (node.content) {
           walk(node.content);
@@ -85,8 +190,10 @@ router.get('/search-content', async (req, res) => {
           walk(node.children);
         }
       };
-      try { walk(blocks); } catch {}
-      return text.replace(/\s+/g, ' ').trim();
+      try {
+        walk(blocks);
+      } catch {}
+      return text.replace(/\s+/g, " ").trim();
     };
 
     const results: Array<{ id: string; title: string; excerpt: string }> = [];
@@ -97,11 +204,15 @@ router.get('/search-content', async (req, res) => {
         let contentArr: any[] | null = null;
         if (Array.isArray(raw)) {
           contentArr = raw;
-        } else if (typeof raw === 'string') {
-          try { contentArr = JSON.parse(raw); } catch { contentArr = null; }
-        } else if (raw && typeof raw === 'object') {
+        } else if (typeof raw === "string") {
+          try {
+            contentArr = JSON.parse(raw);
+          } catch {
+            contentArr = null;
+          }
+        } else if (raw && typeof raw === "object") {
           // Certains drivers renvoient un objet JSON déjà parsé
-          contentArr = (raw as any) as any[];
+          contentArr = raw as any as any[];
         }
         if (!Array.isArray(contentArr) || contentArr.length === 0) continue;
         const plain = blocksToText(contentArr);
@@ -120,47 +231,116 @@ router.get('/search-content', async (req, res) => {
 
     res.json({ results });
   } catch (e) {
-    console.error('Erreur /pages/search-content', e);
-    res.status(500).json({ error: 'Erreur recherche contenu pages' });
+    console.error("Erreur /pages/search-content", e);
+    res.status(500).json({ error: "Erreur recherche contenu pages" });
   }
 });
-router.get('/project/:projectId', getProjectPages);
-router.get('/:id', getPage);
-router.put('/:id', updatePage);
-router.delete('/:id', deletePage);
-router.patch('/:id/pin', togglePagePin);
+router.get("/project/:projectId", getProjectPages);
+router.get("/:id", getPage);
+router.put("/:id", updatePage);
+router.delete("/:id", deletePage);
+router.patch("/:id/pin", togglePagePin);
 
 // Route de maintenance pour nettoyer les pages archivées
-router.delete('/cleanup/archived', cleanupArchivedPages);
+router.delete("/cleanup/archived", cleanupArchivedPages);
+
+// 🆕 IMPORT HTML VERS BLOCKNOTE (pour import PDF)
+router.post("/:pageId/import-html", async (req, res) => {
+  try {
+    const { pageId } = req.params;
+    const { html } = req.body;
+
+    if (!html || typeof html !== "string") {
+      return res.status(400).json({ error: "HTML requis" });
+    }
+
+    console.log("📄 [API] Import HTML vers BlockNote:", {
+      pageId,
+      htmlLength: html.length,
+      htmlPreview: html.substring(0, 200),
+    });
+
+    // Convertir HTML en blocs BlockNote
+    let blocks: BlockNoteBlock[];
+    try {
+      blocks = htmlToBlockNoteBlocks(html);
+      console.log("📄 [API] Blocs générés:", blocks.length, "blocs");
+    } catch (conversionError) {
+      console.error("❌ [API] Erreur conversion HTML:", conversionError);
+      return res.status(500).json({
+        error: "Erreur conversion HTML",
+        details: String(conversionError),
+      });
+    }
+
+    // Sauvegarder dans la page
+    console.log("📄 [API] Sauvegarde dans la page:", pageId);
+    await prisma.page.update({
+      where: { id: pageId },
+      data: {
+        blockNoteContent: blocks as any,
+        updatedAt: new Date(),
+      },
+    } as any);
+
+    // Invalider cache Redis
+    invalidateBlockNoteCache(pageId).catch((err) =>
+      console.error("⚠️ [REDIS] Erreur invalidation cache:", err),
+    );
+
+    console.log("✅ [API] HTML importé avec succès:", {
+      pageId,
+      blocksCount: blocks.length,
+    });
+
+    res.json({
+      message: "HTML importé avec succès",
+      pageId,
+      blocksCount: blocks.length,
+    });
+  } catch (error: any) {
+    if (error.code === "P2025") {
+      return res.status(404).json({ error: "Page non trouvée" });
+    }
+    console.error("❌ [API] Erreur import HTML:", error);
+    res.status(500).json({ error: "Erreur lors de l'import" });
+  }
+});
 
 // 🆕 SAUVEGARDER CONTENU BLOCKNOTE OPTIMISÉ (Solution officielle + optimisations)
-router.post('/:pageId/blocknote-content', async (req, res) => {
+// Support POST et PUT pour compatibilité
+router.post("/:pageId/blocknote-content", saveBlockNoteContent);
+router.put("/:pageId/blocknote-content", saveBlockNoteContent);
+
+async function saveBlockNoteContent(req: any, res: any) {
   try {
     const { pageId } = req.params;
     const { content, changedBlocks, isDifferential } = req.body;
-    
+
     if (!content || !Array.isArray(content)) {
-      return res.status(400).json({ error: 'Contenu BlockNote requis' });
+      return res.status(400).json({ error: "Contenu BlockNote requis" });
     }
 
     // 🚀 GESTION OPTIMISÉE SELON LE TYPE DE SAUVEGARDE
     let logMessage;
     let saveStrategy;
-    
+
     if (isDifferential && changedBlocks && changedBlocks.length > 0) {
       // 🎯 SAUVEGARDE DIFFÉRENTIELLE
       logMessage = `📝 [API] Sauvegarde différentielle (${changedBlocks.length}/${content.length} blocs)`;
-      saveStrategy = 'differential';
+      saveStrategy = "differential";
     } else {
       // 🎯 SAUVEGARDE COMPLÈTE
       logMessage = `📝 [API] Sauvegarde complète (${content.length} blocs)`;
-      saveStrategy = 'full';
+      saveStrategy = "full";
     }
-    
+
     console.log(logMessage, {
       pageId,
-      hasNestedBlocks: content.some((b: any) => b.children && b.children.length > 0),
-      strategy: saveStrategy
+      hasNestedBlocks: content.some(
+        (b: any) => b.children && b.children.length > 0,
+      ),
+      strategy: saveStrategy,
     });
 
     // 🎯 TOUJOURS SAUVEGARDER LE CONTENU COMPLET (pour la cohérence)
@@ -168,63 +348,75 @@ router.post('/:pageId/blocknote-content', async (req, res) => {
       where: { id: pageId },
       data: {
         ...(content && { blockNoteContent: content as any }),
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     } as any);
 
     // 🗑️ INVALIDER CACHE REDIS après sauvegarde
-    invalidateBlockNoteCache(pageId).catch(err =>
-      console.error('⚠️ [REDIS] Erreur invalidation cache:', err)
+    invalidateBlockNoteCache(pageId).catch((err) =>
+      console.error("⚠️ [REDIS] Erreur invalidation cache:", err),
     );
 
-    console.log('✅ [API] Contenu BlockNote sauvegardé:', {
+    console.log("✅ [API] Contenu BlockNote sauvegardé:", {
       pageId,
       blocksCount: content.length,
-      strategy: saveStrategy
+      strategy: saveStrategy,
     });
 
     res.json({
-      message: 'Contenu BlockNote sauvegardé avec succès',
+      message: "Contenu BlockNote sauvegardé avec succès",
       pageId,
       blocksCount: content.length,
-      hasNestedBlocks: content.some((b: any) => b.children && b.children.length > 0),
-      saveStrategy
+      hasNestedBlocks: content.some(
+        (b: any) => b.children && b.children.length > 0,
+      ),
+      saveStrategy,
     });
   } catch (error: any) {
     // 🔧 Gestion spécifique de l'erreur P2025 (page supprimée)
-    if (error.code === 'P2025') {
-      console.log(`⚠️ [API] Page ${req.params.pageId} n'existe plus (supprimée). Sauvegarde ignorée.`);
-      return res.status(404).json({ 
-        error: 'Page non trouvée', 
-        code: 'PAGE_NOT_FOUND',
-        message: 'Cette page a été supprimée'
+    if (error.code === "P2025") {
+      console.log(
+        `⚠️ [API] Page ${req.params.pageId} n'existe plus (supprimée). Sauvegarde ignorée.`,
+      );
+      return res.status(404).json({
+        error: "Page non trouvée",
+        code: "PAGE_NOT_FOUND",
+        message: "Cette page a été supprimée",
       });
     }
-    
-    console.error('❌ [API] Erreur sauvegarde BlockNote:', error);
-    res.status(500).json({ error: 'Erreur lors de la sauvegarde' });
+
+    console.error("❌ [API] Erreur sauvegarde BlockNote:", error);
+    res.status(500).json({ error: "Erreur lors de la sauvegarde" });
   }
-});
+}
 
 // 🆕 CHARGER CONTENU BLOCKNOTE DIRECTEMENT (Solution officielle + Redis Cache)
-router.get('/:pageId/blocknote-content', async (req, res) => {
+router.get("/:pageId/blocknote-content", async (req, res) => {
   try {
     const { pageId } = req.params;
     const startTime = Date.now();
 
-    console.log('📖 [API] Chargement contenu BlockNote:', {
+    console.log("📖 [API] Chargement contenu BlockNote:", {
       pageId,
       pageIdType: typeof pageId,
       pageIdLength: pageId?.length,
-      isValidUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId)
+      isValidUUID:
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          pageId,
+        ),
     });
 
     // 🚨 VALIDATION UUID
-    if (!pageId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId)) {
-      console.error('❌ [API] PageId invalide:', pageId);
+    if (
+      !pageId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        pageId,
+      )
+    ) {
+      console.error("❌ [API] PageId invalide:", pageId);
       return res.status(400).json({
-        error: 'PageId doit être un UUID valide',
-        received: pageId
+        error: "PageId doit être un UUID valide",
+        received: pageId,
       });
     }
 
@@ -232,100 +424,121 @@ router.get('/:pageId/blocknote-content', async (req, res) => {
     const page = await cacheBlockNoteContent(pageId);
 
     if (!page) {
-      return res.status(404).json({ error: 'Page non trouvée' });
+      return res.status(404).json({ error: "Page non trouvée" });
     }
 
-    const content = (page as any).blockNoteContent as any[] || [];
+    const content = ((page as any).blockNoteContent as any[]) || [];
 
-    console.log(`✅ [API] Contenu BlockNote chargé (${Date.now() - startTime}ms):`, {
-      pageId,
-      blocksCount: content.length,
-      hasNestedBlocks: content.some((b: any) => b.children && b.children.length > 0)
-    });
+    console.log(
+      `✅ [API] Contenu BlockNote chargé (${Date.now() - startTime}ms):`,
+      {
+        pageId,
+        blocksCount: content.length,
+        hasNestedBlocks: content.some(
+          (b: any) => b.children && b.children.length > 0,
+        ),
+      },
+    );
 
     res.json({
       content,
       pageId,
       title: page.title,
       blocksCount: content.length,
-      hasNestedBlocks: content.some((b: any) => b.children && b.children.length > 0)
+      hasNestedBlocks: content.some(
+        (b: any) => b.children && b.children.length > 0,
+      ),
     });
   } catch (error) {
-    console.error('❌ [API] Erreur chargement BlockNote:', error);
-    res.status(500).json({ error: 'Erreur lors du chargement' });
+    console.error("❌ [API] Erreur chargement BlockNote:", error);
+    res.status(500).json({ error: "Erreur lors du chargement" });
   }
 });
 
 // 🎨 METTRE À JOUR L'ICÔNE D'UNE PAGE
-router.patch('/:id/icon', async (req, res) => {
+router.patch("/:id/icon", async (req, res) => {
   try {
     const { id } = req.params;
     const { icon, iconColor } = req.body;
-    
-    console.log('🎨 [API] Mise à jour icône page:', {
+
+    console.log("🎨 [API] Mise à jour icône page:", {
       pageId: id,
       icon,
       iconColor,
       hasIcon: !!icon,
-      hasColor: !!iconColor
+      hasColor: !!iconColor,
     });
 
     // Validation de l'UUID
-    if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-      return res.status(400).json({ 
-        error: 'PageId doit être un UUID valide',
-        received: id 
+    if (
+      !id ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      )
+    ) {
+      return res.status(400).json({
+        error: "PageId doit être un UUID valide",
+        received: id,
       });
     }
 
     // Validation des données d'icône
-    if (icon && typeof icon !== 'string') {
-      return res.status(400).json({ error: 'L\'icône doit être une chaîne de caractères' });
+    if (icon && typeof icon !== "string") {
+      return res
+        .status(400)
+        .json({ error: "L'icône doit être une chaîne de caractères" });
     }
-    
-    if (iconColor && (typeof iconColor !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(iconColor))) {
-      return res.status(400).json({ error: 'La couleur doit être au format hexadécimal #RRGGBB' });
+
+    if (
+      iconColor &&
+      (typeof iconColor !== "string" || !/^#[0-9A-Fa-f]{6}$/.test(iconColor))
+    ) {
+      return res
+        .status(400)
+        .json({ error: "La couleur doit être au format hexadécimal #RRGGBB" });
     }
 
     // Mise à jour de la page
     const updatedPage = await prisma.page.update({
       where: { id },
-      data: { 
+      data: {
         icon: icon || null,
         iconColor: iconColor || null,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       },
       select: {
         id: true,
         title: true,
         icon: true,
-        iconColor: true
-      }
+        iconColor: true,
+      },
     });
 
-    console.log('✅ [API] Icône page mise à jour:', {
+    console.log("✅ [API] Icône page mise à jour:", {
       pageId: id,
       icon: updatedPage.icon,
-      iconColor: updatedPage.iconColor
+      iconColor: updatedPage.iconColor,
     });
 
     res.json({
-      message: 'Icône mise à jour avec succès',
-      page: updatedPage
+      message: "Icône mise à jour avec succès",
+      page: updatedPage,
     });
   } catch (error: any) {
-    if (error.code === 'P2025') {
-      console.log(`⚠️ [API] Page ${req.params.id} n'existe plus lors de la mise à jour de l'icône`);
-      return res.status(404).json({ 
-        error: 'Page non trouvée', 
-        code: 'PAGE_NOT_FOUND',
-        message: 'Cette page a été supprimée'
+    if (error.code === "P2025") {
+      console.log(
+        `⚠️ [API] Page ${req.params.id} n'existe plus lors de la mise à jour de l'icône`,
+      );
+      return res.status(404).json({
+        error: "Page non trouvée",
+        code: "PAGE_NOT_FOUND",
+        message: "Cette page a été supprimée",
       });
     }
-    
-    console.error('❌ [API] Erreur mise à jour icône page:', error);
-    res.status(500).json({ error: 'Erreur lors de la mise à jour de l\'icône' });
+
+    console.error("❌ [API] Erreur mise à jour icône page:", error);
+    res.status(500).json({ error: "Erreur lors de la mise à jour de l'icône" });
   }
 });
 
-export default router; 
+export default router;
