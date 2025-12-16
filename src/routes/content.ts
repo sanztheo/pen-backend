@@ -20,7 +20,8 @@ const createProjectSchema = z.object({
 
 const createPageSchema = z.object({
   title: z.string().min(1, 'Le titre est requis').max(255),
-  projectId: z.string().uuid().nullable().optional()
+  projectId: z.string().uuid().nullable().optional(),
+  blockNoteContent: z.any().optional() // Contenu pré-rempli (import PDF)
 });
 
 const updateProjectSchema = z.object({
@@ -192,7 +193,11 @@ router.post('/pages', authenticateToken, async (req, res) => {
     const userId = req.user!.id;
     const validatedData = createPageSchema.parse(req.body);
 
-    const page = await SimplifiedContentService.createPage(userId, validatedData);
+    const page = await SimplifiedContentService.createPage(userId, {
+      title: validatedData.title,
+      projectId: validatedData.projectId,
+      blockNoteContent: validatedData.blockNoteContent
+    });
 
     // 🗑️ Invalider le cache sidebar après création
     const { invalidateSidebarCache } = await import('../lib/redis.js');

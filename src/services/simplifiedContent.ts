@@ -203,7 +203,7 @@ export class SimplifiedContentService {
   /**
    * Crée une page (dans le workspace par défaut, avec ou sans projet)
    */
-  static async createPage(userId: string, data: { title: string; projectId?: string | null; }) {
+  static async createPage(userId: string, data: { title: string; projectId?: string | null; blockNoteContent?: unknown }) {
     try {
       const startTime = Date.now(); // 🕐 DÉBUT
       console.log(`⏱️  [SIMPLIFIED-PERF] START createPage`);
@@ -227,14 +227,15 @@ export class SimplifiedContentService {
         throw new Error('Le projet n\'appartient pas au workspace par défaut.');
       }
 
-      // 🚀 Création page
+      // 🚀 Création page (avec blockNoteContent si fourni - import PDF)
       const beforeCreate = Date.now();
       const page = await prisma.page.create({
         data: {
           title: data.title,
           workspaceId: defaultWorkspaceId,
           projectId: data.projectId || null,
-          createdBy: userId
+          createdBy: userId,
+          blockNoteContent: data.blockNoteContent ?? undefined // Contenu pré-rempli (import PDF)
         },
         select: {
           id: true, title: true, projectId: true, workspaceId: true, slug: true, position: true, createdAt: true, updatedAt: true
