@@ -20,6 +20,11 @@ import {
 } from "./promptCache.js";
 import { getProfessorCorrectionPrompt } from "./professorPersonas.js";
 import { AIService } from "../../ai/base.js";
+import {
+  getPersonalizationContextForUser,
+  generateAttentesInstructions,
+  type PersonalizationContext,
+} from "../utils/personalizationUtils.js";
 
 const SPECIALTY_LABELS: Record<string, string> = {
   MATHEMATIQUES: "Mathématiques",
@@ -534,9 +539,32 @@ export class OpenAIAssistantService {
         `🧠 [STREAMING-DEBUG] ragContext dans request: ${request.ragContext ? `${request.ragContext.length} caractères` : "VIDE ou undefined"}`,
       );
 
-      // Construire les messages pour chat completion
-      const systemPrompt = this.buildSystemPrompt();
-      const userPrompt = this.buildSingleQuestionPrompt(request);
+      // 🎯 Récupérer la personnalisation utilisateur si userId fourni
+      let personalization: PersonalizationContext | undefined;
+      if (request.userId) {
+        try {
+          personalization = await getPersonalizationContextForUser(
+            request.userId,
+          );
+          if (personalization?.hasPersonalization) {
+            console.log(
+              `👤 [PERSONALIZATION] Contexte utilisateur chargé: ${personalization.classe || "N/A"}, ${personalization.domaine || "N/A"}`,
+            );
+          }
+        } catch (error) {
+          console.warn(
+            "⚠️ [PERSONALIZATION] Impossible de charger la personnalisation:",
+            error,
+          );
+        }
+      }
+
+      // Construire les messages pour chat completion avec personnalisation
+      const systemPrompt = this.buildSystemPrompt(personalization);
+      const userPrompt = this.buildSingleQuestionPrompt(
+        request,
+        personalization,
+      );
 
       console.log(`📤 [STREAMING] Envoi à ${generationModel} avec JSON strict`);
 
@@ -612,9 +640,10 @@ export class OpenAIAssistantService {
 
   /**
    * 🆕 Construit le prompt système pour les chat completions
+   * @param personalization - Contexte de personnalisation utilisateur (optionnel)
    */
-  private buildSystemPrompt(): string {
-    return `Tu es un expert en création de quiz éducatifs français (Brevet, BAC, Partiels).
+  private buildSystemPrompt(personalization?: PersonalizationContext): string {
+    let basePrompt = `Tu es un expert en création de quiz éducatifs français (Brevet, BAC, Partiels).
 
 MISSION : Générer des questions de quiz de haute qualité, adaptées au système éducatif français.
 
@@ -635,15 +664,36 @@ QUALITÉ REQUISE :
 - Questions claires et sans ambiguïté
 - Options de réponse plausibles pour les QCM
 - Explications détaillées pour la correction
-- Adaptation parfaite au niveau scolaire demandé
+- Adaptation parfaite au niveau scolaire demandé`;
 
-Tu DOIS impérativement retourner une réponse au format JSON strict fourni.`;
+    // 🎯 Intégration de la personnalisation utilisateur
+    if (personalization?.hasPersonalization && personalization.promptSection) {
+      basePrompt += `\n\n${personalization.promptSection}`;
+
+      // Ajouter les instructions basées sur les attentes
+      if (personalization.attentes) {
+        const attentesInstructions = generateAttentesInstructions(
+          personalization.attentes,
+        );
+        if (attentesInstructions) {
+          basePrompt += attentesInstructions;
+        }
+      }
+    }
+
+    basePrompt += `\n\nTu DOIS impérativement retourner une réponse au format JSON strict fourni.`;
+
+    return basePrompt;
   }
 
   /**
    * 🆕 Construit le prompt utilisateur pour générer une seule question (optimisé chat completion)
+   * @param personalization - Contexte de personnalisation utilisateur (optionnel)
    */
-  private buildSingleQuestionPrompt(request: any): string {
+  private buildSingleQuestionPrompt(
+    request: any,
+    personalization?: PersonalizationContext,
+  ): string {
     const {
       schoolLevel,
       questionTypes,
@@ -666,16 +716,33 @@ Tu DOIS impérativement retourner une réponse au format JSON strict fourni.`;
     console.log(`  - coursesOnly: ${coursesOnly}`);
     console.log(`  - specificSubject: ${specificSubject}`);
     console.log(`  - questionType: ${questionTypes[0]}`);
+    console.log(
+      `  - personalization: ${personalization?.hasPersonalization ? "OUI" : "NON"}`,
+    );
 
     // Générer un ID unique pour la question
     const questionId = `q_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // 🎯 Utiliser le niveau personnalisé si disponible, sinon fallback sur schoolLevel
+    const effectiveLevel =
+      personalization?.classe && personalization.hasPersonalization
+        ? personalization.classe
+        : schoolLevel;
+
+    // 🎯 Utiliser le domaine personnalisé si disponible et pertinent
+    const effectiveSubject =
+      personalization?.domaine &&
+      personalization.hasPersonalization &&
+      !specificSubject
+        ? personalization.domaine
+        : specificSubject || "Général";
+
     let prompt = `GÉNÈRE UNE QUESTION DE QUIZ
 
 PARAMÈTRES :
-- Niveau scolaire : ${schoolLevel}
+- Niveau scolaire : ${effectiveLevel}
 - Type de question : ${questionTypes[0] || "MULTIPLE_CHOICE"}
-- Sujet : ${specificSubject || "Général"}
+- Sujet : ${effectiveSubject}
 - Difficulté : ${difficulty}
 - ID question : ${questionId}
 
@@ -683,6 +750,24 @@ PARAMÈTRES :
 - Chaque question DOIT valoir exactement 1 point (points = 1)
 - Le système convertira automatiquement le score final sur 20
 - NE PAS varier les points selon la difficulté`;
+
+    // 🎯 Ajouter le contexte de personnalisation dans le prompt utilisateur
+    if (personalization?.hasPersonalization) {
+      prompt += `\n\n👤 CONTEXTE ÉTUDIANT :`;
+      if (personalization.classe) {
+        prompt += `\n- Niveau de l'étudiant : ${personalization.classe}`;
+      }
+      if (personalization.domaine) {
+        prompt += `\n- Domaine d'étude : ${personalization.domaine}`;
+      }
+      if (personalization.filiere) {
+        prompt += `\n- Filière : ${personalization.filiere}`;
+      }
+      if (personalization.presentation) {
+        prompt += `\n- Profil : ${personalization.presentation}`;
+      }
+      prompt += `\n⚠️ Adapte le vocabulaire, la complexité et les exemples à ce profil.`;
+    }
 
     if (lyceeSpecialties.length > 0) {
       const formattedSpecialties = lyceeSpecialties.map(
