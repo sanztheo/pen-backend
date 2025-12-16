@@ -6,8 +6,6 @@ import {
   requireCustomQuizLimits,
   requirePresetSequenceLimits,
 } from "../middlewares/requireQuizLimits.js";
-import { requireAICredits } from "../middlewares/requireAICredits.js";
-import { requirePremiumPlan } from "../middlewares/requirePremiumPlan.js";
 import quizStatsRouter from "./quizStats.js";
 
 const router = Router();
@@ -75,12 +73,6 @@ router.post(
 );
 router.get("/sequence/:sequenceId", QuizController.getSequenceStatus);
 router.post("/sequence/:sequenceId/next", QuizController.generateNextQuiz);
-// 🚀 NOUVELLE ROUTE - Génération parallèle avec 2 assistants (🛡️ PREMIUM REQUIS)
-router.post(
-  "/sequence/:sequenceId/parallel-generate",
-  requirePremiumPlan(),
-  QuizController.generateParallelQuizzes,
-);
 router.get("/sequence/:sequenceId/results", QuizController.getSequenceResults);
 
 // Routes pour corriger et naviguer dans les séquences
@@ -104,86 +96,6 @@ router.post(
 // Routes de recherche dans les documents Wikipedia
 router.post("/search-documents", QuizController.searchDocuments);
 router.get("/documents/stats", QuizController.getDocumentStats);
-
-// ===== NOUVELLES ROUTES POUR ASSISTANT OPENAI =====
-
-// 🛡️ ROUTES ASSISTANT OPENAI SÉCURISÉES - Premium + Crédits IA requis
-router.post(
-  "/assistant/thread",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 0.2, action: "assistant_thread" }),
-  QuizController.createAssistantThread,
-);
-router.post(
-  "/assistant/ping",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 0.1, action: "assistant_ping" }),
-  QuizController.pingAssistant,
-);
-router.post(
-  "/assistant/test-simple",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 0.3, action: "assistant_test" }),
-  QuizController.testSimpleAssistant,
-);
-
-// 🛡️ ROUTES GÉNÉRATION ASSISTANT - Premium + Crédits IA élevés (fonctionnalités coûteuses)
-router.post(
-  "/assistant/generate-graphics",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 5.0, action: "assistant_graphics" }),
-  QuizController.generateAssistantGraphics,
-);
-router.post(
-  "/assistant/generate-documents",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 3.0, action: "assistant_documents" }),
-  QuizController.generateAssistantDocuments,
-);
-router.post(
-  "/assistant/generate-documents-full",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 4.0, action: "assistant_documents_full" }),
-  QuizController.generateAssistantDocumentsFull,
-);
-router.post(
-  "/assistant/generate-complete",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 8.0, action: "assistant_complete" }),
-  QuizController.generateAssistantComplete,
-);
-router.post(
-  "/assistant/generate-standard",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 2.0, action: "assistant_standard" }),
-  QuizController.generateAssistantStandard,
-);
-
-// 🛡️ ROUTES CORRECTION ASSISTANT - Premium + Crédits IA pour corrections spécialisées
-router.post(
-  "/assistant/correct-standard",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 1.5, action: "assistant_correct_standard" }),
-  QuizController.correctAssistantStandard,
-);
-router.post(
-  "/assistant/correct-graphics",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 3.0, action: "assistant_correct_graphics" }),
-  QuizController.correctAssistantGraphics,
-);
-router.post(
-  "/assistant/correct-documents",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 2.0, action: "assistant_correct_documents" }),
-  QuizController.correctAssistantDocuments,
-);
-router.post(
-  "/assistant/correct-complete",
-  requirePremiumPlan(),
-  requireAICredits({ cost: 5.0, action: "assistant_correct_complete" }),
-  QuizController.correctAssistantComplete,
-);
 
 // Routes d'analyse et statistiques (Phase 4)
 router.post("/analyze-workspace", (req, res) => {

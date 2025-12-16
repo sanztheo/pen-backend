@@ -1,13 +1,12 @@
-import { Request, Response } from 'express';
-import { QuizService } from '../../../services/quiz/quizService.js';
-import { prisma } from '../../../lib/prisma.js';
-import { validateSourceDocuments } from '../utils/validators.js';
+import { Request, Response } from "express";
+import { QuizService } from "../../../services/quiz/quizService.js";
+import { prisma } from "../../../lib/prisma.js";
+import { validateSourceDocuments } from "../utils/validators.js";
 
 /**
  * Contrôleur pour la gestion des séquences de quiz
  */
 export class SequenceController {
-
   /**
    * POST /api/quiz/preset/start - Démarre une séquence de quiz preset
    */
@@ -15,25 +14,33 @@ export class SequenceController {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
-      const { preset, selectedSpecialties, higherEdField, workspaceIds } = req.body;
+      const { preset, selectedSpecialties, higherEdField, workspaceIds } =
+        req.body;
 
       if (!preset) {
-        res.status(400).json({ error: 'Type de preset requis' });
+        res.status(400).json({ error: "Type de preset requis" });
         return;
       }
 
       // Validation spécifique par preset
-      if (preset === 'BAC' && (!selectedSpecialties || selectedSpecialties.length !== 2)) {
-        res.status(400).json({ error: 'Exactement 2 spécialités requises pour le Bac' });
+      if (
+        preset === "BAC" &&
+        (!selectedSpecialties || selectedSpecialties.length !== 2)
+      ) {
+        res
+          .status(400)
+          .json({ error: "Exactement 2 spécialités requises pour le Bac" });
         return;
       }
 
-      if (preset === 'PARTIELS' && !higherEdField) {
-        res.status(400).json({ error: 'Filière d\'études requise pour les Partiels' });
+      if (preset === "PARTIELS" && !higherEdField) {
+        res
+          .status(400)
+          .json({ error: "Filière d'études requise pour les Partiels" });
         return;
       }
 
@@ -43,7 +50,7 @@ export class SequenceController {
         preset: preset as any, // Cast vers QuizPreset
         specialties: selectedSpecialties,
         higherEdField,
-        workspaceIds: workspaceIds || []
+        workspaceIds: workspaceIds || [],
       });
 
       // 🎯 INCRÉMENTER LE COMPTEUR presetSequencesUsed APRÈS CRÉATION RÉUSSIE
@@ -51,7 +58,7 @@ export class SequenceController {
         await prisma.userLimits.upsert({
           where: { userId },
           update: {
-            presetSequencesUsed: { increment: 1 }
+            presetSequencesUsed: { increment: 1 },
           },
           create: {
             userId,
@@ -65,18 +72,23 @@ export class SequenceController {
             aiCreditsUsed: 0,
             workspacesUsed: 0,
             projectsUsed: 0,
-            customQuizzesUsed: 0
-          }
+            customQuizzesUsed: 0,
+          },
         });
 
-        console.log(`✅ [PRESET-COUNTER] Compteur presetSequencesUsed incrémenté pour utilisateur: ${userId}`);
+        console.log(
+          `✅ [PRESET-COUNTER] Compteur presetSequencesUsed incrémenté pour utilisateur: ${userId}`,
+        );
       } catch (error) {
-        console.error(`❌ [PRESET-COUNTER] Erreur incrémentation compteur pour utilisateur ${userId}:`, error);
+        console.error(
+          `❌ [PRESET-COUNTER] Erreur incrémentation compteur pour utilisateur ${userId}:`,
+          error,
+        );
       }
 
       res.status(201).json({
         success: true,
-        message: 'Séquence de quiz créée avec succès',
+        message: "Séquence de quiz créée avec succès",
         data: {
           sequenceId: result.sequenceId,
           preset,
@@ -84,15 +96,14 @@ export class SequenceController {
           totalSubjects: result.config.totalSubjects,
           nextQuizSubject: result.config.subjects[0],
           firstQuizId: undefined, // Plus de génération automatique
-          firstQuizGenerated: false
-        }
+          firstQuizGenerated: false,
+        },
       });
-
     } catch (error) {
-      console.error('Erreur création séquence preset:', error);
+      console.error("Erreur création séquence preset:", error);
       res.status(500).json({
-        error: 'Erreur lors de la création de la séquence',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la création de la séquence",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -106,12 +117,12 @@ export class SequenceController {
       const { sequenceId } = req.params;
 
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
       if (!sequenceId) {
-        res.status(400).json({ error: 'ID de séquence requis' });
+        res.status(400).json({ error: "ID de séquence requis" });
         return;
       }
 
@@ -120,14 +131,13 @@ export class SequenceController {
 
       res.status(200).json({
         success: true,
-        data: { config }
+        data: { config },
       });
-
     } catch (error) {
-      console.error('Erreur récupération séquence:', error);
+      console.error("Erreur récupération séquence:", error);
       res.status(500).json({
-        error: 'Erreur lors de la récupération de la séquence',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la récupération de la séquence",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -141,99 +151,36 @@ export class SequenceController {
       const { sequenceId } = req.params;
 
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
       if (!sequenceId) {
-        res.status(400).json({ error: 'ID de séquence requis' });
+        res.status(400).json({ error: "ID de séquence requis" });
         return;
       }
 
       // Génération du quiz suivant dans la séquence
-      const result = await QuizService.generateNextQuizInSequence(sequenceId, userId);
+      const result = await QuizService.generateNextQuizInSequence(
+        sequenceId,
+        userId,
+      );
 
       res.status(201).json({
         success: true,
-        message: 'Quiz suivant généré avec succès',
+        message: "Quiz suivant généré avec succès",
         data: {
           quizId: result.quizId,
           subject: result.subject,
           isLastQuiz: result.isLastQuiz,
-          quiz: result.quiz // **NOUVEAU** : Quiz complet avec documents
-        }
+          quiz: result.quiz, // **NOUVEAU** : Quiz complet avec documents
+        },
       });
-
     } catch (error) {
-      console.error('Erreur génération quiz suivant:', error);
+      console.error("Erreur génération quiz suivant:", error);
       res.status(500).json({
-        error: 'Erreur lors de la génération du quiz suivant',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
-      });
-    }
-  }
-
-  /**
-   * POST /api/quiz/sequence/:sequenceId/parallel-generate - 🚀 Génère plusieurs quiz en parallèle
-   */
-  static async generateParallelQuizzes(req: Request, res: Response): Promise<void> {
-    try {
-      const userId = req.user?.id;
-      const { sequenceId } = req.params;
-      const { count = 2 } = req.body; // Nombre de quiz à générer en parallèle
-
-      if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
-        return;
-      }
-
-      if (!sequenceId) {
-        res.status(400).json({ error: 'ID de séquence requis' });
-        return;
-      }
-
-      if (count < 1 || count > 5) {
-        res.status(400).json({ error: 'Le nombre de quiz doit être entre 1 et 5' });
-        return;
-      }
-
-      console.log(`⚡ Démarrage génération parallèle: ${count} quiz pour séquence ${sequenceId}`);
-
-      // Génération parallèle avec 2 assistants
-      const results = await QuizService.generateSequenceQuizzesParallel(sequenceId, userId, count);
-
-      const successCount = results.filter(r => r.success).length;
-      const totalTime = results.reduce((sum, r) => sum + r.generationTime, 0);
-      const avgTime = totalTime / results.length;
-
-      res.status(201).json({
-        success: true,
-        message: `Génération parallèle terminée: ${successCount}/${results.length} quiz générés`,
-        data: {
-          results: results.map(r => ({
-            subject: r.subject,
-            quizId: r.quizId,
-            success: r.success,
-            generatedBy: r.generatedBy,
-            generationTime: `${r.generationTime}ms`,
-            error: r.error
-          })),
-          stats: {
-            successCount,
-            totalCount: results.length,
-            successRate: `${Math.round((successCount / results.length) * 100)}%`,
-            totalTime: `${totalTime}ms`,
-            averageTime: `${Math.round(avgTime)}ms`,
-            speedImprovement: results.length > 1 ? '~50% plus rapide' : 'N/A'
-          }
-        }
-      });
-
-    } catch (error) {
-      console.error('❌ Erreur génération parallèle:', error);
-      res.status(500).json({
-        error: 'Erreur lors de la génération parallèle',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la génération du quiz suivant",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -247,12 +194,12 @@ export class SequenceController {
       const { sequenceId } = req.params;
 
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
       if (!sequenceId) {
-        res.status(400).json({ error: 'ID de séquence requis' });
+        res.status(400).json({ error: "ID de séquence requis" });
         return;
       }
 
@@ -261,14 +208,13 @@ export class SequenceController {
 
       res.status(200).json({
         success: true,
-        data: { results }
+        data: { results },
       });
-
     } catch (error) {
-      console.error('Erreur récupération résultats séquence:', error);
+      console.error("Erreur récupération résultats séquence:", error);
       res.status(500).json({
-        error: 'Erreur lors de la récupération des résultats',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la récupération des résultats",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -276,24 +222,29 @@ export class SequenceController {
   /**
    * POST /api/quiz/sequence/:sequenceId/quiz/:quizId/submit - Soumet un quiz séquentiel
    */
-  static async submitSequentialQuiz(req: Request, res: Response): Promise<void> {
+  static async submitSequentialQuiz(
+    req: Request,
+    res: Response,
+  ): Promise<void> {
     try {
       const userId = req.user?.id;
       const { sequenceId, quizId } = req.params;
       const { answers, sourceDocuments, hasDocuments } = req.body;
 
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
       if (!sequenceId || !quizId) {
-        res.status(400).json({ error: 'ID de séquence et quiz requis' });
+        res.status(400).json({ error: "ID de séquence et quiz requis" });
         return;
       }
 
       if (!answers || !Array.isArray(answers)) {
-        res.status(400).json({ error: 'Réponses requises sous forme de tableau' });
+        res
+          .status(400)
+          .json({ error: "Réponses requises sous forme de tableau" });
         return;
       }
 
@@ -302,26 +253,34 @@ export class SequenceController {
       if (!validation.valid) {
         res.status(400).json({
           error: validation.error,
-          ...validation.details
+          ...validation.details,
         });
         return;
       }
 
       // Soumission du quiz séquentiel
-      const result = await QuizService.submitSequentialQuiz(sequenceId, quizId, userId, answers, sourceDocuments, hasDocuments);
+      const result = await QuizService.submitSequentialQuiz(
+        sequenceId,
+        quizId,
+        userId,
+        answers,
+        sourceDocuments,
+        hasDocuments,
+      );
 
       // Retourner immédiatement le résultat (correction en arrière-plan si nécessaire)
       res.status(200).json({
         success: true,
-        message: result.result.isCorrectingInProgress ? 'Quiz soumis, correction en cours...' : 'Quiz soumis et corrigé avec succès',
-        result: result.result
+        message: result.result.isCorrectingInProgress
+          ? "Quiz soumis, correction en cours..."
+          : "Quiz soumis et corrigé avec succès",
+        result: result.result,
       });
-
     } catch (error) {
-      console.error('Erreur soumission quiz séquentiel:', error);
+      console.error("Erreur soumission quiz séquentiel:", error);
       res.status(500).json({
-        error: 'Erreur lors de la soumission du quiz séquentiel',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la soumission du quiz séquentiel",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -335,12 +294,12 @@ export class SequenceController {
       const { sequenceId, quizId } = req.params;
 
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
       if (!sequenceId || !quizId) {
-        res.status(400).json({ error: 'ID de séquence et quiz requis' });
+        res.status(400).json({ error: "ID de séquence et quiz requis" });
         return;
       }
 
@@ -348,22 +307,23 @@ export class SequenceController {
       const quiz = await QuizService.getQuiz(quizId, userId);
 
       if (!quiz.result) {
-        res.status(404).json({ error: 'Correction non disponible pour ce quiz' });
+        res
+          .status(404)
+          .json({ error: "Correction non disponible pour ce quiz" });
         return;
       }
 
       res.status(200).json({
         success: true,
         data: {
-          correction: quiz.result
-        }
+          correction: quiz.result,
+        },
       });
-
     } catch (error) {
-      console.error('Erreur récupération correction:', error);
+      console.error("Erreur récupération correction:", error);
       res.status(500).json({
-        error: 'Erreur lors de la récupération de la correction',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la récupération de la correction",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
