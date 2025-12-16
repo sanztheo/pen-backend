@@ -777,7 +777,7 @@ router.post('/rag/index-notes', async (req: any, res) => {
 });
 
 // Upload route: parse pdf/txt and return extracted text (not persisted)
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }); // 50 Mo
 router.post('/upload', upload.array('files', 5), async (req: any, res) => {
   try {
     const files = (req.files as any[]) || [];
