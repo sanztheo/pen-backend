@@ -36,9 +36,12 @@ interface BlockNoteBlock {
 function htmlToBlockNoteBlocks(html: string): BlockNoteBlock[] {
   const blocks: BlockNoteBlock[] = [];
 
+  // 🔧 IMPORTANT: Nettoyer les caractères NULL (\u0000) qui causent une erreur PostgreSQL
+  const cleanedHtml = html.replace(/\u0000/g, "");
+
   // Parser simple côté serveur (pas de DOM disponible)
   // On utilise des regex pour extraire les éléments HTML
-  const lines = html
+  const lines = cleanedHtml
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<\/div>/gi, "\n")
@@ -254,12 +257,24 @@ router.post("/:pageId/import-html", async (req, res) => {
     console.log("📄 [API] Import HTML vers BlockNote:", {
       pageId,
       htmlLength: html.length,
+      htmlPreview: html.substring(0, 200),
     });
 
     // Convertir HTML en blocs BlockNote
-    const blocks = htmlToBlockNoteBlocks(html);
+    let blocks: BlockNoteBlock[];
+    try {
+      blocks = htmlToBlockNoteBlocks(html);
+      console.log("📄 [API] Blocs générés:", blocks.length, "blocs");
+    } catch (conversionError) {
+      console.error("❌ [API] Erreur conversion HTML:", conversionError);
+      return res.status(500).json({
+        error: "Erreur conversion HTML",
+        details: String(conversionError),
+      });
+    }
 
     // Sauvegarder dans la page
+    console.log("📄 [API] Sauvegarde dans la page:", pageId);
     await prisma.page.update({
       where: { id: pageId },
       data: {
