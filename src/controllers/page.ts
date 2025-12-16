@@ -12,6 +12,7 @@ const createPageSchema = z
     position: z.number().int().min(0).optional(),
     projectId: z.string().uuid("ID projet invalide").optional(),
     workspaceId: z.string().uuid("ID workspace invalide").optional(),
+    blockNoteContent: z.any().optional(), // Contenu pré-rempli (import PDF)
   })
   .refine((data) => data.projectId || data.workspaceId, {
     message: "Un projectId ou un workspaceId est requis",
@@ -157,6 +158,7 @@ export const createPage = async (req: Request, res: Response) => {
         workspaceId: finalWorkspaceId,
         parentId: validatedData.parentId,
         createdBy: req.user!.id,
+        blockNoteContent: validatedData.blockNoteContent || null,
       },
       include: {
         author: {
