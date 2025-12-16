@@ -4,7 +4,7 @@
  * Ce script corrige les subscriptions avec des dates invalides (comme 0001-01-01)
  * en les recalculant à partir de lastResetAt + 1 mois.
  * 
- * Usage: npx tsx scripts/fix-subscription-dates.ts [--dry-run]
+ * Usage: npx tsx scripts/fix/subscription-dates.ts [--dry-run]
  * 
  * Options:
  *   --dry-run : Affiche ce qui serait corrigé sans modifier la DB
@@ -138,7 +138,7 @@ async function fixSubscriptionDates() {
     if (isDryRun) {
       console.log(`🔍 Mode DRY-RUN: ${fixedCount} correction(s) simulée(s)`);
       console.log(`\n💡 Pour appliquer les corrections, relancez sans --dry-run:`);
-      console.log(`   npx tsx scripts/fix-subscription-dates.ts`);
+      console.log(`   npx tsx scripts/fix/subscription-dates.ts`);
     } else {
       console.log(`✅ Corrections appliquées: ${fixedCount}`);
     }
