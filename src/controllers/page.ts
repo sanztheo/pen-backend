@@ -867,6 +867,12 @@ export const deletePage = async (req: Request, res: Response) => {
         console.warn("⚠️ [Cache] Échec invalidation pages récentes:", err),
       );
 
+    // 🗑️ REDIS CACHE INVALIDATION: Invalider le cache Sidebar
+    const { invalidateSidebarCache } = await import("../lib/redis.js");
+    invalidateSidebarCache(req.user!.id).catch((err) =>
+      console.warn("⚠️ [Cache] Échec invalidation cache sidebar:", err),
+    );
+
     console.log(
       `🗑️ [DELETE] ${allDeletedIds.length} page(s) supprimée(s) et cache invalidé`,
     );
