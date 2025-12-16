@@ -2,6 +2,36 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "🗑️ Flush Redis (All)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "${workspaceFolder}/scripts/cache/flush-redis.ts", "--force"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "🗑️ Flush Redis (Cache Only)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "${workspaceFolder}/scripts/cache/flush-redis.ts", "--cache", "--force"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "🗑️ Flush Redis (Interactive)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "${workspaceFolder}/scripts/cache/flush-redis.ts"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
       "name": "🔍 Debug Limits",
       "type": "node",
       "request": "launch",
