@@ -73,6 +73,56 @@ import {
 dotenv.config();
 // Logger.init(); // ❌ DÉSACTIVÉ - maintenant console.log s'affiche dans le terminal
 
+/**
+ * 🏓 Test automatique de la route webhook Paddle au démarrage
+ */
+async function testPaddleWebhookRoute(): Promise<void> {
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("🏓 TEST WEBHOOK PADDLE");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+  try {
+    const response = await fetch(
+      `http://localhost:${PORT}/api/webhooks/paddle`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Paddle-Signature": "test-signature",
+        },
+        body: JSON.stringify({ test: true }),
+      },
+    );
+
+    if (response.status === 400) {
+      // 400 = route accessible, signature invalide (attendu)
+      console.log("✅ Route webhook Paddle: ACCESSIBLE");
+      console.log("   URL: /api/webhooks/paddle");
+      console.log("   Status: Prêt à recevoir les webhooks Paddle");
+    } else if (response.status === 500) {
+      console.log(
+        "⚠️  Route webhook: ACCESSIBLE mais PADDLE_WEBHOOK_SECRET manquant",
+      );
+    } else {
+      console.log(`⚠️  Route webhook: Status inattendu (${response.status})`);
+    }
+  } catch (error: any) {
+    console.log("❌ Route webhook Paddle: INACCESSIBLE");
+    console.log(`   Erreur: ${error.message}`);
+  }
+
+  // Vérifier la config
+  const hasSecret = !!process.env.PADDLE_WEBHOOK_SECRET;
+  const hasApiKey = !!process.env.PADDLE_API_KEY;
+  console.log(
+    `   PADDLE_API_KEY: ${hasApiKey ? "✅ Configuré" : "❌ Manquant"}`,
+  );
+  console.log(
+    `   PADDLE_WEBHOOK_SECRET: ${hasSecret ? "✅ Configuré" : "❌ Manquant"}`,
+  );
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+}
+
 const app = express();
 const server = http.createServer(app);
 
@@ -88,16 +138,20 @@ app.use(
 );
 app.use(compression());
 
-// 🛡️ RATE LIMITING GLOBAL - Appliqué à TOUS les endpoints
-app.use(globalRateLimit);
-
-// Webhooks avant json pour body brut (skip rate limit via config)
-// Paddle webhook (billing events)
+// 🏓 Paddle webhook - AVANT rate limit et json parser (body brut requis)
 app.post(
   "/api/webhooks/paddle",
   express.raw({ type: "application/json" }),
+  (req, res, next) => {
+    console.log("🏓 [WEBHOOK] Route /api/webhooks/paddle touchée");
+    next();
+  },
   paddleWebhookHandler,
 );
+
+// 🛡️ RATE LIMITING GLOBAL - Appliqué à TOUS les endpoints (après webhooks)
+app.use(globalRateLimit);
+
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -648,6 +702,9 @@ server.listen(PORT, async () => {
 
       // 📊 Démarrer le monitoring système (toutes les 5 minutes)
       startMonitoring(5);
+
+      // 🏓 Test automatique du webhook Paddle
+      await testPaddleWebhookRoute();
     } else {
       console.error("⚠️ Tâches automatiques désactivées - BDD inaccessible");
     }
