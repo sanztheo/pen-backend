@@ -31,7 +31,7 @@ import updatesRoutes from "./routes/updates.js";
 import userRoutes from "./routes/user.js";
 import dailyArticleRoutes from "./routes/dailyArticle.js";
 import uploadRoutes from "./routes/upload.js";
-import { clerkWebhookHandler } from "./routes/webhooks.js";
+import { paddleWebhookHandler } from "./routes/paddleWebhooks.js";
 import jobsRoutes from "./routes/jobs.js";
 
 import { startCronJobs } from "./jobs/cronJobs.js";
@@ -91,11 +91,12 @@ app.use(compression());
 // 🛡️ RATE LIMITING GLOBAL - Appliqué à TOUS les endpoints
 app.use(globalRateLimit);
 
-// Clerk webhook avant json pour body brut (skip rate limit via config)
+// Webhooks avant json pour body brut (skip rate limit via config)
+// Paddle webhook (billing events)
 app.post(
-  "/api/webhooks/clerk",
+  "/api/webhooks/paddle",
   express.raw({ type: "application/json" }),
-  clerkWebhookHandler,
+  paddleWebhookHandler,
 );
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
