@@ -37,11 +37,35 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     "Paddle-Signature:",
     req.headers["paddle-signature"] ? "Présent" : "ABSENT",
   );
+
+  // 🔍 DEBUG DÉTAILLÉ DU BODY
+  const isBuffer = Buffer.isBuffer(req.body);
+  console.log("Body is Buffer:", isBuffer);
   console.log("Body type:", typeof req.body);
+  console.log("Body constructor:", req.body?.constructor?.name);
   console.log(
     "Body length:",
-    Buffer.isBuffer(req.body) ? req.body.length : "Not a buffer",
+    isBuffer
+      ? req.body.length
+      : typeof req.body === "string"
+        ? req.body.length
+        : JSON.stringify(req.body).length,
   );
+
+  // 🔍 Afficher les premiers caractères du body pour debug
+  if (isBuffer) {
+    console.log(
+      "Body preview (Buffer→String):",
+      req.body.toString("utf8").substring(0, 100) + "...",
+    );
+  } else if (typeof req.body === "string") {
+    console.log("Body preview (String):", req.body.substring(0, 100) + "...");
+  } else {
+    console.log(
+      "Body preview (Object):",
+      JSON.stringify(req.body).substring(0, 100) + "...",
+    );
+  }
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   try {
@@ -59,10 +83,10 @@ export const paddleWebhookHandler: express.RequestHandler = async (
       return res.status(400).json({ error: "Missing paddle-signature header" });
     }
 
-    // 1️⃣ Vérifier la signature Paddle
+    // 1️⃣ Vérifier la signature Paddle (ASYNC - nécessite await)
     let event: any;
     try {
-      event = paddle.webhooks.unmarshal(rawBody, secretKey, signature);
+      event = await paddle.webhooks.unmarshal(rawBody, secretKey, signature);
       console.log(`✅ [Paddle Webhook] Signature valide`);
     } catch (e: any) {
       console.error("[Paddle Webhook] ❌ Signature invalide:", e.message);

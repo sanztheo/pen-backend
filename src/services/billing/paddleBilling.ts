@@ -224,7 +224,6 @@ export class PaddleBillingService {
 
   /**
    * Synchronise les limites utilisateur après un changement de plan
-   * (Réutilise la logique existante de clerkBilling)
    */
   static async syncUserLimitsAfterPlanChange(
     userId: string,

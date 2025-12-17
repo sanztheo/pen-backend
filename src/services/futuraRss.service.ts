@@ -297,12 +297,11 @@ export class FuturaRssService {
         };
       }
 
-      // Rate limiting
+      // Rate limiting (silencieux)
       const now = Date.now();
       const timeSinceLastCall = now - lastAICallTime;
       if (timeSinceLastCall < MIN_CALL_INTERVAL) {
         const waitTime = MIN_CALL_INTERVAL - timeSinceLastCall;
-        console.log(`⏳ Rate limit: attente ${waitTime}ms`);
         await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
 
@@ -379,9 +378,12 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         timestamp: Date.now(),
       });
 
-      console.log(
-        `🎓 AI validation: "${title.substring(0, 40)}..." → ${isValid ? "✅ VALIDE" : "❌ REJETÉ"} (score: ${result.score}/10, raison: ${reason})`,
-      );
+      // Log uniquement les articles validés (réduire le bruit)
+      if (isValid) {
+        console.log(
+          `🎓 Article validé: "${title.substring(0, 50)}..." (score: ${result.score}/10)`,
+        );
+      }
       return { isValid, score, reason };
     } catch (error) {
       console.error("❌ Erreur validation éducative AI:", error);
