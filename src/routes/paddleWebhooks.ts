@@ -113,19 +113,54 @@ export const paddleWebhookHandler: express.RequestHandler = async (
 
     // 4️⃣ TRAITER LES ÉVÉNEMENTS
 
-    // 📝 subscription.created - Subscription créée (attendre activated)
+    // 📝 subscription.created - Subscription créée
+    // 🎁 Si status "trialing" → Activer premium immédiatement pour le trial
     if (
       eventType === EventName.SubscriptionCreated ||
       eventType === "subscription.created"
     ) {
+      const subscriptionStatus = data?.status;
+      const paddleCustomerId = data?.customerId || data?.customer_id;
+      const paddleSubscriptionId = data?.id;
+
       console.log(`📝 [Paddle Webhook] subscription.created:`, {
-        subscriptionId: data?.id,
-        customerId: data?.customerId,
-        status: data?.status,
+        subscriptionId: paddleSubscriptionId,
+        customerId: paddleCustomerId,
+        status: subscriptionStatus,
         customData,
       });
 
-      // Juste logger, attendre subscription.activated pour activer le plan
+      // 🎁 TRIAL: Si status "trialing", activer premium immédiatement
+      if (subscriptionStatus === "trialing" && userId) {
+        const trialEnd = data?.currentBillingPeriod?.endsAt
+          ? new Date(data.currentBillingPeriod.endsAt)
+          : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 jours par défaut
+
+        console.log(`🎁 [Paddle Webhook] TRIAL activé pour user ${userId}:`, {
+          trialEnd: trialEnd.toISOString(),
+          paddleCustomerId,
+          paddleSubscriptionId,
+        });
+
+        await PaddleBillingService.activatePremium(
+          userId,
+          paddleCustomerId,
+          paddleSubscriptionId,
+          trialEnd,
+        );
+
+        if (eventId) {
+          await prisma.webhookEvent.create({
+            data: { eventId, type: eventType, processedAt: new Date() },
+          });
+        }
+
+        return res
+          .status(200)
+          .json({ success: true, message: "trial_activated" });
+      }
+
+      // Si pas de trial ou pas de userId, juste logger
       if (eventId) {
         await prisma.webhookEvent.create({
           data: { eventId, type: eventType, processedAt: new Date() },
