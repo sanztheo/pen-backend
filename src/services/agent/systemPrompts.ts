@@ -94,6 +94,16 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
     toolGuidance:
       "Quick content generation. createPage is REQUIRED at the end.",
     createPageRequired: true,
+    contentGuidelines: [
+      "Create CONCISE content focused on essential information",
+      "Target length: 500-1500 words maximum",
+      "Use short paragraphs and bullet points for readability",
+      "Include only the most important points",
+      "Structure: brief introduction, key points, short conclusion",
+      "Avoid lengthy explanations - be direct and efficient",
+      "Prioritize clarity over comprehensiveness",
+      "One heading level is often sufficient (## for sections)",
+    ],
   },
 
   "create-deep": {
@@ -111,6 +121,20 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
     toolGuidance:
       "Deep research + content creation. createPage is REQUIRED at the end.",
     createPageRequired: true,
+    contentGuidelines: [
+      "Create COMPREHENSIVE and DETAILED content",
+      "Target length: 2000-5000+ words - be thorough",
+      "Use multiple heading levels (##, ###, ####) for clear hierarchy",
+      "Include detailed explanations with examples",
+      "Add concrete examples, case studies, or illustrations",
+      "Structure: thorough introduction, multiple detailed sections, comprehensive conclusion",
+      "Include definitions, context, and background information",
+      "Add comparisons, pros/cons, or different perspectives when relevant",
+      "Use tables or lists to organize complex information",
+      "Include a summary or key takeaways section",
+      "Cite sources throughout the content with links",
+      "Make the content educational and reference-worthy",
+    ],
   },
 };
 
@@ -253,6 +277,24 @@ Usage priority:
 </available_tools>`;
 }
 
+function buildContentGuidelinesSection(config: ModeConfig): string {
+  if (!config.contentGuidelines || config.contentGuidelines.length === 0) {
+    return "";
+  }
+
+  const guidelines = config.contentGuidelines.map((g) => `- ${g}`).join("\n");
+
+  return `
+<content_guidelines>
+When creating page content, follow these guidelines strictly:
+
+${guidelines}
+
+IMPORTANT: The quality and length of your content MUST match these guidelines.
+Failure to meet these standards will result in an inadequate response.
+</content_guidelines>`;
+}
+
 function buildFormattingSection(): string {
   return `
 <output_format>
@@ -289,6 +331,7 @@ export function buildSystemPrompt(
   const sections = [
     buildIdentitySection(config),
     buildBehaviorSection(config),
+    buildContentGuidelinesSection(config),
     buildUserProfileSection(personalization),
     buildSourcesSection(ragSources),
     buildHistorySection(conversationHistory),
