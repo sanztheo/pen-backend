@@ -62,78 +62,198 @@ export interface AgentStreamCallbacks {
 }
 
 /**
- * Construit le system prompt selon le mode et le contexte
+ * Interface pour la personnalisation utilisateur
+ */
+interface UserPersonalization {
+  name?: string;
+  classe?: string;
+  etude?: string;
+  filiere?: string;
+  langue?: string;
+  presentation?: string;
+  attente?: string;
+  style?: string;
+}
+
+/**
+ * Construit le system prompt au format XML (pattern Claude/GPT-4)
  */
 function buildSystemPrompt(
   mode: AgentMode,
   options: {
     workspaceId: string;
-    ragSources?: Array<{ id: string; title: string }>;
-    personalization?: AgentRequest["personalization"];
+    ragSources?: Array<{ id: string; title: string; type?: string }>;
+    personalization?: UserPersonalization;
     conversationHistory?: string;
   },
 ): string {
   const { personalization, conversationHistory, ragSources } = options;
 
-  // Base persona
-  let persona = "";
-  if (personalization?.name) {
-    persona += `L'utilisateur s'appelle ${personalization.name}. `;
+  // Mode instructions
+  const modeConfig: Record<AgentMode, { role: string; instructions: string }> =
+    {
+      ask: {
+        role: "Assistant IA intelligent et pédagogue",
+        instructions: `- Réponds de manière claire, précise et structurée
+- Si des sources sont fournies, tu DOIS les consulter en priorité avec les outils RAG
+- Si tu ne trouves pas l'information, indique-le honnêtement
+- Adapte ton niveau de langage au profil de l'utilisateur`,
+      },
+      search: {
+        role: "Expert en recherche documentaire",
+        instructions: `- Effectue une recherche EXHAUSTIVE dans toutes les sources disponibles
+- Utilise les outils RAG pour les sources fournies
+- Si le web est activé, complète avec des recherches web
+- Synthétise les informations de manière structurée
+- Cite TOUJOURS tes sources`,
+      },
+      "create-quick": {
+        role: "Rédacteur efficace",
+        instructions: `- Génère du contenu concis et pertinent
+- Utilise les sources fournies pour enrichir le contenu
+- Reste factuel et précis
+- Adapte le style au profil de l'utilisateur`,
+      },
+      "create-deep": {
+        role: "Expert en création de contenu",
+        instructions: `- Effectue des recherches approfondies avant de rédiger
+- Utilise TOUTES les sources disponibles (RAG, web, Wikipedia)
+- Crée un contenu riche, structuré et bien documenté
+- Inclus des exemples et illustrations si pertinent
+- Cite toutes tes sources`,
+      },
+    };
+
+  const { role, instructions } = modeConfig[mode];
+
+  // Build XML-structured prompt
+  let prompt = `<system>
+<identity>
+Tu es ${role} dans Pennote, une application de prise de notes intelligente.
+</identity>
+
+<instructions>
+${instructions}
+</instructions>`;
+
+  // User personalization section
+  if (personalization && Object.keys(personalization).length > 0) {
+    prompt += `
+
+<user_profile>`;
+    if (personalization.name) {
+      prompt += `\n<name>${personalization.name}</name>`;
+    }
+    if (personalization.classe) {
+      prompt += `\n<level>${personalization.classe}</level>`;
+    }
+    if (personalization.etude || personalization.filiere) {
+      prompt += `\n<field>${personalization.etude || ""} ${personalization.filiere || ""}</field>`;
+    }
+    if (personalization.presentation) {
+      prompt += `\n<bio>${personalization.presentation}</bio>`;
+    }
+    if (personalization.attente) {
+      prompt += `\n<expectations>${personalization.attente}</expectations>`;
+    }
+    if (personalization.langue) {
+      prompt += `\n<preferred_language>${personalization.langue}</preferred_language>`;
+    }
+    prompt += `
+</user_profile>`;
   }
-  if (personalization?.style) {
-    persona += `Style de communication préféré: ${personalization.style}. `;
-  }
 
-  // Instructions selon le mode
-  const modeInstructions: Record<AgentMode, string> = {
-    ask: `Tu es un assistant IA intelligent qui répond aux questions de manière claire et précise.
-Utilise les outils RAG pour chercher dans les sources disponibles avant de répondre.
-Si tu ne trouves pas l'information dans les sources, indique-le clairement.`,
-
-    search: `Tu es un assistant de recherche approfondie.
-Utilise TOUS les outils disponibles pour trouver les informations les plus complètes et pertinentes.
-Fais des recherches dans le RAG ET sur le web si autorisé.
-Synthétise les informations de manière structurée et cite tes sources.`,
-
-    "create-quick": `Tu es un assistant de création de contenu rapide.
-Génère du contenu concis et pertinent basé sur les sources disponibles.
-Utilise les outils RAG pour enrichir ton contenu avec des informations factuelles.`,
-
-    "create-deep": `Tu es un assistant de création de contenu expert.
-Fais des recherches approfondies avant de générer du contenu.
-Utilise le RAG, le web, et toutes les sources disponibles.
-Crée du contenu riche, structuré et bien documenté.`,
-  };
-
-  // Sources disponibles
-  let sourcesInfo = "";
+  // Sources section - CRITICAL for RAG
   if (ragSources && ragSources.length > 0) {
-    sourcesInfo = `\n\nSources RAG disponibles:\n${ragSources.map((s) => `- ${s.title} (ID: ${s.id})`).join("\n")}`;
+    prompt += `
+
+<provided_sources>
+<critical_instruction>
+⚠️ ARRÊTE-TOI ET LIS CECI ATTENTIVEMENT ⚠️
+L'utilisateur a EXPLICITEMENT attaché ${ragSources.length} source(s) à sa question.
+Tu NE PEUX PAS répondre sans d'abord consulter ces sources avec les outils appropriés.
+SI TU RÉPONDS SANS APPELER D'OUTIL, TA RÉPONSE SERA INCORRECTE.
+</critical_instruction>
+
+<sources_to_read>
+${ragSources
+  .map((s) => {
+    if (s.type === "wikipedia" || s.id?.startsWith("wikipedia:")) {
+      return `  <source type="wikipedia" action="APPELLE getWikipediaArticle avec title='${s.title}'">${s.title}</source>`;
+    } else if (s.type === "page") {
+      return `  <source type="page" action="APPELLE readWorkspacePage avec pageId='${s.id}'">${s.title}</source>`;
+    } else {
+      return `  <source type="file" action="APPELLE readRagSource avec sourceId='${s.id}'">${s.title}</source>`;
+    }
+  })
+  .join("\n")}
+</sources_to_read>
+
+<mandatory_workflow>
+1. PREMIÈRE ÉTAPE OBLIGATOIRE: Appeler l'outil approprié pour CHAQUE source listée ci-dessus
+2. DEUXIÈME ÉTAPE: Lire et analyser le contenu retourné
+3. TROISIÈME ÉTAPE: Répondre en te basant sur ce contenu
+</mandatory_workflow>
+</provided_sources>`;
   }
 
-  // Historique de conversation
-  let historySection = "";
+  // Conversation history
   if (conversationHistory) {
-    historySection = `\n\n📜 HISTORIQUE DE CONVERSATION:\n${conversationHistory}\n---`;
+    prompt += `
+
+<conversation_history>
+${conversationHistory}
+</conversation_history>`;
   }
 
-  // LaTeX rules
-  const latexRules = `
-RÈGLES LATEX STRICTES:
-- Pour les formules en ligne: $formule$
-- Pour les formules en bloc: $$formule$$
+  // Tool usage guidance - intelligent agent behavior
+  prompt += `
+
+<tools_available>
+<description>Tu disposes de plusieurs outils pour répondre au mieux à l'utilisateur:</description>
+<rag_tools>
+- listAvailableSources: Liste les sources RAG disponibles
+- searchRagChunks: Recherche dans les sources embedées (PDF, documents)
+- readRagSource: Lit le contenu complet d'une source RAG
+- checkSourcesRagStatus: Vérifie si les sources sont embedées
+</rag_tools>
+<workspace_tools>
+- listWorkspacePages: Liste les pages du workspace
+- readWorkspacePage: Lit le contenu d'une page
+- listWorkspaceProjects: Liste les projets
+</workspace_tools>
+<web_tools>
+- searchWeb: Recherche sur le web (actualités, informations récentes)
+- searchWikipedia: Recherche d'articles Wikipedia
+- getWikipediaArticle: Récupère le contenu complet d'un article Wikipedia
+</web_tools>
+<strategy>
+1. PRIORITÉ: Si des sources sont explicitement fournies, LES CONSULTER EN PREMIER
+2. Si les sources ne suffisent pas, chercher dans le workspace
+3. Si toujours insuffisant, utiliser Wikipedia ou le web
+4. OBJECTIF: Répondre de la manière la plus complète et précise possible
+5. N'hésite PAS à utiliser plusieurs outils si nécessaire
+</strategy>
+</tools_available>
+
+<formatting_rules>
+<latex>
+- Formules en ligne: $formule$
+- Formules en bloc: $$formule$$
 - NE JAMAIS utiliser \\( \\) ou \\[ \\]
-- Toujours utiliser les délimiteurs $ ou $$`;
+</latex>
+<markdown>
+- Utilise le Markdown pour structurer tes réponses
+- Titres, listes, gras, italique selon le besoin
+</markdown>
+<language>
+- Réponds dans la langue de l'utilisateur (par défaut: français)
+- Si l'utilisateur a une langue préférée, utilise-la
+</language>
+</formatting_rules>
+</system>`;
 
-  return `${modeInstructions[mode]}
-
-${persona}
-${latexRules}
-${sourcesInfo}
-${historySection}
-
-Réponds en français sauf si l'utilisateur utilise une autre langue.
-Sois précis, structuré et utile.`.trim();
+  return prompt;
 }
 
 /**
@@ -164,20 +284,17 @@ export async function runPennoteAgent(
   const workspaceTools = createWorkspaceTools(toolContext);
   const webTools = createWebTools(toolContext);
 
-  // Sélectionner les tools selon le mode et options
+  // 🧠 AGENT INTELLIGENT: Tous les outils sont disponibles
+  // L'IA décide intelligemment quels outils utiliser selon le contexte
+  // Les priorités sont guidées par le system prompt, pas par des restrictions artificielles
   const tools: Record<string, any> = {
-    // RAG tools - toujours disponibles
+    // RAG tools - pour les sources du workspace
     ...ragTools,
-    // Workspace tools - toujours disponibles
+    // Workspace tools - pour lire les pages
     ...workspaceTools,
+    // Web tools - pour Wikipedia et recherche web si nécessaire
+    ...webTools,
   };
-
-  // Web tools - seulement si useWeb est activé
-  if (useWeb) {
-    tools.searchWeb = webTools.searchWeb;
-    tools.searchWikipedia = webTools.searchWikipedia;
-    tools.getWikipediaArticle = webTools.getWikipediaArticle;
-  }
 
   // System prompt
   const systemPrompt = buildSystemPrompt(mode, {
