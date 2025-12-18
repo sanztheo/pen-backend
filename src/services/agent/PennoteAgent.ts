@@ -383,14 +383,6 @@ export async function runPennoteAgent(
       }
     },
 
-    // 🐛 DEBUG LOGGING pour voir si le reasoning arrive
-    onChunk: ({ chunk }) => {
-      if (chunk.type === "reasoning-delta") {
-        console.log(
-          `🧠 [STREAM-DEBUG] Reasoning chunk reçu (${chunk.text.length} chars)`,
-        );
-      }
-    },
   });
 
   return result;
