@@ -1,31 +1,36 @@
 // 🤖 Pennote Agent - Vercel AI SDK v5
 import { streamText, stepCountIs, type ModelMessage } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { xai } from "@ai-sdk/xai";
+import { google } from "@ai-sdk/google";
 import { createRagTools } from "./tools/ragTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createWebTools } from "./tools/webTools.js";
 import { createPageTools } from "./tools/pageTools.js";
 
 /**
- * Configuration de l'agent par mode
+ * Configuration de l'agent par mode avec Gemini 3 thinkingLevel
+ * Options: "minimal" | "low" | "medium" | "high" (défaut: high)
+ * Note: Gemini 3 Flash ne supporte pas la désactivation complète du thinking
  */
 const MODE_CONFIG = {
   ask: {
     maxSteps: 10,
     description: "Questions simples avec RAG",
+    thinkingConfig: { thinkingLevel: "minimal" as const },
   },
   search: {
     maxSteps: 25,
     description: "Recherche approfondie avec web",
+    thinkingConfig: { thinkingLevel: "high" as const },
   },
   "create-quick": {
     maxSteps: 10,
     description: "Génération rapide de contenu",
+    thinkingConfig: { thinkingLevel: "low" as const },
   },
   "create-deep": {
     maxSteps: 30,
     description: "Génération complète avec recherche",
+    thinkingConfig: { thinkingLevel: "high" as const },
   },
 } as const;
 
@@ -313,11 +318,9 @@ export async function runPennoteAgent(
     conversationHistory,
   });
 
-  // Modèle à utiliser - xAI Grok avec reasoning
-  const useXai = process.env.USE_XAI === "true" || !process.env.OPENAI_MODEL;
-  const modelName = useXai 
-    ? (process.env.XAI_MODEL || "grok-3-mini")
-    : (process.env.OPENAI_MODEL || "gpt-4o");
+  // Modèle Gemini avec thinkingConfig selon le mode
+  const { thinkingConfig } = MODE_CONFIG[mode];
+  const modelName = "gemini-3-flash";
 
   console.log(
     `🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`,
@@ -325,15 +328,16 @@ export async function runPennoteAgent(
   console.log(
     `🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`,
   );
-  console.log(`🤖 [PennoteAgent] Provider: ${useXai ? "xAI" : "OpenAI"}, Model: ${modelName}`);
+  console.log(
+    `🤖 [PennoteAgent] Provider: Google, Model: ${modelName}, ThinkingLevel: ${thinkingConfig.thinkingLevel}`,
+  );
 
   let stepNumber = 0;
 
-  // Sélectionner le bon provider
-  // Note: reasoningEffort n'est pas supporté par @ai-sdk/openai directement
-  const model = useXai ? xai(modelName) : openai(modelName);
+  // Créer le modèle Gemini
+  const model = google(modelName);
 
-  // Exécuter streamText avec multi-steps
+  // Exécuter streamText avec multi-steps et thinkingConfig via providerOptions
   const result = streamText({
     model,
     system: systemPrompt,
@@ -341,6 +345,9 @@ export async function runPennoteAgent(
     tools,
     stopWhen: stepCountIs(maxSteps),
     toolChoice: "auto",
+    providerOptions: {
+      google: { thinkingConfig },
+    },
 
     // Callback à chaque étape terminée
     onStepFinish: ({ text, toolCalls, toolResults, finishReason, usage }) => {
@@ -382,7 +389,6 @@ export async function runPennoteAgent(
         callbacks?.onToolResult?.(tr.toolName, output);
       }
     },
-
   });
 
   return result;
