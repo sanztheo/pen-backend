@@ -29,10 +29,6 @@ router.use(authenticateToken);
 
 /**
  * 💰 Calcul dynamique du coût en crédits basé sur le mode
- * - ask: 1 crédit
- * - search: 2 crédits
- * - create-quick: 1 crédit
- * - create-deep: 2 crédits
  */
 const calculateDynamicCost = (req: Request): number => {
   const body = req.body || {};
@@ -46,6 +42,28 @@ const calculateDynamicCost = (req: Request): number => {
     case "create-quick":
     default:
       return 1;
+  }
+};
+
+/**
+ * 📊 Estimation tokens de sortie selon le mode
+ * - ask: réponses courtes
+ * - search: réponses moyennes avec sources
+ * - create-quick: contenu moyen
+ * - create-deep: contenu long et détaillé
+ */
+const estimateOutputTokens = (mode: string): number => {
+  switch (mode) {
+    case "ask":
+      return 2000;
+    case "search":
+      return 5000;
+    case "create-quick":
+      return 4000;
+    case "create-deep":
+      return 10000;
+    default:
+      return 3000;
   }
 };
 
@@ -141,7 +159,7 @@ router.post(
       const quotaCheck = await OpenAIQuotaManager.checkQuota(
         "gemini-3-flash",
         estimatedTokens,
-        4000, // estimation output
+        estimateOutputTokens(mode), // Estimation dynamique selon le mode
         userId, // Quota par utilisateur
       );
 
