@@ -216,8 +216,170 @@ Utile pour vérifier qu'une page créée précédemment n'a pas été supprimée
   };
 }
 
+// ============================================================================
+// MARKDOWN TO BLOCKNOTE CONVERTER
+// ============================================================================
+
+interface InlineContent {
+  type: "text" | "link";
+  text?: string;
+  styles?: Record<string, boolean>;
+  href?: string;
+  content?: InlineContent[];
+}
+
 /**
- * Convertit du texte brut en format BlockNote
+ * Parse inline markdown formatting into BlockNote InlineContent array
+ * Supports: **bold**, *italic*, `code`, ~~strike~~, [links](url)
+ */
+function parseInlineContent(text: string): InlineContent[] {
+  const result: InlineContent[] = [];
+  let remaining = text;
+
+  // Regex patterns for inline formatting
+  // Order matters: check longer patterns first
+  const patterns = [
+    // Links: [text](url)
+    {
+      regex: /^\[([^\]]+)\]\(([^)]+)\)/,
+      handler: (match: RegExpMatchArray): InlineContent => ({
+        type: "link",
+        href: match[2],
+        content: parseInlineContent(match[1]), // Recursive for nested formatting
+      }),
+    },
+    // Bold: **text** or __text__
+    {
+      regex: /^\*\*([^*]+)\*\*/,
+      handler: (match: RegExpMatchArray): InlineContent[] =>
+        parseInlineContent(match[1]).map((item) => ({
+          ...item,
+          styles: { ...item.styles, bold: true },
+        })),
+    },
+    {
+      regex: /^__([^_]+)__/,
+      handler: (match: RegExpMatchArray): InlineContent[] =>
+        parseInlineContent(match[1]).map((item) => ({
+          ...item,
+          styles: { ...item.styles, bold: true },
+        })),
+    },
+    // Italic: *text* or _text_ (single)
+    {
+      regex: /^\*([^*]+)\*/,
+      handler: (match: RegExpMatchArray): InlineContent[] =>
+        parseInlineContent(match[1]).map((item) => ({
+          ...item,
+          styles: { ...item.styles, italic: true },
+        })),
+    },
+    {
+      regex: /^_([^_]+)_/,
+      handler: (match: RegExpMatchArray): InlineContent[] =>
+        parseInlineContent(match[1]).map((item) => ({
+          ...item,
+          styles: { ...item.styles, italic: true },
+        })),
+    },
+    // Inline code: `code`
+    {
+      regex: /^`([^`]+)`/,
+      handler: (match: RegExpMatchArray): InlineContent => ({
+        type: "text",
+        text: match[1],
+        styles: { code: true },
+      }),
+    },
+    // Strikethrough: ~~text~~
+    {
+      regex: /^~~([^~]+)~~/,
+      handler: (match: RegExpMatchArray): InlineContent[] =>
+        parseInlineContent(match[1]).map((item) => ({
+          ...item,
+          styles: { ...item.styles, strike: true },
+        })),
+    },
+  ];
+
+  while (remaining.length > 0) {
+    let matched = false;
+
+    // Try each pattern
+    for (const { regex, handler } of patterns) {
+      const match = remaining.match(regex);
+      if (match) {
+        const handlerResult = handler(match);
+        if (Array.isArray(handlerResult)) {
+          result.push(...handlerResult);
+        } else {
+          result.push(handlerResult);
+        }
+        remaining = remaining.slice(match[0].length);
+        matched = true;
+        break;
+      }
+    }
+
+    // No pattern matched - consume one character as plain text
+    if (!matched) {
+      // Find next special character or end
+      const nextSpecial = remaining.slice(1).search(/[\[*_`~]/);
+      const endIndex = nextSpecial === -1 ? remaining.length : nextSpecial + 1;
+      const plainText = remaining.slice(0, endIndex);
+
+      // Merge with previous text node if possible
+      const lastItem = result[result.length - 1];
+      if (
+        lastItem &&
+        lastItem.type === "text" &&
+        !lastItem.styles?.bold &&
+        !lastItem.styles?.italic &&
+        !lastItem.styles?.code &&
+        !lastItem.styles?.strike
+      ) {
+        lastItem.text = (lastItem.text || "") + plainText;
+      } else {
+        result.push({
+          type: "text",
+          text: plainText,
+          styles: {},
+        });
+      }
+
+      remaining = remaining.slice(endIndex);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Create a BlockNote block with parsed inline content
+ */
+function createBlock(
+  type: string,
+  content: string,
+  props: Record<string, any> = {},
+): any {
+  const defaultProps = {
+    textColor: "default",
+    backgroundColor: "default",
+    textAlignment: "left",
+    ...props,
+  };
+
+  return {
+    id: nanoid(10),
+    type,
+    props: defaultProps,
+    content: parseInlineContent(content),
+    children: [],
+  };
+}
+
+/**
+ * Convert markdown text to BlockNote blocks with full inline formatting support
  */
 function convertTextToBlockNote(text: string): any[] {
   const lines = text.split("\n");
@@ -227,70 +389,57 @@ function convertTextToBlockNote(text: string): any[] {
     const trimmedLine = line.trim();
     if (!trimmedLine) continue;
 
-    // Détecter les headings (# Titre)
+    // Heading: # Title (levels 1-6, but BlockNote uses 1-3)
     const headingMatch = trimmedLine.match(/^(#{1,6})\s+(.+)$/);
     if (headingMatch) {
-      blocks.push({
-        id: nanoid(10),
-        type: "heading",
-        props: {
+      blocks.push(
+        createBlock("heading", headingMatch[2], {
           level: Math.min(headingMatch[1].length, 3) as 1 | 2 | 3,
-          textColor: "default",
-          backgroundColor: "default",
-          textAlignment: "left",
-        },
-        content: [{ type: "text", text: headingMatch[2], styles: {} }],
-        children: [],
-      });
+        }),
+      );
       continue;
     }
 
-    // Détecter les listes à puces (- item ou * item)
+    // Checkbox list: - [ ] or - [x]
+    const checkboxMatch = trimmedLine.match(/^[-*]\s+\[([ xX])\]\s+(.+)$/);
+    if (checkboxMatch) {
+      blocks.push(
+        createBlock("checkListItem", checkboxMatch[2], {
+          checked: checkboxMatch[1].toLowerCase() === "x",
+        }),
+      );
+      continue;
+    }
+
+    // Bullet list: - item or * item
     const bulletMatch = trimmedLine.match(/^[-*]\s+(.+)$/);
     if (bulletMatch) {
-      blocks.push({
-        id: nanoid(10),
-        type: "bulletListItem",
-        props: {
-          textColor: "default",
-          backgroundColor: "default",
-          textAlignment: "left",
-        },
-        content: [{ type: "text", text: bulletMatch[1], styles: {} }],
-        children: [],
-      });
+      blocks.push(createBlock("bulletListItem", bulletMatch[1]));
       continue;
     }
 
-    // Détecter les listes numérotées (1. item)
+    // Numbered list: 1. item
     const numberedMatch = trimmedLine.match(/^\d+\.\s+(.+)$/);
     if (numberedMatch) {
-      blocks.push({
-        id: nanoid(10),
-        type: "numberedListItem",
-        props: {
-          textColor: "default",
-          backgroundColor: "default",
-          textAlignment: "left",
-        },
-        content: [{ type: "text", text: numberedMatch[1], styles: {} }],
-        children: [],
-      });
+      blocks.push(createBlock("numberedListItem", numberedMatch[1]));
       continue;
     }
 
-    // Paragraphe par défaut
-    blocks.push({
-      id: nanoid(10),
-      type: "paragraph",
-      props: {
-        textColor: "default",
-        backgroundColor: "default",
-        textAlignment: "left",
-      },
-      content: [{ type: "text", text: trimmedLine, styles: {} }],
-      children: [],
-    });
+    // Blockquote: > text
+    const quoteMatch = trimmedLine.match(/^>\s*(.*)$/);
+    if (quoteMatch) {
+      blocks.push(createBlock("paragraph", quoteMatch[1] || ""));
+      continue;
+    }
+
+    // Horizontal rule: --- or ***
+    if (/^[-*]{3,}$/.test(trimmedLine)) {
+      // BlockNote doesn't have HR, skip or use empty paragraph
+      continue;
+    }
+
+    // Default: paragraph
+    blocks.push(createBlock("paragraph", trimmedLine));
   }
 
   return blocks;

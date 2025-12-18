@@ -15,21 +15,25 @@ import type { ModelMessage } from "ai";
 export const MODE_CONFIG = {
   ask: {
     maxSteps: 10,
+    maxTokens: 4096,
     description: "Questions simples avec RAG",
     thinkingConfig: { thinkingLevel: "minimal" as const },
   },
   search: {
     maxSteps: 25,
+    maxTokens: 8192,
     description: "Recherche approfondie avec web",
     thinkingConfig: { thinkingLevel: "high" as const },
   },
   "create-quick": {
     maxSteps: 10,
+    maxTokens: 8192,
     description: "Génération rapide de contenu",
     thinkingConfig: { thinkingLevel: "low" as const },
   },
   "create-deep": {
     maxSteps: 30,
+    maxTokens: 16384,
     description: "Génération complète avec recherche",
     thinkingConfig: { thinkingLevel: "high" as const },
   },
