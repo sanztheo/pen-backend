@@ -1,6 +1,7 @@
 // 🤖 Pennote Agent - Vercel AI SDK v5
 import { streamText, stepCountIs, type ModelMessage } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { xai } from "@ai-sdk/xai";
 import { createRagTools } from "./tools/ragTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createWebTools } from "./tools/webTools.js";
@@ -312,8 +313,11 @@ export async function runPennoteAgent(
     conversationHistory,
   });
 
-  // Modèle à utiliser
-  const modelName = process.env.OPENAI_MODEL || "gpt-4o";
+  // Modèle à utiliser - xAI Grok avec reasoning
+  const useXai = process.env.USE_XAI === "true" || !process.env.OPENAI_MODEL;
+  const modelName = useXai 
+    ? (process.env.XAI_MODEL || "grok-4-1-fast-reasoning")
+    : (process.env.OPENAI_MODEL || "gpt-4o");
 
   console.log(
     `🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`,
@@ -321,12 +325,20 @@ export async function runPennoteAgent(
   console.log(
     `🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`,
   );
+  console.log(`🤖 [PennoteAgent] Provider: ${useXai ? "xAI" : "OpenAI"}, Model: ${modelName}`);
 
   let stepNumber = 0;
 
+  // Sélectionner le bon provider
+  const model = useXai 
+    ? xai(modelName)
+    : openai(modelName, {
+        reasoningEffort: modelName.startsWith("o") ? "medium" : undefined,
+      });
+
   // Exécuter streamText avec multi-steps
   const result = streamText({
-    model: openai(modelName),
+    model,
     system: systemPrompt,
     messages,
     tools,
@@ -350,26 +362,37 @@ export async function runPennoteAgent(
           stepNumber,
           toolCalls: toolCalls.map((tc) => ({
             toolName: tc.toolName,
-            args: tc.input,
+            args: tc.args,
           })),
-          text,
+          text: text || "",
         });
       }
 
       // Log des tool calls pour debug
       for (const tc of toolCalls) {
-        console.log(`  🔧 Tool: ${tc.toolName}`, tc.input);
-        callbacks?.onToolCall?.(tc.toolName, tc.input);
+        console.log(`  🔧 Tool: ${tc.toolName}`, tc.args);
+        callbacks?.onToolCall?.(tc.toolName, tc.args);
       }
 
       // Log des résultats
       for (const tr of toolResults) {
+        // AI SDK v5: result est dans tr.result
+        const output = tr.result;
         const preview =
-          typeof tr.output === "string"
-            ? tr.output.slice(0, 100)
-            : JSON.stringify(tr.output).slice(0, 100);
+          typeof output === "string"
+            ? output.slice(0, 100)
+            : JSON.stringify(output).slice(0, 100);
         console.log(`  ✅ Result: ${preview}...`);
-        callbacks?.onToolResult?.(tr.toolName, tr.output);
+        callbacks?.onToolResult?.(tr.toolName, output);
+      }
+    },
+
+    // 🐛 DEBUG LOGGING pour voir si le reasoning arrive
+    onChunk: ({ chunk }) => {
+      if (chunk.type === "reasoning") {
+        console.log(
+          `🧠 [STREAM-DEBUG] Reasoning chunk reçu (${chunk.textDelta.length} chars)`,
+        );
       }
     },
   });
