@@ -316,7 +316,7 @@ export async function runPennoteAgent(
   // Modèle à utiliser - xAI Grok avec reasoning
   const useXai = process.env.USE_XAI === "true" || !process.env.OPENAI_MODEL;
   const modelName = useXai 
-    ? (process.env.XAI_MODEL || "grok-4-1-fast-reasoning")
+    ? (process.env.XAI_MODEL || "grok-3-mini")
     : (process.env.OPENAI_MODEL || "gpt-4o");
 
   console.log(
