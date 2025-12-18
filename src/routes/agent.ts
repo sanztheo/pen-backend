@@ -157,7 +157,10 @@ router.post(
 
       // 🔥 Vercel AI SDK v5: Pipe le stream directement vers Express
       // Utilise le protocole UI Message Stream (SSE) compatible avec useChat()
-      result.pipeUIMessageStreamToResponse(res);
+      // sendReasoning: true pour transmettre le reasoning des modèles o1/o3/Grok
+      result.pipeUIMessageStreamToResponse(res, {
+        sendReasoning: true,
+      });
 
       // Log de la consommation
       const cost = (req as any).aiCredits?.cost ?? calculateDynamicCost(req);
