@@ -1,0 +1,285 @@
+/**
+ * 🤖 Route Agent Chat - Vercel AI SDK v5
+ *
+ * Endpoint principal pour l'agent Pennote avec streaming SSE.
+ * Compatible avec useChat() côté frontend.
+ *
+ * @see https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
+ */
+
+import { Router } from "express";
+import type { Request, Response } from "express";
+import { authenticateToken } from "../middlewares/auth.js";
+import { requireAICredits } from "../middlewares/requireAICredits.js";
+import { runPennoteAgent, type AgentMode } from "../services/agent/index.js";
+import type { ModelMessage } from "ai";
+
+const router = Router();
+
+// Authentification requise pour toutes les routes
+router.use(authenticateToken);
+
+/**
+ * 💰 Calcul dynamique du coût en crédits basé sur le mode
+ * - ask: 1 crédit
+ * - search: 2 crédits
+ * - create-quick: 1 crédit
+ * - create-deep: 2 crédits
+ */
+const calculateDynamicCost = (req: Request): number => {
+  const body = req.body || {};
+  const mode = body.mode || "ask";
+
+  switch (mode) {
+    case "search":
+    case "create-deep":
+      return 2;
+    case "ask":
+    case "create-quick":
+    default:
+      return 1;
+  }
+};
+
+/**
+ * POST /api/agent/chat
+ *
+ * Endpoint principal pour l'agent Pennote avec streaming SSE.
+ *
+ * Body attendu:
+ * - messages: ModelMessage[] - Historique de conversation (format AI SDK)
+ * - mode: "ask" | "search" | "create-quick" | "create-deep"
+ * - workspaceId: string - ID du workspace courant
+ * - useWeb?: boolean - Activer la recherche web
+ * - ragSources?: Array<{id, title}> - Sources RAG à utiliser
+ * - conversationHistory?: string - Historique formaté
+ * - personalization?: { name?, language?, style? }
+ *
+ * Réponse: SSE Data Stream (compatible useChat)
+ */
+router.post(
+  "/chat",
+  requireAICredits({ dynamicCost: calculateDynamicCost, action: "agent_chat" }),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Utilisateur non authentifié" });
+      }
+
+      const {
+        messages,
+        mode = "ask",
+        workspaceId,
+        useWeb = false,
+        ragSources,
+        conversationHistory,
+        personalization,
+      } = req.body;
+
+      // Validation des paramètres requis
+      if (!messages || !Array.isArray(messages)) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          message: 'Le champ "messages" est requis et doit être un tableau',
+        });
+      }
+
+      if (!workspaceId) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          message: 'Le champ "workspaceId" est requis',
+        });
+      }
+
+      // Valider le mode
+      const validModes: AgentMode[] = [
+        "ask",
+        "search",
+        "create-quick",
+        "create-deep",
+      ];
+      if (!validModes.includes(mode)) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          message: `Mode invalide. Valeurs acceptées: ${validModes.join(", ")}`,
+        });
+      }
+
+      console.log(`🤖 [AGENT-CHAT] Requête reçue:`, {
+        userId,
+        workspaceId,
+        mode,
+        useWeb,
+        messagesCount: messages.length,
+        hasRagSources: !!ragSources?.length,
+        hasPersonalization: !!personalization,
+      });
+
+      // Exécuter l'agent Pennote
+      const result = await runPennoteAgent(
+        {
+          messages: messages as ModelMessage[],
+          mode: mode as AgentMode,
+          userId,
+          workspaceId,
+          useWeb,
+          ragSources,
+          conversationHistory,
+          personalization,
+        },
+        {
+          // Callbacks optionnels pour le logging
+          onStepFinish: ({ stepNumber, toolCalls, text }) => {
+            console.log(`📍 [AGENT-CHAT] Step ${stepNumber}:`, {
+              toolCalls: toolCalls.length,
+              hasText: !!text,
+            });
+          },
+          onToolCall: (toolName, args) => {
+            console.log(`🔧 [AGENT-CHAT] Tool call: ${toolName}`);
+          },
+        },
+      );
+
+      // 🔥 Vercel AI SDK v5: Pipe le stream directement vers Express
+      // Utilise le protocole UI Message Stream (SSE) compatible avec useChat()
+      result.pipeUIMessageStreamToResponse(res);
+
+      // Log de la consommation
+      const cost = (req as any).aiCredits?.cost ?? calculateDynamicCost(req);
+      console.log(
+        `✅ [AUDIT] Agent chat: userId=${userId}, mode=${mode}, cost=${cost}`,
+      );
+    } catch (error: any) {
+      console.error("❌ [AGENT-CHAT] Erreur:", error);
+
+      // Si les headers n'ont pas encore été envoyés
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: "AGENT_ERROR",
+          message: error.message || "Erreur lors de l'exécution de l'agent",
+        });
+      }
+    }
+  },
+);
+
+/**
+ * POST /api/agent/chat/simple
+ *
+ * Version non-streaming pour les tests ou les cas simples.
+ * Retourne la réponse complète en JSON.
+ */
+router.post(
+  "/chat/simple",
+  requireAICredits({
+    dynamicCost: calculateDynamicCost,
+    action: "agent_chat_simple",
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Utilisateur non authentifié" });
+      }
+
+      const {
+        messages,
+        mode = "ask",
+        workspaceId,
+        useWeb = false,
+        ragSources,
+        conversationHistory,
+        personalization,
+      } = req.body;
+
+      // Validation
+      if (!messages || !Array.isArray(messages) || !workspaceId) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          message: "messages et workspaceId sont requis",
+        });
+      }
+
+      console.log(`🤖 [AGENT-SIMPLE] Requête:`, {
+        userId,
+        workspaceId,
+        mode,
+        messagesCount: messages.length,
+      });
+
+      // Import dynamique pour éviter les problèmes de compilation
+      const { runPennoteAgentSimple } =
+        await import("../services/agent/index.js");
+
+      const result = await runPennoteAgentSimple({
+        messages: messages as ModelMessage[],
+        mode: mode as AgentMode,
+        userId,
+        workspaceId,
+        useWeb,
+        ragSources,
+        conversationHistory,
+        personalization,
+      });
+
+      res.json({
+        success: true,
+        text: result.text,
+        toolCalls: result.toolCalls,
+        usage: result.usage,
+      });
+    } catch (error: any) {
+      console.error("❌ [AGENT-SIMPLE] Erreur:", error);
+      res.status(500).json({
+        error: "AGENT_ERROR",
+        message: error.message || "Erreur lors de l'exécution de l'agent",
+      });
+    }
+  },
+);
+
+/**
+ * GET /api/agent/modes
+ *
+ * Retourne les modes disponibles et leur configuration.
+ */
+router.get("/modes", (req: Request, res: Response) => {
+  res.json({
+    modes: [
+      {
+        id: "ask",
+        name: "Répondre",
+        description: "Questions simples avec RAG",
+        credits: 1,
+        maxSteps: 10,
+      },
+      {
+        id: "search",
+        name: "Rechercher",
+        description: "Recherche approfondie avec web",
+        credits: 2,
+        maxSteps: 25,
+      },
+      {
+        id: "create-quick",
+        name: "Créer (rapide)",
+        description: "Génération rapide de contenu",
+        credits: 1,
+        maxSteps: 10,
+      },
+      {
+        id: "create-deep",
+        name: "Créer (approfondi)",
+        description: "Génération complète avec recherche",
+        credits: 2,
+        maxSteps: 30,
+      },
+    ],
+  });
+});
+
+export default router;

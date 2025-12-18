@@ -33,6 +33,7 @@ import dailyArticleRoutes from "./routes/dailyArticle.js";
 import uploadRoutes from "./routes/upload.js";
 import { paddleWebhookHandler } from "./routes/paddleWebhooks.js";
 import jobsRoutes from "./routes/jobs.js";
+import agentRoutes from "./routes/agent.js";
 
 import { startCronJobs } from "./jobs/cronJobs.js";
 import { AuthService } from "./services/auth.js";
@@ -191,6 +192,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/daily-article", dailyArticleRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/jobs", jobsRoutes); // 🎯 Récupération résultats jobs BullMQ
+app.use("/api/agent", aiRateLimit, agentRoutes); // 🤖 Nouvel agent Pennote (Vercel AI SDK v5)
 
 app.use("*", (req, res) =>
   res.status(404).json({ error: "Route non trouvée" }),
