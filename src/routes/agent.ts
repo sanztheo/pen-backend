@@ -134,18 +134,15 @@ router.post(
           : [],
       });
 
-      // 🛡️ Vérification quota global (protection anti-spam)
-      const estimatedTokens = messages.reduce((acc: number, m: UIMessage) => {
-        const content =
-          typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-        return acc + Math.ceil(content.length / 4);
-      }, 0);
+      // 🛡️ Vérification quota par utilisateur (protection anti-spam)
+      // Estimation: ~4 caractères par token
+      const estimatedTokens = Math.ceil(JSON.stringify(messages).length / 4);
 
       const quotaCheck = await OpenAIQuotaManager.checkQuota(
         "gemini-3-flash",
         estimatedTokens,
         4000, // estimation output
-        "global",
+        userId, // Quota par utilisateur
       );
 
       if (!quotaCheck.allowed) {
@@ -211,6 +208,28 @@ router.post(
               messages: allMessages,
               mode,
             });
+          }
+
+          // 📊 Enregistrer l'usage des tokens pour le quota par utilisateur
+          try {
+            const outputTokens = Math.ceil(
+              JSON.stringify(allMessages).length / 4,
+            );
+
+            await OpenAIQuotaManager.recordUsage(
+              "gemini-3-flash",
+              estimatedTokens,
+              outputTokens,
+              userId, // Quota par utilisateur
+            );
+            console.log(
+              `📊 [QUOTA] Usage enregistré pour ${userId}: ~${estimatedTokens + outputTokens} tokens`,
+            );
+          } catch (quotaError) {
+            console.error(
+              "⚠️ [QUOTA] Erreur enregistrement usage:",
+              quotaError,
+            );
           }
         },
       });
