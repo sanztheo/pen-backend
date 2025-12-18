@@ -148,10 +148,10 @@ router.post("/rag/context", async (req: any, res) => {
     } else if (isSimpleGreeting || isVeryShort) {
       shouldUseRAG = false;
     } else {
-      if (hasActiveSession && activeSessionSources?.length > 0) {
+      if (hasActiveSession && activeSessionSources && activeSessionSources.length > 0) {
         shouldUseRAG = await ragSystem.shouldUseRAG(
           query,
-          activeSessionSources,
+          activeSessionSources ?? undefined,
         );
       } else {
         shouldUseRAG = await ragSystem.shouldUseRAG(query);
@@ -225,7 +225,7 @@ router.post("/rag/context", async (req: any, res) => {
     }
 
     // Sources de session
-    if (specificSourceIds.length === 0 && activeSessionSources?.length > 0) {
+    if (specificSourceIds.length === 0 && activeSessionSources && activeSessionSources.length > 0) {
       for (const source of activeSessionSources) {
         const sourceRecord = await prismaEmbeddings.rAGSource.findFirst({
           where: { title: source.title, isGlobal: true, status: "COMPLETED" },

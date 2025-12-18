@@ -107,7 +107,7 @@ Idéal pour des questions sur l'actualité, des faits récents, ou des informati
                           sources.push({
                             title: annotation.title || annotation.url,
                             url: annotation.url,
-                            snippet: annotation.text,
+                            snippet: undefined, // URLCitation n'a pas de propriété text
                           });
                         }
                       }
