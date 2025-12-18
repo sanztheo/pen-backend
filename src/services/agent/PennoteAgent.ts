@@ -4,6 +4,7 @@ import { openai } from "@ai-sdk/openai";
 import { createRagTools } from "./tools/ragTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createWebTools } from "./tools/webTools.js";
+import { createPageTools } from "./tools/pageTools.js";
 
 /**
  * Configuration de l'agent par mode
@@ -222,6 +223,10 @@ ${conversationHistory}
 - readWorkspacePage: Lit le contenu d'une page
 - listWorkspaceProjects: Liste les projets
 </workspace_tools>
+<page_tools>
+- createPage: Crée une nouvelle page dans le workspace (utilisé en mode create)
+- checkPageExists: Vérifie si une page existe toujours
+</page_tools>
 <web_tools>
 - searchWeb: Recherche sur le web (actualités, informations récentes)
 - searchWikipedia: Recherche d'articles Wikipedia
@@ -283,6 +288,7 @@ export async function runPennoteAgent(
   const ragTools = createRagTools(toolContext);
   const workspaceTools = createWorkspaceTools(toolContext);
   const webTools = createWebTools(toolContext);
+  const pageTools = createPageTools(toolContext);
 
   // 🧠 AGENT INTELLIGENT: Tous les outils sont disponibles
   // L'IA décide intelligemment quels outils utiliser selon le contexte
@@ -294,6 +300,8 @@ export async function runPennoteAgent(
     ...workspaceTools,
     // Web tools - pour Wikipedia et recherche web si nécessaire
     ...webTools,
+    // Page tools - pour créer des pages (mode create)
+    ...pageTools,
   };
 
   // System prompt
