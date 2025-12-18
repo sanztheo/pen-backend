@@ -18,6 +18,7 @@ import {
   listConversations,
   deleteConversation,
 } from "../services/agent/conversationService.js";
+import { OpenAIQuotaManager } from "../services/ai/quotaManager.js";
 import { convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
 
@@ -132,6 +133,30 @@ router.post(
           ? Object.keys(personalization)
           : [],
       });
+
+      // 🛡️ Vérification quota global (protection anti-spam)
+      const estimatedTokens = messages.reduce((acc: number, m: UIMessage) => {
+        const content =
+          typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+        return acc + Math.ceil(content.length / 4);
+      }, 0);
+
+      const quotaCheck = await OpenAIQuotaManager.checkQuota(
+        "gemini-3-flash",
+        estimatedTokens,
+        4000, // estimation output
+        "global",
+      );
+
+      if (!quotaCheck.allowed) {
+        console.warn(`⚠️ [QUOTA] Requête bloquée: ${quotaCheck.reason}`);
+        return res.status(429).json({
+          error: "QUOTA_EXCEEDED",
+          message: quotaCheck.reason,
+          usage: quotaCheck.usage,
+          limits: quotaCheck.limits,
+        });
+      }
 
       // Convertir UIMessage[] (format frontend) vers ModelMessage[] (format AI SDK)
       const modelMessages = convertToModelMessages(messages as UIMessage[]);
