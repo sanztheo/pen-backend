@@ -175,6 +175,9 @@ router.post(
         sendReasoning: true,
         // 💾 Sauvegarder la conversation après la fin du stream
         onFinish: async ({ messages: allMessages }) => {
+          console.log(
+            `💾 [AGENT-CHAT] onFinish - Sauvegarde de ${allMessages.length} messages`,
+          );
           if (conversationId) {
             await saveConversation({
               conversationId,
@@ -186,6 +189,12 @@ router.post(
           }
         },
       });
+
+      // 🔑 CRITICAL: consumeStream() garantit que le stream se termine
+      // même si le client se déconnecte (tab switch, refresh, etc.)
+      // Cela assure que onFinish sera appelé et les messages sauvegardés
+      // NE PAS await - cela bloque sans backpressure en arrière-plan
+      result.consumeStream();
     } catch (error: any) {
       console.error("❌ [AGENT-CHAT] Erreur:", error);
 
