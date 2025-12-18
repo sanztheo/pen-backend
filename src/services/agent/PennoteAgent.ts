@@ -330,11 +330,8 @@ export async function runPennoteAgent(
   let stepNumber = 0;
 
   // Sélectionner le bon provider
-  const model = useXai 
-    ? xai(modelName)
-    : openai(modelName, {
-        reasoningEffort: modelName.startsWith("o") ? "medium" : undefined,
-      });
+  // Note: reasoningEffort n'est pas supporté par @ai-sdk/openai directement
+  const model = useXai ? xai(modelName) : openai(modelName);
 
   // Exécuter streamText avec multi-steps
   const result = streamText({
@@ -362,7 +359,7 @@ export async function runPennoteAgent(
           stepNumber,
           toolCalls: toolCalls.map((tc) => ({
             toolName: tc.toolName,
-            args: tc.args,
+            args: tc.input,
           })),
           text: text || "",
         });
@@ -370,14 +367,13 @@ export async function runPennoteAgent(
 
       // Log des tool calls pour debug
       for (const tc of toolCalls) {
-        console.log(`  🔧 Tool: ${tc.toolName}`, tc.args);
-        callbacks?.onToolCall?.(tc.toolName, tc.args);
+        console.log(`  🔧 Tool: ${tc.toolName}`, tc.input);
+        callbacks?.onToolCall?.(tc.toolName, tc.input);
       }
 
       // Log des résultats
       for (const tr of toolResults) {
-        // AI SDK v5: result est dans tr.result
-        const output = tr.result;
+        const output = tr.output;
         const preview =
           typeof output === "string"
             ? output.slice(0, 100)
@@ -389,9 +385,9 @@ export async function runPennoteAgent(
 
     // 🐛 DEBUG LOGGING pour voir si le reasoning arrive
     onChunk: ({ chunk }) => {
-      if (chunk.type === "reasoning") {
+      if (chunk.type === "reasoning-delta") {
         console.log(
-          `🧠 [STREAM-DEBUG] Reasoning chunk reçu (${chunk.textDelta.length} chars)`,
+          `🧠 [STREAM-DEBUG] Reasoning chunk reçu (${chunk.text.length} chars)`,
         );
       }
     },

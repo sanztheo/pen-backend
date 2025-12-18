@@ -124,7 +124,7 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
               projectId: projectId || null,
               createdBy: ctx.userId,
               icon: icon || null,
-              blockNoteContent: blockNoteContent,
+              blockNoteContent: blockNoteContent ?? undefined,
             },
             select: {
               id: true,
@@ -132,12 +132,7 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
               slug: true,
               icon: true,
               createdAt: true,
-              project: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
+              projectId: true,
             },
           });
 
@@ -152,8 +147,8 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
             slug: page.slug,
             icon: page.icon,
             url: `/page/${page.id}`,
-            projectId: page.project?.id || null,
-            projectName: page.project?.name || null,
+            projectId: page.projectId || null,
+            projectName: null, // Simplifié - pas de join sur project
             createdAt: page.createdAt.toISOString(),
           };
         } catch (error) {

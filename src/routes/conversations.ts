@@ -576,10 +576,10 @@ router.get(
         });
       }
 
-      // Importer le service de comptage
-      const { TokenCounterService } = await import(
-        "../services/ai/functionCalling/history/tokenCounter.service.js"
-      );
+      // Simple token counter (estimation: 1 token ~ 4 caractères)
+      const TokenCounterService = {
+        countTokens: (text: string): number => Math.ceil((text || "").length / 4)
+      };
 
       // 🔥 Compter les tokens directement depuis les messages de la conversation
       let totalTokens = 0;
@@ -690,10 +690,10 @@ router.get(
         });
       }
 
-      // Importer le service de comptage
-      const { TokenCounterService } = await import(
-        "../services/ai/functionCalling/history/tokenCounter.service.js"
-      );
+      // Simple token counter (estimation: 1 token ~ 4 caractères)
+      const TokenCounterService = {
+        countTokens: (text: string): number => Math.ceil((text || "").length / 4)
+      };
 
       // 🔥 Compter les tokens directement depuis les messages de la conversation
       let totalTokens = 0;

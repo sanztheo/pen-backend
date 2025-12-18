@@ -4,11 +4,24 @@
  */
 
 import { Request } from "express";
-import { WebSearchService } from "../../../services/ai/webSearch.service.js";
+// NOTE: WebSearchService a été supprimé - voir createWebTools dans l'agent
+// import { WebSearchService } from "../../../services/ai/webSearch.service.js";
 import { buildPagesContextChunked } from "../helpers/context.js";
 import { DebugLogger } from "../config/debug.js";
 import { ValidationUtils } from "../utils/validation.js";
 import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
+
+// Stub pour WebSearchService (le streaming utilise maintenant l'agent Pennote)
+const WebSearchService = {
+  async searchWithRefs(_query: string): Promise<{ text: string; refs: Array<{ title?: string; url?: string }> }> {
+    DebugLogger.web("[DEPRECATED] WebSearchService.searchWithRefs appelé - utiliser l'agent Pennote");
+    return { text: "", refs: [] };
+  },
+  async simpleSearch(_query: string, _limit: number): Promise<string> {
+    DebugLogger.web("[DEPRECATED] WebSearchService.simpleSearch appelé - utiliser l'agent Pennote");
+    return "";
+  }
+};
 
 export interface HandlerRequest {
   query: string;

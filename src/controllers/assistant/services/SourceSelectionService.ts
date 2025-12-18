@@ -4,9 +4,22 @@
  */
 
 import { prisma } from '../../../lib/prisma.js';
-import { selectRelevantPagesWithAssistant } from '../../../services/ai/assistants/selectPages.js';
+// NOTE: selectRelevantPagesWithAssistant a été supprimé
+// import { selectRelevantPagesWithAssistant } from '../../../services/ai/assistants/selectPages.js';
 import { titleRelevanceScore } from '../helpers/scoring.js';
 import { DebugLogger } from '../config/debug.js';
+
+// Stub pour selectRelevantPagesWithAssistant (désormais deprecated)
+interface PageWithTitle { id: string; title: string; }
+async function selectRelevantPagesWithAssistant(params: { 
+  question: string; 
+  pages: PageWithTitle[]; 
+  maxResults: number;
+}): Promise<{ selected: PageWithTitle[] }> {
+  DebugLogger.rag("[DEPRECATED] selectRelevantPagesWithAssistant - utiliser l'agent Pennote");
+  // Fallback simple: prendre les 5 premières pages
+  return { selected: params.pages.slice(0, params.maxResults) };
+}
 
 export interface SourceSelectionContext {
   query: string;
