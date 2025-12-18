@@ -12,7 +12,8 @@ import type { Request, Response } from "express";
 import { authenticateToken } from "../middlewares/auth.js";
 import { requireAICredits } from "../middlewares/requireAICredits.js";
 import { runPennoteAgent, type AgentMode } from "../services/agent/index.js";
-import type { ModelMessage } from "ai";
+import { convertToModelMessages } from "ai";
+import type { UIMessage } from "ai";
 
 const router = Router();
 
@@ -117,10 +118,13 @@ router.post(
         hasPersonalization: !!personalization,
       });
 
+      // Convertir UIMessage[] (format frontend) vers ModelMessage[] (format AI SDK)
+      const modelMessages = convertToModelMessages(messages as UIMessage[]);
+
       // Exécuter l'agent Pennote
       const result = await runPennoteAgent(
         {
-          messages: messages as ModelMessage[],
+          messages: modelMessages,
           mode: mode as AgentMode,
           userId,
           workspaceId,
@@ -212,11 +216,15 @@ router.post(
       });
 
       // Import dynamique pour éviter les problèmes de compilation
-      const { runPennoteAgentSimple } =
-        await import("../services/agent/index.js");
+      const { runPennoteAgentSimple } = await import(
+        "../services/agent/index.js"
+      );
+
+      // Convertir UIMessage[] vers ModelMessage[]
+      const modelMessages = convertToModelMessages(messages as UIMessage[]);
 
       const result = await runPennoteAgentSimple({
-        messages: messages as ModelMessage[],
+        messages: modelMessages,
         mode: mode as AgentMode,
         userId,
         workspaceId,
