@@ -5,13 +5,11 @@
  * Gère le démarrage, l'arrêt et le monitoring des workers.
  */
 
-import { aiGenerationWorker } from "./ai.worker.js";
-import { assistantWorker } from "./assistant.worker.js";
 import { quizWorker } from "./quiz.worker.js";
 import { futuraWorker } from "./futura.worker.js";
 
 // 📊 Liste de tous les workers actifs
-const workers = [aiGenerationWorker, assistantWorker, quizWorker, futuraWorker];
+const workers = [quizWorker, futuraWorker];
 
 // 🚀 Démarrer tous les workers
 export const startWorkers = () => {
@@ -49,4 +47,4 @@ export const getWorkersStats = async () => {
 };
 
 // 🎯 Exporter les workers individuellement si besoin
-export { aiGenerationWorker, assistantWorker, quizWorker, futuraWorker };
+export { quizWorker, futuraWorker };
