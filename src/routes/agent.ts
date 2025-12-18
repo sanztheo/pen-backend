@@ -114,8 +114,16 @@ router.post(
         mode,
         useWeb,
         messagesCount: messages.length,
-        hasRagSources: !!ragSources?.length,
+        ragSourcesCount: ragSources?.length || 0,
+        ragSources:
+          ragSources?.map(
+            (s: { id: string; title: string; type?: string }) =>
+              `${s.type || "unknown"}:${s.title}`,
+          ) || [],
         hasPersonalization: !!personalization,
+        personalizationKeys: personalization
+          ? Object.keys(personalization)
+          : [],
       });
 
       // Convertir UIMessage[] (format frontend) vers ModelMessage[] (format AI SDK)
@@ -216,9 +224,8 @@ router.post(
       });
 
       // Import dynamique pour éviter les problèmes de compilation
-      const { runPennoteAgentSimple } = await import(
-        "../services/agent/index.js"
-      );
+      const { runPennoteAgentSimple } =
+        await import("../services/agent/index.js");
 
       // Convertir UIMessage[] vers ModelMessage[]
       const modelMessages = convertToModelMessages(messages as UIMessage[]);
