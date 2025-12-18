@@ -2,17 +2,27 @@
  * 🤖 AI SDK Phase 1 - Test Route /api/agent/chat
  *
  * Ce script teste la route de l'agent avec streaming SSE.
- * Nécessite que le backend soit en cours d'exécution sur localhost:3001
+ * Utilise un utilisateur réel de la base de données avec le mode test auth.
+ *
+ * Prérequis:
+ * 1. Backend en cours d'exécution sur localhost:3001
+ * 2. ENABLE_TEST_AUTH=true dans les variables d'environnement du backend
+ * 3. NODE_ENV=development sur le backend
  */
 
 import "dotenv/config";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 // Configuration
 const BASE_URL = process.env.API_URL || "http://localhost:3001";
-const TEST_TOKEN = process.env.TEST_AUTH_TOKEN || "";
 
-// En dev, on peut utiliser un token factice ou récupérer un vrai token
-// Pour les tests manuels, vous pouvez obtenir un token via l'app frontend
+interface TestContext {
+  userId: string;
+  workspaceId: string;
+  userEmail: string;
+}
 
 interface TestResult {
   name: string;
@@ -25,22 +35,56 @@ interface TestResult {
 const results: TestResult[] = [];
 
 /**
- * Helper pour faire des requêtes authentifiées
+ * Récupère un utilisateur et un workspace depuis la base de données
  */
-async function fetchWithAuth(
+async function getTestContext(): Promise<TestContext | null> {
+  try {
+    // Chercher un utilisateur qui a au moins un workspace
+    const user = await prisma.user.findFirst({
+      where: {
+        isActive: true,
+        workspaces: {
+          some: {},
+        },
+      },
+      include: {
+        workspaces: {
+          where: { isArchived: false },
+          take: 1,
+        },
+      },
+    });
+
+    if (!user || user.workspaces.length === 0) {
+      console.error("❌ Aucun utilisateur avec un workspace trouvé dans la DB");
+      return null;
+    }
+
+    return {
+      userId: user.id,
+      workspaceId: user.workspaces[0].id,
+      userEmail: user.email,
+    };
+  } catch (error) {
+    console.error("❌ Erreur accès base de données:", error);
+    return null;
+  }
+}
+
+/**
+ * Helper pour faire des requêtes avec le header de test
+ */
+async function fetchWithTestAuth(
   endpoint: string,
+  userId: string,
   options: RequestInit = {},
 ): Promise<Response> {
   const url = `${BASE_URL}${endpoint}`;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
+    "X-Test-User-Id": userId,
     ...(options.headers || {}),
   };
-
-  if (TEST_TOKEN) {
-    (headers as Record<string, string>)["Authorization"] =
-      `Bearer ${TEST_TOKEN}`;
-  }
 
   return fetch(url, {
     ...options,
@@ -51,7 +95,7 @@ async function fetchWithAuth(
 /**
  * Test 1: GET /api/agent/modes
  */
-async function testGetModes(): Promise<void> {
+async function testGetModes(ctx: TestContext): Promise<void> {
   console.log("┌─────────────────────────────────────────────────────────┐");
   console.log("│ Test 1: GET /api/agent/modes                            │");
   console.log("└─────────────────────────────────────────────────────────┘");
@@ -59,7 +103,7 @@ async function testGetModes(): Promise<void> {
   const start = Date.now();
 
   try {
-    const response = await fetchWithAuth("/api/agent/modes");
+    const response = await fetchWithTestAuth("/api/agent/modes", ctx.userId);
     const data = await response.json();
 
     if (response.ok && data.modes && Array.isArray(data.modes)) {
@@ -79,7 +123,7 @@ async function testGetModes(): Promise<void> {
       results.push({
         name: "GET /api/agent/modes",
         success: false,
-        error: `Status ${response.status}`,
+        error: `Status ${response.status}: ${JSON.stringify(data)}`,
         duration: Date.now() - start,
       });
     }
@@ -97,38 +141,32 @@ async function testGetModes(): Promise<void> {
 /**
  * Test 2: POST /api/agent/chat/simple (sans streaming)
  */
-async function testChatSimple(): Promise<void> {
+async function testChatSimple(ctx: TestContext): Promise<void> {
   console.log("\n┌─────────────────────────────────────────────────────────┐");
   console.log("│ Test 2: POST /api/agent/chat/simple                     │");
   console.log("└─────────────────────────────────────────────────────────┘");
 
-  if (!TEST_TOKEN) {
-    console.log("⚠️  Skipped: TEST_AUTH_TOKEN non configuré");
-    results.push({
-      name: "POST /api/agent/chat/simple",
-      success: true,
-      skipped: true,
-    });
-    return;
-  }
-
   const start = Date.now();
 
   try {
-    const response = await fetchWithAuth("/api/agent/chat/simple", {
-      method: "POST",
-      body: JSON.stringify({
-        messages: [
-          {
-            role: "user",
-            content: [{ type: "text", text: "Bonjour, qui es-tu ?" }],
-          },
-        ],
-        mode: "ask",
-        workspaceId: "00000000-0000-0000-0000-000000000000",
-        useWeb: false,
-      }),
-    });
+    const response = await fetchWithTestAuth(
+      "/api/agent/chat/simple",
+      ctx.userId,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          messages: [
+            {
+              role: "user",
+              content: [{ type: "text", text: "Bonjour, qui es-tu ?" }],
+            },
+          ],
+          mode: "ask",
+          workspaceId: ctx.workspaceId,
+          useWeb: false,
+        }),
+      },
+    );
 
     const data = await response.json();
 
@@ -165,25 +203,15 @@ async function testChatSimple(): Promise<void> {
 /**
  * Test 3: POST /api/agent/chat (avec streaming SSE)
  */
-async function testChatStreaming(): Promise<void> {
+async function testChatStreaming(ctx: TestContext): Promise<void> {
   console.log("\n┌─────────────────────────────────────────────────────────┐");
   console.log("│ Test 3: POST /api/agent/chat (streaming SSE)            │");
   console.log("└─────────────────────────────────────────────────────────┘");
 
-  if (!TEST_TOKEN) {
-    console.log("⚠️  Skipped: TEST_AUTH_TOKEN non configuré");
-    results.push({
-      name: "POST /api/agent/chat (streaming)",
-      success: true,
-      skipped: true,
-    });
-    return;
-  }
-
   const start = Date.now();
 
   try {
-    const response = await fetchWithAuth("/api/agent/chat", {
+    const response = await fetchWithTestAuth("/api/agent/chat", ctx.userId, {
       method: "POST",
       body: JSON.stringify({
         messages: [
@@ -193,7 +221,7 @@ async function testChatStreaming(): Promise<void> {
           },
         ],
         mode: "ask",
-        workspaceId: "00000000-0000-0000-0000-000000000000",
+        workspaceId: ctx.workspaceId,
         useWeb: false,
       }),
     });
@@ -269,7 +297,7 @@ async function testChatStreaming(): Promise<void> {
 /**
  * Test 4: Validation des erreurs
  */
-async function testValidationErrors(): Promise<void> {
+async function testValidationErrors(ctx: TestContext): Promise<void> {
   console.log("\n┌─────────────────────────────────────────────────────────┐");
   console.log("│ Test 4: Validation des erreurs                          │");
   console.log("└─────────────────────────────────────────────────────────┘");
@@ -279,19 +307,26 @@ async function testValidationErrors(): Promise<void> {
 
   // Test sans messages
   try {
-    const response = await fetchWithAuth("/api/agent/chat/simple", {
-      method: "POST",
-      body: JSON.stringify({
-        mode: "ask",
-        workspaceId: "test",
-      }),
-    });
+    const response = await fetchWithTestAuth(
+      "/api/agent/chat/simple",
+      ctx.userId,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          mode: "ask",
+          workspaceId: ctx.workspaceId,
+        }),
+      },
+    );
 
     const data = await response.json();
     if (response.status === 400 && data.error === "VALIDATION_ERROR") {
       console.log("✅ Erreur validation sans messages: OK");
     } else {
-      console.error("❌ Erreur validation sans messages: attendu 400");
+      console.error(
+        "❌ Erreur validation sans messages: attendu 400, reçu",
+        response.status,
+      );
       allPassed = false;
     }
   } catch (error) {
@@ -301,19 +336,28 @@ async function testValidationErrors(): Promise<void> {
 
   // Test sans workspaceId
   try {
-    const response = await fetchWithAuth("/api/agent/chat/simple", {
-      method: "POST",
-      body: JSON.stringify({
-        messages: [{ role: "user", content: [{ type: "text", text: "test" }] }],
-        mode: "ask",
-      }),
-    });
+    const response = await fetchWithTestAuth(
+      "/api/agent/chat/simple",
+      ctx.userId,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          messages: [
+            { role: "user", content: [{ type: "text", text: "test" }] },
+          ],
+          mode: "ask",
+        }),
+      },
+    );
 
     const data = await response.json();
     if (response.status === 400 && data.error === "VALIDATION_ERROR") {
       console.log("✅ Erreur validation sans workspaceId: OK");
     } else {
-      console.error("❌ Erreur validation sans workspaceId: attendu 400");
+      console.error(
+        "❌ Erreur validation sans workspaceId: attendu 400, reçu",
+        response.status,
+      );
       allPassed = false;
     }
   } catch (error) {
@@ -333,9 +377,6 @@ async function main() {
   console.log("🤖 AI SDK Phase 1 - Test Route /api/agent/chat");
   console.log("═══════════════════════════════════════════════════════════");
   console.log(`📋 Backend URL: ${BASE_URL}`);
-  console.log(
-    `📋 Auth Token: ${TEST_TOKEN ? "✅ Configuré" : "❌ Non configuré (tests limités)"}`,
-  );
   console.log("═══════════════════════════════════════════════════════════\n");
 
   // Vérifier que le backend est accessible
@@ -353,11 +394,31 @@ async function main() {
     process.exit(1);
   }
 
+  // Récupérer un utilisateur et workspace de test
+  console.log("🔍 Recherche d'un utilisateur de test dans la DB...");
+  const testContext = await getTestContext();
+
+  if (!testContext) {
+    console.error("\n❌ Impossible de trouver un utilisateur de test.");
+    console.error(
+      "   Assurez-vous qu'il existe au moins un utilisateur avec un workspace.",
+    );
+    await prisma.$disconnect();
+    process.exit(1);
+  }
+
+  console.log(`✅ Utilisateur de test trouvé:`);
+  console.log(`   ID: ${testContext.userId}`);
+  console.log(`   Email: ${testContext.userEmail}`);
+  console.log(`   Workspace: ${testContext.workspaceId}\n`);
+
+  console.log("⚠️  Assurez-vous que le backend a ENABLE_TEST_AUTH=true\n");
+
   // Exécuter les tests
-  await testGetModes();
-  await testChatSimple();
-  await testChatStreaming();
-  await testValidationErrors();
+  await testGetModes(testContext);
+  await testChatSimple(testContext);
+  await testChatStreaming(testContext);
+  await testValidationErrors(testContext);
 
   // Résumé final
   console.log("\n═══════════════════════════════════════════════════════════");
@@ -376,6 +437,9 @@ async function main() {
         ? ` (${result.duration}ms)`
         : "";
     console.log(`  ${icon} ${result.name}${suffix}`);
+    if (!result.success && result.error) {
+      console.log(`      └─ ${result.error}`);
+    }
   }
 
   console.log("───────────────────────────────────────────────────────────");
@@ -383,6 +447,9 @@ async function main() {
     `  Total: ${results.length} | ✅ Réussis: ${passed - skipped} | ⏭️ Skipped: ${skipped} | ❌ Échoués: ${failed}`,
   );
   console.log("═══════════════════════════════════════════════════════════");
+
+  // Fermer la connexion Prisma
+  await prisma.$disconnect();
 
   if (failed > 0) {
     console.log("\n🔴 CERTAINS TESTS ONT ÉCHOUÉ");
@@ -393,7 +460,8 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error("💥 Erreur fatale:", error);
+  await prisma.$disconnect();
   process.exit(1);
 });
