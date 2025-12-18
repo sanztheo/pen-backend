@@ -41,6 +41,7 @@ interface ModeConfig {
   behavior: string[];
   toolGuidance: string;
   createPageRequired: boolean;
+  contentGuidelines?: string[];
 }
 
 // ============================================================================

@@ -38,7 +38,7 @@ export async function runPennoteAgent(
     personalization,
   } = request;
 
-  const { maxSteps } = MODE_CONFIG[mode];
+  const { maxSteps, maxTokens } = MODE_CONFIG[mode];
 
   // Contexte partagé avec tous les tools
   const toolContext = { userId, workspaceId };
@@ -96,6 +96,7 @@ export async function runPennoteAgent(
     system: systemPrompt,
     messages,
     tools,
+    maxOutputTokens: maxTokens,
     stopWhen: stepCountIs(maxSteps),
     toolChoice: "auto",
     providerOptions: {
