@@ -12,6 +12,12 @@ import type { Request, Response } from "express";
 import { authenticateToken } from "../middlewares/auth.js";
 import { requireAICredits } from "../middlewares/requireAICredits.js";
 import { runPennoteAgent, type AgentMode } from "../services/agent/index.js";
+import {
+  saveConversation,
+  loadConversation,
+  listConversations,
+  deleteConversation,
+} from "../services/agent/conversationService.js";
 import { convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
 
@@ -73,6 +79,7 @@ router.post(
         messages,
         mode = "ask",
         workspaceId,
+        conversationId, // ID de la conversation pour persistance
         useWeb = false,
         ragSources,
         conversationHistory,
@@ -155,18 +162,30 @@ router.post(
         },
       );
 
-      // 🔥 Vercel AI SDK v5: Pipe le stream directement vers Express
-      // Utilise le protocole UI Message Stream (SSE) compatible avec useChat()
-      // sendReasoning: true pour transmettre le reasoning des modèles o1/o3/Grok
-      result.pipeUIMessageStreamToResponse(res, {
-        sendReasoning: true,
-      });
-
       // Log de la consommation
       const cost = (req as any).aiCredits?.cost ?? calculateDynamicCost(req);
       console.log(
         `✅ [AUDIT] Agent chat: userId=${userId}, mode=${mode}, cost=${cost}`,
       );
+
+      // 🔥 Vercel AI SDK v5: pipeUIMessageStreamToResponse avec onFinish pour persister
+      // C'est la méthode recommandée pour Express - gère automatiquement le streaming
+      result.pipeUIMessageStreamToResponse(res, {
+        originalMessages: messages as UIMessage[],
+        sendReasoning: true,
+        // 💾 Sauvegarder la conversation après la fin du stream
+        onFinish: async ({ messages: allMessages }) => {
+          if (conversationId) {
+            await saveConversation({
+              conversationId,
+              userId,
+              workspaceId,
+              messages: allMessages,
+              mode,
+            });
+          }
+        },
+      });
     } catch (error: any) {
       console.error("❌ [AGENT-CHAT] Erreur:", error);
 
@@ -298,6 +317,87 @@ router.get("/modes", (req: Request, res: Response) => {
       },
     ],
   });
+});
+
+/**
+ * GET /api/agent/conversations
+ *
+ * Liste les conversations de l'utilisateur
+ */
+router.get("/conversations", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Non authentifié" });
+    }
+
+    const { workspaceId, limit } = req.query;
+
+    const conversations = await listConversations(
+      userId,
+      workspaceId as string | undefined,
+      limit ? parseInt(limit as string, 10) : 50,
+    );
+
+    res.json({ success: true, conversations });
+  } catch (error: any) {
+    console.error("❌ [CONVERSATIONS] Erreur liste:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/agent/conversations/:id
+ *
+ * Charge une conversation avec ses messages (format UIMessage)
+ */
+router.get("/conversations/:id", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Non authentifié" });
+    }
+
+    const { id } = req.params;
+
+    const messages = await loadConversation(id, userId);
+
+    if (!messages) {
+      return res.status(404).json({ error: "Conversation non trouvée" });
+    }
+
+    res.json({ success: true, messages });
+  } catch (error: any) {
+    console.error("❌ [CONVERSATIONS] Erreur chargement:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * DELETE /api/agent/conversations/:id
+ *
+ * Supprime une conversation (soft delete)
+ */
+router.delete("/conversations/:id", async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Non authentifié" });
+    }
+
+    const { id } = req.params;
+
+    const deleted = await deleteConversation(id, userId);
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Conversation non trouvée" });
+    }
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("❌ [CONVERSATIONS] Erreur suppression:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 export default router;
