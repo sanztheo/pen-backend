@@ -52,22 +52,27 @@ export async function runPennoteAgent(
   // Créer les tools avec le contexte
   const ragTools = createRagTools(toolContext);
   const workspaceTools = createWorkspaceTools(toolContext);
-  const webTools = createWebTools(toolContext);
   const pageTools = createPageTools(toolContext);
 
-  // 🧠 AGENT INTELLIGENT: Tous les outils sont disponibles
-  // L'IA décide intelligemment quels outils utiliser selon le contexte
-  // Les priorités sont guidées par le system prompt, pas par des restrictions artificielles
+  // 🧠 AGENT INTELLIGENT: Tools disponibles selon le mode
+  // - ask / create-quick: Rapides, pas de recherche web
+  // - search / create-deep: Recherche approfondie avec web
+  const allowWebTools = mode === "search" || mode === "create-deep";
+
   const tools: Record<string, any> = {
     // RAG tools - pour les sources du workspace
     ...ragTools,
     // Workspace tools - pour lire les pages
     ...workspaceTools,
-    // Web tools - pour Wikipedia et recherche web si nécessaire
-    ...webTools,
     // Page tools - pour créer des pages (mode create)
     ...pageTools,
   };
+
+  // Web tools uniquement pour search et create-deep
+  if (allowWebTools) {
+    const webTools = createWebTools(toolContext);
+    Object.assign(tools, webTools);
+  }
 
   // System prompt
   const systemPrompt = buildSystemPrompt(mode, {
