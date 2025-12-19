@@ -13,7 +13,6 @@
  */
 
 import { Router } from "express";
-import { authenticateToken } from "../middlewares/auth.js";
 import multer from "multer";
 import { prisma } from "../lib/prisma.js";
 import { prismaEmbeddings } from "../lib/prismaEmbeddings.js";
@@ -21,7 +20,8 @@ import { wikipediaSearch } from "../controllers/assistant.js";
 
 const router = Router();
 
-router.use(authenticateToken);
+// NOTE: authenticateToken est appliqué au niveau de index.ts AVANT le rate limit
+// pour que le rate limiter ait accès à req.user.id
 
 // ============================================================================
 // WIKIPEDIA
@@ -148,7 +148,11 @@ router.post("/rag/context", async (req: any, res) => {
     } else if (isSimpleGreeting || isVeryShort) {
       shouldUseRAG = false;
     } else {
-      if (hasActiveSession && activeSessionSources && activeSessionSources.length > 0) {
+      if (
+        hasActiveSession &&
+        activeSessionSources &&
+        activeSessionSources.length > 0
+      ) {
         shouldUseRAG = await ragSystem.shouldUseRAG(
           query,
           activeSessionSources ?? undefined,
@@ -225,7 +229,11 @@ router.post("/rag/context", async (req: any, res) => {
     }
 
     // Sources de session
-    if (specificSourceIds.length === 0 && activeSessionSources && activeSessionSources.length > 0) {
+    if (
+      specificSourceIds.length === 0 &&
+      activeSessionSources &&
+      activeSessionSources.length > 0
+    ) {
       for (const source of activeSessionSources) {
         const sourceRecord = await prismaEmbeddings.rAGSource.findFirst({
           where: { title: source.title, isGlobal: true, status: "COMPLETED" },
@@ -561,12 +569,10 @@ router.post("/upload-rag", upload.single("file"), async (req: any, res) => {
     ];
 
     if (!supportedMimes.includes(file.mimetype)) {
-      return res
-        .status(400)
-        .json({
-          error: "Format non supporté",
-          supportedFormats: supportedMimes,
-        });
+      return res.status(400).json({
+        error: "Format non supporté",
+        supportedFormats: supportedMimes,
+      });
     }
 
     const { userFilesRAG } = await import("../services/rag/userFiles.js");

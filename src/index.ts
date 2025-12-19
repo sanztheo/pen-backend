@@ -70,6 +70,7 @@ import {
   startWebSocketCleanup,
   logWebSocketRateLimitConfig,
 } from "./middlewares/websocketRateLimit.js";
+import { authenticateToken } from "./middlewares/auth.js";
 
 dotenv.config();
 // Logger.init(); // ❌ DÉSACTIVÉ - maintenant console.log s'affiche dans le terminal
@@ -202,7 +203,12 @@ app.post("/api/chat", (req, res, next) => {
   // Passer la requête au router AI
   aiRoutes(req, res, next);
 });
-app.use("/api/assistant", assistantRateLimit, assistantRoutes); // Protection OpenAI Assistant
+app.use(
+  "/api/assistant",
+  authenticateToken,
+  assistantRateLimit,
+  assistantRoutes,
+); // Auth AVANT rate limit pour avoir userId
 app.use("/api/conversations", conversationsRoutes);
 app.use("/api/quiz", quizRateLimit, quizRoutes); // Protection génération quiz
 app.use("/api/quiz/graphics", graphicsRoutes);
