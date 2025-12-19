@@ -2,26 +2,40 @@
  * Configuration Paddle Billing
  *
  * IDs des produits et prix Paddle pour Pennote
+ * Les IDs sont chargés depuis les variables d'environnement
+ * - PADDLE_ENVIRONMENT=sandbox → clés sandbox (.env.dev)
+ * - PADDLE_ENVIRONMENT=production → clés production (.env.prod)
  */
 
+const requireEnv = (name: string): string => {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`❌ Variable Paddle manquante: ${name}`);
+  }
+  return value;
+};
+
 export const PADDLE_CONFIG = {
-  // Product IDs
+  // Environment
+  environment: process.env.PADDLE_ENVIRONMENT || "sandbox",
+
+  // Product IDs (depuis .env)
   products: {
-    premium: "pro_01kcnswyh52byb2wheva0rhf8w",
+    premium: requireEnv("PRODUCT"),
   },
 
-  // Price IDs
+  // Price IDs (depuis .env)
   prices: {
-    premiumMonthly: "pri_01kcnsxx3w4fwnffhk0bwj8zry", // 12€/mois
-    premiumYearly: "pri_01kcnvs3cw9nm3nfv1gkw9jeep", // 144€/Annuel
+    premiumMonthly: requireEnv("PREMIUMMONTHLY"),
+    premiumYearly: requireEnv("PREMIUMYEARLY"),
   },
 
   // Trial configuration
   trial: {
     enabled: true,
-    durationDays: 7, // Configuré dans Paddle Dashboard
+    durationDays: 7,
   },
-} as const;
+};
 
 /**
  * Vérifie si un product ID correspond à un plan premium

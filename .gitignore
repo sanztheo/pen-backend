@@ -7,3 +7,4 @@ logs
 debug-logs
 .env.example
 .tsbuildinfo
+.env.*
