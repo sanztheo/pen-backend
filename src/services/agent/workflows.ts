@@ -10,8 +10,14 @@
  */
 
 import { generateText, stepCountIs } from "ai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createRagTools } from "./tools/ragTools.js";
+
+// Créer le provider Google avec la clé API explicite
+const google = createGoogleGenerativeAI({
+  apiKey:
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+});
 import { createWebTools } from "./tools/webTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createPageTools } from "./tools/pageTools.js";
