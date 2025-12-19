@@ -1,19 +1,25 @@
 /**
- * 🛡️ SYSTÈME DE RATE LIMITING MULTICOUCHE
+ * 🛡️ SYSTÈME DE RATE LIMITING MULTICOUCHE (Niveau SaaS Professionnel)
  * Protection contre spam, brute force, DDoS et abus d'API
  *
+ * Benchmarks industrie:
+ * - Notion: ~180 req/min (2700/15min)
+ * - GitHub: ~83 req/min (5000/heure)
+ * - Stripe: ~100 req/sec (live)
+ * - OpenAI: 3-3500 RPM selon tier
+ *
  * NIVEAUX DE PROTECTION:
- * 1. GLOBAL       → 1000 req/15min par IP (tous endpoints)
- * 2. AUTH         → 10 req/15min par IP (protection brute force)
- * 3. AI           → 50 req/15min par user (endpoints coûteux)
- * 4. QUIZ         → 20 req/15min par user (génération quiz)
- * 5. ASSISTANT    → 10 req/15min par user (OpenAI Assistant - très coûteux)
+ * 1. GLOBAL       → 3000 req/15min par IP (~200/min, niveau Notion)
+ * 2. AUTH         → 15 req/15min par IP (protection brute force)
+ * 3. AI           → 150 req/15min par user (~10/min, niveau tier payant)
+ * 4. QUIZ         → 60 req/15min par user (~4/min, génération coûteuse)
+ * 5. ASSISTANT    → 100 req/15min par user (~6.7/min, niveau pro)
  */
 
-import rateLimit, { Options } from 'express-rate-limit';
-import { Request, Response } from 'express';
-import { getRateLimitStoreWithFallback } from '../config/rateLimitStore.js';
-import SecureLogger from './secureLogging.js';
+import rateLimit, { Options } from "express-rate-limit";
+import { Request, Response } from "express";
+import { getRateLimitStoreWithFallback } from "../config/rateLimitStore.js";
+import SecureLogger from "./secureLogging.js";
 
 /**
  * Helper pour générer une clé basée sur l'IP de manière sécurisée (IPv4 + IPv6)
@@ -21,10 +27,11 @@ import SecureLogger from './secureLogging.js';
  */
 const getIpKey = (req: Request): string => {
   // Récupérer l'IP réelle derrière un proxy
-  const forwarded = req.headers['x-forwarded-for'];
-  const ip = typeof forwarded === 'string'
-    ? forwarded.split(',')[0].trim()
-    : req.socket.remoteAddress || 'unknown';
+  const forwarded = req.headers["x-forwarded-for"];
+  const ip =
+    typeof forwarded === "string"
+      ? forwarded.split(",")[0].trim()
+      : req.socket.remoteAddress || "unknown";
 
   return ip;
 };
@@ -33,27 +40,38 @@ const getIpKey = (req: Request): string => {
  * Configuration centralisée du rate limiting
  * Peut être surchargée par variables d'environnement
  */
+/**
+ * Valide qu'une variable d'environnement est définie
+ */
+const requireEnv = (name: string): string => {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`❌ Variable d'environnement manquante: ${name}`);
+  }
+  return value;
+};
+
 const RATE_LIMIT_CONFIG = {
-  enabled: process.env.RATE_LIMIT_ENABLED !== 'false', // Activé par défaut
+  enabled: process.env.RATE_LIMIT_ENABLED !== "false",
   global: {
-    windowMs: parseInt(process.env.RATE_LIMIT_GLOBAL_WINDOW || '900000'), // 15 min
-    max: parseInt(process.env.RATE_LIMIT_GLOBAL_MAX || '1000'),
+    windowMs: parseInt(requireEnv("RATE_LIMIT_GLOBAL_WINDOW")),
+    max: parseInt(requireEnv("RATE_LIMIT_GLOBAL_MAX")),
   },
   auth: {
-    windowMs: parseInt(process.env.RATE_LIMIT_AUTH_WINDOW || '900000'), // 15 min
-    max: parseInt(process.env.RATE_LIMIT_AUTH_MAX || '10'),
+    windowMs: parseInt(requireEnv("RATE_LIMIT_AUTH_WINDOW")),
+    max: parseInt(requireEnv("RATE_LIMIT_AUTH_MAX")),
   },
   ai: {
-    windowMs: parseInt(process.env.RATE_LIMIT_AI_WINDOW || '900000'), // 15 min
-    max: parseInt(process.env.RATE_LIMIT_AI_MAX || '50'),
+    windowMs: parseInt(requireEnv("RATE_LIMIT_AI_WINDOW")),
+    max: parseInt(requireEnv("RATE_LIMIT_AI_MAX")),
   },
   quiz: {
-    windowMs: parseInt(process.env.RATE_LIMIT_QUIZ_WINDOW || '900000'), // 15 min
-    max: parseInt(process.env.RATE_LIMIT_QUIZ_MAX || '20'),
+    windowMs: parseInt(requireEnv("RATE_LIMIT_QUIZ_WINDOW")),
+    max: parseInt(requireEnv("RATE_LIMIT_QUIZ_MAX")),
   },
   assistant: {
-    windowMs: parseInt(process.env.RATE_LIMIT_ASSISTANT_WINDOW || '900000'), // 15 min
-    max: parseInt(process.env.RATE_LIMIT_ASSISTANT_MAX || '10'),
+    windowMs: parseInt(requireEnv("RATE_LIMIT_ASSISTANT_WINDOW")),
+    max: parseInt(requireEnv("RATE_LIMIT_ASSISTANT_MAX")),
   },
 };
 
@@ -62,12 +80,12 @@ const RATE_LIMIT_CONFIG = {
  * Log les incidents pour analyse de sécurité
  */
 const onLimitReached = (req: Request, res: Response) => {
-  SecureLogger.warn('🚨 [RATE-LIMIT] Limite atteinte', {
+  SecureLogger.warn("🚨 [RATE-LIMIT] Limite atteinte", {
     ip: req.ip,
     userId: (req as any).user?.id,
     path: req.path,
     method: req.method,
-    userAgent: req.get('user-agent'),
+    userAgent: req.get("user-agent"),
   });
 };
 
@@ -93,18 +111,18 @@ const createBaseConfig = (storePrefix: string): Partial<Options> => ({
  * Protection contre DDoS et spam général
  */
 export const globalRateLimit = rateLimit({
-  ...createBaseConfig('rl:global:'),
+  ...createBaseConfig("rl:global:"),
   windowMs: RATE_LIMIT_CONFIG.global.windowMs,
   max: RATE_LIMIT_CONFIG.global.max,
   message: {
     success: false,
-    error: 'RATE_LIMIT_EXCEEDED',
-    message: 'Trop de requêtes. Veuillez réessayer dans quelques minutes.',
-    retryAfter: '15 minutes',
+    error: "RATE_LIMIT_EXCEEDED",
+    message: "Trop de requêtes. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "15 minutes",
   },
   skip: (req) => {
     // Skip health check et webhooks
-    if (req.path === '/health' || req.path.startsWith('/api/webhooks/')) {
+    if (req.path === "/health" || req.path.startsWith("/api/webhooks/")) {
       return true;
     }
     return !RATE_LIMIT_CONFIG.enabled;
@@ -118,20 +136,21 @@ export const globalRateLimit = rateLimit({
  * Compte uniquement les requêtes échouées
  */
 export const authRateLimit = rateLimit({
-  ...createBaseConfig('rl:auth:'),
+  ...createBaseConfig("rl:auth:"),
   windowMs: RATE_LIMIT_CONFIG.auth.windowMs,
   max: RATE_LIMIT_CONFIG.auth.max,
   message: {
     success: false,
-    error: 'AUTH_RATE_LIMIT_EXCEEDED',
-    message: 'Trop de tentatives de connexion. Veuillez réessayer dans 15 minutes.',
-    retryAfter: '15 minutes',
+    error: "AUTH_RATE_LIMIT_EXCEEDED",
+    message:
+      "Trop de tentatives de connexion. Veuillez réessayer dans 15 minutes.",
+    retryAfter: "15 minutes",
   },
   skipSuccessfulRequests: true, // Ne compte que les échecs d'authentification
   keyGenerator: (req) => {
     // Combiner IP + email pour plus de précision
     const ip = getIpKey(req);
-    const email = req.body?.email || '';
+    const email = req.body?.email || "";
     return `${ip}_${email}`;
   },
 });
@@ -142,14 +161,14 @@ export const authRateLimit = rateLimit({
  * Limite par utilisateur authentifié
  */
 export const aiRateLimit = rateLimit({
-  ...createBaseConfig('rl:ai:'),
+  ...createBaseConfig("rl:ai:"),
   windowMs: RATE_LIMIT_CONFIG.ai.windowMs,
   max: RATE_LIMIT_CONFIG.ai.max,
   message: {
     success: false,
-    error: 'AI_RATE_LIMIT_EXCEEDED',
-    message: 'Trop de requêtes IA. Veuillez réessayer dans 15 minutes.',
-    retryAfter: '15 minutes',
+    error: "AI_RATE_LIMIT_EXCEEDED",
+    message: "Trop de requêtes IA. Veuillez réessayer dans 15 minutes.",
+    retryAfter: "15 minutes",
   },
   keyGenerator: (req) => {
     // Limite par user ID si authentifié, sinon par IP
@@ -165,14 +184,14 @@ export const aiRateLimit = rateLimit({
  * Limite par utilisateur authentifié
  */
 export const quizRateLimit = rateLimit({
-  ...createBaseConfig('rl:quiz:'),
+  ...createBaseConfig("rl:quiz:"),
   windowMs: RATE_LIMIT_CONFIG.quiz.windowMs,
   max: RATE_LIMIT_CONFIG.quiz.max,
   message: {
     success: false,
-    error: 'QUIZ_RATE_LIMIT_EXCEEDED',
-    message: 'Trop de générations de quiz. Veuillez réessayer dans 15 minutes.',
-    retryAfter: '15 minutes',
+    error: "QUIZ_RATE_LIMIT_EXCEEDED",
+    message: "Trop de générations de quiz. Veuillez réessayer dans 15 minutes.",
+    retryAfter: "15 minutes",
   },
   keyGenerator: (req) => {
     const userId = (req as any).user?.id;
@@ -187,14 +206,22 @@ export const quizRateLimit = rateLimit({
  * Limite stricte par utilisateur
  */
 export const assistantRateLimit = rateLimit({
-  ...createBaseConfig('rl:assistant:'),
+  ...createBaseConfig("rl:assistant:"),
   windowMs: RATE_LIMIT_CONFIG.assistant.windowMs,
   max: RATE_LIMIT_CONFIG.assistant.max,
   message: {
     success: false,
-    error: 'ASSISTANT_RATE_LIMIT_EXCEEDED',
-    message: 'Trop de requêtes assistant IA. Veuillez réessayer dans 15 minutes.',
-    retryAfter: '15 minutes',
+    error: "ASSISTANT_RATE_LIMIT_EXCEEDED",
+    message:
+      "Trop de requêtes assistant IA. Veuillez réessayer dans 15 minutes.",
+    retryAfter: "15 minutes",
+  },
+  skip: (req) => {
+    // Exclure check-embedding du rate limit strict (endpoint de vérification, pas de génération IA)
+    if (req.path === "/user-pages/check-embedding") {
+      return true;
+    }
+    return !RATE_LIMIT_CONFIG.enabled;
   },
   keyGenerator: (req) => {
     const userId = (req as any).user?.id;
@@ -215,13 +242,23 @@ export const isRateLimitEnabled = (): boolean => {
  */
 export const logRateLimitConfig = () => {
   if (RATE_LIMIT_CONFIG.enabled) {
-    console.log('🛡️  Rate Limiting ACTIVÉ:');
-    console.log(`   - Global:    ${RATE_LIMIT_CONFIG.global.max} req/${RATE_LIMIT_CONFIG.global.windowMs}ms`);
-    console.log(`   - Auth:      ${RATE_LIMIT_CONFIG.auth.max} req/${RATE_LIMIT_CONFIG.auth.windowMs}ms`);
-    console.log(`   - AI:        ${RATE_LIMIT_CONFIG.ai.max} req/${RATE_LIMIT_CONFIG.ai.windowMs}ms`);
-    console.log(`   - Quiz:      ${RATE_LIMIT_CONFIG.quiz.max} req/${RATE_LIMIT_CONFIG.quiz.windowMs}ms`);
-    console.log(`   - Assistant: ${RATE_LIMIT_CONFIG.assistant.max} req/${RATE_LIMIT_CONFIG.assistant.windowMs}ms`);
+    console.log("🛡️  Rate Limiting ACTIVÉ:");
+    console.log(
+      `   - Global:    ${RATE_LIMIT_CONFIG.global.max} req/${RATE_LIMIT_CONFIG.global.windowMs}ms`,
+    );
+    console.log(
+      `   - Auth:      ${RATE_LIMIT_CONFIG.auth.max} req/${RATE_LIMIT_CONFIG.auth.windowMs}ms`,
+    );
+    console.log(
+      `   - AI:        ${RATE_LIMIT_CONFIG.ai.max} req/${RATE_LIMIT_CONFIG.ai.windowMs}ms`,
+    );
+    console.log(
+      `   - Quiz:      ${RATE_LIMIT_CONFIG.quiz.max} req/${RATE_LIMIT_CONFIG.quiz.windowMs}ms`,
+    );
+    console.log(
+      `   - Assistant: ${RATE_LIMIT_CONFIG.assistant.max} req/${RATE_LIMIT_CONFIG.assistant.windowMs}ms`,
+    );
   } else {
-    console.log('⚠️  Rate Limiting DÉSACTIVÉ (mode développement)');
+    console.log("⚠️  Rate Limiting DÉSACTIVÉ (mode développement)");
   }
 };
