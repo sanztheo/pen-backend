@@ -1,13 +1,19 @@
 /**
- * 🛡️ SYSTÈME DE RATE LIMITING MULTICOUCHE
+ * 🛡️ SYSTÈME DE RATE LIMITING MULTICOUCHE (Niveau SaaS Professionnel)
  * Protection contre spam, brute force, DDoS et abus d'API
  *
+ * Benchmarks industrie:
+ * - Notion: ~180 req/min (2700/15min)
+ * - GitHub: ~83 req/min (5000/heure)
+ * - Stripe: ~100 req/sec (live)
+ * - OpenAI: 3-3500 RPM selon tier
+ *
  * NIVEAUX DE PROTECTION:
- * 1. GLOBAL       → 1000 req/15min par IP (tous endpoints)
- * 2. AUTH         → 10 req/15min par IP (protection brute force)
- * 3. AI           → 50 req/15min par user (endpoints coûteux)
- * 4. QUIZ         → 20 req/15min par user (génération quiz)
- * 5. ASSISTANT    → 10 req/15min par user (OpenAI Assistant - très coûteux)
+ * 1. GLOBAL       → 3000 req/15min par IP (~200/min, niveau Notion)
+ * 2. AUTH         → 15 req/15min par IP (protection brute force)
+ * 3. AI           → 150 req/15min par user (~10/min, niveau tier payant)
+ * 4. QUIZ         → 60 req/15min par user (~4/min, génération coûteuse)
+ * 5. ASSISTANT    → 100 req/15min par user (~6.7/min, niveau pro)
  */
 
 import rateLimit, { Options } from "express-rate-limit";
@@ -34,27 +40,38 @@ const getIpKey = (req: Request): string => {
  * Configuration centralisée du rate limiting
  * Peut être surchargée par variables d'environnement
  */
+/**
+ * Valide qu'une variable d'environnement est définie
+ */
+const requireEnv = (name: string): string => {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`❌ Variable d'environnement manquante: ${name}`);
+  }
+  return value;
+};
+
 const RATE_LIMIT_CONFIG = {
-  enabled: process.env.RATE_LIMIT_ENABLED !== "false", // Activé par défaut
+  enabled: process.env.RATE_LIMIT_ENABLED !== "false",
   global: {
-    windowMs: parseInt(process.env.RATE_LIMIT_GLOBAL_WINDOW || "900000"), // 15 min
-    max: parseInt(process.env.RATE_LIMIT_GLOBAL_MAX || "1000"),
+    windowMs: parseInt(requireEnv("RATE_LIMIT_GLOBAL_WINDOW")),
+    max: parseInt(requireEnv("RATE_LIMIT_GLOBAL_MAX")),
   },
   auth: {
-    windowMs: parseInt(process.env.RATE_LIMIT_AUTH_WINDOW || "900000"), // 15 min
-    max: parseInt(process.env.RATE_LIMIT_AUTH_MAX || "10"),
+    windowMs: parseInt(requireEnv("RATE_LIMIT_AUTH_WINDOW")),
+    max: parseInt(requireEnv("RATE_LIMIT_AUTH_MAX")),
   },
   ai: {
-    windowMs: parseInt(process.env.RATE_LIMIT_AI_WINDOW || "900000"), // 15 min
-    max: parseInt(process.env.RATE_LIMIT_AI_MAX || "50"),
+    windowMs: parseInt(requireEnv("RATE_LIMIT_AI_WINDOW")),
+    max: parseInt(requireEnv("RATE_LIMIT_AI_MAX")),
   },
   quiz: {
-    windowMs: parseInt(process.env.RATE_LIMIT_QUIZ_WINDOW || "900000"), // 15 min
-    max: parseInt(process.env.RATE_LIMIT_QUIZ_MAX || "20"),
+    windowMs: parseInt(requireEnv("RATE_LIMIT_QUIZ_WINDOW")),
+    max: parseInt(requireEnv("RATE_LIMIT_QUIZ_MAX")),
   },
   assistant: {
-    windowMs: parseInt(process.env.RATE_LIMIT_ASSISTANT_WINDOW || "900000"), // 15 min
-    max: parseInt(process.env.RATE_LIMIT_ASSISTANT_MAX || "10"),
+    windowMs: parseInt(requireEnv("RATE_LIMIT_ASSISTANT_WINDOW")),
+    max: parseInt(requireEnv("RATE_LIMIT_ASSISTANT_MAX")),
   },
 };
 
