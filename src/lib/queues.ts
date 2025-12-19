@@ -6,8 +6,8 @@
  *
  * Queues disponibles:
  * - ai-generation: Génération de contenu AI (texte, plans, idées)
- * - ai-assistant: Traitement assistant (ask, search, create)
  * - ai-quiz: Génération de quiz AI
+ * - futura: Articles scientifiques
  */
 
 import { Queue, QueueOptions } from "bullmq";
@@ -41,15 +41,6 @@ export const aiGenerationQueue = new Queue("ai-generation", {
   },
 });
 
-// 🤖 Queue pour assistant AI (1-2 crédits)
-export const aiAssistantQueue = new Queue("ai-assistant", {
-  ...defaultQueueOptions,
-  defaultJobOptions: {
-    ...defaultQueueOptions.defaultJobOptions,
-    priority: 7, // Priorité plus haute (interaction utilisateur)
-  },
-});
-
 // 📝 Queue pour génération de quiz AI
 export const aiQuizQueue = new Queue("ai-quiz", {
   ...defaultQueueOptions,
@@ -75,23 +66,19 @@ export const futuraQueue = new Queue("futura", {
 // 📊 Logging de la configuration
 console.log("🎯 [QUEUES] Queues BullMQ initialisées:");
 console.log("   - ai-generation (priorité: 5)");
-console.log("   - ai-assistant (priorité: 7)");
 console.log("   - ai-quiz (priorité: 5)");
 console.log("   - futura (priorité: 3)");
 
 // 🔧 Fonctions utilitaires pour monitoring
 export const getQueueStats = async () => {
-  const [genCounts, assistantCounts, quizCounts, futuraCounts] =
-    await Promise.all([
-      aiGenerationQueue.getJobCounts(),
-      aiAssistantQueue.getJobCounts(),
-      aiQuizQueue.getJobCounts(),
-      futuraQueue.getJobCounts(),
-    ]);
+  const [genCounts, quizCounts, futuraCounts] = await Promise.all([
+    aiGenerationQueue.getJobCounts(),
+    aiQuizQueue.getJobCounts(),
+    futuraQueue.getJobCounts(),
+  ]);
 
   return {
     aiGeneration: genCounts,
-    aiAssistant: assistantCounts,
     aiQuiz: quizCounts,
     futura: futuraCounts,
   };
@@ -102,7 +89,6 @@ export const closeQueues = async () => {
   console.log("🧹 [QUEUES] Fermeture des queues...");
   await Promise.all([
     aiGenerationQueue.close(),
-    aiAssistantQueue.close(),
     aiQuizQueue.close(),
     futuraQueue.close(),
   ]);

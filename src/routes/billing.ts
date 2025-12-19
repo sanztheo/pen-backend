@@ -1,196 +1,309 @@
-import express from 'express';
-import { ClerkBillingService } from '../services/billing/clerkBilling.js';
-import { authenticateToken } from '../middlewares/auth.js';
-import { AuthService } from '../services/auth.js';
-import { createClerkClient } from '@clerk/backend';
-import { prisma } from '../lib/prisma.js';
+import express from "express";
+import {
+  PaddleBillingService,
+  paddle,
+} from "../services/billing/paddleBilling.js";
+import { authenticateToken } from "../middlewares/auth.js";
+import { prisma } from "../lib/prisma.js";
+import { PADDLE_CONFIG } from "../config/paddle.js";
 
 const router = express.Router();
 
 /**
  * GET /api/billing/subscription
- * Récupère l'abonnement actuel de l'utilisateur
+ * Retourne l'abonnement actuel de l'utilisateur
  */
-router.get('/subscription', authenticateToken, async (req, res) => {
+router.get("/subscription", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.id;
-    
+
     if (!userId) {
-      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+      return res.status(401).json({ error: "Utilisateur non authentifie" });
     }
 
-    // console.log(`📊 [API] Récupération abonnement pour: ${userId}`);
-    
-    const subscription = await ClerkBillingService.getUserSubscription(userId);
-    // console.log('📊 [BILLING][GET /subscription] Utilisateur:', userId, 'Abonnement:', subscription);
-    
+    const subscription = await PaddleBillingService.getUserSubscription(userId);
+
     res.json({
       success: true,
-      subscription
+      subscription,
+    });
+  } catch (error) {
+    console.error("[API] Erreur recuperation abonnement:", error);
+    res.status(500).json({
+      error: "Erreur lors de la recuperation de l'abonnement",
+      details: error instanceof Error ? error.message : "Erreur inconnue",
+    });
+  }
+});
+
+/**
+ * GET /api/billing/stats
+ * Retourne les statistiques billing de l'utilisateur
+ */
+router.get("/stats", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Utilisateur non authentifie" });
+    }
+
+    const subscription = await PaddleBillingService.getUserSubscription(userId);
+    const isPremium = subscription.plan === "premium" && subscription.isActive;
+
+    res.json({
+      success: true,
+      stats: {
+        subscription,
+        isPremium,
+      },
+    });
+  } catch (error) {
+    console.error("[API] Erreur recuperation stats:", error);
+    res.status(500).json({
+      error: "Erreur lors de la recuperation des statistiques",
+      details: error instanceof Error ? error.message : "Erreur inconnue",
+    });
+  }
+});
+
+/**
+ * POST /api/billing/checkout-session
+ * Genere les informations necessaires pour ouvrir un checkout Paddle
+ * Le checkout est ouvert cote frontend avec Paddle.js
+ */
+router.post("/checkout-session", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userEmail = req.user?.email;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Utilisateur non authentifie" });
+    }
+
+    const { priceId, interval } = req.body;
+
+    // Determiner le priceId si non fourni
+    const selectedPriceId =
+      priceId ||
+      (interval === "yearly"
+        ? PADDLE_CONFIG.prices.premiumYearly
+        : PADDLE_CONFIG.prices.premiumMonthly);
+
+    if (!selectedPriceId) {
+      return res.status(400).json({ error: "Prix non configure" });
+    }
+
+    console.log(`[BILLING] Checkout session pour user ${userId}:`, {
+      priceId: selectedPriceId,
+      email: userEmail,
     });
 
+    // Retourner les infos pour le checkout frontend
+    // Le checkout sera ouvert avec Paddle.Checkout.open() cote client
+    res.json({
+      success: true,
+      checkout: {
+        priceId: selectedPriceId,
+        customData: {
+          clerkUserId: userId,
+        },
+        customer: {
+          email: userEmail,
+        },
+      },
+    });
   } catch (error) {
-    console.error('❌ [API] Erreur récupération abonnement:', error);
+    console.error("[API] Erreur creation checkout session:", error);
     res.status(500).json({
-      error: 'Erreur lors de la récupération de l\'abonnement',
-      details: error instanceof Error ? error.message : 'Erreur inconnue'
+      error: "Erreur lors de la creation de la session checkout",
+      details: error instanceof Error ? error.message : "Erreur inconnue",
+    });
+  }
+});
+
+/**
+ * GET /api/billing/portal-url
+ * Retourne l'URL du portail client Paddle pour gerer l'abonnement
+ */
+router.get("/portal-url", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Utilisateur non authentifie" });
+    }
+
+    // Recuperer le paddleCustomerId de l'utilisateur
+    const subscription = await prisma.userSubscription.findUnique({
+      where: { userId },
+      select: {
+        paddleCustomerId: true,
+        paddleSubscriptionId: true,
+      },
+    });
+
+    if (!subscription?.paddleSubscriptionId) {
+      return res.status(404).json({
+        error: "Aucun abonnement Paddle trouve",
+        message: "L'utilisateur n'a pas d'abonnement actif",
+      });
+    }
+
+    // Generer l'URL de mise a jour du paiement via l'API Paddle
+    try {
+      const paddleSubscription = await paddle.subscriptions.get(
+        subscription.paddleSubscriptionId,
+      );
+
+      // L'URL de gestion est dans managementUrls
+      const portalUrl =
+        paddleSubscription.managementUrls?.updatePaymentMethod ||
+        paddleSubscription.managementUrls?.cancel;
+
+      if (!portalUrl) {
+        return res.status(404).json({
+          error: "URL du portail non disponible",
+          message: "Impossible de generer l'URL de gestion",
+        });
+      }
+
+      res.json({
+        success: true,
+        portalUrl,
+        subscriptionId: subscription.paddleSubscriptionId,
+      });
+    } catch (paddleError: any) {
+      console.error("[API] Erreur API Paddle:", paddleError);
+      return res.status(500).json({
+        error: "Erreur lors de la recuperation du portail Paddle",
+        details: paddleError?.message || "Erreur inconnue",
+      });
+    }
+  } catch (error) {
+    console.error("[API] Erreur portal-url:", error);
+    res.status(500).json({
+      error: "Erreur lors de la recuperation de l'URL du portail",
+      details: error instanceof Error ? error.message : "Erreur inconnue",
+    });
+  }
+});
+
+/**
+ * POST /api/billing/cancel
+ * Annule l'abonnement Paddle de l'utilisateur
+ */
+router.post("/cancel", authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Utilisateur non authentifie" });
+    }
+
+    // Recuperer le paddleSubscriptionId
+    const subscription = await prisma.userSubscription.findUnique({
+      where: { userId },
+      select: { paddleSubscriptionId: true },
+    });
+
+    if (!subscription?.paddleSubscriptionId) {
+      return res.status(404).json({
+        error: "Aucun abonnement Paddle trouve",
+      });
+    }
+
+    // Annuler via l'API Paddle (effective a la fin de la periode)
+    await paddle.subscriptions.cancel(subscription.paddleSubscriptionId, {
+      effectiveFrom: "next_billing_period",
+    });
+
+    // Marquer comme annule dans la DB
+    await PaddleBillingService.cancelSubscription(userId);
+
+    console.log(`[BILLING] Abonnement annule pour user ${userId}`);
+
+    res.json({
+      success: true,
+      message: "Abonnement annule. Actif jusqu'a la fin de la periode.",
+    });
+  } catch (error) {
+    console.error("[API] Erreur annulation:", error);
+    res.status(500).json({
+      error: "Erreur lors de l'annulation",
+      details: error instanceof Error ? error.message : "Erreur inconnue",
     });
   }
 });
 
 /**
  * POST /api/billing/upgrade
- * 🚨 SÉCURITÉ: Endpoint désactivé pour éviter l'escalade de privilèges
- * Les upgrades ne doivent se faire que via les webhooks Clerk/Stripe
+ * Retourne les informations de checkout pour upgrade
+ * (Le paiement se fait cote frontend avec Paddle.js)
  */
-router.post('/upgrade', authenticateToken, async (req, res) => {
-  console.error(`🚨 [SÉCURITÉ] Tentative d'upgrade non autorisée par: ${req.user?.id}`);
-  return res.status(403).json({ 
-    error: 'Endpoint désactivé pour des raisons de sécurité',
-    message: 'Les upgrades doivent se faire via Clerk Commerce uniquement'
-  });
-});
-
-/**
- * POST /api/billing/cancel
- * 🚨 SÉCURITÉ: Endpoint désactivé pour éviter la manipulation d'abonnements
- * Les annulations ne doivent se faire que via les webhooks Clerk/Stripe
- */
-router.post('/cancel', authenticateToken, async (req, res) => {
-  console.error(`🚨 [SÉCURITÉ] Tentative d'annulation non autorisée par: ${req.user?.id}`);
-  return res.status(403).json({ 
-    error: 'Endpoint désactivé pour des raisons de sécurité',
-    message: 'Les annulations doivent se faire via Clerk Commerce uniquement'
-  });
-});
-
-/**
- * GET /api/billing/stats
- * Récupère les statistiques de l'utilisateur
- */
-router.get('/stats', authenticateToken, async (req, res) => {
+router.post("/upgrade", authenticateToken, async (req, res) => {
   try {
     const userId = req.user?.id;
-    
+    const userEmail = req.user?.email;
+
     if (!userId) {
-      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+      return res.status(401).json({ error: "Utilisateur non authentifie" });
     }
 
-    console.log(`📈 [API] Récupération stats pour: ${userId}`);
-    
-    const stats = await ClerkBillingService.getUserStats(userId);
-    console.log('📈 [BILLING][GET /stats] Stats:', { userId, isPremium: stats.isPremium, plan: stats.subscription.plan });
-    
+    // Verifier si deja premium
+    const currentSub = await PaddleBillingService.getUserSubscription(userId);
+    if (currentSub.isPremium) {
+      return res.status(400).json({
+        error: "Deja premium",
+        message: "Vous avez deja un abonnement premium actif",
+      });
+    }
+
+    // Retourner les infos pour ouvrir le checkout Paddle
     res.json({
       success: true,
-      stats
+      checkout: {
+        priceId: PADDLE_CONFIG.prices.premiumMonthly,
+        customData: {
+          clerkUserId: userId,
+        },
+        customer: {
+          email: userEmail,
+        },
+      },
     });
-
   } catch (error) {
-    console.error('❌ [API] Erreur récupération stats:', error);
+    console.error("[API] Erreur upgrade:", error);
     res.status(500).json({
-      error: 'Erreur lors de la récupération des statistiques',
-      details: error instanceof Error ? error.message : 'Erreur inconnue'
+      error: "Erreur lors de la preparation de l'upgrade",
+      details: error instanceof Error ? error.message : "Erreur inconnue",
     });
   }
+});
+
+/**
+ * GET /api/billing/prices
+ * Retourne les prix configures (pour affichage frontend)
+ */
+router.get("/prices", async (_req, res) => {
+  res.json({
+    success: true,
+    prices: {
+      monthly: {
+        id: PADDLE_CONFIG.prices.premiumMonthly,
+        amount: 12,
+        currency: "EUR",
+        interval: "month",
+      },
+      yearly: {
+        id: PADDLE_CONFIG.prices.premiumYearly,
+        amount: 144,
+        currency: "EUR",
+        interval: "year",
+      },
+    },
+    trial: PADDLE_CONFIG.trial,
+  });
 });
 
 export default router;
-
-/**
- * POST /api/billing/sync-from-clerk
- * Synchronise la table user_subscriptions depuis l'état Clerk de l'utilisateur courant
- */
-router.post('/sync-from-clerk', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Utilisateur non authentifié' });
-    }
-
-    // Récupérer l'utilisateur Clerk (source de vérité) via l'API backend Clerk
-    const secretKey = process.env.CLERK_SECRET_KEY;
-    if (!secretKey) {
-      return res.status(500).json({ error: 'CLERK_SECRET_KEY manquant' });
-    }
-    const clerk = createClerkClient({ secretKey });
-    const clerkUser = await clerk.users.getUser(userId);
-    console.log('🔎 [BILLING][SYNC] Clerk metadata:', {
-      publicMetadata: clerkUser.publicMetadata,
-      unsafeMetadata: clerkUser.unsafeMetadata,
-      privateMetadata: clerkUser.privateMetadata,
-    });
-
-    // Lire plan/status depuis publicMetadata (fallback unsafe/privateMetadata)
-    const publicMeta: any = clerkUser.publicMetadata || {};
-    const unsafeMeta: any = clerkUser.unsafeMetadata || {};
-    const privateMeta: any = clerkUser.privateMetadata || {};
-    const planRaw = (publicMeta.plan as string) || (unsafeMeta.plan as string) || (privateMeta.plan as string) || 'free_user';
-    const statusRaw = (publicMeta.subscriptionStatus as string) || (unsafeMeta.subscriptionStatus as string) || (privateMeta.subscriptionStatus as string) || 'active';
-    const plan = planRaw === 'premium' ? 'premium' : 'free_user';
-
-    const subscription = await prisma.userSubscription.upsert({
-      where: { userId },
-      update: { plan: plan as any, status: statusRaw as any },
-      create: {
-        userId,
-        plan: plan as any,
-        status: statusRaw as any,
-        currentPeriodStart: new Date(),
-      },
-    });
-    console.log('🔄 [BILLING][POST /sync-from-clerk] Sync effectuée:', { userId, plan: subscription.plan, status: subscription.status });
-
-    return res.json({ success: true, subscription });
-  } catch (error: any) {
-    console.error('❌ [API] Erreur sync-from-clerk:', error);
-    return res.status(500).json({ error: 'Erreur lors de la synchronisation' });
-  }
-});
-
-/**
- * GET /api/billing/plans
- * Récupère la liste des plans publiés depuis Clerk (id, name, description)
- */
-router.get('/plans', authenticateToken, async (req, res) => {
-  try {
-    const secretKey = process.env.CLERK_SECRET_KEY;
-    if (!secretKey) {
-      return res.status(500).json({ error: 'CLERK_SECRET_KEY manquant' });
-    }
-
-    // Appel direct à l’API Clerk BAPI (Commerce Plans)
-    const response = await fetch('https://api.clerk.com/v1/commerce/plans?limit=100', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${secretKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      console.error('❌ [BILLING][GET /plans] Erreur Clerk:', response.status, text);
-      return res.status(500).json({ error: 'Erreur Clerk lors de la récupération des plans' });
-    }
-
-    const data: any = await response.json();
-    const plans = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
-
-    const mapped = plans.map((p: any) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description || p.summary || '',
-      interval: p.interval || p.billing_interval || null,
-      price_cents: p.price_amount || p.amount || null,
-      currency: p.price_currency || p.currency || null,
-      public: p.publicly_available ?? true,
-      metadata: p.public_metadata || p.metadata || {},
-    }));
-
-    return res.json({ success: true, plans: mapped });
-  } catch (error: any) {
-    console.error('❌ [API] Erreur /api/billing/plans:', error?.message || error);
-    return res.status(500).json({ error: 'Erreur lors de la récupération des plans' });
-  }
-});

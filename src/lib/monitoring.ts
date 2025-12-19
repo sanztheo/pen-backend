@@ -172,13 +172,13 @@ export const startMonitoring = (intervalMinutes: number = 5) => {
       console.log(`   ⏱️ Uptime: ${stats.uptime.formatted}`);
       console.log(`   🎯 Queues:`);
       console.log(
-        `      - AI Generation: ${stats.queues.aiGeneration.waiting} waiting, ${stats.queues.aiGeneration.active} active`,
+        `      - AI Generation: ${stats.queues?.aiGeneration?.waiting ?? 0} waiting, ${stats.queues?.aiGeneration?.active ?? 0} active`,
       );
       console.log(
-        `      - AI Assistant: ${stats.queues.aiAssistant.waiting} waiting, ${stats.queues.aiAssistant.active} active`,
+        `      - AI Quiz: ${stats.queues?.aiQuiz?.waiting ?? 0} waiting, ${stats.queues?.aiQuiz?.active ?? 0} active`,
       );
       console.log(
-        `      - AI Quiz: ${stats.queues.aiQuiz.waiting} waiting, ${stats.queues.aiQuiz.active} active`,
+        `      - Futura: ${stats.queues?.futura?.waiting ?? 0} waiting, ${stats.queues?.futura?.active ?? 0} active`,
       );
 
       if (health.warnings.length > 0) {

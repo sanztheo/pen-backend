@@ -261,67 +261,67 @@ export class WikipediaRAGSystem {
     pageid: number,
   ): Promise<WikipediaArticle> {
     try {
-      // Types pour les réponses de l'API Wikipedia
-      interface WikipediaQueryInfo {
+      // 🔥 Utiliser l'API TextExtracts pour récupérer le texte complet en plaintext
+      // Doc: https://www.mediawiki.org/wiki/Extension:TextExtracts
+      interface WikipediaFullExtractResponse {
         query?: {
           pages?: {
             [pageid: string]: {
+              pageid: number;
               title: string;
+              extract?: string;
               canonicalurl?: string;
               fullurl?: string;
               missing?: boolean;
+              categories?: Array<{ title: string }>;
             };
           };
         };
       }
-      interface WikipediaParseSections {
-        parse?: { wikitext?: { "*"?: string } };
-      }
-      interface WikipediaQueryExtract {
-        query?: { pages?: { [pageid: string]: { extract?: string } } };
-      }
 
-      // D'abord récupérer les infos de base avec l'API standard
-      const infoResponse = await fetch(
-        `https://fr.wikipedia.org/w/api.php?action=query&format=json&pageids=${pageid}&prop=info&inprop=url&origin=*`,
+      // 🔥 UNE SEULE requête pour tout récupérer:
+      // - prop=extracts: texte complet en plaintext
+      // - explaintext=1: format texte brut (pas HTML)
+      // - exsectionformat=wiki: sections formatées comme == Titre ==
+      // - PAS de exintro: pour avoir TOUT l'article, pas juste l'intro
+      // - prop=info&inprop=url: URL canonique
+      // - prop=categories: catégories de l'article
+      const response = await fetch(
+        `https://fr.wikipedia.org/w/api.php?action=query&format=json&pageids=${pageid}&prop=extracts|info|categories&explaintext=1&exsectionformat=wiki&inprop=url&cllimit=10&origin=*`,
       );
-      const infoData = (await infoResponse.json()) as WikipediaQueryInfo;
-      const pageInfo = infoData.query?.pages?.[pageid.toString()];
+      const data = (await response.json()) as WikipediaFullExtractResponse;
+      const pageData = data.query?.pages?.[pageid.toString()];
 
-      if (!pageInfo || pageInfo.missing) {
+      if (!pageData || pageData.missing) {
         throw new Error(`Page Wikipedia ${pageid} introuvable`);
       }
 
-      const title = pageInfo.title;
-      const canonicalUrl = pageInfo.canonicalurl || pageInfo.fullurl;
+      const title = pageData.title;
+      const fullText = pageData.extract || "";
+      const canonicalUrl = pageData.canonicalurl || pageData.fullurl;
+      const categories =
+        pageData.categories?.map((c) => c.title.replace("Catégorie:", "")) ||
+        [];
 
-      // Récupération des sections avec wikitext complet
-      const sectionsResponse = await fetch(
-        `https://fr.wikipedia.org/w/api.php?action=parse&format=json&pageid=${pageid}&prop=sections|wikitext&origin=*`,
-      );
-      const sectionsData =
-        (await sectionsResponse.json()) as WikipediaParseSections;
+      // 🔥 Parser le texte complet en sections (maintenant c'est du plaintext propre!)
+      const sections = this.parseExtractSections(fullText);
 
-      // Traitement des sections
-      const sections = await this.parseSections(
-        sectionsData.parse?.wikitext?.["*"] || "",
-      );
+      // Générer un extrait court (premiers 500 caractères de l'intro)
+      const introSection = sections.find((s) => s.title === "Introduction");
+      const extract = introSection
+        ? introSection.content.slice(0, 500)
+        : fullText.slice(0, 500);
 
-      // Récupération de l'extrait via API query pour cohérence
-      const extractResponse = await fetch(
-        `https://fr.wikipedia.org/w/api.php?action=query&format=json&pageids=${pageid}&prop=extracts&exintro=1&explaintext=1&exchars=500&origin=*`,
+      console.log(
+        `📖 [WIKIPEDIA] "${title}": ${fullText.length} chars, ${sections.length} sections, ${categories.length} catégories`,
       );
-      const extractData =
-        (await extractResponse.json()) as WikipediaQueryExtract;
-      const extract =
-        extractData.query?.pages?.[pageid.toString()]?.extract || "";
 
       return {
         pageid,
         title,
         extract,
-        fullContent: sectionsData.parse?.wikitext?.["*"] || "",
-        categories: [], // On récupérera les catégories si nécessaire
+        fullContent: fullText,
+        categories,
         url: canonicalUrl,
         sections,
       };
@@ -331,22 +331,31 @@ export class WikipediaRAGSystem {
     }
   }
 
-  private async parseSections(wikitext: string): Promise<WikipediaSection[]> {
+  /**
+   * 🔥 Parse le texte plaintext avec sections formatées == Titre ==
+   * L'API TextExtracts avec exsectionformat=wiki retourne des sections propres
+   */
+  private parseExtractSections(fullText: string): WikipediaSection[] {
     const sections: WikipediaSection[] = [];
-    const lines = wikitext.split("\n");
+    const lines = fullText.split("\n");
 
-    let currentSection: Partial<WikipediaSection> = {};
+    let introContent = "";
+    let currentSection: Partial<WikipediaSection> | null = null;
     let sectionIndex = 0;
+    let foundFirstSection = false;
 
     for (const line of lines) {
-      // Détection des titres de section (== Titre ==)
+      // Détection des titres de section: == Titre == ou === Sous-titre ===
       const sectionMatch = line.match(/^(={2,6})\s*(.*?)\s*\1$/);
 
       if (sectionMatch) {
+        foundFirstSection = true;
+
         // Sauvegarder la section précédente
-        if (currentSection.title && currentSection.content) {
+        if (currentSection?.title && currentSection?.content?.trim()) {
           sections.push({
             ...currentSection,
+            content: currentSection.content.trim(),
             index: sectionIndex++,
           } as WikipediaSection);
         }
@@ -357,34 +366,42 @@ export class WikipediaRAGSystem {
           content: "",
           level: sectionMatch[1].length - 1,
         };
-      } else if (currentSection.title) {
-        // Contenu de la section
-        const cleanLine = this.cleanWikitextLine(line);
-        if (cleanLine.trim()) {
-          currentSection.content += cleanLine + "\n";
+      } else {
+        // Ajouter le contenu
+        if (!foundFirstSection) {
+          introContent += line + "\n";
+        } else if (currentSection) {
+          currentSection.content += line + "\n";
         }
       }
     }
 
     // Ajouter la dernière section
-    if (currentSection.title && currentSection.content) {
+    if (currentSection?.title && currentSection?.content?.trim()) {
       sections.push({
         ...currentSection,
+        content: currentSection.content.trim(),
         index: sectionIndex,
       } as WikipediaSection);
     }
 
-    return sections.filter((section) => section.content.length > 100); // Ignorer sections trop courtes
-  }
+    // 🔥 Ajouter l'introduction comme première section
+    if (introContent.trim().length > 50) {
+      sections.unshift({
+        title: "Introduction",
+        content: introContent.trim(),
+        level: 1,
+        index: 0,
+      });
+      // Re-indexer
+      sections.forEach((s, i) => (s.index = i));
+    }
 
-  private cleanWikitextLine(line: string): string {
-    return line
-      .replace(/\[\[([^|]+\|)?([^\]]+)\]\]/g, "$2") // Liens [[lien|texte]] → texte
-      .replace(/'''([^']+)'''/g, "$1") // Gras
-      .replace(/''([^']+)''/g, "$1") // Italique
-      .replace(/<[^>]+>/g, "") // Tags HTML
-      .replace(/\{\{[^}]+\}\}/g, "") // Templates
-      .trim();
+    // Filtrer sections trop courtes (sauf l'intro)
+    return sections.filter(
+      (section) =>
+        section.content.length > 50 || section.title === "Introduction",
+    );
   }
 
   private async chunkWikipediaContent(
@@ -451,8 +468,9 @@ export class WikipediaRAGSystem {
     sourceId: string,
     chunks: RAGChunkInput[],
   ): Promise<void> {
-    const { mapWithConcurrency, chunkArray } =
-      await import("../../utils/concurrency.js");
+    const { mapWithConcurrency, chunkArray } = await import(
+      "../../utils/concurrency.js"
+    );
     const concurrency = Math.max(
       1,
       parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10),
