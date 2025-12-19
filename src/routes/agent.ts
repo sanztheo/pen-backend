@@ -21,6 +21,11 @@ import {
 import { OpenAIQuotaManager } from "../services/ai/quotaManager.js";
 import { convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
+import {
+  runDeepResearchWorkflow,
+  runDeepContentWorkflow,
+  runQuickContentWorkflow,
+} from "../services/agent/workflows.js";
 
 const router = Router();
 
@@ -345,6 +350,189 @@ router.post(
       res.status(500).json({
         error: "AGENT_ERROR",
         message: error.message || "Erreur lors de l'exécution de l'agent",
+      });
+    }
+  },
+);
+
+/**
+ * POST /api/agent/workflow
+ *
+ * Endpoint pour les workflows avancés (search, create-deep, create-quick).
+ * Utilise le système de workflow avec:
+ * - Recherche parallèle (RAG, Web, Wikipedia, Workspace)
+ * - Boucle d'évaluation et amélioration
+ * - Création de page automatique
+ *
+ * Non-streaming - retourne le résultat complet en JSON.
+ */
+router.post(
+  "/workflow",
+  requireAICredits({
+    dynamicCost: calculateDynamicCost,
+    action: "agent_workflow",
+  }),
+  async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).user?.id;
+
+      if (!userId) {
+        return res.status(401).json({ error: "Utilisateur non authentifié" });
+      }
+
+      const { prompt, mode, workspaceId, ragSources, personalization } =
+        req.body;
+
+      // Validation
+      if (!prompt || !workspaceId) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          message: "prompt et workspaceId sont requis",
+        });
+      }
+
+      const validWorkflowModes = ["search", "create-quick", "create-deep"];
+      if (!validWorkflowModes.includes(mode)) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          message: `Mode invalide pour workflow. Valeurs acceptées: ${validWorkflowModes.join(", ")}`,
+        });
+      }
+
+      console.log(`🚀 [WORKFLOW] Démarrage:`, {
+        userId,
+        workspaceId,
+        mode,
+        promptLength: prompt.length,
+        ragSourcesCount: ragSources?.length || 0,
+      });
+
+      // 🛡️ Vérification quota
+      const estimatedTokens = Math.ceil(prompt.length / 4);
+      const quotaCheck = await OpenAIQuotaManager.checkQuota(
+        "gemini-3-flash",
+        estimatedTokens,
+        estimateOutputTokens(mode),
+        userId,
+      );
+
+      if (!quotaCheck.allowed) {
+        return res.status(429).json({
+          error: "QUOTA_EXCEEDED",
+          message: quotaCheck.reason,
+        });
+      }
+
+      // Exécuter le workflow selon le mode
+      let result: any;
+
+      if (mode === "search") {
+        // Workflow de recherche approfondie (même workflow que create-deep mais sans page auto)
+        const { createPage: shouldCreatePage } = req.body;
+
+        result = await runDeepResearchWorkflow(
+          prompt,
+          {
+            userId,
+            workspaceId,
+            ragSources,
+            personalization,
+          },
+          { createPage: shouldCreatePage === true },
+        );
+
+        // Enregistrer l'usage
+        await OpenAIQuotaManager.recordUsage(
+          "gemini-3-flash",
+          estimatedTokens,
+          Math.ceil(result.content.length / 4),
+          userId,
+        );
+
+        return res.json({
+          success: true,
+          type: "research",
+          title: result.title,
+          content: result.content,
+          summary: result.summary,
+          sources: result.sources,
+          searchCount: result.searches.length,
+          iterations: result.iterations,
+          pageId: result.pageId || null,
+        });
+      }
+
+      if (mode === "create-quick") {
+        // Workflow de création rapide
+        result = await runQuickContentWorkflow(
+          {
+            messages: [],
+            mode: "create-quick",
+            userId,
+            workspaceId,
+            ragSources,
+            personalization,
+          },
+          prompt,
+        );
+
+        await OpenAIQuotaManager.recordUsage(
+          "gemini-3-flash",
+          estimatedTokens,
+          Math.ceil(result.content.length / 4),
+          userId,
+        );
+
+        return res.json({
+          success: true,
+          type: "page",
+          pageId: result.pageId,
+          title: result.title,
+          content: result.content,
+        });
+      }
+
+      if (mode === "create-deep") {
+        // Workflow de création approfondie avec recherche et évaluation
+        result = await runDeepContentWorkflow(
+          {
+            messages: [],
+            mode: "create-deep",
+            userId,
+            workspaceId,
+            ragSources,
+            personalization,
+          },
+          prompt,
+        );
+
+        await OpenAIQuotaManager.recordUsage(
+          "gemini-3-flash",
+          estimatedTokens,
+          Math.ceil(result.content.length / 4),
+          userId,
+        );
+
+        return res.json({
+          success: true,
+          type: "page",
+          pageId: result.pageId,
+          title: result.title,
+          content: result.content,
+          research: {
+            summary: result.research.summary,
+            sources: result.research.sources,
+          },
+          iterations: result.iterations,
+        });
+      }
+
+      return res.status(400).json({ error: "Mode non supporté" });
+    } catch (error: any) {
+      console.error("❌ [WORKFLOW] Erreur:", error);
+      res.status(500).json({
+        error: "WORKFLOW_ERROR",
+        message: error.message || "Erreur lors de l'exécution du workflow",
       });
     }
   },

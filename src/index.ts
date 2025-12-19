@@ -131,12 +131,39 @@ const PORT = backendConfig.port;
 const NODE_ENV = backendConfig.nodeEnv;
 
 app.use(helmet());
+
+// 🛡️ CORS SÉCURISÉ - Configuration restrictive
+const allowedOrigins = CLIENT_URL.split(",").map((url) => url.trim());
 app.use(
   cors({
-    origin: CLIENT_URL.split(",").map((url) => url.trim()),
+    origin: (origin, callback) => {
+      // Autoriser les requêtes sans origin (Postman, curl, mobile apps)
+      // En prod, tu peux mettre false pour bloquer
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      console.warn(`🛡️ [CORS] Origine bloquée: ${origin}`);
+      return callback(new Error("CORS non autorisé"), false);
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+      "Cache-Control",
+    ],
+    exposedHeaders: ["Content-Length", "X-Request-Id"],
+    maxAge: 86400, // Cache preflight 24h
+    optionsSuccessStatus: 204,
   }),
 );
+
 app.use(compression());
 
 // 🏓 Paddle webhook - AVANT rate limit et json parser (body brut requis)
