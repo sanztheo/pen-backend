@@ -31,8 +31,9 @@ import updatesRoutes from "./routes/updates.js";
 import userRoutes from "./routes/user.js";
 import dailyArticleRoutes from "./routes/dailyArticle.js";
 import uploadRoutes from "./routes/upload.js";
-import { clerkWebhookHandler } from "./routes/webhooks.js";
+import { paddleWebhookHandler } from "./routes/paddleWebhooks.js";
 import jobsRoutes from "./routes/jobs.js";
+import agentRoutes from "./routes/agent.js";
 
 import { startCronJobs } from "./jobs/cronJobs.js";
 import { AuthService } from "./services/auth.js";
@@ -73,6 +74,56 @@ import {
 dotenv.config();
 // Logger.init(); // ❌ DÉSACTIVÉ - maintenant console.log s'affiche dans le terminal
 
+/**
+ * 🏓 Test automatique de la route webhook Paddle au démarrage
+ */
+async function testPaddleWebhookRoute(): Promise<void> {
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  console.log("🏓 TEST WEBHOOK PADDLE");
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+  try {
+    const response = await fetch(
+      `http://localhost:${PORT}/api/webhooks/paddle`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Paddle-Signature": "test-signature",
+        },
+        body: JSON.stringify({ test: true }),
+      },
+    );
+
+    if (response.status === 400) {
+      // 400 = route accessible, signature invalide (attendu)
+      console.log("✅ Route webhook Paddle: ACCESSIBLE");
+      console.log("   URL: /api/webhooks/paddle");
+      console.log("   Status: Prêt à recevoir les webhooks Paddle");
+    } else if (response.status === 500) {
+      console.log(
+        "⚠️  Route webhook: ACCESSIBLE mais PADDLE_WEBHOOK_SECRET manquant",
+      );
+    } else {
+      console.log(`⚠️  Route webhook: Status inattendu (${response.status})`);
+    }
+  } catch (error: any) {
+    console.log("❌ Route webhook Paddle: INACCESSIBLE");
+    console.log(`   Erreur: ${error.message}`);
+  }
+
+  // Vérifier la config
+  const hasSecret = !!process.env.PADDLE_WEBHOOK_SECRET;
+  const hasApiKey = !!process.env.PADDLE_API_KEY;
+  console.log(
+    `   PADDLE_API_KEY: ${hasApiKey ? "✅ Configuré" : "❌ Manquant"}`,
+  );
+  console.log(
+    `   PADDLE_WEBHOOK_SECRET: ${hasSecret ? "✅ Configuré" : "❌ Manquant"}`,
+  );
+  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+}
+
 const app = express();
 const server = http.createServer(app);
 
@@ -80,23 +131,55 @@ const PORT = backendConfig.port;
 const NODE_ENV = backendConfig.nodeEnv;
 
 app.use(helmet());
+
+// 🛡️ CORS SÉCURISÉ - Configuration restrictive
+const allowedOrigins = CLIENT_URL.split(",").map((url) => url.trim());
 app.use(
   cors({
-    origin: CLIENT_URL.split(",").map((url) => url.trim()),
+    origin: (origin, callback) => {
+      // Autoriser les requêtes sans origin (Postman, curl, mobile apps)
+      // En prod, tu peux mettre false pour bloquer
+      if (!origin) {
+        return callback(null, true);
+      }
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      console.warn(`🛡️ [CORS] Origine bloquée: ${origin}`);
+      return callback(new Error("CORS non autorisé"), false);
+    },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+      "Cache-Control",
+    ],
+    exposedHeaders: ["Content-Length", "X-Request-Id"],
+    maxAge: 86400, // Cache preflight 24h
+    optionsSuccessStatus: 204,
   }),
 );
+
 app.use(compression());
 
-// 🛡️ RATE LIMITING GLOBAL - Appliqué à TOUS les endpoints
+// 🏓 Paddle webhook - AVANT rate limit et json parser (body brut requis)
+app.post(
+  "/api/webhooks/paddle",
+  express.raw({ type: "application/json" }),
+  (req, res, next) => {
+    console.log("🏓 [WEBHOOK] Route /api/webhooks/paddle touchée");
+    next();
+  },
+  paddleWebhookHandler,
+);
+
+// 🛡️ RATE LIMITING GLOBAL - Appliqué à TOUS les endpoints (après webhooks)
 app.use(globalRateLimit);
 
-// Clerk webhook avant json pour body brut (skip rate limit via config)
-app.post(
-  "/api/webhooks/clerk",
-  express.raw({ type: "application/json" }),
-  clerkWebhookHandler,
-);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -136,6 +219,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/daily-article", dailyArticleRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/jobs", jobsRoutes); // 🎯 Récupération résultats jobs BullMQ
+app.use("/api/agent", aiRateLimit, agentRoutes); // 🤖 Nouvel agent Pennote (Vercel AI SDK v5)
 
 app.use("*", (req, res) =>
   res.status(404).json({ error: "Route non trouvée" }),
@@ -647,6 +731,9 @@ server.listen(PORT, async () => {
 
       // 📊 Démarrer le monitoring système (toutes les 5 minutes)
       startMonitoring(5);
+
+      // 🏓 Test automatique du webhook Paddle
+      await testPaddleWebhookRoute();
     } else {
       console.error("⚠️ Tâches automatiques désactivées - BDD inaccessible");
     }

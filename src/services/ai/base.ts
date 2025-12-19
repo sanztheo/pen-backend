@@ -241,13 +241,14 @@ export class AIService {
 
   /**
    * Autocomplétion intelligente
+   * @deprecated AutocompleteService a été supprimé
    */
   static async autocomplete(
-    content: string,
-    cursorPosition: number,
-    blockType?: string,
-    maxSuggestions: number = 3,
-    signal?: AbortSignal,
+    _content: string,
+    _cursorPosition: number,
+    _blockType?: string,
+    _maxSuggestions: number = 3,
+    _signal?: AbortSignal,
   ): Promise<{
     suggestions: string[];
     context: {
@@ -256,35 +257,37 @@ export class AIService {
       detectedIntent: string;
     };
   }> {
-    const { AutocompleteService } = await import("./autocomplete.js");
-    return AutocompleteService.autocomplete(
-      content,
-      cursorPosition,
-      blockType,
-      maxSuggestions,
-      signal,
-    );
+    console.warn("[DEPRECATED] AutocompleteService a été supprimé");
+    return {
+      suggestions: [],
+      context: {
+        beforeCursor: "",
+        afterCursor: "",
+        detectedIntent: "unknown",
+      },
+    };
   }
 
   /**
    * Autocomplétion avec streaming
+   * @deprecated AutocompleteService a été supprimé
    */
   static async autocompleteStream(
-    content: string,
-    cursorPosition: number,
-    blockType?: string,
-    maxSuggestions: number = 3,
-    onStreamChunk?: (result: any) => void,
-    signal?: AbortSignal,
+    _content: string,
+    _cursorPosition: number,
+    _blockType?: string,
+    _maxSuggestions: number = 3,
+    _onStreamChunk?: (result: any) => void,
+    _signal?: AbortSignal,
   ): Promise<any> {
-    const { AutocompleteService } = await import("./autocomplete.js");
-    return AutocompleteService.autocompleteStream(
-      content,
-      cursorPosition,
-      blockType,
-      maxSuggestions,
-      onStreamChunk,
-      signal,
-    );
+    console.warn("[DEPRECATED] AutocompleteService a été supprimé");
+    return {
+      suggestions: [],
+      context: {
+        beforeCursor: "",
+        afterCursor: "",
+        detectedIntent: "unknown",
+      },
+    };
   }
 }

@@ -35,7 +35,8 @@ export { getSubjectDisplayName as getBrevetSubjectDisplayName } from './brevet/i
 export { getSubjectDisplayName as getBacSubjectDisplayName } from './bac/index.js';
 
 // Types et enums spécifiques aux presets
-export { QuizPreset, ExamSubject, SequentialQuizConfig, SubjectResult } from '../types.js';
+export { QuizPreset, ExamSubject } from '../types.js';
+export type { SequentialQuizConfig, SubjectResult } from '../types.js';
 
 // Fonction utilitaire pour obtenir la liste de tous les presets disponibles
 export function getAvailablePresets(): { value: QuizPreset; label: string; description: string }[] {

@@ -15,38 +15,43 @@ export interface BackendConfig {
  * Détecte automatiquement l'environnement et configure les URLs appropriées
  */
 function createBackendConfig(): BackendConfig {
-  const nodeEnv = process.env.NODE_ENV || 'development';
-  const port = parseInt(process.env.PORT || '3001', 10);
-  
+  const nodeEnv = process.env.NODE_ENV || "development";
+  const port = parseInt(process.env.PORT || "3001", 10);
+
   // Détection automatique de l'environnement
-  const isDevelopment = nodeEnv === 'development' ||
-                       process.env.NODE_ENV === 'dev';
-  
-  const isProduction = nodeEnv === 'production' && !isDevelopment;
-  
+  const isDevelopment =
+    nodeEnv === "development" || process.env.NODE_ENV === "dev";
+
+  const isProduction = nodeEnv === "production" && !isDevelopment;
+
   // Configuration des URLs clients autorisées
   let clientUrl: string;
 
   // Priorité à la variable d'environnement CLIENT_URL si définie
   if (process.env.CLIENT_URL) {
     clientUrl = process.env.CLIENT_URL;
-    console.log(`🔧 [BACKEND-CONFIG] CLIENT_URL détecté depuis env - Port: ${port}`);
+    console.log(
+      `🔧 [BACKEND-CONFIG] CLIENT_URL détecté depuis env - Port: ${port}`,
+    );
   } else if (isDevelopment) {
-    // Environnement de développement - autoriser localhost
-    clientUrl = 'http://localhost:5173,http://localhost:3000,http://localhost:4173,https://pen-frontend-ashy.vercel.app';
-    console.log(`🔧 [BACKEND-CONFIG] Mode développement détecté - Port: ${port}`);
+    // Environnement de développement - UNIQUEMENT localhost (pas d'URLs prod)
+    clientUrl =
+      "http://localhost:5173,http://localhost:3000,http://localhost:4173";
+    console.log(
+      `🔧 [BACKEND-CONFIG] Mode développement détecté - Port: ${port}`,
+    );
   } else {
-    // Environnement de production - domaines de prod autorisés
-    clientUrl = 'https://pen-frontend-ashy.vercel.app,https://app.pennote.fr';
+    // Environnement de production - domaines de prod autorisés uniquement
+    clientUrl = "https://pen-frontend-ashy.vercel.app,https://app.pennote.fr";
     console.log(`🚀 [BACKEND-CONFIG] Mode production détecté - Port: ${port}`);
   }
-  
+
   return {
     port,
     nodeEnv,
     clientUrl,
     isDevelopment,
-    isProduction
+    isProduction,
   };
 }
 
