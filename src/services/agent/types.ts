@@ -10,32 +10,32 @@ import type { ModelMessage } from "ai";
 
 /**
  * Configuration de l'agent par mode avec Gemini 3 thinkingLevel
- * Options: "minimal" | "low" | "medium" | "high" (défaut: high)
+ * Options: "minimal" | "low" | "medium" | "high"
  */
 export const MODE_CONFIG = {
   ask: {
     maxSteps: 10,
     maxTokens: 4096,
     description: "Questions simples avec RAG",
-    thinkingConfig: { thinkingLevel: "minimal" as const },
+    thinkingConfig: { thinkingLevel: "minimal", includeThoughts: true },
   },
   search: {
     maxSteps: 25,
     maxTokens: 8192,
     description: "Recherche approfondie avec web",
-    thinkingConfig: { thinkingLevel: "high" as const },
+    thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
   },
   "create-quick": {
     maxSteps: 10,
     maxTokens: 8192,
     description: "Génération rapide de contenu",
-    thinkingConfig: { thinkingLevel: "low" as const },
+    thinkingConfig: { thinkingLevel: "low", includeThoughts: true },
   },
   "create-deep": {
     maxSteps: 30,
     maxTokens: 16384,
     description: "Génération complète avec recherche",
-    thinkingConfig: { thinkingLevel: "high" as const },
+    thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
   },
 } as const;
 

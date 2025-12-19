@@ -1,7 +1,13 @@
 // 🤖 Pennote Agent - Vercel AI SDK v5
 import { streamText, stepCountIs } from "ai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createRagTools } from "./tools/ragTools.js";
+
+// Créer le provider Google avec la clé API explicite
+const google = createGoogleGenerativeAI({
+  apiKey:
+    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+});
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createWebTools } from "./tools/webTools.js";
 import { createPageTools } from "./tools/pageTools.js";
@@ -73,7 +79,7 @@ export async function runPennoteAgent(
 
   // Modèle Gemini avec thinkingConfig selon le mode
   const { thinkingConfig } = MODE_CONFIG[mode];
-  const modelName = "gemini-3-flash";
+  const modelName = "gemini-3-flash-preview";
 
   console.log(
     `🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`,
@@ -103,14 +109,55 @@ export async function runPennoteAgent(
       google: { thinkingConfig },
     },
 
+    // Callback global à la fin du stream
+    onFinish: ({ text, finishReason, usage, reasoning, sources }) => {
+      console.log(`🏁 [PennoteAgent] Stream terminé:`, {
+        finishReason,
+        hasText: !!text,
+        textLength: text?.length || 0,
+        textPreview: text?.slice(0, 200) || "(vide)",
+        hasReasoning: !!reasoning,
+        reasoningLength: reasoning?.length || 0,
+        sourcesCount: sources?.length || 0,
+        tokens: usage?.totalTokens,
+      });
+    },
+
     // Callback à chaque étape terminée
-    onStepFinish: ({ text, toolCalls, toolResults, finishReason, usage }) => {
+    onStepFinish: ({
+      text,
+      toolCalls,
+      toolResults,
+      finishReason,
+      usage,
+      reasoning,
+    }) => {
       stepNumber++;
+
+      // Debug: afficher le format exact du reasoning
+      let reasoningDebug = "(vide)";
+      if (reasoning) {
+        if (Array.isArray(reasoning)) {
+          reasoningDebug = `[Array(${reasoning.length})] ${JSON.stringify(reasoning).slice(0, 200)}`;
+        } else if (typeof reasoning === "string") {
+          reasoningDebug = (reasoning as string).slice(0, 100);
+        } else {
+          reasoningDebug = JSON.stringify(reasoning).slice(0, 100);
+        }
+      }
 
       console.log(`📍 [PennoteAgent] Step ${stepNumber} terminé:`, {
         finishReason,
         toolCalls: toolCalls.length,
         hasText: !!text,
+        textLength: text?.length || 0,
+        textPreview: text?.slice(0, 200) || "(vide)",
+        reasoningType: reasoning
+          ? Array.isArray(reasoning)
+            ? "array"
+            : typeof reasoning
+          : "undefined",
+        reasoningDebug,
         tokens: usage?.totalTokens,
       });
 

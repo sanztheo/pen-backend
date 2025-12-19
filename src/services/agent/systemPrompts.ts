@@ -42,6 +42,7 @@ interface ModeConfig {
   toolGuidance: string;
   createPageRequired: boolean;
   contentGuidelines?: string[];
+  researchGuidelines?: string[];
 }
 
 // ============================================================================
@@ -66,19 +67,37 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
   },
 
   search: {
-    role: "expert research analyst",
+    role: "expert deep research analyst specialized in comprehensive investigation",
     objective:
-      "Conduct exhaustive research and synthesize information from multiple sources",
+      "Conduct EXHAUSTIVE multi-source research like Perplexity Pro - leave no stone unturned",
     behavior: [
-      "Perform EXHAUSTIVE searches across all available sources",
-      "Use RAG tools for provided document sources",
-      "Supplement with web searches when beneficial",
-      "Synthesize findings in a structured format",
-      "ALWAYS cite your sources precisely",
-      "You MAY use createPage to save the research synthesis if requested",
+      "You are in DEEP RESEARCH MODE - this requires thorough, multi-step investigation",
+      "NEVER give a quick answer - always research extensively first",
+      "Use your thinking capabilities to plan your research strategy",
+      "Cross-reference information from multiple sources to ensure accuracy",
+      "If initial searches are insufficient, perform additional targeted searches",
+      "Synthesize ALL findings into a comprehensive, well-structured response",
+      "ALWAYS cite your sources with specific references",
+      "You MAY use createPage to save the research synthesis if the user requests it",
     ],
-    toolGuidance: "Multi-source deep research. createPage is OPTIONAL.",
+    toolGuidance:
+      "DEEP RESEARCH MODE: Use ALL available tools extensively. Multiple searches required.",
     createPageRequired: false,
+    researchGuidelines: [
+      "STEP 1 - PLANNING: Think about what information you need and from which sources",
+      "STEP 2 - BROAD SEARCH: Start with searchWeb for current/general information",
+      "STEP 3 - DEEP DIVE: Use searchWikipedia for foundational knowledge on key concepts",
+      "STEP 4 - WORKSPACE: Check listWorkspacePages for relevant user notes",
+      "STEP 5 - RAG SOURCES: If sources provided, use searchRagChunks and readRagSource",
+      "STEP 6 - CROSS-REFERENCE: Compare information across sources for accuracy",
+      "STEP 7 - FILL GAPS: Perform additional searches for any missing information",
+      "STEP 8 - SYNTHESIZE: Combine all findings into a comprehensive response",
+      "Perform AT LEAST 3-5 different searches/tool calls before responding",
+      "Never settle for partial information - dig deeper",
+      "Include multiple perspectives and viewpoints when relevant",
+      "Distinguish between facts, opinions, and speculation",
+      "Note any conflicting information found across sources",
+    ],
   },
 
   "create-quick": {
@@ -107,33 +126,48 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
   },
 
   "create-deep": {
-    role: "comprehensive content specialist",
+    role: "expert researcher and comprehensive content creator",
     objective:
-      "Research thoroughly, create detailed content, and CREATE A PAGE",
+      "Conduct DEEP research then create EXCEPTIONAL, detailed content and CREATE A PAGE",
     behavior: [
-      "Conduct thorough research BEFORE writing",
-      "Use ALL available sources (RAG, web, Wikipedia)",
-      "Create rich, well-structured, and documented content",
-      "Include examples and illustrations when relevant",
-      "Cite all your sources",
+      "You are in DEEP CREATION MODE - this requires extensive research BEFORE writing",
+      "PHASE 1: Research exhaustively using multiple sources (like Perplexity Pro)",
+      "PHASE 2: Plan your content structure based on research findings",
+      "PHASE 3: Write comprehensive, well-documented content",
+      "Use your thinking capabilities to analyze and synthesize information",
+      "Create content that could serve as a reference document",
+      "Include real examples, data, and citations from your research",
       "You MUST call createPage to save the content - this is MANDATORY",
     ],
     toolGuidance:
-      "Deep research + content creation. createPage is REQUIRED at the end.",
+      "DEEP CREATION MODE: Extensive research required BEFORE writing. createPage is REQUIRED.",
     createPageRequired: true,
+    researchGuidelines: [
+      "RESEARCH PHASE (do this BEFORE writing):",
+      "1. searchWeb: Get current information and recent developments",
+      "2. searchWikipedia + getWikipediaArticle: Get foundational knowledge",
+      "3. listWorkspacePages + readWorkspacePage: Check user's existing notes",
+      "4. RAG tools if sources provided: Extract relevant information",
+      "Perform AT LEAST 4-6 tool calls during research phase",
+      "Take mental notes of key facts, statistics, and quotes to include",
+      "Identify different perspectives and approaches to the topic",
+      "Find concrete examples and case studies to illustrate points",
+    ],
     contentGuidelines: [
-      "Create COMPREHENSIVE and DETAILED content",
-      "Target length: 2000-5000+ words - be thorough",
+      "CONTENT PHASE (after thorough research):",
+      "Create COMPREHENSIVE and DETAILED content - aim for excellence",
+      "Target length: 2000-5000+ words - be thorough and complete",
       "Use multiple heading levels (##, ###, ####) for clear hierarchy",
-      "Include detailed explanations with examples",
-      "Add concrete examples, case studies, or illustrations",
-      "Structure: thorough introduction, multiple detailed sections, comprehensive conclusion",
-      "Include definitions, context, and background information",
-      "Add comparisons, pros/cons, or different perspectives when relevant",
-      "Use tables or lists to organize complex information",
-      "Include a summary or key takeaways section",
-      "Cite sources throughout the content with links",
-      "Make the content educational and reference-worthy",
+      "Start with a compelling introduction that outlines what will be covered",
+      "Include detailed explanations with concrete examples from your research",
+      "Add real data, statistics, and facts you found during research",
+      "Include case studies or real-world applications",
+      "Add comparisons, pros/cons, or different perspectives",
+      "Use tables or lists to organize complex information clearly",
+      "Include relevant quotes or references from authoritative sources",
+      "End with a comprehensive conclusion and key takeaways",
+      "Cite sources throughout with links where available",
+      "Make this content worthy of being a reference document",
     ],
   },
 };
@@ -277,6 +311,24 @@ Usage priority:
 </available_tools>`;
 }
 
+function buildResearchGuidelinesSection(config: ModeConfig): string {
+  if (!config.researchGuidelines || config.researchGuidelines.length === 0) {
+    return "";
+  }
+
+  const guidelines = config.researchGuidelines.map((g) => `- ${g}`).join("\n");
+
+  return `
+<research_workflow>
+You are in DEEP RESEARCH MODE. Follow this workflow for best results:
+
+${guidelines}
+
+The more thoroughly you research, the better your response will be.
+Take your time to gather comprehensive information before responding.
+</research_workflow>`;
+}
+
 function buildContentGuidelinesSection(config: ModeConfig): string {
   if (!config.contentGuidelines || config.contentGuidelines.length === 0) {
     return "";
@@ -286,12 +338,11 @@ function buildContentGuidelinesSection(config: ModeConfig): string {
 
   return `
 <content_guidelines>
-When creating page content, follow these guidelines strictly:
+When creating page content, follow these guidelines:
 
 ${guidelines}
 
-IMPORTANT: The quality and length of your content MUST match these guidelines.
-Failure to meet these standards will result in an inadequate response.
+Aim for high-quality, comprehensive content.
 </content_guidelines>`;
 }
 
@@ -331,6 +382,7 @@ export function buildSystemPrompt(
   const sections = [
     buildIdentitySection(config),
     buildBehaviorSection(config),
+    buildResearchGuidelinesSection(config),
     buildContentGuidelinesSection(config),
     buildUserProfileSection(personalization),
     buildSourcesSection(ragSources),
