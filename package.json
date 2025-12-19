@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_OPTIONS='--max-old-space-size=2048' tsx watch src/index.ts",
-    "build": "prisma generate && prisma generate --schema=prisma/schema-embeddings.prisma && tsc",
+    "build": "prisma generate && prisma generate --schema=prisma/schema-embeddings.prisma && tsc -p tsconfig.build.json",
     "start": "NODE_OPTIONS='--max-old-space-size=2048' node dist/index.js",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
