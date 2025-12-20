@@ -1,84 +1,84 @@
 // Types pour le système de quiz basés sur le schéma Prisma
 
 export enum SchoolLevel {
-  COLLEGE = 'COLLEGE',
-  LYCEE_SECONDE = 'LYCEE_SECONDE',
-  LYCEE_PREMIERE = 'LYCEE_PREMIERE',
-  LYCEE_TERMINALE = 'LYCEE_TERMINALE',
-  ETUDES_SUPERIEURES = 'ETUDES_SUPERIEURES'
+  COLLEGE = "COLLEGE",
+  LYCEE_SECONDE = "LYCEE_SECONDE",
+  LYCEE_PREMIERE = "LYCEE_PREMIERE",
+  LYCEE_TERMINALE = "LYCEE_TERMINALE",
+  ETUDES_SUPERIEURES = "ETUDES_SUPERIEURES",
 }
 
 export enum CollegeGrade {
-  SIXIEME = 'SIXIEME',
-  CINQUIEME = 'CINQUIEME',
-  QUATRIEME = 'QUATRIEME',
-  TROISIEME = 'TROISIEME'
+  SIXIEME = "SIXIEME",
+  CINQUIEME = "CINQUIEME",
+  QUATRIEME = "QUATRIEME",
+  TROISIEME = "TROISIEME",
 }
 
 export enum LyceeSpecialty {
-  MATHEMATIQUES = 'MATHEMATIQUES',
-  PHYSIQUE_CHIMIE = 'PHYSIQUE_CHIMIE',
-  SVT = 'SVT',
-  HISTOIRE_GEO = 'HISTOIRE_GEO',
-  SES = 'SES',
-  LANGUES_LITTERATURE = 'LANGUES_LITTERATURE',
-  LLCER_ANGLAIS = 'LLCER_ANGLAIS',
-  LLCER_ESPAGNOL = 'LLCER_ESPAGNOL',
-  LLCER_ALLEMAND = 'LLCER_ALLEMAND',
-  LLCER_ITALIEN = 'LLCER_ITALIEN',
-  ARTS_PLASTIQUES = 'ARTS_PLASTIQUES',
-  MUSIQUE = 'MUSIQUE',
-  THEATRE = 'THEATRE',
-  CINEMA_AUDIOVISUEL = 'CINEMA_AUDIOVISUEL',
-  DANSE = 'DANSE',
-  HISTOIRE_DES_ARTS = 'HISTOIRE_DES_ARTS',
-  NSI = 'NSI',
-  SI = 'SI',
-  SCIENCES_INGENIEUR = 'SCIENCES_INGENIEUR',
-  BIOLOGIE_ECOLOGIE = 'BIOLOGIE_ECOLOGIE',
-  SPORT = 'SPORT'
+  MATHEMATIQUES = "MATHEMATIQUES",
+  PHYSIQUE_CHIMIE = "PHYSIQUE_CHIMIE",
+  SVT = "SVT",
+  HISTOIRE_GEO = "HISTOIRE_GEO",
+  SES = "SES",
+  LANGUES_LITTERATURE = "LANGUES_LITTERATURE",
+  LLCER_ANGLAIS = "LLCER_ANGLAIS",
+  LLCER_ESPAGNOL = "LLCER_ESPAGNOL",
+  LLCER_ALLEMAND = "LLCER_ALLEMAND",
+  LLCER_ITALIEN = "LLCER_ITALIEN",
+  ARTS_PLASTIQUES = "ARTS_PLASTIQUES",
+  MUSIQUE = "MUSIQUE",
+  THEATRE = "THEATRE",
+  CINEMA_AUDIOVISUEL = "CINEMA_AUDIOVISUEL",
+  DANSE = "DANSE",
+  HISTOIRE_DES_ARTS = "HISTOIRE_DES_ARTS",
+  NSI = "NSI",
+  SI = "SI",
+  SCIENCES_INGENIEUR = "SCIENCES_INGENIEUR",
+  BIOLOGIE_ECOLOGIE = "BIOLOGIE_ECOLOGIE",
+  SPORT = "SPORT",
 }
 
 export enum QuestionType {
-  OPEN_QUESTION = 'OPEN_QUESTION',
-  MULTIPLE_CHOICE = 'MULTIPLE_CHOICE',
-  TRUE_FALSE = 'TRUE_FALSE',
-  MATCHING = 'MATCHING'
+  OPEN_QUESTION = "OPEN_QUESTION",
+  MULTIPLE_CHOICE = "MULTIPLE_CHOICE",
+  TRUE_FALSE = "TRUE_FALSE",
+  MATCHING = "MATCHING",
 }
 
 // Nouveaux presets pour examens officiels
 export enum QuizPreset {
-  NONE = 'NONE',
-  BREVET = 'BREVET',
-  BAC = 'BAC',
-  PARTIELS = 'PARTIELS'
+  NONE = "NONE",
+  BREVET = "BREVET",
+  BAC = "BAC",
+  PARTIELS = "PARTIELS",
 }
 
 // Matières officielles pour les examens
 export enum ExamSubject {
   // Brevet
-  FRANCAIS = 'FRANCAIS',
-  MATHEMATIQUES = 'MATHEMATIQUES',
-  HISTOIRE_GEOGRAPHIE_EMC = 'HISTOIRE_GEOGRAPHIE_EMC',
-  SCIENCES = 'SCIENCES',
-  ORAL_BREVET = 'ORAL_BREVET',
-  
+  FRANCAIS = "FRANCAIS",
+  MATHEMATIQUES = "MATHEMATIQUES",
+  HISTOIRE_GEOGRAPHIE_EMC = "HISTOIRE_GEOGRAPHIE_EMC",
+  SCIENCES = "SCIENCES",
+  ORAL_BREVET = "ORAL_BREVET",
+
   // Bac général - Tronc commun
-  PHILOSOPHIE = 'PHILOSOPHIE',
-  
+  PHILOSOPHIE = "PHILOSOPHIE",
+
   // Bac général - Spécialités (reprendre certaines LyceeSpecialty)
-  HGGSP = 'HGGSP',
-  HLP = 'HLP',
-  LLCER = 'LLCER',
-  NSI_SPECIALITE = 'NSI_SPECIALITE',
-  SI_SPECIALITE = 'SI_SPECIALITE',
-  SES_SPECIALITE = 'SES_SPECIALITE',
-  SVT_SPECIALITE = 'SVT_SPECIALITE',
-  PHYSIQUE_CHIMIE_SPECIALITE = 'PHYSIQUE_CHIMIE_SPECIALITE',
-  MATHEMATIQUES_SPECIALITE = 'MATHEMATIQUES_SPECIALITE',
-  
+  HGGSP = "HGGSP",
+  HLP = "HLP",
+  LLCER = "LLCER",
+  NSI_SPECIALITE = "NSI_SPECIALITE",
+  SI_SPECIALITE = "SI_SPECIALITE",
+  SES_SPECIALITE = "SES_SPECIALITE",
+  SVT_SPECIALITE = "SVT_SPECIALITE",
+  PHYSIQUE_CHIMIE_SPECIALITE = "PHYSIQUE_CHIMIE_SPECIALITE",
+  MATHEMATIQUES_SPECIALITE = "MATHEMATIQUES_SPECIALITE",
+
   // Grand Oral
-  GRAND_ORAL = 'GRAND_ORAL'
+  GRAND_ORAL = "GRAND_ORAL",
 }
 
 // Configuration d'un quiz séquentiel
@@ -114,18 +114,20 @@ export interface SubjectResult {
   isGenerating?: boolean; // Quiz suivant en cours de génération
   isCorrecting?: boolean; // Correction en cours
   subjectName?: string; // Nom personnalisé de la matière (pour Partiels et autres presets personnalisés)
-  documentConfig?: { // NOUVEAU : Configuration documentaire dynamique par matière
+  documentConfig?: {
+    // NOUVEAU : Configuration documentaire dynamique par matière
     enableDocuments: boolean;
     documentTopics: string[];
     documentRatio: number;
     minDocumentLength: number;
     maxDocuments: number;
   };
-  graphicConfig?: { // NOUVEAU : Configuration graphique dynamique par matière
+  graphicConfig?: {
+    // NOUVEAU : Configuration graphique dynamique par matière
     enableGraphics: boolean;
     graphicProbability: number; // 0-1
-    preferredLibraries: ('apexcharts' | 'plotly')[];
-    graphicTypes: ('2d' | '3d')[];
+    preferredLibraries: ("apexcharts" | "plotly")[];
+    graphicTypes: ("2d" | "3d")[];
   };
 }
 
@@ -147,7 +149,8 @@ export interface QuizGenerationRequest {
   lyceeSpecialties?: LyceeSpecialty[];
   specialties?: LyceeSpecialty[]; // ✅ ADDED: For backward compatibility
   selectedSpecialties?: LyceeSpecialty[]; // ✅ ADDED: For BAC preset support
-  higherEdField?: string;
+  higherEdLevel?: string; // ✅ Niveau d'études sup: L1, L2, L3, M1, M2, Doctorat, BTS, DUT, Prépa
+  higherEdField?: string; // Filière: Informatique, Médecine, Droit...
   targetGrade?: number;
   workspaceIds?: string[];
   questionTypes: QuestionType[];
@@ -159,25 +162,27 @@ export interface QuizGenerationRequest {
   specificSubject?: ExamSubject; // Pour générer un quiz spécifique dans une séquence
   coursesOnly?: boolean; // Si true, utilise uniquement le contenu des cours, sinon mélange cours + connaissances IA
   ragContext?: string; // ✅ ADDED: Contexte RAG construit par le frontend depuis les pages/projets sélectionnés
-  documentConfig?: { // NOUVEAU : Configuration documentaire dynamique par matière
+  documentConfig?: {
+    // NOUVEAU : Configuration documentaire dynamique par matière
     enableDocuments: boolean;
     documentTopics: string[];
     documentRatio: number;
     minDocumentLength: number;
     maxDocuments: number;
   };
-   graphicConfig?: { // NOUVEAU : Configuration graphique dynamique par matière
+  graphicConfig?: {
+    // NOUVEAU : Configuration graphique dynamique par matière
     enableGraphics: boolean;
     graphicProbability: number; // 0-1
-    preferredLibraries: ('apexcharts' | 'plotly')[];
-    graphicTypes: ('2d' | '3d')[];
+    preferredLibraries: ("apexcharts" | "plotly")[];
+    graphicTypes: ("2d" | "3d")[];
   };
 }
 
 // Types pour les documents d'étude (Histoire, Littérature, etc.)
 export interface SubjectDocument {
   id: string;
-  type: 'text' | 'image' | 'pdf' | 'audio';
+  type: "text" | "image" | "pdf" | "audio";
   title: string;
   content: string; // Texte du document
   source?: string; // Source historique/littéraire
@@ -195,7 +200,7 @@ export interface QuizSubject {
   questions: Question[]; // Questions liées au thème (5-15 questions)
   documents?: SubjectDocument[]; // Documents d'étude pour Histoire, Littérature
   timeLimit?: number; // Temps pour tout le sujet en minutes
-  difficulty: 'facile' | 'moyen' | 'difficile';
+  difficulty: "facile" | "moyen" | "difficile";
   category?: string; // Catégorie thématique
   instructions?: string; // Instructions spécifiques pour le sujet
 }
@@ -205,7 +210,7 @@ export interface BaseQuestion {
   id: string;
   type: QuestionType;
   question: string;
-  difficulty: 'facile' | 'moyen' | 'difficile';
+  difficulty: "facile" | "moyen" | "difficile";
   points: number;
   category?: string;
   timeEstimate?: number; // en secondes
@@ -217,7 +222,7 @@ export interface BaseQuestion {
   documentReference?: string; // Référence au document Wikipedia utilisé
   hasGraphic?: boolean; // Indique si la question contient un graphique IA
   graphicId?: string; // ID du graphique associé
-  graphicLibrary?: 'apexcharts' | 'plotly'; // Bibliothèque utilisée pour le graphique
+  graphicLibrary?: "apexcharts" | "plotly"; // Bibliothèque utilisée pour le graphique
   graphicType?: string; // Type de graphique (line, bar, scatter, etc.)
   graphicDescription?: string; // Description du graphique pour accessibilité
   graphicConfig?: any; // Configuration JSON du graphique
@@ -269,7 +274,11 @@ export interface MatchingQuestion extends BaseQuestion {
 }
 
 // Union type pour toutes les questions
-export type Question = OpenQuestion | MultipleChoiceQuestion | TrueFalseQuestion | MatchingQuestion;
+export type Question =
+  | OpenQuestion
+  | MultipleChoiceQuestion
+  | TrueFalseQuestion
+  | MatchingQuestion;
 
 // Structure d'un quiz généré
 export interface GeneratedQuiz {
@@ -358,9 +367,9 @@ export interface QuizCorrectionResult {
       timeDistribution: any;
     };
     difficultyAnalysis?: {
-      easyQuestions: { correct: number; total: number; };
-      mediumQuestions: { correct: number; total: number; };
-      hardQuestions: { correct: number; total: number; };
+      easyQuestions: { correct: number; total: number };
+      mediumQuestions: { correct: number; total: number };
+      hardQuestions: { correct: number; total: number };
     };
   };
   metadata: {
@@ -414,7 +423,7 @@ export interface WorkspaceAnalysisResult {
   contentSummary: {
     totalWords: number;
     mainTopics: string[];
-    complexity: 'basique' | 'intermédiaire' | 'avancé';
+    complexity: "basique" | "intermédiaire" | "avancé";
     suggestedQuestionCount: number;
   };
   extractedContent: {
@@ -429,7 +438,7 @@ export interface WorkspaceAnalysisResult {
 export interface PromptTemplate {
   id: string;
   name: string;
-  type: 'generation' | 'correction' | 'analysis';
+  type: "generation" | "correction" | "analysis";
   schoolLevel?: SchoolLevel;
   questionType?: QuestionType;
   template: string;
@@ -448,17 +457,17 @@ export interface UserProgressStats {
     [subject: string]: {
       averageScore: number;
       quizCount: number;
-      trend: 'improving' | 'stable' | 'declining';
+      trend: "improving" | "stable" | "declining";
     };
   };
   difficultyPerformance: {
-    facile: { averageScore: number; count: number; };
-    moyen: { averageScore: number; count: number; };
-    difficile: { averageScore: number; count: number; };
+    facile: { averageScore: number; count: number };
+    moyen: { averageScore: number; count: number };
+    difficile: { averageScore: number; count: number };
   };
   timeAnalytics: {
     averageQuizTime: number;
     averageTimePerQuestion: number;
     efficiency: number; // score/temps
   };
-} 
+}

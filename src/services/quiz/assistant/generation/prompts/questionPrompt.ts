@@ -119,7 +119,25 @@ Ne JAMAIS varier les points selon la difficulte.
 <target_specialty>${formatSpecialtyLabel(String(focusSpecialty)) || String(focusSpecialty).replace(/_/g, " ")}</target_specialty>`;
   }
 
-  // Ajouter la filière études supérieures
+  // Ajouter le niveau et la filière études supérieures
+  const higherEdLevel = request.higherEdLevel;
+  if (higherEdLevel) {
+    const levelLabels: Record<string, string> = {
+      L1: "Licence 1ère année",
+      L2: "Licence 2ème année",
+      L3: "Licence 3ème année",
+      M1: "Master 1ère année",
+      M2: "Master 2ème année",
+      Doctorat: "Doctorat",
+      BTS: "BTS",
+      DUT: "DUT/BUT",
+      Prépa: "Classes préparatoires",
+    };
+    const levelLabel = levelLabels[higherEdLevel] || higherEdLevel;
+    prompt += `
+<higher_education_level>${levelLabel}</higher_education_level>`;
+  }
+
   if (higherEdField) {
     prompt += `
 <higher_education_field>${higherEdField}</higher_education_field>`;
