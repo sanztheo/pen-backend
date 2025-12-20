@@ -241,19 +241,31 @@ Explore un aspect different du sujet.
 
     case "OPEN_QUESTION":
       prompt += `
-<format>Question ouverte necessitant une reponse redigee</format>
+<format>Open-ended question requiring a written response with markdown formatting</format>
 <rules>
-- Question evaluant comprehension, analyse ou synthese
-- Formulation claire du niveau de detail attendu
-- Reponse modele complete et structuree dans expectedAnswer
-- Criteres de correction implicites dans l'explication
+- Question testing comprehension, analysis or synthesis
+- Clear formulation of expected detail level
+- Complete and structured model answer in expectedAnswer
+- Implicit correction criteria in the explanation
 </rules>
+<markdown_formatting priority="high">
+IMPORTANT: For complex questions with multiple sub-parts, USE markdown formatting:
+- Use *italics* for introductory context and final instructions
+- Use bullet points "- " for numbered sub-questions
+- Use line breaks "\\n" to separate logical parts
+- Use **bold** for important keywords
+
+Example of well-formatted question:
+"*Based on the provided content, explain concept X.*\\n\\nFor your answer:\\n- (1) Define the term precisely\\n- (2) Cite a concrete example\\n- (3) Analyze the consequences\\n\\n*Your answer should contain several structured sentences.*"
+
+Do NOT put everything in a single compact text block.
+</markdown_formatting>
 <required_fields>
-- expectedAnswer: reponse modele detaillee (plusieurs phrases)
-- options: [] (tableau vide)
-- leftColumn: [] (tableau vide)
-- rightColumn: [] (tableau vide)
-- correctMatches: [] (tableau vide)
+- expectedAnswer: detailed model answer (multiple sentences)
+- options: [] (empty array)
+- leftColumn: [] (empty array)
+- rightColumn: [] (empty array)
+- correctMatches: [] (empty array)
 </required_fields>`;
       break;
 
