@@ -19,6 +19,8 @@ import {
   prepareIntelligentContext,
   getQuestionContext,
   createClustersDetectedEvent,
+  QuestionScorerService,
+  ContextCacheService,
   type IntelligentContextResult,
   type ClusterQuestionDistribution,
 } from "../services/quiz/intelligence/index.js";
@@ -748,9 +750,10 @@ export class QuizStreamingController {
         `✅ [STREAMING] Quiz ${quiz.id} créé, génération des questions...`,
       );
 
-      // 🧠 PEN-18: Mode intelligent - Préparation du contexte enrichi
+      // 🧠 PEN-18 + PEN-20: Mode intelligent avec cache du contexte
       let intelligentContext: IntelligentContextResult | null = null;
       let questionDistribution: ClusterQuestionDistribution[] = [];
+      let contextFromCache = false;
 
       if (useIntelligentGeneration && pageProjectIds?.length >= 2) {
         console.log(
@@ -762,16 +765,28 @@ export class QuizStreamingController {
           pageCount: pageProjectIds.length,
         });
 
-        intelligentContext = await prepareIntelligentContext(
+        // 🚀 PEN-20: Utiliser le cache pour le contexte
+        const intelligentConfig = {
+          enabled: true,
+          maxTokens: 8000,
+          balanceContentTypes: true,
+          generateClusterNames: true,
+        };
+
+        const cacheResult = await ContextCacheService.getOrPrepareContext(
           pageProjectIds,
           questionCount,
-          {
-            enabled: true,
-            maxTokens: 8000,
-            balanceContentTypes: true,
-            generateClusterNames: true,
-          },
+          intelligentConfig,
+          async () =>
+            prepareIntelligentContext(
+              pageProjectIds,
+              questionCount,
+              intelligentConfig,
+            ),
         );
+
+        intelligentContext = cacheResult.context;
+        contextFromCache = cacheResult.fromCache;
 
         if (intelligentContext) {
           questionDistribution = intelligentContext.questionDistribution;
@@ -783,8 +798,16 @@ export class QuizStreamingController {
           );
 
           console.log(
-            `✅ [INTELLIGENT] ${intelligentContext.clusters.length} clusters détectés, contexte enrichi prêt`,
+            `✅ [INTELLIGENT] ${intelligentContext.clusters.length} clusters détectés, contexte ${contextFromCache ? "depuis CACHE ⚡" : "fraîchement préparé"}`,
           );
+
+          // Informer le frontend si le contexte vient du cache
+          if (contextFromCache) {
+            sendSSE("context-cached", {
+              message: "Contexte récupéré depuis le cache",
+              cached: true,
+            });
+          }
         } else {
           console.log(
             `⚠️ [INTELLIGENT] Fallback au mode normal (pas assez de contenu)`,
@@ -984,11 +1007,39 @@ export class QuizStreamingController {
               ) {
                 const newQuestion = questionResult.questions[0];
 
-                // Ajouter les métadonnées du cluster
+                // 🎯 PEN-19: Scoring et déduplication
+                const { acceptable, score, duplicate } =
+                  QuestionScorerService.isAcceptable(
+                    newQuestion,
+                    generatedQuestions,
+                    { minScore: 0.4, duplicateThreshold: 0.8 },
+                  );
+
+                if (!acceptable) {
+                  if (duplicate.isDuplicate) {
+                    console.log(
+                      `⚠️ [PEN-19] Q${globalQuestionIndex} doublon détecté (sim=${duplicate.similarity}), skip`,
+                    );
+                    sendSSE("question-skipped", {
+                      questionNumber: globalQuestionIndex,
+                      reason: "duplicate",
+                      similarity: duplicate.similarity,
+                    });
+                  } else {
+                    console.log(
+                      `⚠️ [PEN-19] Q${globalQuestionIndex} score faible (${score.overall}), acceptée quand même`,
+                    );
+                    // On accepte quand même les questions avec score faible
+                    // pour ne pas bloquer la génération
+                  }
+                }
+
+                // Ajouter les métadonnées du cluster + score
                 newQuestion.metadata = {
                   ...(newQuestion.metadata || {}),
                   cluster: clusterDist.clusterName,
                   clusterId: clusterDist.clusterId,
+                  qualityScore: score.overall,
                   ...(specialtyForQuestion && {
                     lyceeSpecialty: specialtyForQuestion,
                     lyceeSpecialtyLabel: specialtyLabel,
@@ -999,28 +1050,32 @@ export class QuizStreamingController {
                   newQuestion.subject = specialtyLabel;
                 }
 
-                generatedQuestions.push(newQuestion);
-                clusterQuestionsGenerated++;
+                // Skip si doublon, sinon ajouter
+                if (!duplicate.isDuplicate) {
+                  generatedQuestions.push(newQuestion);
+                  clusterQuestionsGenerated++;
 
-                // Sauvegarder immédiatement
-                await prisma.quiz.update({
-                  where: { id: quiz.id },
-                  data: { questions: generatedQuestions as any },
-                });
+                  // Sauvegarder immédiatement
+                  await prisma.quiz.update({
+                    where: { id: quiz.id },
+                    data: { questions: generatedQuestions as any },
+                  });
 
-                // Envoyer la question
-                sendSSE("question-generated", {
-                  questionNumber: globalQuestionIndex,
-                  totalQuestions: questionCount,
-                  question: newQuestion,
-                  canStartAnswering: globalQuestionIndex === 1,
-                  message: `Question ${globalQuestionIndex} générée (${clusterDist.clusterName})`,
-                  theme: clusterDist.clusterName,
-                });
+                  // Envoyer la question
+                  sendSSE("question-generated", {
+                    questionNumber: globalQuestionIndex,
+                    totalQuestions: questionCount,
+                    question: newQuestion,
+                    canStartAnswering: globalQuestionIndex === 1,
+                    message: `Question ${globalQuestionIndex} générée (${clusterDist.clusterName})`,
+                    theme: clusterDist.clusterName,
+                    qualityScore: score.overall,
+                  });
 
-                console.log(
-                  `✅ [INTELLIGENT-PEN21] Q${globalQuestionIndex} générée pour cluster "${clusterDist.clusterName}"`,
-                );
+                  console.log(
+                    `✅ [INTELLIGENT-PEN21] Q${globalQuestionIndex} générée (score=${score.overall}) pour cluster "${clusterDist.clusterName}"`,
+                  );
+                }
               } else {
                 throw new Error(
                   `Échec génération question ${globalQuestionIndex}`,
@@ -1109,17 +1164,40 @@ export class QuizStreamingController {
               questionResult.questions.length > 0
             ) {
               const newQuestion = questionResult.questions[0];
+
+              // 🎯 PEN-19: Scoring et déduplication
+              const { score, duplicate } = QuestionScorerService.isAcceptable(
+                newQuestion,
+                generatedQuestions,
+                { minScore: 0.4, duplicateThreshold: 0.8 },
+              );
+
+              if (duplicate.isDuplicate) {
+                console.log(
+                  `⚠️ [PEN-19] Q${i + 1} doublon détecté (sim=${duplicate.similarity}), skip`,
+                );
+                sendSSE("question-skipped", {
+                  questionNumber: i + 1,
+                  reason: "duplicate",
+                  similarity: duplicate.similarity,
+                });
+                continue; // Passer à la prochaine itération
+              }
+
               if (specialtyLabel && !newQuestion.subject) {
                 newQuestion.subject = specialtyLabel;
               }
 
-              if (specialtyForQuestion) {
-                newQuestion.metadata = {
-                  ...(newQuestion.metadata || {}),
+              // Ajouter métadonnées + score
+              newQuestion.metadata = {
+                ...(newQuestion.metadata || {}),
+                qualityScore: score.overall,
+                ...(specialtyForQuestion && {
                   lyceeSpecialty: specialtyForQuestion,
                   lyceeSpecialtyLabel: specialtyLabel,
-                };
-              }
+                }),
+              };
+
               generatedQuestions.push(newQuestion);
 
               await prisma.quiz.update({
@@ -1133,10 +1211,11 @@ export class QuizStreamingController {
                 question: newQuestion,
                 canStartAnswering: i === 0,
                 message: `Question ${i + 1} générée avec succès`,
+                qualityScore: score.overall,
               });
 
               console.log(
-                `✅ [STREAMING] Question ${i + 1} générée et envoyée`,
+                `✅ [STREAMING] Question ${i + 1} générée (score=${score.overall}) et envoyée`,
               );
             } else {
               throw new Error(`Échec génération question ${i + 1}`);

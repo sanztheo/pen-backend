@@ -26,3 +26,14 @@ export {
   type IntelligentContextResult,
   type ClusterQuestionDistribution,
 } from "./integrationHelpers.js";
+
+// Question Scorer (PEN-19)
+export {
+  QuestionScorerService,
+  type QuestionScore,
+  type DuplicateCheckResult,
+  type ScoringConfig,
+} from "./questionScorer.js";
+
+// Context Cache (PEN-20)
+export { ContextCacheService, type CachedContext } from "./contextCache.js";
