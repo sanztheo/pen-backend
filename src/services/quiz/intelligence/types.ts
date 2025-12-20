@@ -88,3 +88,70 @@ export const EXTRACTION_MODEL = "gpt-4o-mini";
 
 // Dimension des embeddings OpenAI
 export const EMBEDDING_DIMENSION = 1536;
+
+// ─────────────────────────────────────────────────────────────
+// PEN-17: Smart Content Selection Types
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Types de contenu avec leur priorité pour la génération de questions
+ */
+export type ContentType =
+  | "definition" // Définitions = questions faciles
+  | "formula" // Formules = questions techniques
+  | "keypoint" // Points clés = questions de compréhension
+  | "example" // Exemples = questions d'application
+  | "paragraph"; // Paragraphes = contexte additionnel
+
+/**
+ * Priorité de sélection par type de contenu
+ */
+export const CONTENT_PRIORITY: Record<ContentType, number> = {
+  definition: 100,
+  formula: 90,
+  keypoint: 80,
+  example: 70,
+  paragraph: 50,
+};
+
+/**
+ * Chunk de contenu sélectionné
+ */
+export interface ContentChunk {
+  id: string;
+  pageId: string;
+  pageTitle: string;
+  type: ContentType;
+  content: string;
+  tokens: number;
+  priority: number;
+  metadata?: {
+    term?: string; // Pour les définitions
+    formula?: string; // Pour les formules (LaTeX)
+    index?: number; // Position dans la page
+  };
+}
+
+/**
+ * Options de sélection de contenu
+ */
+export interface SelectionOptions {
+  maxTokens?: number; // Limite de tokens (défaut: 8000)
+  minCoverage?: number; // Couverture minimum (0-1, défaut: 0.5)
+  prioritizeTypes?: ContentType[]; // Types à prioriser
+  includeRAG?: boolean; // Enrichir avec RAG (défaut: false)
+  balanceTypes?: boolean; // Équilibrer les types (défaut: true)
+}
+
+/**
+ * Résultat de la sélection de contenu
+ */
+export interface SelectedContent {
+  clusterId: string;
+  clusterName: string;
+  chunks: ContentChunk[];
+  totalTokens: number;
+  coverage: number; // 0-1, % du contenu original couvert
+  typeDistribution: Record<ContentType, number>;
+  processingTimeMs: number;
+}

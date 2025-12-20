@@ -8,3 +8,11 @@ export * from "./types.js";
 
 // Services
 export { ConceptExtractorService } from "./conceptExtractor.js";
+export {
+  ThematicClustererService,
+  type PageWithConcepts,
+  type ThematicCluster,
+  type ClusterOptions,
+  type ClusterResult,
+} from "./thematicClusterer.js";
+export { SmartContentSelectorService } from "./smartContentSelector.js";
