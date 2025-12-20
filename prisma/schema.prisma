@@ -130,8 +130,45 @@ model Page {
   project          Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   yjsDocument      YjsDocument?
+  // 🧠 Quiz Intelligence - Concepts pré-extraits pour génération optimisée
+  concepts         PageConcepts?
 
   @@map("pages")
+}
+
+// 🧠 Quiz Intelligence - Concepts pré-extraits des pages
+// Permet le clustering thématique et la sélection intelligente pour les quiz
+model PageConcepts {
+  id              String   @id @default(cuid())
+  pageId          String   @unique @map("page_id") @db.Uuid
+
+  // 📚 Contenu extrait
+  keywords        String[] // Mots-clés principaux
+  definitions     Json?    // {term: definition} pour les termes importants
+  keyPoints       String[] @map("key_points") // Points clés du contenu
+  formulas        String[] // Formules mathématiques/scientifiques
+  summary         String?  @db.Text // Résumé court du contenu
+
+  // 🎯 Métadonnées pour clustering
+  embedding       Float[]  // Vecteur d'embedding pour similarité
+  topic           String?  @db.VarChar(100) // Thème principal détecté
+  difficulty      String   @default("medium") @db.VarChar(20) // easy, medium, hard
+
+  // 📊 Statistiques
+  wordCount       Int      @default(0) @map("word_count")
+  conceptCount    Int      @default(0) @map("concept_count")
+
+  // ⏰ Timestamps
+  lastExtractedAt DateTime @default(now()) @map("last_extracted_at") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // 🔗 Relation
+  page            Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+  @@index([topic])
+  @@map("page_concepts")
 }
 
 model ActivityLog {
