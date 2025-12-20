@@ -19,6 +19,7 @@ import assistantRoutes from "./routes/assistant.js";
 import conversationsRoutes from "./routes/conversations.js";
 import quizRoutes from "./routes/quiz.js";
 import { invalidateBlockNoteCache } from "./lib/redis.js";
+import { ContextCacheService } from "./services/quiz/intelligence/index.js";
 import reorderRoutes from "./routes/reorder.js";
 import graphicsRoutes from "./routes/graphics.js";
 import dashboardLayoutRoutes from "./routes/dashboardLayoutRoutes.js";
@@ -393,6 +394,11 @@ const setupYjsWebSocket = (server: http.Server) => {
               // 🗑️ INVALIDATION CACHE REDIS: Invalider le cache pour forcer rechargement depuis DB
               await invalidateBlockNoteCache(pageId);
               console.log(`[WS] 🗑️ Cache Redis invalidé pour page ${pageId}`);
+
+              // 🧠 PEN-20: Invalider le cache de contexte quiz si cette page est utilisée
+              ContextCacheService.invalidateForPages([pageId]).catch((err) =>
+                console.warn(`[WS] ⚠️ Erreur invalidation cache quiz:`, err),
+              );
 
               ws.send(
                 JSON.stringify({ type: "save-success", timestamp: Date.now() }),
