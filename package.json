@@ -24,7 +24,16 @@
     "test:scalability": "tsx src/scripts/run-scalability-tests.ts",
     "test:scalability:quick": "tsx src/scripts/run-scalability-tests.ts --quick",
     "test:artillery": "artillery run artillery-websocket.yml",
-    "test:artillery:install": "npm install -g artillery"
+    "test:artillery:install": "npm install -g artillery",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "test:quiz": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathPattern=quiz/intelligence",
+    "benchmark:quiz": "tsx scripts/quiz/benchmark-pipeline.ts",
+    "benchmark:quiz:small": "tsx scripts/quiz/benchmark-pipeline.ts --scenario=small",
+    "benchmark:quiz:medium": "tsx scripts/quiz/benchmark-pipeline.ts --scenario=medium",
+    "benchmark:quiz:large": "tsx scripts/quiz/benchmark-pipeline.ts --scenario=large",
+    "benchmark:quiz:xlarge": "tsx scripts/quiz/benchmark-pipeline.ts --scenario=xlarge"
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.49",
