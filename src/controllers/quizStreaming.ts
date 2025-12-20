@@ -15,6 +15,7 @@ import {
   QuizCorrectionRequest,
 } from "../services/quiz/types.js";
 import { QuizLimitsService } from "../services/credits/quizLimitsService.js";
+import { PaddleBillingService } from "../services/billing/paddleBilling.js";
 import {
   prepareIntelligentContext,
   getQuestionContext,
@@ -705,7 +706,7 @@ export class QuizStreamingController {
         targetGrade,
         timeLimit,
         difficulty,
-        useIntelligentGeneration = false, // 🧠 PEN-18: Mode intelligent
+        useIntelligentGeneration: requestUseIntelligent = false, // 🧠 PEN-18: Mode intelligent
       } = session.request;
 
       // 🧠 Debug: Vérifier les données récupérées de la session
@@ -719,6 +720,30 @@ export class QuizStreamingController {
       console.log(`  - pageProjectIds: ${pageProjectIds?.length || 0}`);
 
       const userId = session.userId;
+
+      // 🧠 PEN-24: Mode intelligent automatique pour les utilisateurs premium
+      // Les utilisateurs premium bénéficient automatiquement du clustering thématique
+      // quand ils sélectionnent 2+ pages, sans avoir besoin d'activer manuellement
+      let useIntelligentGeneration = requestUseIntelligent;
+
+      if (!useIntelligentGeneration && pageProjectIds?.length >= 2) {
+        try {
+          const subscription =
+            await PaddleBillingService.getUserSubscription(userId);
+          if (subscription.isPremium) {
+            useIntelligentGeneration = true;
+            console.log(
+              `🧠 [PREMIUM-INTELLIGENT] Mode intelligent activé automatiquement pour l'utilisateur premium ${userId}`,
+            );
+          }
+        } catch (error) {
+          // En cas d'erreur de vérification, on continue sans le mode intelligent
+          console.warn(
+            `⚠️ [PREMIUM-CHECK] Impossible de vérifier le statut premium pour ${userId}:`,
+            error,
+          );
+        }
+      }
 
       console.log(
         `🚀 [STREAMING] Début génération streaming pour ${questionCount} questions`,
