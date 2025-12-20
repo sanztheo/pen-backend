@@ -37,3 +37,12 @@ export {
 
 // Context Cache (PEN-20)
 export { ContextCacheService, type CachedContext } from "./contextCache.js";
+
+// Correction Enricher (PEN-22)
+export {
+  CorrectionEnricherService,
+  type SourceReference,
+  type ConceptToReview,
+  type EnrichedQuestionResult,
+  type EnrichmentConfig,
+} from "./correctionEnricher.js";
