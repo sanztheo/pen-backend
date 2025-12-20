@@ -16,3 +16,13 @@ export {
   type ClusterResult,
 } from "./thematicClusterer.js";
 export { SmartContentSelectorService } from "./smartContentSelector.js";
+
+// Integration Helpers (PEN-18)
+export {
+  prepareIntelligentContext,
+  getQuestionContext,
+  createClustersDetectedEvent,
+  type IntelligentGenerationConfig,
+  type IntelligentContextResult,
+  type ClusterQuestionDistribution,
+} from "./integrationHelpers.js";
