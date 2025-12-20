@@ -694,6 +694,7 @@ export class QuizStreamingController {
         questionCount = 10,
         collegeGrade,
         lyceeSpecialties,
+        higherEdLevel, // 🆕 Niveau études sup (L1, M1, etc.)
         higherEdField,
         preset,
         title,
@@ -744,6 +745,35 @@ export class QuizStreamingController {
           );
         }
       }
+
+      // ════════════════════════════════════════════════════════════════
+      // 🎯 QUIZ GENERATION MODE SUMMARY
+      // ════════════════════════════════════════════════════════════════
+      console.log(`\n${"═".repeat(60)}`);
+      console.log(
+        `🎯 QUIZ GENERATION - MODE: ${useIntelligentGeneration ? "🧠 INTELLIGENT (Premium)" : "📝 STANDARD"}`,
+      );
+      console.log(`${"═".repeat(60)}`);
+      console.log(`   👤 User: ${userId}`);
+      console.log(
+        `   📚 School Level: ${schoolLevel}${higherEdLevel ? ` (${higherEdLevel})` : ""}${higherEdField ? ` - ${higherEdField}` : ""}`,
+      );
+      console.log(`   ❓ Questions: ${questionCount}`);
+      console.log(`   📄 Pages sélectionnées: ${pageProjectIds?.length || 0}`);
+      console.log(
+        `   🧠 Intelligence: ${useIntelligentGeneration ? "✅ ACTIVÉ" : "❌ DÉSACTIVÉ"}`,
+      );
+      if (!useIntelligentGeneration && pageProjectIds?.length >= 2) {
+        console.log(
+          `   ℹ️  Raison: Utilisateur non-premium (Intelligence requiert Premium + 2 pages)`,
+        );
+      } else if (
+        !useIntelligentGeneration &&
+        (pageProjectIds?.length || 0) < 2
+      ) {
+        console.log(`   ℹ️  Raison: Moins de 2 pages sélectionnées`);
+      }
+      console.log(`${"═".repeat(60)}\n`);
 
       console.log(
         `🚀 [STREAMING] Début génération streaming pour ${questionCount} questions`,
@@ -1284,9 +1314,28 @@ export class QuizStreamingController {
         quiz: finalQuiz,
       });
 
+      // ════════════════════════════════════════════════════════════════
+      // 🎉 QUIZ GENERATION COMPLETE
+      // ════════════════════════════════════════════════════════════════
+      console.log(`\n${"═".repeat(60)}`);
+      console.log(`🎉 QUIZ GENERATION COMPLETE`);
+      console.log(`${"═".repeat(60)}`);
+      console.log(`   🆔 Quiz ID: ${quiz.id}`);
       console.log(
-        `🎉 [STREAMING] Quiz ${quiz.id} complété avec ${generatedQuestions.length} questions via Chat Completion + JSON strict (gpt-4o-mini)`,
+        `   ✅ Questions générées: ${generatedQuestions.length}/${questionCount}`,
       );
+      console.log(
+        `   🧠 Mode Intelligence: ${useIntelligentGeneration ? "✅ UTILISÉ" : "❌ NON UTILISÉ"}`,
+      );
+      if (useIntelligentGeneration && intelligentContext) {
+        console.log(
+          `   📊 Clusters thématiques: ${intelligentContext.clusters.length}`,
+        );
+        console.log(
+          `   📝 Clusters: ${intelligentContext.clusters.map((c) => c.name).join(", ")}`,
+        );
+      }
+      console.log(`${"═".repeat(60)}\n`);
     } catch (error) {
       console.error("❌ [STREAMING] Erreur génération:", error);
 
