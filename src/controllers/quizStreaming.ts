@@ -15,6 +15,13 @@ import {
   QuizCorrectionRequest,
 } from "../services/quiz/types.js";
 import { QuizLimitsService } from "../services/credits/quizLimitsService.js";
+import {
+  prepareIntelligentContext,
+  getQuestionContext,
+  createClustersDetectedEvent,
+  type IntelligentContextResult,
+  type ClusterQuestionDistribution,
+} from "../services/quiz/intelligence/index.js";
 
 // Stockage temporaire des sessions de streaming
 const streamingSessions = new Map<
@@ -694,6 +701,7 @@ export class QuizStreamingController {
         targetGrade,
         timeLimit,
         difficulty,
+        useIntelligentGeneration = false, // 🧠 PEN-18: Mode intelligent
       } = session.request;
 
       // 🧠 Debug: Vérifier les données récupérées de la session
@@ -739,6 +747,50 @@ export class QuizStreamingController {
       console.log(
         `✅ [STREAMING] Quiz ${quiz.id} créé, génération des questions...`,
       );
+
+      // 🧠 PEN-18: Mode intelligent - Préparation du contexte enrichi
+      let intelligentContext: IntelligentContextResult | null = null;
+      let questionDistribution: ClusterQuestionDistribution[] = [];
+
+      if (useIntelligentGeneration && pageProjectIds?.length >= 2) {
+        console.log(
+          `🧠 [INTELLIGENT] Mode intelligent activé pour ${pageProjectIds.length} pages`,
+        );
+
+        sendSSE("intelligent-preparing", {
+          message: "Analyse thématique des pages en cours...",
+          pageCount: pageProjectIds.length,
+        });
+
+        intelligentContext = await prepareIntelligentContext(
+          pageProjectIds,
+          questionCount,
+          {
+            enabled: true,
+            maxTokens: 8000,
+            balanceContentTypes: true,
+            generateClusterNames: true,
+          },
+        );
+
+        if (intelligentContext) {
+          questionDistribution = intelligentContext.questionDistribution;
+
+          // Envoyer l'événement clusters-detected au frontend
+          sendSSE(
+            "clusters-detected",
+            createClustersDetectedEvent(intelligentContext),
+          );
+
+          console.log(
+            `✅ [INTELLIGENT] ${intelligentContext.clusters.length} clusters détectés, contexte enrichi prêt`,
+          );
+        } else {
+          console.log(
+            `⚠️ [INTELLIGENT] Fallback au mode normal (pas assez de contenu)`,
+          );
+        }
+      }
 
       // 2. Calculer la répartition équitable des types AVANT la génération
       const typeDistribution: string[] = [];
@@ -809,6 +861,11 @@ export class QuizStreamingController {
         `🚀 [STREAMING] Utilisation du mode Chat Completion + JSON strict (gpt-4o-mini) pour ${questionCount} questions`,
       );
 
+      // 🧠 PEN-18: Utiliser le contexte intelligent si disponible
+      const effectiveRagContext = intelligentContext
+        ? intelligentContext.enrichedRagContext
+        : ragContext;
+
       const baseRequest: Record<string, any> = {
         userId,
         schoolLevel,
@@ -825,7 +882,7 @@ export class QuizStreamingController {
         title,
         description,
         coursesOnly,
-        ragContext, // 🆕 Transmettre le contexte RAG à l'assistant
+        ragContext: effectiveRagContext, // 🧠 Contexte enrichi si mode intelligent
         timeLimit,
         difficulty,
       };
@@ -835,11 +892,23 @@ export class QuizStreamingController {
           // Récupérer le type spécifique pour cette question
           const specificQuestionType = typeDistribution[i];
 
+          // 🧠 PEN-18: Récupérer le contexte thématique pour cette question
+          const questionThemeContext = intelligentContext
+            ? getQuestionContext(i, questionDistribution)
+            : null;
+
           // Envoyer l'événement de début de génération
+          const generatingMessage = questionThemeContext
+            ? `Génération de la question ${i + 1} (${specificQuestionType}) - Thème: ${questionThemeContext.clusterName}...`
+            : `Génération de la question ${i + 1} (${specificQuestionType})...`;
+
           sendSSE("question-generating", {
             questionNumber: i + 1,
             totalQuestions: questionCount,
-            message: `Génération de la question ${i + 1} (${specificQuestionType})...`,
+            message: generatingMessage,
+            ...(questionThemeContext && {
+              theme: questionThemeContext.clusterName,
+            }),
           });
 
           // Générer une seule question avec le type SPÉCIFIQUE
@@ -864,6 +933,15 @@ export class QuizStreamingController {
             singleQuestionRequest.focusSpecialty = specialtyForQuestion;
             singleQuestionRequest.focusSpecialtyLabel = specialtyLabel;
             singleQuestionRequest.specificSubject = specialtyLabel;
+          }
+
+          // 🧠 PEN-18: Ajouter le contexte thématique si mode intelligent
+          if (questionThemeContext) {
+            singleQuestionRequest.themeHint = questionThemeContext.themeHint;
+            singleQuestionRequest.ragContext = questionThemeContext.content;
+            console.log(
+              `🧠 [INTELLIGENT] Question ${i + 1}: Thème = ${questionThemeContext.clusterName}`,
+            );
           }
 
           console.log(
