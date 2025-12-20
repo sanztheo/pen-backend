@@ -1,10 +1,22 @@
 import { Request, Response } from "express";
 import { prisma } from "../../lib/prisma.js";
 
+type NiveauScolaire = "college" | "lycee" | "etudes_superieures" | "autre";
+type ClasseCollege = "6eme" | "5eme" | "4eme" | "3eme";
+type ClasseLycee = "seconde" | "premiere" | "terminale";
+
 type Personalization = {
-  classe?: string;
-  etude?: string;
-  filiere?: string;
+  // === Nouveau système en cascade ===
+  niveauScolaire?: NiveauScolaire;
+  classeCollege?: ClasseCollege;
+  classeLycee?: ClasseLycee;
+  classeEtudesSup?: string; // L1, L2, L3, M1, M2, Doctorat, etc.
+  classeAutre?: string; // Champ libre pour "Autre"
+  filiere?: string; // Obligatoire pour lycée (Première/Terminale) et études sup
+
+  // === Champs existants ===
+  classe?: string; // Legacy - pour migration
+  etude?: string; // Domaine d'étude
   langue?: string; // code linguistique, ex: 'fr', 'en'
   presentation?: string;
   attente?: string;
@@ -17,9 +29,49 @@ const sanitize = (v: unknown, max = 700) => {
   return s.length > max ? s.slice(0, max) : s;
 };
 
+const VALID_NIVEAU_SCOLAIRE: NiveauScolaire[] = [
+  "college",
+  "lycee",
+  "etudes_superieures",
+  "autre",
+];
+const VALID_CLASSE_COLLEGE: ClasseCollege[] = ["6eme", "5eme", "4eme", "3eme"];
+const VALID_CLASSE_LYCEE: ClasseLycee[] = ["seconde", "premiere", "terminale"];
+
+const sanitizeEnum = <T extends string>(
+  v: unknown,
+  validValues: T[],
+): T | undefined => {
+  if (typeof v !== "string") return undefined;
+  const normalized = v.toLowerCase().trim();
+  return validValues.includes(normalized as T) ? (normalized as T) : undefined;
+};
+
 const normalizeInput = (body: any): Personalization => {
   const out: Personalization = {};
   if (!body || typeof body !== "object") return out;
+
+  // === Nouveau système en cascade ===
+  if (body.niveauScolaire !== undefined) {
+    out.niveauScolaire = sanitizeEnum(
+      body.niveauScolaire,
+      VALID_NIVEAU_SCOLAIRE,
+    );
+  }
+  if (body.classeCollege !== undefined) {
+    out.classeCollege = sanitizeEnum(body.classeCollege, VALID_CLASSE_COLLEGE);
+  }
+  if (body.classeLycee !== undefined) {
+    out.classeLycee = sanitizeEnum(body.classeLycee, VALID_CLASSE_LYCEE);
+  }
+  if (body.classeEtudesSup !== undefined) {
+    out.classeEtudesSup = sanitize(body.classeEtudesSup, 50);
+  }
+  if (body.classeAutre !== undefined) {
+    out.classeAutre = sanitize(body.classeAutre, 120);
+  }
+
+  // === Champs existants ===
   if (body.classe !== undefined) out.classe = sanitize(body.classe, 120);
   if (body.etude !== undefined) out.etude = sanitize(body.etude, 120);
   if (body.filiere !== undefined) out.filiere = sanitize(body.filiere, 120);
