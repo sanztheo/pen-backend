@@ -887,141 +887,276 @@ export class QuizStreamingController {
         difficulty,
       };
 
-      for (let i = 0; i < questionCount; i++) {
-        try {
-          // Récupérer le type spécifique pour cette question
-          const specificQuestionType = typeDistribution[i];
+      // 🧠 PEN-21: Génération thématique par cluster OU mode normal
+      if (intelligentContext && questionDistribution.length > 0) {
+        // ========================================
+        // MODE INTELLIGENT: Génération cluster par cluster
+        // ========================================
+        console.log(
+          `🧠 [INTELLIGENT-PEN21] Mode thématique activé: ${questionDistribution.length} clusters`,
+        );
 
-          // 🧠 PEN-18: Récupérer le contexte thématique pour cette question
-          const questionThemeContext = intelligentContext
-            ? getQuestionContext(i, questionDistribution)
-            : null;
+        let globalQuestionIndex = 0;
+        let typeDistributionIndex = 0;
 
-          // Envoyer l'événement de début de génération
-          const generatingMessage = questionThemeContext
-            ? `Génération de la question ${i + 1} (${specificQuestionType}) - Thème: ${questionThemeContext.clusterName}...`
-            : `Génération de la question ${i + 1} (${specificQuestionType})...`;
+        for (
+          let clusterIndex = 0;
+          clusterIndex < questionDistribution.length;
+          clusterIndex++
+        ) {
+          const clusterDist = questionDistribution[clusterIndex];
 
-          sendSSE("question-generating", {
-            questionNumber: i + 1,
-            totalQuestions: questionCount,
-            message: generatingMessage,
-            ...(questionThemeContext && {
-              theme: questionThemeContext.clusterName,
-            }),
+          // 📤 Événement SSE: Début du cluster
+          sendSSE("cluster-start", {
+            clusterName: clusterDist.clusterName,
+            clusterIndex: clusterIndex + 1,
+            totalClusters: questionDistribution.length,
+            questionCount: clusterDist.questionCount,
+            keywords: clusterDist.keywords.slice(0, 5),
           });
 
-          // Générer une seule question avec le type SPÉCIFIQUE
-          const singleQuestionRequest: Record<string, any> = {
-            ...baseRequest,
-            questionTypes: [specificQuestionType], // ✅ UN SEUL TYPE SPÉCIFIQUE !
-            questionCount: 1, // Une seule question
-            existingQuestions:
-              generatedQuestions.length > 0 ? generatedQuestions : undefined,
-          };
-
-          const specialtyForQuestion = specialtyDistribution[i];
-          const specialtyLabel = specialtyForQuestion
-            ? getSpecialtyLabel(specialtyForQuestion) || specialtyForQuestion
-            : undefined;
-
-          if (specialtyForQuestion && specialtyLabel) {
-            console.log(
-              `🎓 [STREAMING] Spécialité ciblée pour question ${i + 1}: ${specialtyLabel}`,
-            );
-            singleQuestionRequest.lyceeSpecialties = [specialtyForQuestion];
-            singleQuestionRequest.focusSpecialty = specialtyForQuestion;
-            singleQuestionRequest.focusSpecialtyLabel = specialtyLabel;
-            singleQuestionRequest.specificSubject = specialtyLabel;
-          }
-
-          // 🧠 PEN-18: Ajouter le contexte thématique si mode intelligent
-          if (questionThemeContext) {
-            singleQuestionRequest.themeHint = questionThemeContext.themeHint;
-            singleQuestionRequest.ragContext = questionThemeContext.content;
-            console.log(
-              `🧠 [INTELLIGENT] Question ${i + 1}: Thème = ${questionThemeContext.clusterName}`,
-            );
-          }
-
           console.log(
-            `🎯 [STREAMING] Question ${i + 1}: Type assigné = ${specificQuestionType}`,
-          );
-          console.log(
-            `🧠 [STREAMING-DEBUG] Envoi au Chat Completion (gpt-4o-mini) pour question ${i + 1}:`,
-          );
-          console.log(
-            `  - ragContext: ${singleQuestionRequest.ragContext ? `${singleQuestionRequest.ragContext.length} chars` : "undefined/null"}`,
-          );
-          console.log(`  - coursesOnly: ${singleQuestionRequest.coursesOnly}`);
-          console.log(
-            `  - pageProjectIds: ${singleQuestionRequest.pageProjectIds?.length || 0}`,
-          );
-          console.log(`  - questionType: ${specificQuestionType}`);
-          console.log(`  - model: gpt-4o-mini + JSON strict`);
-
-          // 🚀 Appel optimisé avec Chat Completion + JSON strict
-          const questionResult = await assistantService.generateSingleQuestion(
-            singleQuestionRequest,
+            `📁 [INTELLIGENT-PEN21] Cluster ${clusterIndex + 1}/${questionDistribution.length}: "${clusterDist.clusterName}" (${clusterDist.questionCount} questions)`,
           );
 
-          if (
-            questionResult &&
-            questionResult.questions &&
-            questionResult.questions.length > 0
-          ) {
-            const newQuestion = questionResult.questions[0];
-            if (specialtyLabel && !newQuestion.subject) {
-              newQuestion.subject = specialtyLabel;
-            }
+          let clusterQuestionsGenerated = 0;
 
-            if (specialtyForQuestion) {
-              newQuestion.metadata = {
-                ...(newQuestion.metadata || {}),
-                lyceeSpecialty: specialtyForQuestion,
-                lyceeSpecialtyLabel: specialtyLabel,
+          for (let j = 0; j < clusterDist.questionCount; j++) {
+            globalQuestionIndex++;
+            const specificQuestionType =
+              typeDistribution[typeDistributionIndex % typeDistribution.length];
+            typeDistributionIndex++;
+
+            try {
+              // Envoyer l'événement de début de génération
+              sendSSE("question-generating", {
+                questionNumber: globalQuestionIndex,
+                totalQuestions: questionCount,
+                message: `Génération de la question ${globalQuestionIndex} (${specificQuestionType}) - Thème: ${clusterDist.clusterName}...`,
+                theme: clusterDist.clusterName,
+                clusterIndex: clusterIndex + 1,
+                questionInCluster: j + 1,
+                totalInCluster: clusterDist.questionCount,
+              });
+
+              // Construire la requête avec contexte du cluster
+              const singleQuestionRequest: Record<string, any> = {
+                ...baseRequest,
+                questionTypes: [specificQuestionType],
+                questionCount: 1,
+                existingQuestions:
+                  generatedQuestions.length > 0
+                    ? generatedQuestions
+                    : undefined,
+                themeHint: `Thème: ${clusterDist.clusterName}. Mots-clés: ${clusterDist.keywords.join(", ")}`,
+                ragContext: clusterDist.content, // Contexte spécifique au cluster
               };
+
+              // Spécialité si applicable
+              const specialtyForQuestion =
+                specialtyDistribution[globalQuestionIndex - 1];
+              const specialtyLabel = specialtyForQuestion
+                ? getSpecialtyLabel(specialtyForQuestion) ||
+                  specialtyForQuestion
+                : undefined;
+
+              if (specialtyForQuestion && specialtyLabel) {
+                singleQuestionRequest.lyceeSpecialties = [specialtyForQuestion];
+                singleQuestionRequest.focusSpecialty = specialtyForQuestion;
+                singleQuestionRequest.focusSpecialtyLabel = specialtyLabel;
+                singleQuestionRequest.specificSubject = specialtyLabel;
+              }
+
+              console.log(
+                `🎯 [INTELLIGENT-PEN21] Q${globalQuestionIndex}: Type=${specificQuestionType}, Cluster="${clusterDist.clusterName}"`,
+              );
+
+              // Génération de la question
+              const questionResult =
+                await assistantService.generateSingleQuestion(
+                  singleQuestionRequest,
+                );
+
+              if (
+                questionResult &&
+                questionResult.questions &&
+                questionResult.questions.length > 0
+              ) {
+                const newQuestion = questionResult.questions[0];
+
+                // Ajouter les métadonnées du cluster
+                newQuestion.metadata = {
+                  ...(newQuestion.metadata || {}),
+                  cluster: clusterDist.clusterName,
+                  clusterId: clusterDist.clusterId,
+                  ...(specialtyForQuestion && {
+                    lyceeSpecialty: specialtyForQuestion,
+                    lyceeSpecialtyLabel: specialtyLabel,
+                  }),
+                };
+
+                if (specialtyLabel && !newQuestion.subject) {
+                  newQuestion.subject = specialtyLabel;
+                }
+
+                generatedQuestions.push(newQuestion);
+                clusterQuestionsGenerated++;
+
+                // Sauvegarder immédiatement
+                await prisma.quiz.update({
+                  where: { id: quiz.id },
+                  data: { questions: generatedQuestions as any },
+                });
+
+                // Envoyer la question
+                sendSSE("question-generated", {
+                  questionNumber: globalQuestionIndex,
+                  totalQuestions: questionCount,
+                  question: newQuestion,
+                  canStartAnswering: globalQuestionIndex === 1,
+                  message: `Question ${globalQuestionIndex} générée (${clusterDist.clusterName})`,
+                  theme: clusterDist.clusterName,
+                });
+
+                console.log(
+                  `✅ [INTELLIGENT-PEN21] Q${globalQuestionIndex} générée pour cluster "${clusterDist.clusterName}"`,
+                );
+              } else {
+                throw new Error(
+                  `Échec génération question ${globalQuestionIndex}`,
+                );
+              }
+            } catch (questionError) {
+              console.error(
+                `❌ [INTELLIGENT-PEN21] Erreur Q${globalQuestionIndex}:`,
+                questionError,
+              );
+
+              sendSSE("question-error", {
+                questionNumber: globalQuestionIndex,
+                totalQuestions: questionCount,
+                error:
+                  questionError instanceof Error
+                    ? questionError.message
+                    : "Erreur inconnue",
+                message: `Erreur question ${globalQuestionIndex} (${clusterDist.clusterName})`,
+              });
             }
-            generatedQuestions.push(newQuestion);
+          }
 
-            // Sauvegarder la question immédiatement en base
-            await prisma.quiz.update({
-              where: { id: quiz.id },
-              data: {
-                questions: generatedQuestions as any,
-              },
-            });
+          // 📤 Événement SSE: Fin du cluster
+          sendSSE("cluster-complete", {
+            clusterName: clusterDist.clusterName,
+            clusterIndex: clusterIndex + 1,
+            totalClusters: questionDistribution.length,
+            questionsGenerated: clusterQuestionsGenerated,
+            questionsExpected: clusterDist.questionCount,
+          });
 
-            // Envoyer la question générée au frontend
-            sendSSE("question-generated", {
+          console.log(
+            `✅ [INTELLIGENT-PEN21] Cluster "${clusterDist.clusterName}" terminé: ${clusterQuestionsGenerated}/${clusterDist.questionCount} questions`,
+          );
+        }
+      } else {
+        // ========================================
+        // MODE NORMAL: Génération question par question
+        // ========================================
+        for (let i = 0; i < questionCount; i++) {
+          try {
+            const specificQuestionType = typeDistribution[i];
+
+            sendSSE("question-generating", {
               questionNumber: i + 1,
               totalQuestions: questionCount,
-              question: newQuestion,
-              canStartAnswering: i === 0, // Permet de commencer après la première question
-              message: `Question ${i + 1} générée avec succès (Chat Completion)`,
+              message: `Génération de la question ${i + 1} (${specificQuestionType})...`,
             });
 
-            console.log(
-              `✅ [STREAMING] Question ${i + 1} générée avec Chat Completion + JSON strict et envoyée`,
-            );
-          } else {
-            throw new Error(`Échec génération question ${i + 1}`);
-          }
-        } catch (questionError) {
-          console.error(
-            `❌ [STREAMING] Erreur question ${i + 1}:`,
-            questionError,
-          );
+            const singleQuestionRequest: Record<string, any> = {
+              ...baseRequest,
+              questionTypes: [specificQuestionType],
+              questionCount: 1,
+              existingQuestions:
+                generatedQuestions.length > 0 ? generatedQuestions : undefined,
+            };
 
-          sendSSE("question-error", {
-            questionNumber: i + 1,
-            totalQuestions: questionCount,
-            error:
-              questionError instanceof Error
-                ? questionError.message
-                : "Erreur inconnue",
-            message: `Erreur lors de la génération de la question ${i + 1}`,
-          });
+            const specialtyForQuestion = specialtyDistribution[i];
+            const specialtyLabel = specialtyForQuestion
+              ? getSpecialtyLabel(specialtyForQuestion) || specialtyForQuestion
+              : undefined;
+
+            if (specialtyForQuestion && specialtyLabel) {
+              console.log(
+                `🎓 [STREAMING] Spécialité ciblée pour question ${i + 1}: ${specialtyLabel}`,
+              );
+              singleQuestionRequest.lyceeSpecialties = [specialtyForQuestion];
+              singleQuestionRequest.focusSpecialty = specialtyForQuestion;
+              singleQuestionRequest.focusSpecialtyLabel = specialtyLabel;
+              singleQuestionRequest.specificSubject = specialtyLabel;
+            }
+
+            console.log(
+              `🎯 [STREAMING] Question ${i + 1}: Type assigné = ${specificQuestionType}`,
+            );
+
+            const questionResult =
+              await assistantService.generateSingleQuestion(
+                singleQuestionRequest,
+              );
+
+            if (
+              questionResult &&
+              questionResult.questions &&
+              questionResult.questions.length > 0
+            ) {
+              const newQuestion = questionResult.questions[0];
+              if (specialtyLabel && !newQuestion.subject) {
+                newQuestion.subject = specialtyLabel;
+              }
+
+              if (specialtyForQuestion) {
+                newQuestion.metadata = {
+                  ...(newQuestion.metadata || {}),
+                  lyceeSpecialty: specialtyForQuestion,
+                  lyceeSpecialtyLabel: specialtyLabel,
+                };
+              }
+              generatedQuestions.push(newQuestion);
+
+              await prisma.quiz.update({
+                where: { id: quiz.id },
+                data: { questions: generatedQuestions as any },
+              });
+
+              sendSSE("question-generated", {
+                questionNumber: i + 1,
+                totalQuestions: questionCount,
+                question: newQuestion,
+                canStartAnswering: i === 0,
+                message: `Question ${i + 1} générée avec succès`,
+              });
+
+              console.log(
+                `✅ [STREAMING] Question ${i + 1} générée et envoyée`,
+              );
+            } else {
+              throw new Error(`Échec génération question ${i + 1}`);
+            }
+          } catch (questionError) {
+            console.error(
+              `❌ [STREAMING] Erreur question ${i + 1}:`,
+              questionError,
+            );
+
+            sendSSE("question-error", {
+              questionNumber: i + 1,
+              totalQuestions: questionCount,
+              error:
+                questionError instanceof Error
+                  ? questionError.message
+                  : "Erreur inconnue",
+              message: `Erreur lors de la génération de la question ${i + 1}`,
+            });
+          }
         }
       }
 
