@@ -21,8 +21,10 @@ import {
   createClustersDetectedEvent,
   QuestionScorerService,
   ContextCacheService,
+  CorrectionEnricherService,
   type IntelligentContextResult,
   type ClusterQuestionDistribution,
+  type EnrichmentConfig,
 } from "../services/quiz/intelligence/index.js";
 
 // Stockage temporaire des sessions de streaming
@@ -1415,6 +1417,51 @@ export class QuizStreamingController {
           } else if (event.type === "completion") {
             console.log(`🎉 [CORRECTION-STREAMING] Correction terminée`);
 
+            // 📚 PEN-22: Enrichir les corrections avec références aux sources
+            let enrichedCorrections = allCorrections;
+            try {
+              console.log(
+                `📚 [ENRICHER] Enrichissement de ${allCorrections.length} corrections...`,
+              );
+
+              // Configuration pour l'enrichissement
+              const enrichConfig: EnrichmentConfig = {
+                userId,
+                workspaceId: undefined, // Chercher dans toutes les sources de l'utilisateur
+                maxReferencesPerQuestion: 2,
+                minRelevanceThreshold: 0.35,
+                enableConceptSuggestions: true,
+              };
+
+              enrichedCorrections =
+                await CorrectionEnricherService.enrichCorrections(
+                  questions,
+                  allCorrections,
+                  enrichConfig,
+                );
+
+              // Envoyer les corrections enrichies au frontend
+              const enrichedCount = enrichedCorrections.filter(
+                (c: any) => c.isEnriched,
+              ).length;
+              if (enrichedCount > 0) {
+                sendSSE("corrections-enriched", {
+                  enrichedCount,
+                  totalCorrections: enrichedCorrections.length,
+                  corrections: enrichedCorrections,
+                });
+                console.log(
+                  `✅ [ENRICHER] ${enrichedCount}/${enrichedCorrections.length} corrections enrichies`,
+                );
+              }
+            } catch (enrichError) {
+              console.warn(
+                `⚠️ [ENRICHER] Erreur enrichissement (non bloquant):`,
+                enrichError,
+              );
+              // Continuer avec les corrections non enrichies
+            }
+
             // Sauvegarder le résultat en base de données
             if (event.finalResult) {
               // Utiliser une transaction pour garantir la cohérence
@@ -1438,7 +1485,7 @@ export class QuizStreamingController {
                     percentage: event.finalResult!.percentage || 0,
                     adaptedGrade: event.finalResult!.adaptedGrade || 0,
                     gradeScale: event.finalResult!.gradeScale || "/20",
-                    detailedScoring: allCorrections, // Utiliser toutes les corrections accumulées
+                    detailedScoring: enrichedCorrections, // PEN-22: Utiliser les corrections enrichies
                     aiCorrection: event.finalResult!.aiCorrection as any,
                     recommendations: event.finalResult!.aiCorrection
                       ?.recommendations as any,
