@@ -1,16 +1,29 @@
 // 🤖 Pennote Agent - Vercel AI SDK v5
 import { streamText, stepCountIs } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
 import { createRagTools } from "./tools/ragTools.js";
+import { createWorkspaceTools } from "./tools/workspaceTools.js";
+import { createWebTools } from "./tools/webTools.js";
+import { createPageTools } from "./tools/pageTools.js";
+import { createWikipediaTools } from "./tools/wikipediaTools.js";
 
 // Créer le provider Google avec la clé API explicite
 const google = createGoogleGenerativeAI({
   apiKey:
     process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
-import { createWorkspaceTools } from "./tools/workspaceTools.js";
-import { createWebTools } from "./tools/webTools.js";
-import { createPageTools } from "./tools/pageTools.js";
+
+// Créer le provider OpenAI
+const openai = createOpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Créer le provider DeepSeek via API compatible OpenAI
+const deepseekProvider = createOpenAI({
+  apiKey: process.env.DEEPSEEK_API_KEY,
+  baseURL: "https://api.deepseek.com",
+});
 
 // Types et configuration
 import {
@@ -54,6 +67,7 @@ export async function runPennoteAgent(
   const workspaceTools = createWorkspaceTools(toolContext);
   const webTools = createWebTools(toolContext);
   const pageTools = createPageTools(toolContext);
+  const wikipediaTools = createWikipediaTools(toolContext);
 
   // 🧠 AGENT INTELLIGENT: Tous les outils sont disponibles pour tous les modes
   // La différence entre modes est dans maxSteps et le system prompt qui guide l'intensité
@@ -62,6 +76,7 @@ export async function runPennoteAgent(
     ...workspaceTools,
     ...webTools,
     ...pageTools,
+    ...wikipediaTools,
   };
 
   // System prompt
@@ -72,7 +87,7 @@ export async function runPennoteAgent(
     conversationHistory,
   });
 
-  // Modèle Gemini avec thinkingConfig selon le mode
+  // Utiliser Gemini 3 Flash Preview avec thinking
   const { thinkingConfig } = MODE_CONFIG[mode];
   const modelName = "gemini-3-flash-preview";
 
@@ -83,15 +98,15 @@ export async function runPennoteAgent(
     `🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`,
   );
   console.log(
-    `🤖 [PennoteAgent] Provider: Google, Model: ${modelName}, ThinkingLevel: ${thinkingConfig.thinkingLevel}`,
+    `🤖 [PennoteAgent] Provider: Google, Model: ${modelName}, Thinking: ${thinkingConfig?.thinkingLevel || "auto"}`,
   );
 
   let stepNumber = 0;
 
-  // Créer le modèle Gemini
+  // Créer le modèle Gemini 2.5 Flash
   const model = google(modelName);
 
-  // Exécuter streamText avec multi-steps et thinkingConfig via providerOptions
+  // Exécuter streamText avec Gemini 2.5 Flash
   const result = streamText({
     model,
     system: systemPrompt,
@@ -100,6 +115,7 @@ export async function runPennoteAgent(
     maxOutputTokens: maxTokens,
     stopWhen: stepCountIs(maxSteps),
     toolChoice: "auto",
+    // Activer le thinking mode Gemini
     providerOptions: {
       google: { thinkingConfig },
     },
