@@ -33,7 +33,7 @@ export const MODE_CONFIG = {
   },
   "create-deep": {
     maxSteps: 30,
-    maxTokens: 16384,
+    maxTokens: 32000,
     description: "Génération complète avec recherche",
     thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
   },
