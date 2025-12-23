@@ -397,10 +397,12 @@ Aim for high-quality, comprehensive content.
 function buildFormattingSection(): string {
   return `
 <output_format>
-LaTeX:
-- Inline formulas: $formula$
-- Block formulas: $$formula$$
-- Never use \\( \\) or \\[ \\]
+IMPORTANT: You must respond with PLAIN TEXT using Markdown formatting. Do NOT wrap your response in JSON or any structured format like { "action": "reply", "content": "..." }. Just write your response directly.
+
+LaTeX formulas:
+- Use $formula$ for inline math (e.g., "L'énergie est $E = mc^2$")
+- Use $$formula$$ for block/display math on its own line
+- Both formats work in this system
 
 Markdown:
 - Use Markdown to structure your responses
