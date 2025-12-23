@@ -19,6 +19,12 @@ const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Créer le provider DeepSeek via API compatible OpenAI
+const deepseekProvider = createOpenAI({
+  apiKey: process.env.DEEPSEEK_API_KEY,
+  baseURL: "https://api.deepseek.com",
+});
+
 // Types et configuration
 import {
   MODE_CONFIG,
@@ -81,8 +87,9 @@ export async function runPennoteAgent(
     conversationHistory,
   });
 
-  // TEST: Utiliser GPT-4o-mini au lieu de Gemini
-  const modelName = "gpt-4o-mini";
+  // Utiliser Gemini 3 Flash Preview avec thinking
+  const { thinkingConfig } = MODE_CONFIG[mode];
+  const modelName = "gemini-3-flash-preview";
 
   console.log(
     `🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`,
@@ -90,14 +97,16 @@ export async function runPennoteAgent(
   console.log(
     `🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`,
   );
-  console.log(`🤖 [PennoteAgent] Provider: OpenAI, Model: ${modelName}`);
+  console.log(
+    `🤖 [PennoteAgent] Provider: Google, Model: ${modelName}, Thinking: ${thinkingConfig?.thinkingLevel || "auto"}`,
+  );
 
   let stepNumber = 0;
 
-  // Créer le modèle OpenAI (TEST)
-  const model = openai(modelName);
+  // Créer le modèle Gemini 2.5 Flash
+  const model = google(modelName);
 
-  // Exécuter streamText avec multi-steps
+  // Exécuter streamText avec Gemini 2.5 Flash
   const result = streamText({
     model,
     system: systemPrompt,
@@ -106,6 +115,10 @@ export async function runPennoteAgent(
     maxOutputTokens: maxTokens,
     stopWhen: stepCountIs(maxSteps),
     toolChoice: "auto",
+    // Activer le thinking mode Gemini
+    providerOptions: {
+      google: { thinkingConfig },
+    },
 
     // Callback global à la fin du stream
     onFinish: ({ text, finishReason, usage, reasoning, sources }) => {
