@@ -1,6 +1,7 @@
 // 🤖 Pennote Agent - Vercel AI SDK v5
 import { streamText, stepCountIs } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createOpenAI } from "@ai-sdk/openai";
 import { createRagTools } from "./tools/ragTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createWebTools } from "./tools/webTools.js";
@@ -11,6 +12,11 @@ import { createWikipediaTools } from "./tools/wikipediaTools.js";
 const google = createGoogleGenerativeAI({
   apiKey:
     process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+});
+
+// Créer le provider OpenAI
+const openai = createOpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 // Types et configuration
@@ -75,9 +81,8 @@ export async function runPennoteAgent(
     conversationHistory,
   });
 
-  // Modèle Gemini avec thinkingConfig selon le mode
-  const { thinkingConfig } = MODE_CONFIG[mode];
-  const modelName = "gemini-3-flash-preview";
+  // TEST: Utiliser GPT-4o-mini au lieu de Gemini
+  const modelName = "gpt-4o-mini";
 
   console.log(
     `🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`,
@@ -85,16 +90,14 @@ export async function runPennoteAgent(
   console.log(
     `🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`,
   );
-  console.log(
-    `🤖 [PennoteAgent] Provider: Google, Model: ${modelName}, ThinkingLevel: ${thinkingConfig.thinkingLevel}`,
-  );
+  console.log(`🤖 [PennoteAgent] Provider: OpenAI, Model: ${modelName}`);
 
   let stepNumber = 0;
 
-  // Créer le modèle Gemini
-  const model = google(modelName);
+  // Créer le modèle OpenAI (TEST)
+  const model = openai(modelName);
 
-  // Exécuter streamText avec multi-steps et thinkingConfig via providerOptions
+  // Exécuter streamText avec multi-steps
   const result = streamText({
     model,
     system: systemPrompt,
@@ -103,9 +106,6 @@ export async function runPennoteAgent(
     maxOutputTokens: maxTokens,
     stopWhen: stepCountIs(maxSteps),
     toolChoice: "auto",
-    providerOptions: {
-      google: { thinkingConfig },
-    },
 
     // Callback global à la fin du stream
     onFinish: ({ text, finishReason, usage, reasoning, sources }) => {
