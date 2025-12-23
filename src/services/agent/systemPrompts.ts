@@ -86,13 +86,15 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
     researchGuidelines: [
       "STEP 1 - PLANNING: Think about what information you need and from which sources",
       "STEP 2 - BROAD SEARCH: Start with searchWeb for current/general information",
-      "STEP 3 - DEEP DIVE: Use searchWikipedia for foundational knowledge on key concepts",
-      "STEP 4 - WORKSPACE: Check listWorkspacePages for relevant user notes",
-      "STEP 5 - RAG SOURCES: If sources provided, use searchRagChunks and readRagSource",
-      "STEP 6 - CROSS-REFERENCE: Compare information across sources for accuracy",
-      "STEP 7 - FILL GAPS: Perform additional searches for any missing information",
-      "STEP 8 - SYNTHESIZE: Combine all findings into a comprehensive response",
-      "Perform AT LEAST 3-5 different searches/tool calls before responding",
+      "STEP 3 - WIKIPEDIA DEEP DIVE: Use searchWikipedia to find key articles, then indexWikipediaToRAG to store important ones",
+      "STEP 4 - SEMANTIC SEARCH: Use searchWikipediaRAG for precise semantic search on indexed Wikipedia content",
+      "STEP 5 - WORKSPACE: Check listWorkspacePages for relevant user notes",
+      "STEP 6 - RAG SOURCES: If sources provided, use searchRagChunks and readRagSource",
+      "STEP 7 - CROSS-REFERENCE: Compare information across sources for accuracy",
+      "STEP 8 - FILL GAPS: Perform additional searches for any missing information",
+      "STEP 9 - SYNTHESIZE: Combine all findings into a comprehensive response",
+      "Perform AT LEAST 4-6 different searches/tool calls before responding",
+      "For important Wikipedia articles, ALWAYS use indexWikipediaToRAG then searchWikipediaRAG for better precision",
       "Never settle for partial information - dig deeper",
       "Include multiple perspectives and viewpoints when relevant",
       "Distinguish between facts, opinions, and speculation",
@@ -145,32 +147,64 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
     researchGuidelines: [
       "RESEARCH PHASE (do this BEFORE writing):",
       "1. searchWeb: Get current information and recent developments",
-      "2. searchWikipedia + getWikipediaArticle: Get foundational knowledge",
-      "3. listWorkspacePages + readWorkspacePage: Check user's existing notes",
-      "4. RAG tools if sources provided: Extract relevant information",
-      "Perform AT LEAST 4-6 tool calls during research phase",
+      "2. searchWikipedia: Find relevant Wikipedia articles on the topic",
+      "3. indexWikipediaToRAG: Store key articles in pgvector for semantic search",
+      "4. searchWikipediaRAG: Perform precise semantic search on indexed Wikipedia content",
+      "5. getWikipediaFullContent: Read complete articles with all sections if needed",
+      "6. listWorkspacePages + readWorkspacePage: Check user's existing notes",
+      "7. RAG tools if sources provided: Extract relevant information",
+      "Perform AT LEAST 5-8 tool calls during research phase",
+      "ALWAYS index important Wikipedia articles before searching for better precision",
       "Take mental notes of key facts, statistics, and quotes to include",
       "Identify different perspectives and approaches to the topic",
       "Find concrete examples and case studies to illustrate points",
     ],
     contentGuidelines: [
-      "CONTENT PHASE (after thorough research):",
-      "Create COMPREHENSIVE and DETAILED content - aim for excellence",
-      "Target length: 2000-5000+ words - be thorough and complete",
-      "Use multiple heading levels (##, ###, ####) for clear hierarchy",
-      "Start with a compelling introduction that outlines what will be covered",
-      "Include detailed explanations with concrete examples from your research",
-      "Add real data, statistics, and facts you found during research",
-      "Include case studies or real-world applications",
-      "Add comparisons, pros/cons, or different perspectives",
-      "Use tables or lists to organize complex information clearly",
-      "Include relevant quotes or references from authoritative sources",
-      "End with a comprehensive conclusion and key takeaways",
-      "Cite sources throughout with links where available",
-      "Make this content worthy of being a reference document",
+      "<length_requirements>",
+      "MANDATORY MINIMUM: 4000-8000 words. Content shorter than 3000 words is UNACCEPTABLE.",
+      "Think of this as writing a COMPREHENSIVE GUIDE or TEXTBOOK CHAPTER, not a brief summary.",
+      "You have 32000 tokens available - USE THEM. Do not cut content short.",
+      "</length_requirements>",
+      "",
+      "<structure_requirements>",
+      "Start with a detailed table of contents listing all sections",
+      "Use 4+ levels of headings (##, ###, ####, #####) for deep hierarchy",
+      "Include 8-15 major sections, each with 2-4 subsections",
+      "Each major section should be 400-800 words with thorough explanations",
+      "Include a substantial introduction (500+ words) and conclusion (400+ words)",
+      "</structure_requirements>",
+      "",
+      "<content_depth>",
+      "Explain EVERY concept thoroughly - assume the reader is learning from scratch",
+      "Include historical context, background, and evolution of the topic",
+      "Add 2-3 real-world examples, case studies, or practical applications for EACH major point",
+      "Include specific data: statistics, percentages, dates, numbers, and facts from your research",
+      "Present multiple perspectives: debates, controversies, and different schools of thought",
+      "Compare with related concepts, alternatives, and competing approaches",
+      "Include step-by-step processes, methodologies, or frameworks where relevant",
+      "Add pros/cons analyses, comparison tables, or decision frameworks",
+      "Include direct quotes from experts, researchers, or authoritative sources with citations",
+      "</content_depth>",
+      "",
+      "<formatting_requirements>",
+      "Use **bold** for key terms and important concepts",
+      "Use bullet lists and numbered lists extensively for clarity",
+      "Include markdown tables to organize complex or comparative information",
+      "Add blockquotes (>) for important citations, definitions, or key takeaways",
+      "Use code blocks with language specification for any technical content",
+      "Cite all sources using [Source Name](url) markdown format",
+      "</formatting_requirements>",
+      "",
+      "<quality_constraints>",
+      "This content must be PUBLICATION-READY and serve as a definitive reference",
+      "A reader should gain COMPLETE understanding of the subject from this single document",
+      "NEVER abbreviate, summarize briefly, or say 'in short' - always elaborate fully",
+      "DO NOT rush - methodically cover every aspect of the topic",
+      "Each paragraph should contain substantive information, not filler",
+      "</quality_constraints>",
     ],
   },
-};
+} as const;
 
 // ============================================================================
 // PROMPT BUILDERS
@@ -301,13 +335,27 @@ ${pageToolsSection}
 Web Tools:
 - searchWeb: Searches the web for current news and information
 - searchWikipedia: Searches for Wikipedia articles
-- getWikipediaArticle: Retrieves the full content of a Wikipedia article
+- getWikipediaArticle: Retrieves the introduction of a Wikipedia article
+
+Wikipedia RAG Tools (pgvector integration with text-embedding-3-small 1536D):
+- indexWikipediaToRAG: Indexes a Wikipedia article into pgvector for semantic search. Use this to store important articles for later retrieval. Articles are chunked and embedded with text-embedding-3-small (1536D).
+- getWikipediaFullContent: Retrieves the COMPLETE content of a Wikipedia article with ALL sections (not just intro). Use this for in-depth reading before indexing.
+- searchWikipediaRAG: Semantic vector search ONLY on indexed Wikipedia articles. More precise than searchWikipedia because it uses embeddings similarity.
+- listWikipediaRAGSources: Lists all Wikipedia articles already indexed in pgvector. Use this to check what's available before searching.
+
+Wikipedia workflow for deep research:
+1. searchWikipedia to find relevant articles
+2. indexWikipediaToRAG to store important articles in pgvector
+3. searchWikipediaRAG for precise semantic search on indexed content
+4. getWikipediaFullContent if you need the complete article text
 
 Usage priority:
 1. If sources are explicitly provided, consult them FIRST
 2. If sources are insufficient, search the workspace
-3. If still insufficient, use Wikipedia or web search
-4. Use multiple tools if necessary for a complete response
+3. For encyclopedic knowledge: index to pgvector then use searchWikipediaRAG for precision
+4. For quick lookups: use searchWikipedia + getWikipediaArticle
+5. For current news: use searchWeb
+6. Use multiple tools if necessary for a complete response
 </available_tools>`;
 }
 
@@ -349,10 +397,12 @@ Aim for high-quality, comprehensive content.
 function buildFormattingSection(): string {
   return `
 <output_format>
-LaTeX:
-- Inline formulas: $formula$
-- Block formulas: $$formula$$
-- Never use \\( \\) or \\[ \\]
+IMPORTANT: You must respond with PLAIN TEXT using Markdown formatting. Do NOT wrap your response in JSON or any structured format like { "action": "reply", "content": "..." }. Just write your response directly.
+
+LaTeX formulas:
+- Use $formula$ for inline math (e.g., "L'énergie est $E = mc^2$")
+- Use $$formula$$ for block/display math on its own line
+- Both formats work in this system
 
 Markdown:
 - Use Markdown to structure your responses
