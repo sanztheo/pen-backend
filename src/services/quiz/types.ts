@@ -151,6 +151,7 @@ export interface QuizGenerationRequest {
   selectedSpecialties?: LyceeSpecialty[]; // ✅ ADDED: For BAC preset support
   higherEdLevel?: string; // ✅ Niveau d'études sup: L1, L2, L3, M1, M2, Doctorat, BTS, DUT, Prépa
   higherEdField?: string; // Filière: Informatique, Médecine, Droit...
+  usePersonalization?: boolean; // ✅ Si true, récupère schoolLevel depuis les settings utilisateur (DB)
   targetGrade?: number;
   workspaceIds?: string[];
   questionTypes: QuestionType[];

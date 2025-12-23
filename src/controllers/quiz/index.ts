@@ -31,6 +31,9 @@ export { DocumentController } from "./documents/documentController.js";
 export { PagesProjectsController } from "./content/pagesProjectsController.js";
 export { RAGController } from "./content/ragController.js";
 
+// ===== ASSISTANT / PREPROCESSOR =====
+export { PreprocessorController } from "./assistant/preprocessorController.js";
+
 /**
  * Classe unifiée QuizController pour rétrocompatibilité
  *
@@ -45,6 +48,7 @@ import { SequenceDebugController } from "./sequences/sequenceDebugController.js"
 import { DocumentController } from "./documents/documentController.js";
 import { PagesProjectsController } from "./content/pagesProjectsController.js";
 import { RAGController } from "./content/ragController.js";
+import { PreprocessorController } from "./assistant/preprocessorController.js";
 
 /**
  * Helper function to copy all static methods from a class to a target object
@@ -77,6 +81,8 @@ copyStaticMethods(UnifiedQuizControllerObj, DocumentController);
 // Contenu
 copyStaticMethods(UnifiedQuizControllerObj, PagesProjectsController);
 copyStaticMethods(UnifiedQuizControllerObj, RAGController);
+// Assistant / Preprocessor
+copyStaticMethods(UnifiedQuizControllerObj, PreprocessorController);
 
 export const UnifiedQuizController = UnifiedQuizControllerObj;
 
