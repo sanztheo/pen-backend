@@ -1000,6 +1000,7 @@ export class QuizStreamingController {
               questionCount,
               intelligentConfig,
             ),
+          ragContext, // 🔑 Inclure le ragContext dans le cache
         );
 
         intelligentContext = cacheResult.context;
