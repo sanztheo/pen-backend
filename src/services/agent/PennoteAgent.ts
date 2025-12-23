@@ -2,15 +2,16 @@
 import { streamText, stepCountIs } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createRagTools } from "./tools/ragTools.js";
+import { createWorkspaceTools } from "./tools/workspaceTools.js";
+import { createWebTools } from "./tools/webTools.js";
+import { createPageTools } from "./tools/pageTools.js";
+import { createWikipediaTools } from "./tools/wikipediaTools.js";
 
 // Créer le provider Google avec la clé API explicite
 const google = createGoogleGenerativeAI({
   apiKey:
     process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
-import { createWorkspaceTools } from "./tools/workspaceTools.js";
-import { createWebTools } from "./tools/webTools.js";
-import { createPageTools } from "./tools/pageTools.js";
 
 // Types et configuration
 import {
@@ -54,6 +55,7 @@ export async function runPennoteAgent(
   const workspaceTools = createWorkspaceTools(toolContext);
   const webTools = createWebTools(toolContext);
   const pageTools = createPageTools(toolContext);
+  const wikipediaTools = createWikipediaTools(toolContext);
 
   // 🧠 AGENT INTELLIGENT: Tous les outils sont disponibles pour tous les modes
   // La différence entre modes est dans maxSteps et le system prompt qui guide l'intensité
@@ -62,6 +64,7 @@ export async function runPennoteAgent(
     ...workspaceTools,
     ...webTools,
     ...pageTools,
+    ...wikipediaTools,
   };
 
   // System prompt
