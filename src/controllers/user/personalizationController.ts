@@ -13,6 +13,7 @@ type Personalization = {
   classeEtudesSup?: string; // L1, L2, L3, M1, M2, Doctorat, etc.
   classeAutre?: string; // Champ libre pour "Autre"
   filiere?: string; // Obligatoire pour lycée (Première/Terminale) et études sup
+  specialites?: string; // Spécialités du bac (texte libre)
 
   // === Champs existants ===
   classe?: string; // Legacy - pour migration
@@ -69,6 +70,9 @@ const normalizeInput = (body: any): Personalization => {
   }
   if (body.classeAutre !== undefined) {
     out.classeAutre = sanitize(body.classeAutre, 120);
+  }
+  if (body.specialites !== undefined) {
+    out.specialites = sanitize(body.specialites, 200);
   }
 
   // === Champs existants ===
