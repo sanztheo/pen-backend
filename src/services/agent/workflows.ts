@@ -531,7 +531,7 @@ Format as a structured outline.`,
   console.log(`✍️ [Workflow] Phase 4: Content Generation`);
   const initialContent = await generateText({
     model: MODELS.thinking,
-    maxOutputTokens: 16384,
+    maxOutputTokens: 32000,
     providerOptions: {
       google: { thinkingConfig: { thinkingLevel: "high" } },
     },
@@ -704,7 +704,7 @@ Format as a structured outline.`,
   console.log(`✍️ [Workflow] Phase 3: Content Generation`);
   const initialContent = await generateText({
     model: MODELS.thinking,
-    maxOutputTokens: 16384,
+    maxOutputTokens: 32000,
     providerOptions: {
       google: { thinkingConfig: { thinkingLevel: "high" } },
     },
