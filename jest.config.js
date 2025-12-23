@@ -81,6 +81,7 @@ export default {
   clearMocks: true,
 
   // Setup files
+  setupFiles: ["<rootDir>/src/test-setup.ts"],
   setupFilesAfterEnv: [],
 
   // Module directories
