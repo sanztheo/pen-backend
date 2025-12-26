@@ -30,6 +30,7 @@ import {
 import { getUserPersonalization } from "../services/quiz/utils/personalizationUtils.js";
 import { quizPreprocessorAgent } from "../services/quiz/preprocessor/QuizPreprocessorAgent.js";
 import type { PreprocessorPromptParams } from "../services/quiz/preprocessor/prompts.js";
+import { generateQuizTitle } from "../services/quiz/utils/titleGenerator.js";
 
 // Stockage temporaire des sessions de streaming
 const streamingSessions = new Map<
@@ -318,11 +319,33 @@ export class QuizStreamingController {
       };
 
       try {
+        // 🎯 Générer un titre intelligent si non fourni
+        let quizTitle = title;
+        if (!quizTitle) {
+          // Récupérer les noms des pages si disponibles
+          let pageNames: string[] = [];
+          if (pageProjectIds && pageProjectIds.length > 0) {
+            const pages = await prisma.page.findMany({
+              where: { id: { in: pageProjectIds } },
+              select: { title: true },
+            });
+            pageNames = pages.map((p) => p.title).filter(Boolean);
+          }
+
+          quizTitle = await generateQuizTitle({
+            schoolLevel,
+            pageNames,
+            subject: specificSubject,
+            questionCount,
+          });
+          console.log(`[TITLE-GEN] Titre généré: "${quizTitle}"`);
+        }
+
         // 1. Créer le quiz en base avec état "generating"
         const quiz = await prisma.quiz.create({
           data: {
             userId,
-            title: title || `Quiz ${schoolLevel}`,
+            title: quizTitle,
             schoolLevel,
             questions: [], // Sera rempli progressivement
             isCompleted: false,
@@ -766,10 +789,16 @@ export class QuizStreamingController {
         }
       }
 
-      // 🎯 PEN-35: Si letAIChoose OU mode intelligent (premium + 2+ pages), appeler le preprocessor
+      // 🎯 PEN-35: Appeler le preprocessor UNIQUEMENT si letAIChoose est true
       // Le preprocessor détermine les paramètres optimaux (questionCount, questionTypes, difficulty)
-      const shouldCallPreprocessor =
-        letAIChoose || (pageProjectIds && pageProjectIds.length >= 2); // Mode intelligent pour premium
+      // IMPORTANT: Respecter le choix explicite de l'utilisateur - si letAIChoose est false,
+      // ne PAS appeler le preprocessor même pour les utilisateurs premium avec 2+ pages
+      const shouldCallPreprocessor = letAIChoose === true;
+
+      // 🔍 Debug: Log explicite de la décision preprocessor
+      console.log(
+        `[STREAMING-PREPROCESSOR] 🎯 Décision preprocessor: letAIChoose=${letAIChoose}, shouldCall=${shouldCallPreprocessor}`,
+      );
 
       if (
         shouldCallPreprocessor &&
@@ -939,11 +968,34 @@ export class QuizStreamingController {
         `🚀 [STREAMING] Début génération streaming pour ${questionCount} questions`,
       );
 
+      // 🎯 Générer un titre intelligent si non fourni
+      let quizTitle = title;
+      if (!quizTitle) {
+        // Récupérer les noms des pages si disponibles
+        let pageNames: string[] = [];
+        if (pageProjectIds && pageProjectIds.length > 0) {
+          const pages = await prisma.page.findMany({
+            where: { id: { in: pageProjectIds } },
+            select: { title: true },
+          });
+          pageNames = pages.map((p) => p.title).filter(Boolean);
+        }
+
+        quizTitle = await generateQuizTitle({
+          schoolLevel,
+          pageNames,
+          subject: specificSubject,
+          questionCount,
+          difficulty,
+        });
+        console.log(`[TITLE-GEN] Titre généré: "${quizTitle}"`);
+      }
+
       // 1. Créer le quiz en base avec état "generating"
       const quiz = await prisma.quiz.create({
         data: {
           userId,
-          title: title || `Quiz ${schoolLevel}`,
+          title: quizTitle,
           schoolLevel,
           questions: [], // Sera rempli progressivement
           isCompleted: false,
