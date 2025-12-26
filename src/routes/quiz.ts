@@ -6,6 +6,7 @@ import {
   requireCustomQuizLimits,
   requirePresetSequenceLimits,
 } from "../middlewares/requireQuizLimits.js";
+import { preprocessorRateLimit } from "../middlewares/rateLimiting.js";
 import quizStatsRouter from "./quizStats.js";
 
 const router = Router();
@@ -21,6 +22,14 @@ router.post(
   "/generate",
   requireCustomQuizLimits(),
   QuizController.generateQuiz,
+);
+
+// PEN-35: Route pour le preprocessor (analyse et recommandations)
+// SÉCURITÉ: Rate limit par userId (30 req/15min) pour éviter abus de l'IA
+router.post(
+  "/preprocess",
+  preprocessorRateLimit,
+  QuizController.preprocessQuiz,
 );
 
 // ===== NOUVELLES ROUTES POUR LE STREAMING =====

@@ -170,7 +170,12 @@ export class ThematicClustererService {
     let usedAlgorithm: string;
 
     if (selectedAlgorithm === "kmeans") {
-      const k = Math.min(maxClusters, Math.ceil(pagesWithConcepts.length / 4));
+      // Calcul de k optimisé pour petits datasets
+      // Pour 2-3 pages: k=2, 4-7 pages: k=3, 8-11: k=4, etc.
+      const k = Math.min(
+        maxClusters,
+        Math.max(2, Math.ceil(pagesWithConcepts.length / 2.5)),
+      );
       const result = kMeans(validEmbeddings, k);
       clusterIndices = result.clusters.filter(
         (c) => c.length >= minClusterSize,

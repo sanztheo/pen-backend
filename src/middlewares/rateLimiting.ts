@@ -201,7 +201,34 @@ export const quizRateLimit = rateLimit({
 });
 
 /**
- * 5. RATE LIMIT ASSISTANT
+ * 5. RATE LIMIT PREPROCESSOR QUIZ
+ * Protection spécifique pour l'analyse IA pré-quiz (très coûteux)
+ * Limite stricte par utilisateur - 30 req/15min (~2/min)
+ */
+export const preprocessorRateLimit = rateLimit({
+  ...createBaseConfig("rl:preprocessor:"),
+  windowMs: RATE_LIMIT_CONFIG.quiz.windowMs, // Même fenêtre que quiz
+  max: Math.floor(RATE_LIMIT_CONFIG.quiz.max / 2), // Moitié des limites quiz (30/15min)
+  message: {
+    success: false,
+    error: "PREPROCESSOR_RATE_LIMIT_EXCEEDED",
+    message:
+      "Trop de demandes d'analyse IA. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "15 minutes",
+  },
+  keyGenerator: (req) => {
+    // SÉCURITÉ: Toujours par userId, jamais par IP seule pour éviter les abus
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      // Si pas d'userId, bloquer (ce endpoint nécessite authentification)
+      return `blocked_no_user_${getIpKey(req)}`;
+    }
+    return `user_${userId}`;
+  },
+});
+
+/**
+ * 6. RATE LIMIT ASSISTANT
  * Protection OpenAI Assistant (endpoints très coûteux)
  * Limite stricte par utilisateur
  */
