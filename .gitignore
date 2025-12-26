@@ -9,3 +9,4 @@ debug-logs
 .tsbuildinfo
 .env.*
 *.md
+CLAUDE.md
