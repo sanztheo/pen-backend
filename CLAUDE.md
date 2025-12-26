@@ -70,51 +70,43 @@ console.log("[PREFIX]:", data);
 
 **⚠️ Si tu reviens après un compact de conversation, LIS CETTE SECTION EN PREMIER.**
 
-### Projet Actif: Quiz Simplification - Mode Auto IA
+### Projet Actif: Quiz Intelligence System ✅ COMPLÉTÉ
 
 **Linear Project:** https://linear.app/pennotelinear/project/quiz-simplification-mode-auto-ia-8a55619d87c5
 
-**Objectif:** Simplifier le formulaire quiz + ajouter un agent IA preprocessor qui analyse les sources et détermine les paramètres optimaux.
+**✅ Fonctionnalités Backend implémentées:**
+- Quiz Preprocessor Agent (détermination automatique des paramètres)
+- Quiz Intelligence Pipeline (extraction concepts, clustering K-means/DBSCAN)
+- Question scoring et déduplication
+- Correction enrichment avec références aux sources
+- Génération automatique de titres de quiz
+- Wikipedia RAG tools pour recherche approfondie
+- Support Gemini 3 Flash avec thinking mode + DeepSeek provider
+- Système de personnalisation en cascade
 
-**Issues à suivre (dans l'ordre):**
-| ID | Titre | Status |
-|-----|-------|--------|
-| PEN-32 | Intégrer personnalisation utilisateur | 🔄 À vérifier |
-| PEN-36 | Créer prompt XML preprocessor | 🔄 À vérifier |
-| PEN-34 | Validation limites abonnement | 🔄 À vérifier |
-| PEN-31 | Refactorer QuizParametersForm | ⏳ Pending |
-| PEN-33 | Créer QuizPreprocessorAgent | ⏳ Pending |
-| PEN-35 | Intégrer dans flux génération | ⏳ Pending |
-| PEN-37 | Tests E2E | ⏳ Pending |
+**Fichiers clés Backend:**
+```
+src/services/quiz/
+├── preprocessor/
+│   └── QuizPreprocessorAgent.ts   → Détermination auto des paramètres
+├── intelligence/
+│   ├── conceptExtractor.ts        → Extraction async des concepts (BullMQ)
+│   ├── thematicClustering.ts      → K-means et DBSCAN clustering
+│   ├── questionScoring.ts         → Scoring et déduplication
+│   └── smartContentSelector.ts    → Sélection intelligente du contenu
+└── correctionEnrichment.ts        → Enrichissement avec références sources
+
+src/services/agent/tools/
+└── wikipediaTools.ts              → RAG tools Wikipedia
+
+prisma/schema.prisma
+└── model PageConcepts             → Stockage des concepts extraits
+```
 
 **Pour reprendre le contexte:**
-
 ```bash
-# 1. Vérifier l'état des issues Linear
 mcp__linear__list_issues --project="Quiz Simplification - Mode Auto IA"
-
-# 2. Voir les fichiers créés/modifiés
-pen-backend/src/services/quiz/preprocessor/  # Agent preprocessor
-pen-frontend/src/components/quiz/            # Formulaire quiz simplifié
 ```
-
-**Architecture cible:**
-
-```
-User → QuizForm (simplifié) → QuizPreprocessorAgent (gpt-4o-mini)
-                                      ↓
-                              LimitValidator (corrige si > max)
-                                      ↓
-                              QuizGeneratorService
-```
-
-**Workflow d'implémentation:**
-
-1. Implémenter l'issue
-2. `npx tsc --noEmit` pour valider
-3. Script de test si nécessaire
-4. Mettre à jour Linear (status → Done)
-5. Passer à l'issue suivante
 
 **⚠️ Utiliser des sub-agents pour les grosses tâches pour éviter d'exploser le contexte.**
 
@@ -165,17 +157,17 @@ Always run `npx tsc --noEmit` in the affected directory. Do not run full builds 
 
 ### Tech Stack
 
-| Layer     | Frontend                            | Backend                                   |
-| --------- | ----------------------------------- | ----------------------------------------- |
-| Framework | Vite + React 18 (NOT Next.js)       | Express.js + TypeScript                   |
-| Editor    | BlockNote v0.45.0                   | @blocknote/server-util                    |
-| Auth      | Clerk (@clerk/clerk-react)          | Clerk (@clerk/backend)                    |
-| Billing   | Paddle.js (checkout overlay)        | Paddle Node SDK (@paddle/paddle-node-sdk) |
-| UI        | Tailwind + Shadcn + Radix + Mantine | -                                         |
-| Data      | SWR + React Context                 | Prisma ORM (2 schemas)                    |
-| Real-time | Yjs + WebSocket                     | Socket.io + y-protocols                   |
-| AI        | Vercel AI SDK                       | OpenAI + Gemini + ai SDK                  |
-| Queue     | -                                   | BullMQ + Redis                            |
+| Layer     | Frontend                            | Backend                                        |
+| --------- | ----------------------------------- | ---------------------------------------------- |
+| Framework | Vite + React 18 (NOT Next.js)       | Express.js + TypeScript                        |
+| Editor    | BlockNote v0.45.0                   | @blocknote/server-util                         |
+| Auth      | Clerk (@clerk/clerk-react)          | Clerk (@clerk/backend)                         |
+| Billing   | Paddle.js (checkout overlay)        | Paddle Node SDK (@paddle/paddle-node-sdk)      |
+| UI        | Tailwind + Shadcn + Radix + Mantine | -                                              |
+| Data      | SWR + React Context                 | Prisma ORM (2 schemas)                         |
+| Real-time | Yjs + WebSocket                     | Socket.io + y-protocols                        |
+| AI        | Vercel AI SDK + Streamdown          | OpenAI + Gemini 3 Flash + DeepSeek + ai SDK    |
+| Queue     | -                                   | BullMQ + Redis                                 |
 
 ### Dual Prisma Schema Architecture
 
@@ -280,6 +272,7 @@ pen-backend/src/services/agent/
     ├── ragTools.ts       → listAvailableSources, searchRagChunks, readRagSource
     ├── workspaceTools.ts → listWorkspacePages, readWorkspacePage, listWorkspaceProjects
     ├── webTools.ts       → searchWeb (OpenAI), searchWikipedia, getWikipediaArticle
+    ├── wikipediaTools.ts → indexWikipediaArticle, searchWikipediaRag, getWikipediaContent
     └── pageTools.ts      → createPage, checkPageExists
 ```
 
@@ -305,6 +298,50 @@ Controllers in `pen-backend/src/controllers/quiz/`:
 - `assistant/` - AI-powered quiz generation
 - `sequences/` - Quiz sequence management
 - `documents/` - Document-based quiz creation
+
+### Quiz Intelligence System (NEW)
+
+Pipeline d'intelligence pour génération de quiz optimisée:
+
+```
+src/services/quiz/
+├── preprocessor/
+│   └── QuizPreprocessorAgent.ts   → Détermination auto des paramètres via IA
+├── intelligence/
+│   ├── conceptExtractor.ts        → Extraction async des concepts (BullMQ jobs)
+│   ├── thematicClustering.ts      → K-means et DBSCAN clustering
+│   ├── questionScoring.ts         → Scoring et déduplication
+│   └── smartContentSelector.ts    → Sélection intelligente du contenu
+├── correctionEnrichment.ts        → Enrichissement avec références sources
+└── titleGenerator.ts              → Génération automatique de titres
+```
+
+**Fonctionnalités:**
+- Extraction automatique des concepts clés via IA (async avec BullMQ)
+- Clustering thématique K-means/DBSCAN pour regrouper les questions
+- Scoring et déduplication des questions
+- Enrichissement des corrections avec citations des sources
+- Génération automatique de titres de quiz
+- Intégration avec personnalisation utilisateur (niveau, spécialités)
+- Cache intelligent avec `ragContext` dans la clé
+
+**Modèle Prisma associé:**
+```prisma
+model PageConcepts {
+  id        String   @id @default(uuid())
+  pageId    String   @unique
+  concepts  Json     // Array of extracted concepts
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+```
+
+**Scripts de test:**
+```bash
+npm run test:quiz:intelligence     # Tests unitaires pipeline
+npm run test:quiz:benchmark        # Benchmarking performance
+npm run script:seed-test-pages     # Seed pages de test éducatives
+```
 
 ### Real-time Collaboration
 
@@ -379,9 +416,10 @@ PADDLE_ENVIRONMENT     # "sandbox" or "production"
 ### Backend Optional
 
 ```
-GEMINI_API_KEY         # Google Gemini support
+GEMINI_API_KEY         # Google Gemini 3 Flash support (thinking mode)
+DEEPSEEK_API_KEY       # DeepSeek provider support
 TAVILY_API_KEY         # Web search for assistant
-OPENAI_MODEL           # Default model
+OPENAI_MODEL           # Default model (gpt-4o-mini recommended)
 OPENAI_MAX_REQUESTS_PER_HOUR  # Rate limiting
 ```
 
@@ -1101,8 +1139,23 @@ This is a professional SaaS - maintain high quality standards throughout all imp
 
 ## Migration Status
 
-The Vercel AI SDK v5 migration is **mostly complete**. See `docs/MIGRATION_VERCEL_AI_SDK.md` for:
+The Vercel AI SDK v5 migration is **✅ COMPLETE**. See `docs/MIGRATION_VERCEL_AI_SDK.md` for:
 
 - Detailed checklist with completed/remaining items
 - Files that were deleted (old FunctionCalling system)
 - New agent architecture documentation
+
+## Recent Backend Updates (Dec 2024)
+
+- **Quiz Preprocessor Agent** - Détermination automatique des paramètres quiz via IA
+- **Quiz Intelligence Pipeline** - Extraction concepts, clustering K-means/DBSCAN, scoring
+- **Wikipedia RAG Tools** - Indexation et recherche sémantique Wikipedia
+- **Gemini 3 Flash** - Support thinking mode pour génération avancée
+- **DeepSeek Provider** - Alternative AI provider intégrée
+- **Correction Enrichment** - Références sources dans les corrections quiz
+- **PageConcepts Model** - Stockage des concepts extraits par page (Prisma)
+- **Target Grade** - Note cible dans statistiques avancées quiz
+- **ragContext Cache Key** - Invalidation cache améliorée
+- **Cascaded Personalization** - Système niveau éducatif en cascade
+- **Quiz Title Generation** - Génération automatique de titres via IA
+- **Higher Education Level** - Support niveau supérieur dans quiz params
