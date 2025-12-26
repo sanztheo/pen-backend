@@ -27,6 +27,10 @@ import {
   type ClusterQuestionDistribution,
   type EnrichmentConfig,
 } from "../services/quiz/intelligence/index.js";
+import { getUserPersonalization } from "../services/quiz/utils/personalizationUtils.js";
+import { quizPreprocessorAgent } from "../services/quiz/preprocessor/QuizPreprocessorAgent.js";
+import type { PreprocessorPromptParams } from "../services/quiz/preprocessor/prompts.js";
+import { generateQuizTitle } from "../services/quiz/utils/titleGenerator.js";
 
 // Stockage temporaire des sessions de streaming
 const streamingSessions = new Map<
@@ -315,11 +319,33 @@ export class QuizStreamingController {
       };
 
       try {
+        // 🎯 Générer un titre intelligent si non fourni
+        let quizTitle = title;
+        if (!quizTitle) {
+          // Récupérer les noms des pages si disponibles
+          let pageNames: string[] = [];
+          if (pageProjectIds && pageProjectIds.length > 0) {
+            const pages = await prisma.page.findMany({
+              where: { id: { in: pageProjectIds } },
+              select: { title: true },
+            });
+            pageNames = pages.map((p) => p.title).filter(Boolean);
+          }
+
+          quizTitle = await generateQuizTitle({
+            schoolLevel,
+            pageNames,
+            subject: specificSubject,
+            questionCount,
+          });
+          console.log(`[TITLE-GEN] Titre généré: "${quizTitle}"`);
+        }
+
         // 1. Créer le quiz en base avec état "generating"
         const quiz = await prisma.quiz.create({
           data: {
             userId,
-            title: title || `Quiz ${schoolLevel}`,
+            title: quizTitle,
             schoolLevel,
             questions: [], // Sera rempli progressivement
             isCompleted: false,
@@ -689,9 +715,9 @@ export class QuizStreamingController {
     try {
       // Récupérer les paramètres de la session
       const {
-        schoolLevel,
-        questionTypes = ["MULTIPLE_CHOICE"],
-        questionCount = 10,
+        schoolLevel: bodySchoolLevel,
+        questionTypes: bodyQuestionTypes = ["MULTIPLE_CHOICE"],
+        questionCount: bodyQuestionCount = 10,
         collegeGrade,
         lyceeSpecialties,
         higherEdLevel, // 🆕 Niveau études sup (L1, M1, etc.)
@@ -706,8 +732,10 @@ export class QuizStreamingController {
         sequentialConfig,
         targetGrade,
         timeLimit,
-        difficulty,
+        difficulty: bodyDifficulty,
         useIntelligentGeneration: requestUseIntelligent = false, // 🧠 PEN-18: Mode intelligent
+        usePersonalization = false, // 🎯 PEN-32: Récupérer personnalisation depuis DB
+        letAIChoose = false, // 🎯 PEN-35: Laisser l'IA choisir les paramètres
       } = session.request;
 
       // 🧠 Debug: Vérifier les données récupérées de la session
@@ -719,8 +747,169 @@ export class QuizStreamingController {
       );
       console.log(`  - coursesOnly: ${coursesOnly}`);
       console.log(`  - pageProjectIds: ${pageProjectIds?.length || 0}`);
+      console.log(`  - usePersonalization: ${usePersonalization}`);
+      console.log(`  - letAIChoose: ${letAIChoose}`);
 
       const userId = session.userId;
+
+      // ════════════════════════════════════════════════════════════════
+      // 🎯 PEN-32 + PEN-35: Personnalisation et mode Auto IA
+      // ════════════════════════════════════════════════════════════════
+      let schoolLevel = bodySchoolLevel;
+      let questionCount = bodyQuestionCount;
+      let questionTypes = bodyQuestionTypes;
+      let difficulty = bodyDifficulty;
+      let preprocessorTypeDistribution: string[] | null = null; // 🎯 Distribution calculée par le preprocessor
+
+      // 🎯 PEN-32: Récupérer la personnalisation depuis la DB si demandé
+      if (usePersonalization || !bodySchoolLevel) {
+        console.log(
+          "[STREAMING-PREPROCESSOR] 📥 Récupération personnalisation depuis DB...",
+        );
+        const personalizationData = await getUserPersonalization(userId);
+
+        if (personalizationData) {
+          schoolLevel =
+            personalizationData.classe || bodySchoolLevel || "COLLEGE";
+
+          console.log(
+            "[STREAMING-PREPROCESSOR] 👤 Personnalisation récupérée:",
+            {
+              classe: personalizationData.classe,
+              etude: personalizationData.etude,
+              filiere: personalizationData.filiere,
+              resolvedSchoolLevel: schoolLevel,
+            },
+          );
+        } else {
+          console.log(
+            "[STREAMING-PREPROCESSOR] ⚠️ Aucune personnalisation trouvée",
+          );
+          schoolLevel = bodySchoolLevel || "COLLEGE";
+        }
+      }
+
+      // 🎯 PEN-35: Appeler le preprocessor UNIQUEMENT si letAIChoose est true
+      // Le preprocessor détermine les paramètres optimaux (questionCount, questionTypes, difficulty)
+      // IMPORTANT: Respecter le choix explicite de l'utilisateur - si letAIChoose est false,
+      // ne PAS appeler le preprocessor même pour les utilisateurs premium avec 2+ pages
+      const shouldCallPreprocessor = letAIChoose === true;
+
+      // 🔍 Debug: Log explicite de la décision preprocessor
+      console.log(
+        `[STREAMING-PREPROCESSOR] 🎯 Décision preprocessor: letAIChoose=${letAIChoose}, shouldCall=${shouldCallPreprocessor}`,
+      );
+
+      if (
+        shouldCallPreprocessor &&
+        pageProjectIds &&
+        pageProjectIds.length > 0
+      ) {
+        console.log(
+          "[STREAMING-PREPROCESSOR] 🤖 Mode Auto IA activé - Analyse des sources...",
+        );
+
+        sendSSE("ai-analyzing", {
+          message: "L'IA analyse vos sources pour optimiser le quiz...",
+        });
+
+        try {
+          // Analyser le contenu des sources
+          const sourceAnalysis =
+            await QuizStreamingController.analyzeSourceContentForPreprocessor(
+              userId,
+              pageProjectIds,
+            );
+
+          if (sourceAnalysis.wordCount >= 50) {
+            // Récupérer les limites utilisateur
+            const userLimits = await prisma.userLimits.findUnique({
+              where: { userId },
+              select: { questionsPerQuizLimit: true },
+            });
+            const subscriptionLimit = userLimits?.questionsPerQuizLimit || 10;
+
+            // Préparer les paramètres pour le preprocessor
+            const preprocessorParams: PreprocessorPromptParams = {
+              schoolLevel: schoolLevel,
+              studyLevel:
+                QuizStreamingController.mapSchoolLevelToStudyLevel(schoolLevel),
+              quizType: "ENTRAINEMENT",
+              sourceSummary: sourceAnalysis.summary,
+              sourceTopics: sourceAnalysis.topics,
+              wordCount: sourceAnalysis.wordCount,
+              hasFormulas: sourceAnalysis.hasFormulas,
+              hasDefinitions: sourceAnalysis.hasDefinitions,
+              subscriptionLimit,
+              userLanguage: "French",
+            };
+
+            console.log(
+              "[STREAMING-PREPROCESSOR] 🧠 Paramètres envoyés à l'IA:",
+              {
+                schoolLevel: preprocessorParams.schoolLevel,
+                studyLevel: preprocessorParams.studyLevel,
+                wordCount: preprocessorParams.wordCount,
+                hasFormulas: preprocessorParams.hasFormulas,
+                subscriptionLimit: preprocessorParams.subscriptionLimit,
+              },
+            );
+
+            // Appeler le preprocessor
+            const recommendations =
+              await quizPreprocessorAgent.analyzeAndRecommend(
+                preprocessorParams,
+                userId,
+              );
+
+            // Appliquer les recommandations
+            questionCount = recommendations.recommendedQuestionCount;
+            // 🎯 FIX: Le preprocessor retourne questionTypes comme distribution complète
+            // On la stocke séparément pour éviter qu'elle soit recalculée
+            preprocessorTypeDistribution = recommendations.questionTypes;
+            difficulty = recommendations.difficulty;
+
+            // Compter les types de questions pour le log
+            const questionTypeCounts = recommendations.questionTypes.reduce(
+              (acc, type) => {
+                acc[type] = (acc[type] || 0) + 1;
+                return acc;
+              },
+              {} as Record<string, number>,
+            );
+
+            console.log("[STREAMING-PREPROCESSOR] ✅ Décision de l'IA:", {
+              recommendedQuestionCount:
+                recommendations.recommendedQuestionCount,
+              difficulty: recommendations.difficulty,
+              questionTypes: questionTypeCounts,
+              reasoning: recommendations.reasoning,
+            });
+
+            sendSSE("ai-recommendations", {
+              message: "Paramètres optimisés par l'IA",
+              questionCount: recommendations.recommendedQuestionCount,
+              questionTypes: questionTypeCounts,
+              difficulty: recommendations.difficulty,
+              reasoning: recommendations.reasoning,
+            });
+          } else {
+            console.log(
+              "[STREAMING-PREPROCESSOR] ⚠️ Contenu insuffisant, utilisation des paramètres par défaut",
+            );
+          }
+        } catch (preprocessError) {
+          console.error(
+            "[STREAMING-PREPROCESSOR] ❌ Erreur preprocessor:",
+            preprocessError,
+          );
+          // En cas d'erreur, continuer avec les paramètres par défaut
+          sendSSE("ai-fallback", {
+            message:
+              "Analyse IA non disponible, utilisation des paramètres manuels",
+          });
+        }
+      }
 
       // 🧠 PEN-24: Mode intelligent automatique pour les utilisateurs premium
       // Les utilisateurs premium bénéficient automatiquement du clustering thématique
@@ -779,11 +968,34 @@ export class QuizStreamingController {
         `🚀 [STREAMING] Début génération streaming pour ${questionCount} questions`,
       );
 
+      // 🎯 Générer un titre intelligent si non fourni
+      let quizTitle = title;
+      if (!quizTitle) {
+        // Récupérer les noms des pages si disponibles
+        let pageNames: string[] = [];
+        if (pageProjectIds && pageProjectIds.length > 0) {
+          const pages = await prisma.page.findMany({
+            where: { id: { in: pageProjectIds } },
+            select: { title: true },
+          });
+          pageNames = pages.map((p) => p.title).filter(Boolean);
+        }
+
+        quizTitle = await generateQuizTitle({
+          schoolLevel,
+          pageNames,
+          subject: specificSubject,
+          questionCount,
+          difficulty,
+        });
+        console.log(`[TITLE-GEN] Titre généré: "${quizTitle}"`);
+      }
+
       // 1. Créer le quiz en base avec état "generating"
       const quiz = await prisma.quiz.create({
         data: {
           userId,
-          title: title || `Quiz ${schoolLevel}`,
+          title: quizTitle,
           schoolLevel,
           questions: [], // Sera rempli progressivement
           isCompleted: false,
@@ -840,6 +1052,7 @@ export class QuizStreamingController {
               questionCount,
               intelligentConfig,
             ),
+          ragContext, // 🔑 Inclure le ragContext dans le cache
         );
 
         intelligentContext = cacheResult.context;
@@ -873,9 +1086,18 @@ export class QuizStreamingController {
       }
 
       // 2. Calculer la répartition équitable des types AVANT la génération
-      const typeDistribution: string[] = [];
+      let typeDistribution: string[] = [];
 
-      if (questionTypes.length === 1) {
+      // 🎯 FIX: Si le preprocessor a fourni une distribution, l'utiliser directement
+      if (
+        preprocessorTypeDistribution &&
+        preprocessorTypeDistribution.length > 0
+      ) {
+        typeDistribution = [...preprocessorTypeDistribution];
+        console.log(
+          `📊 [STREAMING] Distribution fournie par preprocessor (${typeDistribution.length} questions):`,
+        );
+      } else if (questionTypes.length === 1) {
         // Un seul type : toutes les questions de ce type
         for (let i = 0; i < questionCount; i++) {
           typeDistribution.push(questionTypes[0]);
@@ -885,7 +1107,7 @@ export class QuizStreamingController {
         const basePerType = Math.floor(questionCount / questionTypes.length);
         const remainder = questionCount % questionTypes.length;
 
-        questionTypes.forEach((type: any, typeIndex: number) => {
+        questionTypes.forEach((type: string, typeIndex: number) => {
           const countForThisType =
             basePerType + (typeIndex < remainder ? 1 : 0);
           for (let i = 0; i < countForThisType; i++) {
@@ -903,9 +1125,11 @@ export class QuizStreamingController {
         ];
       }
 
+      // Compter les types uniques pour le log
+      const uniqueTypes = [...new Set(typeDistribution)];
       console.log(
-        `📊 [STREAMING] Répartition calculée pour ${questionCount} questions:`,
-        questionTypes.map((type: any) => ({
+        `📊 [STREAMING] Répartition finale pour ${questionCount} questions:`,
+        uniqueTypes.map((type: string) => ({
           type,
           count: typeDistribution.filter((t) => t === type).length,
         })),
@@ -1621,5 +1845,101 @@ export class QuizStreamingController {
         });
       }
     }
+  }
+
+  /**
+   * 🎯 PEN-35: Analyse le contenu des sources pour le preprocessor
+   */
+  private static async analyzeSourceContentForPreprocessor(
+    userId: string,
+    pageProjectIds: string[],
+  ): Promise<{
+    textContent: string;
+    wordCount: number;
+    summary: string;
+    topics: string[];
+    hasFormulas: boolean;
+    hasDefinitions: boolean;
+  }> {
+    let allText = "";
+    const topics: Set<string> = new Set();
+    let hasFormulas = false;
+    let hasDefinitions = false;
+
+    if (pageProjectIds.length > 0) {
+      const pages = await prisma.page.findMany({
+        where: {
+          id: { in: pageProjectIds },
+          workspace: {
+            members: { some: { userId } },
+          },
+          isArchived: false,
+        },
+        select: {
+          title: true,
+          blockNoteContent: true,
+        },
+      });
+
+      for (const page of pages) {
+        allText += `${page.title}\n`;
+        topics.add(page.title);
+
+        try {
+          const content =
+            typeof page.blockNoteContent === "string"
+              ? JSON.parse(page.blockNoteContent)
+              : page.blockNoteContent;
+
+          if (content && Array.isArray(content)) {
+            for (const block of content) {
+              if (block?.type === "paragraph" && block?.content) {
+                const text = Array.isArray(block.content)
+                  ? block.content
+                      .map((item: Record<string, unknown>) => item?.text || "")
+                      .join("")
+                  : "";
+                allText += text + "\n";
+              }
+              if (block?.type === "latex" || block?.type === "latexBlock") {
+                hasFormulas = true;
+              }
+              if (block?.type === "heading") {
+                hasDefinitions = true;
+              }
+            }
+          }
+        } catch (error) {
+          console.warn(
+            "[STREAMING-PREPROCESSOR] Erreur parsing BlockNote:",
+            error,
+          );
+        }
+      }
+    }
+
+    const wordCount = allText.split(/\s+/).filter(Boolean).length;
+    const topicsList = Array.from(topics).slice(0, 10);
+    const words = allText.split(/\s+/).filter(Boolean);
+    const summary = words.slice(0, 200).join(" ");
+
+    return {
+      textContent: allText,
+      wordCount,
+      summary,
+      topics: topicsList,
+      hasFormulas,
+      hasDefinitions,
+    };
+  }
+
+  /**
+   * 🎯 PEN-35: Mapper les niveaux scolaires vers les catégories d'étude
+   */
+  private static mapSchoolLevelToStudyLevel(schoolLevel: string): string {
+    if (schoolLevel === "COLLEGE") return "College";
+    if (schoolLevel.startsWith("LYCEE_")) return "Lycée";
+    if (schoolLevel === "ETUDES_SUPERIEURES") return "Université";
+    return "College";
   }
 }

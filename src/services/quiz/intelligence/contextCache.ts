@@ -21,6 +21,7 @@
 import { redis } from "../../../lib/redis.js";
 import { prisma } from "../../../lib/prisma.js";
 import crypto from "crypto";
+import { logger } from "../../../utils/logger.js";
 import type {
   IntelligentContextResult,
   IntelligentGenerationConfig,
@@ -61,12 +62,13 @@ const CACHE_PREFIX = "quiz-context";
 
 export class ContextCacheService {
   /**
-   * Génère une clé de cache basée sur les pages et la configuration
+   * Génère une clé de cache basée sur les pages, la configuration ET le ragContext
    */
   static generateCacheKey(
     pageIds: string[],
     questionCount: number,
     config: Partial<IntelligentGenerationConfig> = {},
+    ragContext?: string,
   ): string {
     // Trier les pageIds pour garantir la même clé peu importe l'ordre
     const sortedPageIds = [...pageIds].sort().join("|");
@@ -77,11 +79,18 @@ export class ContextCacheService {
       balanceContentTypes: config.balanceContentTypes ?? true,
     };
 
+    // Hash du ragContext pour l'inclure dans la clé
+    // Si le ragContext change, on veut un nouveau cache
+    const ragContextHash = ragContext
+      ? crypto.createHash("md5").update(ragContext).digest("hex").slice(0, 8)
+      : "no-rag";
+
     // Créer un hash court pour la clé
     const dataToHash = JSON.stringify({
       pages: sortedPageIds,
       questionCount,
       config: configParams,
+      ragContext: ragContextHash,
     });
 
     const hash = crypto
@@ -103,7 +112,7 @@ export class ContextCacheService {
       const cached = await redis.get(cacheKey);
 
       if (!cached) {
-        console.log(`❌ [CONTEXT-CACHE] MISS: ${cacheKey}`);
+        logger.log(`❌ [CONTEXT-CACHE] MISS: ${cacheKey}`);
         return null;
       }
 
@@ -112,10 +121,10 @@ export class ContextCacheService {
       // Reconvertir la date
       parsed.cachedAt = new Date(parsed.cachedAt);
 
-      console.log(`✅ [CONTEXT-CACHE] HIT: ${cacheKey}`);
+      logger.log(`✅ [CONTEXT-CACHE] HIT: ${cacheKey}`);
       return parsed;
     } catch (error) {
-      console.error(`⚠️ [CONTEXT-CACHE] Erreur lecture:`, error);
+      logger.error(`⚠️ [CONTEXT-CACHE] Erreur lecture:`, error);
       return null;
     }
   }
@@ -130,7 +139,7 @@ export class ContextCacheService {
     try {
       // Vérifier que toutes les pages sont toujours là
       if (pageIds.length !== Object.keys(cached.pageHashes).length) {
-        console.log(`⚠️ [CONTEXT-CACHE] Nombre de pages différent`);
+        logger.log(`⚠️ [CONTEXT-CACHE] Nombre de pages différent`);
         return false;
       }
 
@@ -146,17 +155,17 @@ export class ContextCacheService {
         const currentHash = this.hashPageTimestamp(page.updatedAt);
 
         if (cachedHash !== currentHash) {
-          console.log(
+          logger.log(
             `⚠️ [CONTEXT-CACHE] Page ${page.id} modifiée depuis le cache`,
           );
           return false;
         }
       }
 
-      console.log(`✅ [CONTEXT-CACHE] Cache valide`);
+      logger.log(`✅ [CONTEXT-CACHE] Cache valide`);
       return true;
     } catch (error) {
-      console.error(`⚠️ [CONTEXT-CACHE] Erreur validation:`, error);
+      logger.error(`⚠️ [CONTEXT-CACHE] Erreur validation:`, error);
       return false; // En cas d'erreur, invalider le cache
     }
   }
@@ -195,12 +204,12 @@ export class ContextCacheService {
         JSON.stringify(cachedContext),
       );
 
-      console.log(
+      logger.log(
         `💾 [CONTEXT-CACHE] Stocké: ${cacheKey} (TTL: ${CACHE_TTL_SECONDS}s)`,
       );
       return true;
     } catch (error) {
-      console.error(`⚠️ [CONTEXT-CACHE] Erreur stockage:`, error);
+      logger.error(`⚠️ [CONTEXT-CACHE] Erreur stockage:`, error);
       return false;
     }
   }
@@ -235,7 +244,7 @@ export class ContextCacheService {
           if (hasAffectedPage) {
             await redis.del(key);
             invalidatedCount++;
-            console.log(`🗑️ [CONTEXT-CACHE] Invalidé: ${key}`);
+            logger.log(`🗑️ [CONTEXT-CACHE] Invalidé: ${key}`);
           }
         } catch {
           // Ignorer les erreurs de parsing pour les clés individuelles
@@ -243,14 +252,14 @@ export class ContextCacheService {
       }
 
       if (invalidatedCount > 0) {
-        console.log(
+        logger.log(
           `🗑️ [CONTEXT-CACHE] ${invalidatedCount} cache(s) invalidé(s) pour pages: ${pageIds.join(", ")}`,
         );
       }
 
       return invalidatedCount;
     } catch (error) {
-      console.error(`⚠️ [CONTEXT-CACHE] Erreur invalidation:`, error);
+      logger.error(`⚠️ [CONTEXT-CACHE] Erreur invalidation:`, error);
       return 0;
     }
   }
@@ -267,12 +276,12 @@ export class ContextCacheService {
       }
 
       await redis.del(...keys);
-      console.log(
+      logger.log(
         `🗑️ [CONTEXT-CACHE] Tous les caches invalidés (${keys.length})`,
       );
       return keys.length;
     } catch (error) {
-      console.error(`⚠️ [CONTEXT-CACHE] Erreur invalidation totale:`, error);
+      logger.error(`⚠️ [CONTEXT-CACHE] Erreur invalidation totale:`, error);
       return 0;
     }
   }
@@ -285,8 +294,14 @@ export class ContextCacheService {
     questionCount: number,
     config: IntelligentGenerationConfig,
     prepareFunction: () => Promise<IntelligentContextResult | null>,
+    ragContext?: string,
   ): Promise<{ context: IntelligentContextResult | null; fromCache: boolean }> {
-    const cacheKey = this.generateCacheKey(pageIds, questionCount, config);
+    const cacheKey = this.generateCacheKey(
+      pageIds,
+      questionCount,
+      config,
+      ragContext,
+    );
 
     // 1. Essayer de récupérer depuis le cache
     const cached = await this.getCachedContext(cacheKey);
@@ -296,15 +311,15 @@ export class ContextCacheService {
       const isValid = await this.isContextValid(cached, pageIds);
 
       if (isValid) {
-        console.log(`⚡ [CONTEXT-CACHE] Utilisation du cache`);
+        logger.log(`⚡ [CONTEXT-CACHE] Utilisation du cache`);
         return { context: cached, fromCache: true };
       } else {
-        console.log(`🔄 [CONTEXT-CACHE] Cache invalide, régénération...`);
+        logger.log(`🔄 [CONTEXT-CACHE] Cache invalide, régénération...`);
       }
     }
 
     // 3. Générer le contexte frais
-    console.log(`🔄 [CONTEXT-CACHE] Préparation du contexte...`);
+    logger.log(`🔄 [CONTEXT-CACHE] Préparation du contexte...`);
     const freshContext = await prepareFunction();
 
     // 4. Stocker en cache si contexte valide
@@ -355,7 +370,7 @@ export class ContextCacheService {
         newestCache: newest,
       };
     } catch (error) {
-      console.error(`⚠️ [CONTEXT-CACHE] Erreur stats:`, error);
+      logger.error(`⚠️ [CONTEXT-CACHE] Erreur stats:`, error);
       return { totalKeys: 0, oldestCache: null, newestCache: null };
     }
   }

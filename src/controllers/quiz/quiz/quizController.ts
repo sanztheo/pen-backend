@@ -9,6 +9,7 @@ import { prisma } from "../../../lib/prisma.js";
 import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
 import { CorrectionGenerator } from "../../../services/quiz/generators/correctionGenerator.js";
 import { validateSourceDocuments } from "../utils/validators.js";
+import { getUserPersonalization } from "../../../services/quiz/utils/personalizationUtils.js";
 
 /**
  * Contrôleur pour les opérations CRUD de base sur les quiz
@@ -26,7 +27,8 @@ export class QuizController {
       }
 
       const {
-        schoolLevel,
+        schoolLevel: bodySchoolLevel,
+        usePersonalization = false, // ✅ PEN-32: Récupérer personnalisation depuis DB
         preset,
         specificSubject,
         sequentialConfig,
@@ -40,10 +42,85 @@ export class QuizController {
         title,
         description,
         coursesOnly,
+        letAIChoose, // PEN-35: Nouveau - Laisser l'IA choisir les paramètres
+        quizType, // PEN-35: Type de quiz pour le preprocessor
       } = req.body;
 
-      // Validation des paramètres requis
-      if (!schoolLevel || !questionTypes || !questionCount) {
+      // ✅ PEN-32: Récupérer la personnalisation depuis la DB si demandé
+      let schoolLevel = bodySchoolLevel;
+      if (usePersonalization || !bodySchoolLevel) {
+        const personalizationData = await getUserPersonalization(userId);
+        if (personalizationData) {
+          schoolLevel =
+            personalizationData.classe || bodySchoolLevel || "COLLEGE";
+          console.log(
+            "[QUIZ-GENERATE] 👤 Personnalisation récupérée depuis DB:",
+            {
+              classe: personalizationData.classe,
+              etude: personalizationData.etude,
+              filiere: personalizationData.filiere,
+              resolvedSchoolLevel: schoolLevel,
+            },
+          );
+        } else {
+          console.log(
+            "[QUIZ-GENERATE] ⚠️ Aucune personnalisation trouvée, utilisation du bodySchoolLevel",
+          );
+        }
+      }
+
+      // PEN-35: Si letAIChoose est activé, utiliser le preprocessor
+      let finalQuestionTypes = questionTypes;
+      let finalQuestionCount = questionCount;
+
+      if (letAIChoose === true) {
+        try {
+          const { runPreprocessorForGeneration } =
+            await import("../../../services/quiz/preprocessor/integrationHelper.js");
+
+          console.log(
+            "🤖 [PREPROCESSOR] Mode 'Laisser l'IA choisir' activé, analyse des sources...",
+          );
+
+          const preprocessorResult = await runPreprocessorForGeneration({
+            userId,
+            schoolLevel,
+            higherEdField,
+            quizType: quizType || "ENTRAINEMENT",
+            pageProjectIds: pageProjectIds || [],
+            workspaceIds: workspaceIds || [],
+          });
+
+          // Utiliser les paramètres recommandés par l'IA
+          finalQuestionTypes = preprocessorResult.questionTypes;
+          finalQuestionCount = preprocessorResult.questionCount;
+
+          console.log("✅ [PREPROCESSOR] Paramètres optimisés:", {
+            questionCount: finalQuestionCount,
+            typesCount: finalQuestionTypes.length,
+            difficulty: preprocessorResult.difficulty,
+            reasoning: preprocessorResult.reasoning,
+          });
+        } catch (error) {
+          console.error(
+            "❌ [PREPROCESSOR] Erreur, fallback sur params manuels:",
+            error,
+          );
+          // Si le preprocessor échoue, utiliser les params par défaut ou retourner erreur
+          if (!questionTypes || !questionCount) {
+            res.status(400).json({
+              error:
+                "Impossible d'analyser les sources automatiquement. Veuillez sélectionner manuellement les paramètres.",
+              details:
+                error instanceof Error ? error.message : "Erreur inconnue",
+            });
+            return;
+          }
+        }
+      }
+
+      // Validation des paramètres requis (après preprocessor)
+      if (!schoolLevel || !finalQuestionTypes || !finalQuestionCount) {
         res.status(400).json({
           error:
             "Paramètres manquants: schoolLevel, questionTypes et questionCount sont requis",
@@ -58,8 +135,8 @@ export class QuizController {
       }
 
       if (
-        !Array.isArray(questionTypes) ||
-        !questionTypes.every((type) =>
+        !Array.isArray(finalQuestionTypes) ||
+        !finalQuestionTypes.every((type) =>
           Object.values(QuestionType).includes(type),
         )
       ) {
@@ -67,7 +144,7 @@ export class QuizController {
         return;
       }
 
-      if (questionCount < 1 || questionCount > 100) {
+      if (finalQuestionCount < 1 || finalQuestionCount > 100) {
         res
           .status(400)
           .json({ error: "Le nombre de questions doit être entre 1 et 100" });
@@ -86,8 +163,8 @@ export class QuizController {
         targetGrade,
         workspaceIds: workspaceIds || [], // Compatibilité ancienne API
         pageProjectIds: pageProjectIds || [], // Nouvelle API
-        questionTypes,
-        questionCount,
+        questionTypes: finalQuestionTypes, // PEN-35: Utiliser les params finaux (preprocessor ou manuels)
+        questionCount: finalQuestionCount, // PEN-35: Utiliser les params finaux (preprocessor ou manuels)
         title,
         description,
         coursesOnly,
