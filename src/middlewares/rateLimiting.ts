@@ -269,23 +269,23 @@ export const isRateLimitEnabled = (): boolean => {
  */
 export const logRateLimitConfig = () => {
   if (RATE_LIMIT_CONFIG.enabled) {
-    console.log("🛡️  Rate Limiting ACTIVÉ:");
-    console.log(
+    SecureLogger.log("🛡️  Rate Limiting ACTIVÉ:");
+    SecureLogger.log(
       `   - Global:    ${RATE_LIMIT_CONFIG.global.max} req/${RATE_LIMIT_CONFIG.global.windowMs}ms`,
     );
-    console.log(
+    SecureLogger.log(
       `   - Auth:      ${RATE_LIMIT_CONFIG.auth.max} req/${RATE_LIMIT_CONFIG.auth.windowMs}ms`,
     );
-    console.log(
+    SecureLogger.log(
       `   - AI:        ${RATE_LIMIT_CONFIG.ai.max} req/${RATE_LIMIT_CONFIG.ai.windowMs}ms`,
     );
-    console.log(
+    SecureLogger.log(
       `   - Quiz:      ${RATE_LIMIT_CONFIG.quiz.max} req/${RATE_LIMIT_CONFIG.quiz.windowMs}ms`,
     );
-    console.log(
+    SecureLogger.log(
       `   - Assistant: ${RATE_LIMIT_CONFIG.assistant.max} req/${RATE_LIMIT_CONFIG.assistant.windowMs}ms`,
     );
   } else {
-    console.log("⚠️  Rate Limiting DÉSACTIVÉ (mode développement)");
+    SecureLogger.warn("⚠️  Rate Limiting DÉSACTIVÉ (mode développement)");
   }
 };
