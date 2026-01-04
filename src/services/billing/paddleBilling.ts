@@ -230,6 +230,7 @@ export class PaddleBillingService {
 
   /**
    * Synchronise les limites utilisateur après un changement de plan
+   * IMPORTANT: Lors d'un downgrade (premium → free), les compteurs sont remis à 0
    */
   static async syncUserLimitsAfterPlanChange(
     userId: string,
@@ -241,32 +242,66 @@ export class PaddleBillingService {
         { userId, newPlan },
       );
 
-      // Calculer l'usage réel depuis la base de données
-      const [
-        workspacesCount,
-        projectsCount,
-        customQuizzesCount,
-        presetSequencesCount,
-        aiCreditsUsed,
-      ] = await Promise.all([
-        prisma.workspace.count({ where: { ownerId: userId } }),
-        prisma.project.count({ where: { createdBy: userId } }),
-        prisma.quiz.count({ where: { userId, preset: "NONE" } }),
-        prisma.quizSequence.count({ where: { userId } }),
-        prisma.usageRecord
-          .aggregate({
-            where: {
-              userId,
-              resourceType: { in: ["ai_credits", "openai_request"] },
-            },
-            _sum: { quantity: true },
-          })
-          .then((result) => result._sum.quantity || 0),
-      ]);
-
       const isPremium = newPlan === "premium";
 
-      // Synchroniser les limites avec l'usage réel et le nouveau plan
+      // Vérifier si c'est un downgrade (premium → free)
+      const currentLimits = await prisma.userLimits.findUnique({
+        where: { userId },
+        select: { aiCreditsLimit: true },
+      });
+
+      // Downgrade = ancien plan était premium (-1) ET nouveau plan est free
+      const isDowngrade = currentLimits?.aiCreditsLimit === -1 && !isPremium;
+
+      // Calculer l'usage des ressources permanentes (workspaces, projets)
+      const [workspacesCount, projectsCount] = await Promise.all([
+        prisma.workspace.count({ where: { ownerId: userId } }),
+        prisma.project.count({ where: { createdBy: userId } }),
+      ]);
+
+      // Pour les compteurs mensuels:
+      // - Si downgrade: reset à 0 (nouveau cycle commence)
+      // - Sinon: garder les valeurs actuelles ou recalculer
+      let aiCreditsUsedValue: number;
+      let customQuizzesUsedValue: number;
+      let presetSequencesUsedValue: number;
+      let lastResetAtValue: Date | undefined;
+
+      if (isDowngrade) {
+        // 🔄 DOWNGRADE: Remettre tous les compteurs mensuels à 0
+        // L'utilisateur commence un nouveau cycle gratuit
+        aiCreditsUsedValue = 0;
+        customQuizzesUsedValue = 0;
+        presetSequencesUsedValue = 0;
+        lastResetAtValue = new Date(); // Nouveau cycle commence maintenant
+
+        SecureLogger.log(
+          `🔄 [PADDLE] Downgrade détecté - Reset des compteurs pour: ${userId}`,
+        );
+      } else {
+        // Pas de downgrade: recalculer depuis les tables
+        const [customQuizzesCount, presetSequencesCount, aiCreditsAggregated] =
+          await Promise.all([
+            prisma.quiz.count({ where: { userId, preset: "NONE" } }),
+            prisma.quizSequence.count({ where: { userId } }),
+            prisma.usageRecord
+              .aggregate({
+                where: {
+                  userId,
+                  resourceType: { in: ["ai_credits", "openai_request"] },
+                },
+                _sum: { quantity: true },
+              })
+              .then((result) => result._sum.quantity || 0),
+          ]);
+
+        aiCreditsUsedValue = Math.max(0, aiCreditsAggregated);
+        customQuizzesUsedValue = customQuizzesCount;
+        presetSequencesUsedValue = presetSequencesCount;
+        // lastResetAt reste inchangé (undefined = pas de mise à jour)
+      }
+
+      // Synchroniser les limites avec l'usage et le nouveau plan
       const updatedLimits = await prisma.userLimits.upsert({
         where: { userId },
         update: {
@@ -277,9 +312,11 @@ export class PaddleBillingService {
           presetSequencesLimit: isPremium ? -1 : 1,
           workspacesUsed: workspacesCount,
           projectsUsed: projectsCount,
-          customQuizzesUsed: customQuizzesCount,
-          presetSequencesUsed: presetSequencesCount,
-          aiCreditsUsed: Math.max(0, aiCreditsUsed),
+          customQuizzesUsed: customQuizzesUsedValue,
+          presetSequencesUsed: presetSequencesUsedValue,
+          aiCreditsUsed: aiCreditsUsedValue,
+          // Mettre à jour lastResetAt seulement si downgrade
+          ...(lastResetAtValue && { lastResetAt: lastResetAtValue }),
         },
         create: {
           userId,
@@ -288,17 +325,19 @@ export class PaddleBillingService {
           projectsLimit: -1,
           customQuizzesLimit: isPremium ? -1 : 5,
           presetSequencesLimit: isPremium ? -1 : 1,
-          aiCreditsUsed: Math.max(0, aiCreditsUsed),
+          aiCreditsUsed: aiCreditsUsedValue,
           workspacesUsed: workspacesCount,
           projectsUsed: projectsCount,
-          customQuizzesUsed: customQuizzesCount,
-          presetSequencesUsed: presetSequencesCount,
+          customQuizzesUsed: customQuizzesUsedValue,
+          presetSequencesUsed: presetSequencesUsedValue,
+          lastResetAt: lastResetAtValue || new Date(),
         },
       });
 
       SecureLogger.debug(`✅ [PADDLE] Limites synchronisées`, {
         userId,
         newPlan: isPremium ? "PREMIUM" : "FREE",
+        isDowngrade,
         limits: {
           aiCredits: `${updatedLimits.aiCreditsUsed}/${updatedLimits.aiCreditsLimit === -1 ? "∞" : updatedLimits.aiCreditsLimit}`,
           workspaces: `${updatedLimits.workspacesUsed}/${updatedLimits.workspacesLimit === -1 ? "∞" : updatedLimits.workspacesLimit}`,
