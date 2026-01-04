@@ -4,6 +4,7 @@
  */
 
 import OpenAI from "openai";
+import SecureLogger from "../../../middlewares/secureLogging.js";
 
 const openai = new OpenAI();
 
@@ -110,7 +111,7 @@ export async function generateQuizTitle(
       generatedTitle.length > 0 &&
       generatedTitle.length <= 100
     ) {
-      console.log(
+      SecureLogger.log(
         `[TITLE-GEN] Generated: "${generatedTitle}" from ${userMessage}`,
       );
       return generatedTitle;
@@ -119,7 +120,7 @@ export async function generateQuizTitle(
     // Fallback if generation fails
     return getFallbackTitle(params);
   } catch (error) {
-    console.error("[TITLE-GEN] Error generating title:", error);
+    SecureLogger.error("[TITLE-GEN] Error generating title:", error);
     return getFallbackTitle(params);
   }
 }

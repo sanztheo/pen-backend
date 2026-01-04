@@ -16,8 +16,8 @@ const requireEnv = (name: string): string => {
 };
 
 export const PADDLE_CONFIG = {
-  // Environment
-  environment: process.env.PADDLE_ENVIRONMENT || "sandbox",
+  // Environment - MUST be set in Infisical, no fallback
+  environment: requireEnv("PADDLE_ENVIRONMENT"),
 
   // Product IDs (depuis .env)
   products: {
