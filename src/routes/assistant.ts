@@ -519,7 +519,12 @@ router.post("/upload", upload.array("files", 5), async (req: any, res) => {
           }
           const data = await pdfParseFn(f.buffer);
           text = data?.text || "";
-        } catch {
+        } catch (pdfError) {
+          // 🛡️ SÉCURITÉ: Log l'échec du parsing PDF pour monitoring
+          console.warn(
+            `⚠️ [ASSISTANT] PDF parsing failed for "${f.originalname}" (${f.size} bytes):`,
+            pdfError instanceof Error ? pdfError.message : "Unknown error",
+          );
           text = "";
         }
       } else if (f.mimetype === "text/plain") {

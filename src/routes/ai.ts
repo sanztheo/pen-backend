@@ -152,9 +152,9 @@ router.post(
         options,
       });
 
-      // Marquer comme pending dans Redis
+      // 🛡️ Marquer comme pending dans Redis avec userId pour ownership
       if (job.id) {
-        await markJobPending(job.id);
+        await markJobPending(job.id, userId);
       }
 
       console.log(
@@ -198,8 +198,9 @@ router.post(
         language,
       });
 
+      // 🛡️ Marquer comme pending avec userId pour ownership
       if (job.id) {
-        await markJobPending(job.id);
+        await markJobPending(job.id, userId);
       }
 
       console.log(
@@ -241,8 +242,9 @@ router.post(
         text,
       });
 
+      // 🛡️ Marquer comme pending avec userId pour ownership
       if (job.id) {
-        await markJobPending(job.id);
+        await markJobPending(job.id, userId);
       }
 
       console.log(
@@ -288,8 +290,9 @@ router.post(
         blockType,
       });
 
+      // 🛡️ Marquer comme pending avec userId pour ownership
       if (job.id) {
-        await markJobPending(job.id);
+        await markJobPending(job.id, userId);
       }
 
       console.log(

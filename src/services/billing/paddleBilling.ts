@@ -71,7 +71,8 @@ export class PaddleBillingService {
     } catch (error) {
       console.error("❌ [PADDLE] Erreur récupération abonnement:", error);
 
-      // Fallback : utilisateur gratuit par défaut
+      // 🛡️ SÉCURITÉ: Retourner un statut d'erreur détectable par le frontend
+      // au lieu de silencieusement dégrader vers free_user
       return {
         userId,
         plan: "free_user" as SubscriptionPlan,
@@ -79,6 +80,11 @@ export class PaddleBillingService {
         planInfo: PADDLE_PLANS.free_user,
         isActive: true,
         isPremium: false,
+        // 🚨 Indicateurs d'erreur pour le frontend
+        isError: true,
+        errorCode: "SUBSCRIPTION_FETCH_ERROR",
+        errorMessage:
+          "Impossible de récupérer l'abonnement. Veuillez réessayer.",
       };
     }
   }

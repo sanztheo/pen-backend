@@ -312,6 +312,20 @@ router.post("/:id/messages", verifyConversationAccess, async (req, res) => {
         .json({ error: "Le contenu du message est requis" });
     }
 
+    // 🛡️ SÉCURITÉ: Validation de la taille du message pour prévenir les attaques DoS
+    const MAX_MESSAGE_LENGTH = 50000; // ~50KB, environ 10-15 pages de texte
+    if (typeof content === "string" && content.length > MAX_MESSAGE_LENGTH) {
+      console.warn(
+        `⚠️ [CONVERSATIONS] Message trop long rejeté: ${content.length} chars (max: ${MAX_MESSAGE_LENGTH}) - userId: ${userId}`,
+      );
+      return res.status(400).json({
+        error: "MESSAGE_TOO_LONG",
+        message: `Le message est trop long (${content.length} caractères). Maximum autorisé: ${MAX_MESSAGE_LENGTH} caractères.`,
+        maxLength: MAX_MESSAGE_LENGTH,
+        actualLength: content.length,
+      });
+    }
+
     // Vérifier que la conversation appartient à l'utilisateur
     const conversation = await prisma.aIConversation.findFirst({
       where: {
@@ -578,7 +592,8 @@ router.get(
 
       // Simple token counter (estimation: 1 token ~ 4 caractères)
       const TokenCounterService = {
-        countTokens: (text: string): number => Math.ceil((text || "").length / 4)
+        countTokens: (text: string): number =>
+          Math.ceil((text || "").length / 4),
       };
 
       // 🔥 Compter les tokens directement depuis les messages de la conversation
@@ -692,7 +707,8 @@ router.get(
 
       // Simple token counter (estimation: 1 token ~ 4 caractères)
       const TokenCounterService = {
-        countTokens: (text: string): number => Math.ceil((text || "").length / 4)
+        countTokens: (text: string): number =>
+          Math.ceil((text || "").length / 4),
       };
 
       // 🔥 Compter les tokens directement depuis les messages de la conversation

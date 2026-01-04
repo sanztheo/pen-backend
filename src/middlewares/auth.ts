@@ -2,14 +2,75 @@ import { Request, Response, NextFunction } from "express";
 import { AuthService, AuthUser } from "../services/auth.js";
 import { UserSyncService } from "../services/userSync.js";
 import { createClerkClient } from "@clerk/backend";
+import SecureLogger from "./secureLogging.js";
 
 // Cache en mémoire pour la synchronisation utilisateur (userId -> timestamp)
 const userSyncCache = new Map<string, number>();
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
-// Mode test pour développement uniquement
+// ============================================================================
+// 🛡️ TEST AUTH - SÉCURITÉ MULTICOUCHE
+// Cette fonctionnalité est DANGEREUSE si mal configurée. Les safeguards:
+// 1. NODE_ENV doit être strictement "development"
+// 2. ENABLE_TEST_AUTH doit être "true"
+// 3. Un TEST_AUTH_SECRET doit être passé et correspondre
+// 4. L'URL du client ne doit PAS contenir de domaine de production
+// 5. Chaque usage est loggé avec niveau WARNING
+// ============================================================================
 const isDevelopment = process.env.NODE_ENV === "development";
 const isTestAuthEnabled = process.env.ENABLE_TEST_AUTH === "true";
+const testAuthSecret = process.env.TEST_AUTH_SECRET;
+const clientUrl = process.env.CLIENT_URL || "";
+
+// 🛡️ Liste des domaines de production connus (bloque le test auth)
+const PRODUCTION_DOMAINS = [
+  "pennote.app",
+  "pennote.io",
+  "pennote.fr",
+  "vercel.app",
+  "railway.app",
+  ".vercel.app",
+  ".railway.app",
+];
+
+/**
+ * Vérifie si le test auth est sûr à utiliser (dev uniquement, pas de prod)
+ */
+function isTestAuthSafe(): boolean {
+  // 🔒 Safeguard 1: NODE_ENV doit être "development"
+  if (!isDevelopment) {
+    return false;
+  }
+
+  // 🔒 Safeguard 2: ENABLE_TEST_AUTH doit être explicitement "true"
+  if (!isTestAuthEnabled) {
+    return false;
+  }
+
+  // 🔒 Safeguard 3: TEST_AUTH_SECRET doit être défini
+  if (!testAuthSecret) {
+    SecureLogger.warn(
+      "🚨 [TEST AUTH] ENABLE_TEST_AUTH=true mais TEST_AUTH_SECRET non défini - désactivé",
+    );
+    return false;
+  }
+
+  // 🔒 Safeguard 4: Vérifier que CLIENT_URL ne contient pas de domaine de production
+  const lowerClientUrl = clientUrl.toLowerCase();
+  for (const prodDomain of PRODUCTION_DOMAINS) {
+    if (lowerClientUrl.includes(prodDomain)) {
+      SecureLogger.error(
+        `🚨 [TEST AUTH] BLOQUÉ - Tentative d'utilisation en production! CLIENT_URL contient: ${prodDomain}`,
+      );
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Cache de l'état de sécurité (calculé une seule fois au démarrage)
+const testAuthIsSafe = isTestAuthSafe();
 
 // Client Clerk pour le mode test
 const clerkClient = process.env.CLERK_SECRET_KEY
@@ -60,13 +121,29 @@ export const authenticateToken = async (
   next: NextFunction,
 ) => {
   try {
-    // Mode test: accepter X-Test-User-Id header en développement uniquement
-    if (isDevelopment && isTestAuthEnabled) {
+    // 🛡️ Mode test: Sécurité multicouche obligatoire
+    // Voir commentaire en haut du fichier pour les safeguards
+    if (testAuthIsSafe) {
       const testUserId = req.headers["x-test-user-id"] as string;
+      const providedSecret = req.headers["x-test-auth-secret"] as string;
+
       if (testUserId) {
-        console.log(
-          `🧪 [TEST AUTH] Mode test activé pour userId: ${testUserId}`,
+        // 🔒 Safeguard 5: Vérifier que le secret correspond
+        if (!providedSecret || providedSecret !== testAuthSecret) {
+          SecureLogger.warn(
+            `🚨 [TEST AUTH] Secret invalide ou manquant pour userId: ${testUserId}`,
+          );
+          return res.status(401).json({
+            error: "Test auth secret invalide",
+            code: "INVALID_TEST_SECRET",
+          });
+        }
+
+        // 🔔 Log chaque usage (pour audit)
+        SecureLogger.warn(
+          `🧪 [TEST AUTH] Mode test utilisé - userId: ${testUserId} - IP: ${req.ip}`,
         );
+
         const testUser = await loadTestUser(testUserId);
         if (testUser) {
           // Synchroniser l'utilisateur test avec la DB

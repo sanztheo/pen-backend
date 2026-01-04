@@ -167,9 +167,9 @@ quizWorker.on("completed", async (job, result) => {
   console.log(`✅ [QUIZ-WORKER] Job ${job.id} complété (${job.data.type})`);
   console.log(`   Quiz ID: ${result.quizId || "N/A"}`);
 
-  // Stocker le résultat dans Redis pour récupération via API
-  if (job.id) {
-    await markJobCompleted(job.id, result);
+  // 🛡️ Stocker le résultat dans Redis avec userId pour ownership
+  if (job.id && job.data.userId) {
+    await markJobCompleted(job.id, job.data.userId, result);
   }
 });
 
@@ -179,9 +179,9 @@ quizWorker.on("failed", async (job, error) => {
     error.message,
   );
 
-  // Stocker l'erreur dans Redis
-  if (job?.id) {
-    await markJobFailed(job.id, error.message);
+  // 🛡️ Stocker l'erreur dans Redis avec userId pour ownership
+  if (job?.id && job?.data.userId) {
+    await markJobFailed(job.id, job.data.userId, error.message);
   }
 });
 

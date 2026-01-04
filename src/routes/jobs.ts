@@ -2,24 +2,29 @@
  * 🎯 JOBS ROUTES
  *
  * Routes pour récupérer les résultats des jobs BullMQ asynchrones
+ *
+ * 🛡️ SÉCURITÉ: Chaque job est associé à un userId pour empêcher
+ * l'accès aux résultats d'autres utilisateurs (IDOR protection).
  */
 
 import { Router } from "express";
-import { authenticateToken } from "../middlewares/auth.js";
+import { authenticateToken, requireUser } from "../middlewares/auth.js";
 import { getJobResult, deleteJobResult } from "../lib/jobResults.js";
 
 const router = Router();
 
-// Toutes les routes nécessitent une authentification
+// Toutes les routes nécessitent une authentification ET un user valide
 router.use(authenticateToken);
+router.use(requireUser);
 
 /**
  * GET /api/jobs/:jobId
- * Récupérer le résultat d'un job
+ * 🛡️ Récupérer le résultat d'un job (vérifie l'ownership)
  */
 router.get("/:jobId", async (req, res) => {
   try {
     const { jobId } = req.params;
+    const userId = req.user?.id;
 
     if (!jobId) {
       return res.status(400).json({
@@ -27,12 +32,14 @@ router.get("/:jobId", async (req, res) => {
       });
     }
 
-    const result = await getJobResult(jobId);
+    // 🛡️ SÉCURITÉ: getJobResult vérifie maintenant que le job appartient à l'utilisateur
+    const result = await getJobResult(jobId, userId!);
 
     if (!result) {
       return res.status(404).json({
-        error: "Job non trouvé ou expiré",
-        message: "Le résultat du job n'existe pas ou a expiré (TTL: 5 minutes)",
+        error: "Job non trouvé ou accès refusé",
+        message:
+          "Le résultat du job n'existe pas, a expiré (TTL: 5 minutes), ou ne vous appartient pas",
       });
     }
 
@@ -40,29 +47,31 @@ router.get("/:jobId", async (req, res) => {
     // Pour l'instant on le garde pour permettre plusieurs récupérations pendant le TTL
     // Décommenter la ligne suivante pour supprimer après récupération :
     // if (result.status === 'completed' || result.status === 'failed') {
-    //   await deleteJobResult(jobId);
+    //   await deleteJobResult(jobId, userId!);
     // }
 
     return res.json({
       jobId,
       ...result,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erreur inconnue";
     console.error("[JOBS] Erreur récupération résultat:", error);
     return res.status(500).json({
       error: "Erreur serveur",
-      message: error.message,
+      message,
     });
   }
 });
 
 /**
  * DELETE /api/jobs/:jobId
- * Supprimer manuellement un résultat de job
+ * 🛡️ Supprimer manuellement un résultat de job (vérifie l'ownership)
  */
 router.delete("/:jobId", async (req, res) => {
   try {
     const { jobId } = req.params;
+    const userId = req.user?.id;
 
     if (!jobId) {
       return res.status(400).json({
@@ -70,17 +79,19 @@ router.delete("/:jobId", async (req, res) => {
       });
     }
 
-    await deleteJobResult(jobId);
+    // 🛡️ SÉCURITÉ: deleteJobResult vérifie maintenant que le job appartient à l'utilisateur
+    await deleteJobResult(jobId, userId!);
 
     return res.json({
       success: true,
       message: "Résultat du job supprimé",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Erreur inconnue";
     console.error("[JOBS] Erreur suppression résultat:", error);
     return res.status(500).json({
       error: "Erreur serveur",
-      message: error.message,
+      message,
     });
   }
 });
