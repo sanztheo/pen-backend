@@ -95,43 +95,83 @@ export class PaddleBillingService {
    * @param paddleCustomerId - ID Customer Paddle
    * @param paddleSubscriptionId - ID Subscription Paddle
    * @param periodEnd - Date de fin de période
+   * @param trialDates - Optionnel: dates de trial si l'utilisateur est en période d'essai
    */
   static async activatePremium(
     userId: string,
     paddleCustomerId: string,
     paddleSubscriptionId: string,
     periodEnd: Date,
+    trialDates?: { trialStart: Date; trialEnd: Date },
   ) {
     try {
-      console.log(`⬆️ [PADDLE] Activation Premium pour: ${userId}`);
+      // Validate trial dates if provided
+      if (trialDates) {
+        const { trialStart, trialEnd } = trialDates;
+        if (!(trialStart instanceof Date) || isNaN(trialStart.getTime())) {
+          console.warn(
+            `⚠️ [PADDLE] Invalid trialStart for user ${userId}, ignoring trial dates`,
+          );
+          trialDates = undefined;
+        } else if (!(trialEnd instanceof Date) || isNaN(trialEnd.getTime())) {
+          console.warn(
+            `⚠️ [PADDLE] Invalid trialEnd for user ${userId}, ignoring trial dates`,
+          );
+          trialDates = undefined;
+        } else if (trialEnd <= trialStart) {
+          console.warn(
+            `⚠️ [PADDLE] trialEnd <= trialStart for user ${userId}, ignoring trial dates`,
+          );
+          trialDates = undefined;
+        }
+      }
+
+      const isTrial = !!trialDates;
+      const status: SubscriptionStatus = isTrial ? "trialing" : "active";
+
+      console.log(
+        `⬆️ [PADDLE] Activation Premium pour: ${userId} (${isTrial ? "TRIAL" : "ACTIVE"})`,
+      );
 
       const subscription = await prisma.userSubscription.upsert({
         where: { userId },
         update: {
           plan: "premium",
-          status: "active",
+          status,
           paddleCustomerId,
           paddleSubscriptionId,
           currentPeriodStart: new Date(),
           currentPeriodEnd: periodEnd,
           canceledAt: null,
           cancelAtPeriodEnd: false,
+          // Set trial dates if provided
+          ...(trialDates && {
+            trialStart: trialDates.trialStart,
+            trialEnd: trialDates.trialEnd,
+          }),
         },
         create: {
           userId,
           plan: "premium",
-          status: "active",
+          status,
           paddleCustomerId,
           paddleSubscriptionId,
           currentPeriodStart: new Date(),
           currentPeriodEnd: periodEnd,
+          // Set trial dates if provided
+          ...(trialDates && {
+            trialStart: trialDates.trialStart,
+            trialEnd: trialDates.trialEnd,
+          }),
         },
       });
 
       // Synchroniser les limites utilisateur
       await this.syncUserLimitsAfterPlanChange(userId, "premium");
 
-      console.log(`✅ [PADDLE] Premium activé pour: ${userId}`);
+      console.log(
+        `✅ [PADDLE] Premium activé pour: ${userId} (status: ${status})`,
+      );
       return subscription;
     } catch (error) {
       console.error("❌ [PADDLE] Erreur activation Premium:", error);
