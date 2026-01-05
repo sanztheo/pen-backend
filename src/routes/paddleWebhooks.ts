@@ -156,11 +156,13 @@ export const paddleWebhookHandler: express.RequestHandler = async (
 
       // 🎁 TRIAL: Si status "trialing", activer premium immédiatement
       if (subscriptionStatus === "trialing" && userId) {
+        const trialStart = new Date();
         const trialEnd = data?.currentBillingPeriod?.endsAt
           ? new Date(data.currentBillingPeriod.endsAt)
           : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 jours par défaut
 
         console.log(`🎁 [Paddle Webhook] TRIAL activé pour user ${userId}:`, {
+          trialStart: trialStart.toISOString(),
           trialEnd: trialEnd.toISOString(),
           paddleCustomerId,
           paddleSubscriptionId,
@@ -171,6 +173,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
           paddleCustomerId,
           paddleSubscriptionId,
           trialEnd,
+          { trialStart, trialEnd },
         );
 
         if (eventId) {
