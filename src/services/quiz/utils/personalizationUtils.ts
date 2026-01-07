@@ -4,6 +4,7 @@
  */
 
 import { prisma } from "../../../lib/prisma.js";
+import { SchoolLevel } from "../types.js";
 
 /**
  * Type de personnalisation utilisateur stockée dans User.settings.personalization
@@ -268,4 +269,89 @@ export function generateAttentesInstructions(attentes: string): string {
   }
 
   return instructions.length > 0 ? "\n" + instructions.join("\n") : "";
+}
+
+/**
+ * Mappe une valeur de personnalisation (classe) vers l'enum SchoolLevel de Prisma
+ * @param classeValue - Valeur brute de la personnalisation (ex: "l2", "terminale", "M1")
+ * @returns Valeur valide de l'enum SchoolLevel
+ */
+export function mapToSchoolLevelEnum(
+  classeValue: string | undefined | null,
+): SchoolLevel {
+  if (!classeValue) {
+    return SchoolLevel.COLLEGE;
+  }
+
+  const normalized = classeValue.toLowerCase().trim();
+
+  // Collège: 6ème, 5ème, 4ème, 3ème
+  if (
+    normalized.includes("6") ||
+    normalized.includes("5") ||
+    normalized.includes("4") ||
+    normalized.includes("3") ||
+    normalized.includes("collège") ||
+    normalized.includes("college")
+  ) {
+    return SchoolLevel.COLLEGE;
+  }
+
+  // Lycée Seconde
+  if (normalized.includes("seconde") || normalized === "2nde") {
+    return SchoolLevel.LYCEE_SECONDE;
+  }
+
+  // Lycée Première
+  if (
+    normalized.includes("premiere") ||
+    normalized.includes("première") ||
+    normalized === "1ere" ||
+    normalized === "1ère"
+  ) {
+    return SchoolLevel.LYCEE_PREMIERE;
+  }
+
+  // Lycée Terminale
+  if (normalized.includes("terminale") || normalized === "tle") {
+    return SchoolLevel.LYCEE_TERMINALE;
+  }
+
+  // Études supérieures: L1, L2, L3, M1, M2, Doctorat, BTS, DUT, Prépa, etc.
+  if (
+    normalized === "l1" ||
+    normalized === "l2" ||
+    normalized === "l3" ||
+    normalized === "m1" ||
+    normalized === "m2" ||
+    normalized.includes("licence") ||
+    normalized.includes("master") ||
+    normalized.includes("doctorat") ||
+    normalized.includes("bts") ||
+    normalized.includes("dut") ||
+    normalized.includes("but") ||
+    normalized.includes("prépa") ||
+    normalized.includes("prepa") ||
+    normalized.includes("supérieur") ||
+    normalized.includes("superieur") ||
+    normalized.includes("université") ||
+    normalized.includes("universite") ||
+    normalized === "etudes_superieures"
+  ) {
+    return SchoolLevel.ETUDES_SUPERIEURES;
+  }
+
+  // Valeurs d'enum directes (déjà correctes)
+  if (normalized === "college") return SchoolLevel.COLLEGE;
+  if (normalized === "lycee_seconde") return SchoolLevel.LYCEE_SECONDE;
+  if (normalized === "lycee_premiere") return SchoolLevel.LYCEE_PREMIERE;
+  if (normalized === "lycee_terminale") return SchoolLevel.LYCEE_TERMINALE;
+  if (normalized === "etudes_superieures")
+    return SchoolLevel.ETUDES_SUPERIEURES;
+
+  // Fallback par défaut
+  console.warn(
+    `[SCHOOL-LEVEL-MAPPING] Valeur non reconnue "${classeValue}", fallback vers COLLEGE`,
+  );
+  return SchoolLevel.COLLEGE;
 }

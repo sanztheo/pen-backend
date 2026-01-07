@@ -27,7 +27,10 @@ import {
   type ClusterQuestionDistribution,
   type EnrichmentConfig,
 } from "../services/quiz/intelligence/index.js";
-import { getUserPersonalization } from "../services/quiz/utils/personalizationUtils.js";
+import {
+  getUserPersonalization,
+  mapToSchoolLevelEnum,
+} from "../services/quiz/utils/personalizationUtils.js";
 import { quizPreprocessorAgent } from "../services/quiz/preprocessor/QuizPreprocessorAgent.js";
 import type { PreprocessorPromptParams } from "../services/quiz/preprocessor/prompts.js";
 import { generateQuizTitle } from "../services/quiz/utils/titleGenerator.js";
@@ -769,7 +772,8 @@ export class QuizStreamingController {
         const personalizationData = await getUserPersonalization(userId);
 
         if (personalizationData) {
-          schoolLevel =
+          // Garder la valeur brute pour le logging
+          const rawSchoolLevel =
             personalizationData.classe || bodySchoolLevel || "COLLEGE";
 
           console.log(
@@ -778,14 +782,21 @@ export class QuizStreamingController {
               classe: personalizationData.classe,
               etude: personalizationData.etude,
               filiere: personalizationData.filiere,
-              resolvedSchoolLevel: schoolLevel,
+              rawSchoolLevel,
             },
+          );
+
+          // 🔧 FIX: Mapper vers l'enum SchoolLevel de Prisma
+          schoolLevel = mapToSchoolLevelEnum(rawSchoolLevel);
+          console.log(
+            `[STREAMING-PREPROCESSOR] 🔄 Mapping: "${rawSchoolLevel}" → ${schoolLevel}`,
           );
         } else {
           console.log(
             "[STREAMING-PREPROCESSOR] ⚠️ Aucune personnalisation trouvée",
           );
-          schoolLevel = bodySchoolLevel || "COLLEGE";
+          // 🔧 FIX: Mapper vers l'enum SchoolLevel de Prisma
+          schoolLevel = mapToSchoolLevelEnum(bodySchoolLevel || "COLLEGE");
         }
       }
 
