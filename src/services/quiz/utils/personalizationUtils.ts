@@ -4,6 +4,7 @@
  */
 
 import { prisma } from "../../../lib/prisma.js";
+import { logger } from "../../../utils/logger.js";
 import { SchoolLevel } from "../types.js";
 
 /**
@@ -52,7 +53,7 @@ export async function getUserPersonalization(
     const settings = user.settings as any;
     return settings.personalization || null;
   } catch (error) {
-    console.error(
+    logger.error(
       "❌ [PERSONALIZATION] Erreur récupération personnalisation:",
       error,
     );
@@ -279,7 +280,7 @@ export function generateAttentesInstructions(attentes: string): string {
 export function mapToSchoolLevelEnum(
   classeValue: string | undefined | null,
 ): SchoolLevel {
-  if (!classeValue) {
+  if (!classeValue || classeValue.trim() === "") {
     return SchoolLevel.COLLEGE;
   }
 
@@ -350,7 +351,7 @@ export function mapToSchoolLevelEnum(
     return SchoolLevel.ETUDES_SUPERIEURES;
 
   // Fallback par défaut
-  console.warn(
+  logger.warn(
     `[SCHOOL-LEVEL-MAPPING] Valeur non reconnue "${classeValue}", fallback vers COLLEGE`,
   );
   return SchoolLevel.COLLEGE;
