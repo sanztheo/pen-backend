@@ -10,13 +10,12 @@ import {
   togglePagePin,
 } from "../controllers/page.js";
 import { authenticateToken } from "../middlewares/auth.js";
-import { PrismaClient } from "@prisma/client";
+import { validateUUID } from "../middlewares/validateUUID.js";
+import { prisma } from "../lib/prisma.js";
 import {
   cacheBlockNoteContent,
   invalidateBlockNoteCache,
 } from "../lib/redis.js";
-
-const prisma = new PrismaClient();
 
 const router = Router();
 
@@ -134,19 +133,24 @@ router.get("/search", async (req, res) => {
     const { q } = req.query as { q?: string };
     const query = (q || "").toString();
     if (!query) return res.json({ pages: [] });
-    const { PrismaClient } = await import("@prisma/client");
-    const prisma = new PrismaClient();
+    const userId = (req as any).user?.id;
     const pages = await prisma.page.findMany({
       where: {
         isArchived: false,
         title: { contains: query, mode: "insensitive" },
+        workspace: {
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId, isActive: true } } },
+          ],
+        },
       },
       select: { id: true, title: true, projectId: true, workspaceId: true },
       take: 20,
     });
     res.json({ pages });
   } catch (e) {
-    console.error("Erreur /pages/search", e);
+    console.error("[PAGES] Erreur /pages/search:", e);
     res.status(500).json({ error: "Erreur recherche pages" });
   }
 });
@@ -158,11 +162,20 @@ router.get("/search-content", async (req, res) => {
     const query = (q || "").toString().trim();
     if (!query) return res.json({ results: [] });
 
-    // Récupérer pages avec contenu JSON
+    // Récupérer pages avec contenu JSON (filtrées par workspace de l'utilisateur)
+    const userId = (req as any).user?.id;
     const pages = await prisma.page.findMany({
-      where: { isArchived: false },
+      where: {
+        isArchived: false,
+        workspace: {
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId, isActive: true } } },
+          ],
+        },
+      },
       select: { id: true, title: true, blockNoteContent: true },
-      take: 500, // sécurité
+      take: 500,
     } as any);
 
     const qLower = query.toLowerCase();
@@ -236,81 +249,93 @@ router.get("/search-content", async (req, res) => {
   }
 });
 router.get("/project/:projectId", getProjectPages);
-router.get("/:id", getPage);
-router.put("/:id", updatePage);
-router.delete("/:id", deletePage);
-router.patch("/:id/pin", togglePagePin);
+router.get("/:id", validateUUID("id"), getPage);
+router.put("/:id", validateUUID("id"), updatePage);
+router.delete("/:id", validateUUID("id"), deletePage);
+router.patch("/:id/pin", validateUUID("id"), togglePagePin);
 
 // Route de maintenance pour nettoyer les pages archivées
 router.delete("/cleanup/archived", cleanupArchivedPages);
 
 // 🆕 IMPORT HTML VERS BLOCKNOTE (pour import PDF)
-router.post("/:pageId/import-html", async (req, res) => {
-  try {
-    const { pageId } = req.params;
-    const { html } = req.body;
-
-    if (!html || typeof html !== "string") {
-      return res.status(400).json({ error: "HTML requis" });
-    }
-
-    console.log("📄 [API] Import HTML vers BlockNote:", {
-      pageId,
-      htmlLength: html.length,
-      htmlPreview: html.substring(0, 200),
-    });
-
-    // Convertir HTML en blocs BlockNote
-    let blocks: BlockNoteBlock[];
+router.post(
+  "/:pageId/import-html",
+  validateUUID("pageId"),
+  async (req, res) => {
     try {
-      blocks = htmlToBlockNoteBlocks(html);
-      console.log("📄 [API] Blocs générés:", blocks.length, "blocs");
-    } catch (conversionError) {
-      console.error("❌ [API] Erreur conversion HTML:", conversionError);
-      return res.status(500).json({
-        error: "Erreur conversion HTML",
-        details: String(conversionError),
+      const { pageId } = req.params;
+      const { html } = req.body;
+
+      if (!html || typeof html !== "string") {
+        return res.status(400).json({ error: "HTML requis" });
+      }
+
+      console.log("📄 [API] Import HTML vers BlockNote:", {
+        pageId,
+        htmlLength: html.length,
+        htmlPreview: html.substring(0, 200),
       });
+
+      // Convertir HTML en blocs BlockNote
+      let blocks: BlockNoteBlock[];
+      try {
+        blocks = htmlToBlockNoteBlocks(html);
+        console.log("📄 [API] Blocs générés:", blocks.length, "blocs");
+      } catch (conversionError) {
+        console.error("❌ [API] Erreur conversion HTML:", conversionError);
+        return res.status(500).json({
+          error: "Erreur conversion HTML",
+          details: String(conversionError),
+        });
+      }
+
+      // Sauvegarder dans la page
+      console.log("📄 [API] Sauvegarde dans la page:", pageId);
+      await prisma.page.update({
+        where: { id: pageId },
+        data: {
+          blockNoteContent: blocks as any,
+          updatedAt: new Date(),
+        },
+      } as any);
+
+      // Invalider cache Redis
+      invalidateBlockNoteCache(pageId).catch((err) =>
+        console.error("⚠️ [REDIS] Erreur invalidation cache:", err),
+      );
+
+      console.log("✅ [API] HTML importé avec succès:", {
+        pageId,
+        blocksCount: blocks.length,
+      });
+
+      res.json({
+        message: "HTML importé avec succès",
+        pageId,
+        blocksCount: blocks.length,
+      });
+    } catch (error: any) {
+      if (error.code === "P2025") {
+        return res.status(404).json({ error: "Page non trouvée" });
+      }
+      console.error("❌ [API] Erreur import HTML:", error);
+      res.status(500).json({ error: "Erreur lors de l'import" });
     }
-
-    // Sauvegarder dans la page
-    console.log("📄 [API] Sauvegarde dans la page:", pageId);
-    await prisma.page.update({
-      where: { id: pageId },
-      data: {
-        blockNoteContent: blocks as any,
-        updatedAt: new Date(),
-      },
-    } as any);
-
-    // Invalider cache Redis
-    invalidateBlockNoteCache(pageId).catch((err) =>
-      console.error("⚠️ [REDIS] Erreur invalidation cache:", err),
-    );
-
-    console.log("✅ [API] HTML importé avec succès:", {
-      pageId,
-      blocksCount: blocks.length,
-    });
-
-    res.json({
-      message: "HTML importé avec succès",
-      pageId,
-      blocksCount: blocks.length,
-    });
-  } catch (error: any) {
-    if (error.code === "P2025") {
-      return res.status(404).json({ error: "Page non trouvée" });
-    }
-    console.error("❌ [API] Erreur import HTML:", error);
-    res.status(500).json({ error: "Erreur lors de l'import" });
-  }
-});
+  },
+);
 
 // 🆕 SAUVEGARDER CONTENU BLOCKNOTE OPTIMISÉ (Solution officielle + optimisations)
 // Support POST et PUT pour compatibilité
-router.post("/:pageId/blocknote-content", saveBlockNoteContent);
-router.put("/:pageId/blocknote-content", saveBlockNoteContent);
+router.post(
+  "/:pageId/blocknote-content",
+  validateUUID("pageId"),
+  saveBlockNoteContent,
+);
+router.put(
+  "/:pageId/blocknote-content",
+  validateUUID("pageId"),
+  saveBlockNoteContent,
+);
 
 async function saveBlockNoteContent(req: any, res: any) {
   try {

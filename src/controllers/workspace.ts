@@ -1,19 +1,25 @@
-import { Request, Response } from 'express';
-import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
+import { Request, Response } from "express";
+import { z } from "zod";
+import { prisma } from "../lib/prisma.js";
 // Types will be inferred from Prisma client
 
 // Schémas de validation
 const createWorkspaceSchema = z.object({
-  name: z.string().min(1, 'Le nom est requis').max(255),
+  name: z.string().min(1, "Le nom est requis").max(255),
   description: z.string().optional(),
-  color: z.string().regex(/^#[0-9A-F]{6}$/i, 'Couleur invalide').optional()
+  color: z
+    .string()
+    .regex(/^#[0-9A-F]{6}$/i, "Couleur invalide")
+    .optional(),
 });
 
 const updateWorkspaceSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
-  color: z.string().regex(/^#[0-9A-F]{6}$/i).optional()
+  color: z
+    .string()
+    .regex(/^#[0-9A-F]{6}$/i)
+    .optional(),
 });
 
 // Créer un workspace
@@ -24,24 +30,28 @@ export const createWorkspace = async (req: Request, res: Response) => {
 
     // Vérifier les limitations de l'utilisateur
     const userLimits = await prisma.userLimits.findUnique({
-      where: { userId }
+      where: { userId },
     });
 
     if (!userLimits) {
-      return res.status(404).json({ error: 'Limitations utilisateur non trouvées' });
+      return res
+        .status(404)
+        .json({ error: "Limitations utilisateur non trouvées" });
     }
 
     // Vérifier si l'utilisateur peut créer un nouveau workspace
-    const canCreateWorkspace = userLimits.workspacesLimit === -1 || userLimits.workspacesUsed < userLimits.workspacesLimit;
-    
+    const canCreateWorkspace =
+      userLimits.workspacesLimit === -1 ||
+      userLimits.workspacesUsed < userLimits.workspacesLimit;
+
     if (!canCreateWorkspace) {
-      return res.status(403).json({ 
-        error: 'Limite de workspaces atteinte',
+      return res.status(403).json({
+        error: "Limite de workspaces atteinte",
         message: `Vous avez atteint votre limite de ${userLimits.workspacesLimit} workspaces. Passez à Premium pour créer des workspaces illimités.`,
         limits: {
           used: userLimits.workspacesUsed,
-          limit: userLimits.workspacesLimit
-        }
+          limit: userLimits.workspacesLimit,
+        },
       });
     }
 
@@ -52,9 +62,9 @@ export const createWorkspace = async (req: Request, res: Response) => {
         data: {
           name: validatedData.name,
           description: validatedData.description,
-          color: validatedData.color || '#3B82F6',
-          ownerId: req.user!.id
-        }
+          color: validatedData.color || "#3B82F6",
+          ownerId: req.user!.id,
+        },
       });
 
       // Créer automatiquement le membre propriétaire
@@ -62,9 +72,9 @@ export const createWorkspace = async (req: Request, res: Response) => {
         data: {
           workspaceId: newWorkspace.id,
           userId: req.user!.id,
-          role: 'owner',
-          joinedAt: new Date()
-        }
+          role: "owner",
+          joinedAt: new Date(),
+        },
       });
 
       // Incrémenter le compteur d'usage des workspaces
@@ -72,9 +82,9 @@ export const createWorkspace = async (req: Request, res: Response) => {
         where: { userId },
         data: {
           workspacesUsed: {
-            increment: 1
-          }
-        }
+            increment: 1,
+          },
+        },
       });
 
       // Retourner le workspace avec tous les includes nécessaires
@@ -86,8 +96,8 @@ export const createWorkspace = async (req: Request, res: Response) => {
               id: true,
               firstName: true,
               lastName: true,
-              email: true
-            }
+              email: true,
+            },
           },
           members: {
             include: {
@@ -96,18 +106,18 @@ export const createWorkspace = async (req: Request, res: Response) => {
                   id: true,
                   firstName: true,
                   lastName: true,
-                  email: true
-                }
-              }
-            }
+                  email: true,
+                },
+              },
+            },
           },
           _count: {
             select: {
               projects: true,
-              members: true
-            }
-          }
-        }
+              members: true,
+            },
+          },
+        },
       });
     });
 
@@ -126,20 +136,19 @@ export const createWorkspace = async (req: Request, res: Response) => {
     // });
 
     res.status(201).json({
-      message: 'Workspace créé avec succès',
-      workspace
+      message: "Workspace créé avec succès",
+      workspace,
     });
-
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
-        error: 'Données invalides',
-        details: error.errors
+        error: "Données invalides",
+        details: error.errors,
       });
     }
 
-    console.error('Erreur création workspace:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error("Erreur création workspace:", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
 
@@ -159,12 +168,12 @@ export const getUserWorkspaces = async (req: Request, res: Response) => {
           members: {
             some: {
               userId: req.user!.id,
-              isActive: true
-            }
-          }
-        }
+              isActive: true,
+            },
+          },
+        },
       ],
-      isArchived: false
+      isArchived: false,
     };
 
     // Récupérer les workspaces avec pagination et select optimisé
@@ -182,25 +191,25 @@ export const getUserWorkspaces = async (req: Request, res: Response) => {
               id: true,
               firstName: true,
               lastName: true,
-              email: true
-            }
+              email: true,
+            },
           },
           _count: {
             select: {
               projects: true,
-              members: true
-            }
-          }
+              members: true,
+            },
+          },
         },
         orderBy: {
-          lastActivityAt: 'desc'
+          lastActivityAt: "desc",
         },
         skip,
-        take: limit
+        take: limit,
       }),
       prisma.workspace.count({
-        where: whereCondition
-      })
+        where: whereCondition,
+      }),
     ]);
 
     // Calcul des métadonnées de pagination
@@ -216,13 +225,12 @@ export const getUserWorkspaces = async (req: Request, res: Response) => {
         totalCount,
         limit,
         hasNextPage,
-        hasPreviousPage
-      }
+        hasPreviousPage,
+      },
     });
-
   } catch (error) {
-    console.error('Erreur récupération workspaces:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error("Erreur récupération workspaces:", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
 
@@ -232,38 +240,54 @@ export const getWorkspaces = async (req: Request, res: Response) => {
 
     const workspaces = await prisma.workspace.findMany({
       where: { members: { some: { userId } } },
-      orderBy: { lastActivityAt: 'desc' },
+      orderBy: { lastActivityAt: "desc" },
       include: {
         _count: { select: { projects: true, members: true } },
-        owner: { select: { id: true, firstName: true, lastName: true, email: true } },
+        owner: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
         members: {
           select: {
-            user: { select: { id: true, firstName: true, lastName: true, email: true } },
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
           },
           take: 5,
         },
         projects: {
-          orderBy: { position: 'asc' },
+          orderBy: { position: "asc" },
           include: {
             _count: { select: { pages: true } },
-            owner: { select: { id: true, firstName: true, lastName: true, email: true } },
+            owner: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
             pages: {
-              orderBy: { position: 'asc' },
-              select: { 
-                id: true, 
-                title: true, 
-                projectId: true, 
-                slug: true, 
+              orderBy: { position: "asc" },
+              select: {
+                id: true,
+                title: true,
+                projectId: true,
+                slug: true,
                 position: true,
                 icon: true,
-                iconColor: true
-              }
+                iconColor: true,
+              },
             },
           },
         },
         pages: {
           where: { projectId: null },
-          orderBy: { position: 'asc' },
+          orderBy: { position: "asc" },
           select: {
             id: true,
             title: true,
@@ -273,7 +297,14 @@ export const getWorkspaces = async (req: Request, res: Response) => {
             workspaceId: true,
             icon: true,
             iconColor: true,
-            author: { select: { id: true, firstName: true, lastName: true, email: true } },
+            author: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
           },
         },
       },
@@ -281,8 +312,8 @@ export const getWorkspaces = async (req: Request, res: Response) => {
 
     res.status(200).json({ workspaces });
   } catch (error) {
-    console.error('Erreur chargement workspaces:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error("Erreur chargement workspaces:", error);
+    res.status(500).json({ error: "Erreur serveur" });
   }
 };
 
@@ -299,11 +330,11 @@ export const getWorkspaceById = async (req: Request, res: Response) => {
             members: {
               some: {
                 userId: req.user!.id,
-                isActive: true
-              }
-            }
-          }
-        ]
+                isActive: true,
+              },
+            },
+          },
+        ],
       },
       include: {
         owner: {
@@ -311,8 +342,8 @@ export const getWorkspaceById = async (req: Request, res: Response) => {
             id: true,
             firstName: true,
             lastName: true,
-            email: true
-          }
+            email: true,
+          },
         },
         members: {
           where: { isActive: true },
@@ -323,10 +354,10 @@ export const getWorkspaceById = async (req: Request, res: Response) => {
                 firstName: true,
                 lastName: true,
                 email: true,
-                avatarUrl: true
-              }
-            }
-          }
+                avatarUrl: true,
+              },
+            },
+          },
         },
         projects: {
           where: { isArchived: false },
@@ -335,45 +366,46 @@ export const getWorkspaceById = async (req: Request, res: Response) => {
               select: {
                 id: true,
                 firstName: true,
-                lastName: true
-              }
+                lastName: true,
+              },
             },
             _count: {
               select: {
-                pages: true
-              }
+                pages: true,
+              },
             },
-            pages: { // Inclure les pages dans chaque projet
+            pages: {
+              // Inclure les pages dans chaque projet
               where: { isArchived: false },
-              orderBy: { position: 'asc' }
-            }
+              orderBy: { position: "asc" },
+            },
           },
           orderBy: {
-            lastActivityAt: 'desc'
-          }
+            lastActivityAt: "desc",
+          },
         },
-        pages: { // Inclure les pages à la racine du workspace
+        pages: {
+          // Inclure les pages à la racine du workspace
           where: { isArchived: false, projectId: null },
-          orderBy: { position: 'asc' }
+          orderBy: { position: "asc" },
         },
         _count: {
           select: {
             projects: true,
-            members: true
-          }
-        }
-      }
+            members: true,
+          },
+        },
+      },
     });
 
     if (!workspace) {
-      return res.status(404).json({ error: 'Workspace non trouvé' });
+      return res.status(404).json({ error: "Workspace non trouvé" });
     }
 
     res.json({ workspace });
-
   } catch (error) {
-    console.error('Erreur récupération workspace:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error("Erreur récupération workspace:", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
 
@@ -393,24 +425,26 @@ export const updateWorkspace = async (req: Request, res: Response) => {
             members: {
               some: {
                 userId: req.user!.id,
-                role: { in: ['owner', 'admin'] },
-                isActive: true
-              }
-            }
-          }
-        ]
-      }
+                role: { in: ["owner", "admin"] },
+                isActive: true,
+              },
+            },
+          },
+        ],
+      },
     });
 
     if (!workspace) {
-      return res.status(404).json({ error: 'Workspace non trouvé ou permissions insuffisantes' });
+      return res
+        .status(404)
+        .json({ error: "Workspace non trouvé ou permissions insuffisantes" });
     }
 
     const updatedWorkspace = await prisma.workspace.update({
       where: { id },
       data: {
         ...validatedData,
-        lastActivityAt: new Date()
+        lastActivityAt: new Date(),
       },
       include: {
         owner: {
@@ -418,8 +452,8 @@ export const updateWorkspace = async (req: Request, res: Response) => {
             id: true,
             firstName: true,
             lastName: true,
-            email: true
-          }
+            email: true,
+          },
         },
         members: {
           include: {
@@ -428,12 +462,12 @@ export const updateWorkspace = async (req: Request, res: Response) => {
                 id: true,
                 firstName: true,
                 lastName: true,
-                email: true
-              }
-            }
-          }
-        }
-      }
+                email: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     // ❌ LOGS D'ACTIVITÉ DÉSACTIVÉS pour économiser l'espace
@@ -451,20 +485,19 @@ export const updateWorkspace = async (req: Request, res: Response) => {
     // });
 
     res.json({
-      message: 'Workspace mis à jour avec succès',
-      workspace: updatedWorkspace
+      message: "Workspace mis à jour avec succès",
+      workspace: updatedWorkspace,
     });
-
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
-        error: 'Données invalides',
-        details: error.errors
+        error: "Données invalides",
+        details: error.errors,
       });
     }
 
-    console.error('Erreur mise à jour workspace:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error("Erreur mise à jour workspace:", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
 
@@ -477,21 +510,23 @@ export const deleteWorkspace = async (req: Request, res: Response) => {
     const workspace = await prisma.workspace.findFirst({
       where: {
         id,
-        ownerId: req.user!.id
-      }
+        ownerId: req.user!.id,
+      },
     });
 
     if (!workspace) {
-      return res.status(404).json({ error: 'Workspace non trouvé ou vous n\'êtes pas propriétaire' });
+      return res.status(404).json({
+        error: "Workspace non trouvé ou vous n'êtes pas propriétaire",
+      });
     }
 
     // Compter les projets et pages avant suppression pour ajuster les compteurs
     const projectsCount = await prisma.project.count({
-      where: { workspaceId: id }
+      where: { workspaceId: id },
     });
 
     const pagesCount = await prisma.page.count({
-      where: { workspaceId: id }
+      where: { workspaceId: id },
     });
 
     // Supprimer le workspace et décrémenter les compteurs d'usage
@@ -501,21 +536,14 @@ export const deleteWorkspace = async (req: Request, res: Response) => {
         where: { id },
       });
 
-      // Décrémenter tous les compteurs d'usage concernés
-      await tx.userLimits.update({
-        where: { userId: req.user!.id },
-        data: {
-          workspacesUsed: {
-            decrement: 1
-          },
-          projectsUsed: {
-            decrement: projectsCount
-          },
-          pagesUsed: {
-            decrement: pagesCount
-          }
-        }
-      });
+      // Décrémenter tous les compteurs d'usage (protégé contre valeurs négatives)
+      await tx.$executeRaw`
+        UPDATE "user_limits"
+        SET "workspaces_used" = GREATEST(0, "workspaces_used" - 1),
+            "projects_used" = GREATEST(0, "projects_used" - ${projectsCount}),
+            "pages_used" = GREATEST(0, "pages_used" - ${pagesCount})
+        WHERE "user_id" = ${req.user!.id}
+      `;
     });
 
     // ❌ LOGS D'ACTIVITÉ DÉSACTIVÉS pour économiser l'espace
@@ -532,10 +560,9 @@ export const deleteWorkspace = async (req: Request, res: Response) => {
     //   }
     // });
 
-    res.json({ message: 'Workspace supprimé avec succès' });
-
+    res.json({ message: "Workspace supprimé avec succès" });
   } catch (error) {
-    console.error('Erreur suppression workspace:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error("Erreur suppression workspace:", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
-}; 
+};

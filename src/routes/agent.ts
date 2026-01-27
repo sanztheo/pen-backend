@@ -26,6 +26,7 @@ import {
   runDeepContentWorkflow,
   runQuickContentWorkflow,
 } from "../services/agent/workflows.js";
+import { AICreditsService } from "../services/credits/aiCreditsService.js";
 
 const router = Router();
 
@@ -265,11 +266,26 @@ router.post(
     } catch (error: any) {
       console.error("❌ [AGENT-CHAT] Erreur:", error);
 
-      // Si les headers n'ont pas encore été envoyés
+      const creditsCost = (req as any).aiCredits?.cost;
+      const userId = (req as any).user?.id;
+      if (creditsCost && userId) {
+        AICreditsService.refundCredits(
+          userId,
+          creditsCost,
+          "agent_chat_error",
+        ).catch((err: unknown) =>
+          console.error("[REFUND] Erreur refund agent/chat:", err),
+        );
+      }
+
       if (!res.headersSent) {
+        const safeMessage =
+          process.env.NODE_ENV === "production"
+            ? "Erreur lors de l'exécution de l'agent"
+            : error.message || "Erreur lors de l'exécution de l'agent";
         res.status(500).json({
           error: "AGENT_ERROR",
-          message: error.message || "Erreur lors de l'exécution de l'agent",
+          message: safeMessage,
         });
       }
     }
@@ -347,9 +363,26 @@ router.post(
       });
     } catch (error: any) {
       console.error("❌ [AGENT-SIMPLE] Erreur:", error);
+
+      const creditsCost = (req as any).aiCredits?.cost;
+      const userId = (req as any).user?.id;
+      if (creditsCost && userId) {
+        AICreditsService.refundCredits(
+          userId,
+          creditsCost,
+          "agent_simple_error",
+        ).catch((err: unknown) =>
+          console.error("[REFUND] Erreur refund agent/simple:", err),
+        );
+      }
+
+      const safeMessage =
+        process.env.NODE_ENV === "production"
+          ? "Erreur lors de l'exécution de l'agent"
+          : error.message || "Erreur lors de l'exécution de l'agent";
       res.status(500).json({
         error: "AGENT_ERROR",
-        message: error.message || "Erreur lors de l'exécution de l'agent",
+        message: safeMessage,
       });
     }
   },
@@ -530,9 +563,26 @@ router.post(
       return res.status(400).json({ error: "Mode non supporté" });
     } catch (error: any) {
       console.error("❌ [WORKFLOW] Erreur:", error);
+
+      const creditsCost = (req as any).aiCredits?.cost;
+      const userId = (req as any).user?.id;
+      if (creditsCost && userId) {
+        AICreditsService.refundCredits(
+          userId,
+          creditsCost,
+          "workflow_error",
+        ).catch((err: unknown) =>
+          console.error("[REFUND] Erreur refund workflow:", err),
+        );
+      }
+
+      const safeMessage =
+        process.env.NODE_ENV === "production"
+          ? "Erreur lors de l'exécution du workflow"
+          : error.message || "Erreur lors de l'exécution du workflow";
       res.status(500).json({
         error: "WORKFLOW_ERROR",
-        message: error.message || "Erreur lors de l'exécution du workflow",
+        message: safeMessage,
       });
     }
   },
@@ -601,7 +651,11 @@ router.get("/conversations", async (req: Request, res: Response) => {
     res.json({ success: true, conversations });
   } catch (error: any) {
     console.error("❌ [CONVERSATIONS] Erreur liste:", error);
-    res.status(500).json({ error: error.message });
+    const safeMessage =
+      process.env.NODE_ENV === "production"
+        ? "Erreur lors de la récupération des conversations"
+        : error.message;
+    res.status(500).json({ error: safeMessage });
   }
 });
 
@@ -628,7 +682,11 @@ router.get("/conversations/:id", async (req: Request, res: Response) => {
     res.json({ success: true, messages });
   } catch (error: any) {
     console.error("❌ [CONVERSATIONS] Erreur chargement:", error);
-    res.status(500).json({ error: error.message });
+    const safeMessage =
+      process.env.NODE_ENV === "production"
+        ? "Erreur lors du chargement de la conversation"
+        : error.message;
+    res.status(500).json({ error: safeMessage });
   }
 });
 
@@ -655,7 +713,11 @@ router.delete("/conversations/:id", async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (error: any) {
     console.error("❌ [CONVERSATIONS] Erreur suppression:", error);
-    res.status(500).json({ error: error.message });
+    const safeMessage =
+      process.env.NODE_ENV === "production"
+        ? "Erreur lors de la suppression de la conversation"
+        : error.message;
+    res.status(500).json({ error: safeMessage });
   }
 });
 
