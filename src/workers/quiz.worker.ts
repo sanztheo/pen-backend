@@ -153,7 +153,7 @@ export const quizWorker = new Worker<QuizJobData, QuizJobResult>(
   "ai-quiz",
   processQuizJob,
   {
-    connection: redis,
+    connection: redis as unknown as import("bullmq").ConnectionOptions,
     concurrency: 3, // Traiter max 3 quiz en parallèle (génération longue)
     limiter: {
       max: 50, // Max 50 quiz par fenêtre

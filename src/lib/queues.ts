@@ -15,7 +15,7 @@ import { redis } from "./redis.js";
 
 // ⚙️ Configuration commune pour toutes les queues
 const defaultQueueOptions: QueueOptions = {
-  connection: redis, // Réutiliser la connexion Redis existante
+  connection: redis as unknown as import("bullmq").ConnectionOptions, // Cast nécessaire: versions ioredis différentes entre top-level et bullmq
   defaultJobOptions: {
     attempts: 3, // 3 tentatives en cas d'échec
     backoff: {
