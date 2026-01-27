@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { CLIENT_URL } from "../utils/config.js";
 import { QuizService } from "../services/quiz/quizService.js";
 import {
   SchoolLevel,
@@ -644,11 +645,16 @@ export class QuizStreamingController {
     const sessionId = req.params.sessionId;
 
     // Configuration SSE AVANT toute vérification pour éviter les erreurs JSON
+    const allowedOrigins = CLIENT_URL.split(",");
+    const requestOrigin = req.headers.origin || "";
+    const corsOrigin = allowedOrigins.includes(requestOrigin)
+      ? requestOrigin
+      : allowedOrigins[0];
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
-      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Origin": corsOrigin,
       "Access-Control-Allow-Headers": "Cache-Control",
     });
 
@@ -1687,8 +1693,9 @@ export class QuizStreamingController {
         };
 
         // Utiliser le générateur de correction streaming
-        const correctionGenerator =
-          await import("../services/quiz/generators/correctionGenerator.js");
+        const correctionGenerator = await import(
+          "../services/quiz/generators/correctionGenerator.js"
+        );
         const generator =
           correctionGenerator.CorrectionGenerator.correctQuizStreaming(
             questions,
@@ -1807,8 +1814,9 @@ export class QuizStreamingController {
               );
 
               // 🗑️ Invalider le cache de l'historique après complétion du quiz
-              const { invalidateQuizHistoryCache } =
-                await import("../lib/redis.js");
+              const { invalidateQuizHistoryCache } = await import(
+                "../lib/redis.js"
+              );
               invalidateQuizHistoryCache(userId).catch((err) =>
                 console.warn(
                   "⚠️ [CORRECTION-STREAMING] Échec invalidation cache:",

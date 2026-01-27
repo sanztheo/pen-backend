@@ -28,6 +28,7 @@ import {
 import { tempSequenceStorage } from "./tempSequenceStorage.js";
 import { shouldIncludeDocumentsForSubject } from "./utils/documents.js";
 import { OpenAIAssistantService } from "./assistant/index.js";
+import { progressService } from "../progressService.js";
 
 /**
  * Service principal pour la gestion des quiz
@@ -57,6 +58,7 @@ export class QuizService {
 
       // Génération du processId unique pour cette génération
       const processId = `quiz_gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      progressService.registerProcessOwner(processId, request.userId);
       console.log(`🎯 Génération quiz avec processId: ${processId}`);
 
       // Génération du quiz via IA
@@ -682,6 +684,7 @@ export class QuizService {
 
       // Génération du processId unique pour cette correction
       const processId = `quiz_correct_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      progressService.registerProcessOwner(processId, userId);
       console.log(`🎯 Correction quiz avec processId: ${processId}`);
 
       // Correction via IA
@@ -1738,6 +1741,7 @@ export class QuizService {
 
         // Génération du processId pour cette génération spécifique
         const processId = `quiz_generation_${sequenceId}_${config.currentSubjectIndex}`;
+        progressService.registerProcessOwner(processId, userId);
         console.log(
           `🎯 Génération quiz séquentiel avec processId: ${processId}`,
         );
@@ -1996,6 +2000,7 @@ export class QuizService {
       // Générer le processId pour la correction
       const currentSubjectIndex = config.currentSubjectIndex;
       const correctionProcessId = `quiz_correction_${sequenceId}_${currentSubjectIndex}`;
+      progressService.registerProcessOwner(correctionProcessId, userId);
 
       // Lancer la correction en arrière-plan (sans attendre)
       this.processCorrectionInBackground(

@@ -114,7 +114,6 @@ router.post(
       return res.status(500).json({
         error: "Échec de l'upload",
         code: "UPLOAD_FAILED",
-        message: error.message,
       });
     }
   },
@@ -214,7 +213,6 @@ router.delete(
       return res.status(500).json({
         error: "Échec de la suppression",
         code: "DELETE_FAILED",
-        message: error.message,
       });
     }
   },

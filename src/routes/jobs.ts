@@ -55,11 +55,9 @@ router.get("/:jobId", async (req, res) => {
       ...result,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Erreur inconnue";
     console.error("[JOBS] Erreur récupération résultat:", error);
     return res.status(500).json({
       error: "Erreur serveur",
-      message,
     });
   }
 });
@@ -87,11 +85,9 @@ router.delete("/:jobId", async (req, res) => {
       message: "Résultat du job supprimé",
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Erreur inconnue";
     console.error("[JOBS] Erreur suppression résultat:", error);
     return res.status(500).json({
       error: "Erreur serveur",
-      message,
     });
   }
 });

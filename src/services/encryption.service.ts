@@ -118,12 +118,10 @@ export class EncryptionService {
       return decrypted;
     } catch (error) {
       console.error("❌ [ENCRYPTION] Erreur lors du déchiffrement:", error);
-      // Fallback : retourner les données en clair si le déchiffrement échoue
-      // (cas où les données seraient corrompues mais pas en clair)
-      console.warn(
-        "⚠️ [ENCRYPTION] Fallback : retour des données sans déchiffrement",
+      console.error(
+        "❌ [ENCRYPTION] Données corrompues ou clé invalide — déchiffrement impossible",
       );
-      return encrypted;
+      return null;
     }
   }
 

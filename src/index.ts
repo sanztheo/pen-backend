@@ -64,6 +64,7 @@ import {
   assistantRateLimit,
   logRateLimitConfig,
 } from "./middlewares/rateLimiting.js";
+import { aiBurstRateLimit } from "./middlewares/aiBurstLimit.js";
 import {
   checkWebSocketConnectionLimit,
   checkWebSocketMessageLimit,
@@ -196,7 +197,7 @@ app.use("/api/content", contentRoutes); // 🏠 Nouvelle API simplifiée
 app.use("/api/workspaces", workspaceRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/pages", pageRoutes);
-app.use("/api/ai", aiRateLimit, aiRoutes); // Protection spam IA
+app.use("/api/ai", aiRateLimit, aiBurstRateLimit, aiRoutes); // Protection spam IA + burst
 
 // 🤖 Route spéciale pour BlockNote AI - alias direct vers /api/ai/chat
 // BlockNote AI utilise DefaultChatTransport qui appelle /api/chat
@@ -211,8 +212,9 @@ app.use(
   "/api/assistant",
   authenticateToken,
   assistantRateLimit,
+  aiBurstRateLimit,
   assistantRoutes,
-); // Auth AVANT rate limit pour avoir userId
+); // Auth + rate limit + burst AVANT routes
 app.use("/api/conversations", conversationsRoutes);
 app.use("/api/quiz", quizRateLimit, quizRoutes); // Protection génération quiz
 app.use("/api/quiz/graphics", graphicsRoutes);
@@ -229,7 +231,7 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/daily-article", dailyArticleRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/jobs", jobsRoutes); // 🎯 Récupération résultats jobs BullMQ
-app.use("/api/agent", aiRateLimit, agentRoutes); // 🤖 Nouvel agent Pennote (Vercel AI SDK v5)
+app.use("/api/agent", aiRateLimit, aiBurstRateLimit, agentRoutes); // 🤖 Agent Pennote + burst protection
 
 app.use("*", (req, res) =>
   res.status(404).json({ error: "Route non trouvée" }),
@@ -670,9 +672,27 @@ const setupYjsWebSocket = (server: http.Server) => {
         return;
       }
 
+      // SEC-04: Validation UUID format
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(processId)) {
+        console.log("[WS] ❌ Format processId invalide");
+        socket.destroy();
+        return;
+      }
+
       authenticateTokenWS(token)
-        .then((user) => {
+        .then(async (user) => {
           if (user) {
+            // SEC-04: Vérification ownership du processId
+            if (!progressService.isProcessOwner(processId, user.id)) {
+              console.warn(
+                `[WS] ❌ processId ${processId} n'appartient pas à ${user.id}`,
+              );
+              socket.destroy();
+              return;
+            }
+
             console.log(
               `[WS] ✅ Progression WebSocket - user: ${user.id}, processus: ${processId}`,
             );
