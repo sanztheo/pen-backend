@@ -838,15 +838,12 @@ export const deletePage = async (req: Request, res: Response) => {
         where: { id: id },
       });
 
-      // Décrémenter le compteur d'usage des pages selon le nombre total supprimé
-      await tx.userLimits.update({
-        where: { userId: req.user!.id },
-        data: {
-          pagesUsed: {
-            decrement: totalPagesToDelete,
-          },
-        },
-      });
+      // Décrémenter le compteur d'usage des pages (protégé contre valeurs négatives)
+      await tx.$executeRaw`
+        UPDATE "user_limits"
+        SET "pages_used" = GREATEST(0, "pages_used" - ${totalPagesToDelete})
+        WHERE "user_id" = ${req.user!.id}
+      `;
     });
 
     // 🗑️ REDIS CACHE INVALIDATION: Invalider le cache BlockNote pour toutes les pages supprimées

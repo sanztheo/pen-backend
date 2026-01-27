@@ -139,9 +139,12 @@ const allowedOrigins = CLIENT_URL.split(",").map((url) => url.trim());
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Autoriser les requêtes sans origin (Postman, curl, mobile apps)
-      // En prod, tu peux mettre false pour bloquer
       if (!origin) {
+        // En production, bloquer les requêtes sans Origin (protection CSRF)
+        // Sauf health checks, webhooks et monitoring qui n'envoient pas d'Origin
+        if (process.env.NODE_ENV === "production") {
+          return callback(null, false);
+        }
         return callback(null, true);
       }
       if (allowedOrigins.includes(origin)) {
