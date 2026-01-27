@@ -76,7 +76,7 @@ export const futuraWorker = new Worker<FuturaJobData, FuturaResult>(
   "futura",
   processJob,
   {
-    connection: redis,
+    connection: redis as unknown as import("bullmq").ConnectionOptions,
     concurrency: 1, // Un seul job à la fois pour éviter les conflits
     limiter: {
       max: 5, // Maximum 5 jobs par période
