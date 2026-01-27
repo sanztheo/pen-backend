@@ -27,11 +27,16 @@ import {
   runQuickContentWorkflow,
 } from "../services/agent/workflows.js";
 import { AICreditsService } from "../services/credits/aiCreditsService.js";
+import { verifyWorkspaceAccess } from "../middlewares/workspaceAccess.js";
+import { aiConcurrencyLimit } from "../middlewares/aiConcurrencyLimit.js";
+import { dailyTokenQuota } from "../middlewares/dailyTokenQuota.js";
 
 const router = Router();
 
 // Authentification requise pour toutes les routes
 router.use(authenticateToken);
+router.use(aiConcurrencyLimit);
+router.use(dailyTokenQuota);
 
 /**
  * 💰 Calcul dynamique du coût en crédits basé sur le mode
@@ -91,6 +96,7 @@ const estimateOutputTokens = (mode: string): number => {
  */
 router.post(
   "/chat",
+  verifyWorkspaceAccess,
   requireAICredits({ dynamicCost: calculateDynamicCost, action: "agent_chat" }),
   async (req: Request, res: Response) => {
     try {
@@ -117,6 +123,28 @@ router.post(
           error: "VALIDATION_ERROR",
           message: 'Le champ "messages" est requis et doit être un tableau',
         });
+      }
+
+      // SEC-03: Limite taille messages pour prévenir prompt injection / abus
+      const MAX_MESSAGE_LENGTH = 50000;
+      const MAX_MESSAGES_COUNT = 200;
+      if (messages.length > MAX_MESSAGES_COUNT) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          message: `Maximum ${MAX_MESSAGES_COUNT} messages autorisés`,
+        });
+      }
+      for (const msg of messages) {
+        const content =
+          typeof msg.content === "string"
+            ? msg.content
+            : JSON.stringify(msg.content);
+        if (content && content.length > MAX_MESSAGE_LENGTH) {
+          return res.status(400).json({
+            error: "VALIDATION_ERROR",
+            message: `Message trop long (max ${MAX_MESSAGE_LENGTH} caractères)`,
+          });
+        }
       }
 
       if (!workspaceId) {
@@ -300,6 +328,7 @@ router.post(
  */
 router.post(
   "/chat/simple",
+  verifyWorkspaceAccess,
   requireAICredits({
     dynamicCost: calculateDynamicCost,
     action: "agent_chat_simple",
@@ -401,6 +430,7 @@ router.post(
  */
 router.post(
   "/workflow",
+  verifyWorkspaceAccess,
   requireAICredits({
     dynamicCost: calculateDynamicCost,
     action: "agent_workflow",

@@ -17,11 +17,16 @@ import multer from "multer";
 import { prisma } from "../lib/prisma.js";
 import { prismaEmbeddings } from "../lib/prismaEmbeddings.js";
 import { wikipediaSearch } from "../controllers/assistant.js";
+import { verifyWorkspaceAccess } from "../middlewares/workspaceAccess.js";
+import { aiConcurrencyLimit } from "../middlewares/aiConcurrencyLimit.js";
+import { dailyTokenQuota } from "../middlewares/dailyTokenQuota.js";
 
 const router = Router();
 
 // NOTE: authenticateToken est appliqué au niveau de index.ts AVANT le rate limit
 // pour que le rate limiter ait accès à req.user.id
+router.use(aiConcurrencyLimit);
+router.use(dailyTokenQuota);
 
 // ============================================================================
 // WIKIPEDIA
@@ -31,73 +36,77 @@ const router = Router();
 router.get("/wikipedia/search", wikipediaSearch);
 
 // Traitement RAG Wikipedia
-router.post("/wikipedia/rag-process", async (req: any, res) => {
-  try {
-    const { wikipediaRAG } = await import("../services/rag/wikipedia.js");
-    const {
-      pageIds,
-      query = "Articles Wikipedia sélectionnés",
-      mode = "search",
-      reflection = "rapide",
-      workspaceId,
-    } = req.body;
+router.post(
+  "/wikipedia/rag-process",
+  verifyWorkspaceAccess,
+  async (req: any, res) => {
+    try {
+      const { wikipediaRAG } = await import("../services/rag/wikipedia.js");
+      const {
+        pageIds,
+        query = "Articles Wikipedia sélectionnés",
+        mode = "search",
+        reflection = "rapide",
+        workspaceId,
+      } = req.body;
 
-    if (!Array.isArray(pageIds) || pageIds.length === 0) {
-      return res
-        .status(400)
-        .json({ error: "pageIds must be a non-empty array" });
-    }
+      if (!Array.isArray(pageIds) || pageIds.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "pageIds must be a non-empty array" });
+      }
 
-    const enrichedResult = await wikipediaRAG.enrichWikipediaContent(
-      pageIds,
-      query,
-      mode,
-      reflection,
-    );
-
-    if (workspaceId && enrichedResult.articles.length > 0) {
-      const articles = enrichedResult.articles.map(
-        (article: any, index: number) => ({
-          pageid: pageIds[index] || Math.random(),
-          title: article.title,
-          extract: article.fullContent.slice(0, 500) + "...",
-          fullContent: article.fullContent,
-          categories: article.categories,
-          url: article.url,
-        }),
+      const enrichedResult = await wikipediaRAG.enrichWikipediaContent(
+        pageIds,
+        query,
+        mode,
+        reflection,
       );
 
-      try {
-        await wikipediaRAG.processWikipediaArticles(
-          req.user.id,
-          workspaceId,
-          articles,
+      if (workspaceId && enrichedResult.articles.length > 0) {
+        const articles = enrichedResult.articles.map(
+          (article: any, index: number) => ({
+            pageid: pageIds[index] || Math.random(),
+            title: article.title,
+            extract: article.fullContent.slice(0, 500) + "...",
+            fullContent: article.fullContent,
+            categories: article.categories,
+            url: article.url,
+          }),
         );
-      } catch (error) {
-        console.warn("Erreur sauvegarde articles RAG:", error);
-      }
-    }
 
-    res.json({
-      success: true,
-      articles: enrichedResult.articles,
-      totalTokens: enrichedResult.totalTokens,
-      processedForRAG: !!workspaceId,
-    });
-  } catch (error) {
-    console.error("Erreur Wikipedia RAG:", error);
-    res.status(500).json({
-      error: "Erreur interne du serveur",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
-    });
-  }
-});
+        try {
+          await wikipediaRAG.processWikipediaArticles(
+            req.user.id,
+            workspaceId,
+            articles,
+          );
+        } catch (error) {
+          console.warn("Erreur sauvegarde articles RAG:", error);
+        }
+      }
+
+      res.json({
+        success: true,
+        articles: enrichedResult.articles,
+        totalTokens: enrichedResult.totalTokens,
+        processedForRAG: !!workspaceId,
+      });
+    } catch (error) {
+      console.error("Erreur Wikipedia RAG:", error);
+      res.status(500).json({
+        error: "Erreur interne du serveur",
+        details: "Une erreur est survenue",
+      });
+    }
+  },
+);
 
 // ============================================================================
 // RAG CONTEXT
 // ============================================================================
 
-router.post("/rag/context", async (req: any, res) => {
+router.post("/rag/context", verifyWorkspaceAccess, async (req: any, res) => {
   try {
     const { ragSystem } = await import("../services/rag/index.js");
     const { sessionMemory } = await import("../services/rag/sessionMemory.js");
@@ -315,7 +324,7 @@ router.post("/rag/context", async (req: any, res) => {
     console.error("Erreur RAG context:", error);
     res.status(500).json({
       error: "Erreur interne du serveur",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
+      details: "Une erreur est survenue",
     });
   }
 });
@@ -324,166 +333,179 @@ router.post("/rag/context", async (req: any, res) => {
 // USER PAGES RAG
 // ============================================================================
 
-router.post("/user-pages/check-embedding", async (req: any, res) => {
-  try {
-    const { pageId, workspaceId } = req.body;
-
-    if (!pageId || !workspaceId) {
-      return res
-        .status(400)
-        .json({ error: "pageId and workspaceId are required" });
-    }
-
-    const page = await prisma.page.findFirst({
-      where: { id: pageId, workspaceId, isArchived: false },
-      select: { id: true, title: true, updatedAt: true },
-    });
-
-    if (!page) {
-      return res.json({
-        alreadyEmbedded: false,
-        upToDate: false,
-        message: "Page not found",
-      });
-    }
-
+router.post(
+  "/user-pages/check-embedding",
+  verifyWorkspaceAccess,
+  async (req: any, res) => {
     try {
-      const { userPagesRAG } = await import("../services/rag/userPages.js");
-      const existingSource = await userPagesRAG.findExistingSource(
-        pageId,
-        req.user.id,
-        workspaceId,
-      );
+      const { pageId, workspaceId } = req.body;
 
-      if (!existingSource) {
+      if (!pageId || !workspaceId) {
+        return res
+          .status(400)
+          .json({ error: "pageId and workspaceId are required" });
+      }
+
+      const page = await prisma.page.findFirst({
+        where: { id: pageId, workspaceId, isArchived: false },
+        select: { id: true, title: true, updatedAt: true },
+      });
+
+      if (!page) {
         return res.json({
           alreadyEmbedded: false,
           upToDate: false,
-          message: "No existing embedding found",
+          message: "Page not found",
         });
       }
 
-      const isUpToDate =
-        new Date(existingSource.updatedAt) >= new Date(page.updatedAt) &&
-        existingSource.status === "COMPLETED";
-
-      res.json({
-        alreadyEmbedded: true,
-        upToDate: isUpToDate,
-        message: isUpToDate
-          ? `Page "${page.title}" already embedded and up-to-date`
-          : `Page "${page.title}" embedded but outdated`,
-      });
-    } catch (error) {
-      res.json({
-        alreadyEmbedded: false,
-        upToDate: false,
-        message: "RAG service unavailable",
-      });
-    }
-  } catch (error) {
-    console.error("Erreur User Pages Check:", error);
-    res.status(500).json({ error: "Erreur interne du serveur" });
-  }
-});
-
-router.post("/user-pages/rag-process", async (req: any, res) => {
-  try {
-    const { pageIds, workspaceId } = req.body;
-
-    if (!Array.isArray(pageIds) || pageIds.length === 0) {
-      return res
-        .status(400)
-        .json({ error: "pageIds must be a non-empty array" });
-    }
-
-    if (!workspaceId) {
-      return res.status(400).json({ error: "workspaceId is required" });
-    }
-
-    const selectedPages = await prisma.page.findMany({
-      where: { id: { in: pageIds }, workspaceId, isArchived: false },
-      select: {
-        id: true,
-        title: true,
-        blockNoteContent: true,
-        updatedAt: true,
-      },
-    });
-
-    if (selectedPages.length === 0) {
-      return res.json({
-        success: true,
-        message: "Aucune page valide trouvée",
-        processedPages: [],
-      });
-    }
-
-    const { userPagesRAG } = await import("../services/rag/userPages.js");
-    const processedPages = [];
-
-    for (const page of selectedPages) {
-      if (!page.title) continue;
-
-      let textContent = page.title;
       try {
-        if (page.blockNoteContent) {
-          const content =
-            typeof page.blockNoteContent === "string"
-              ? JSON.parse(page.blockNoteContent)
-              : page.blockNoteContent;
+        const { userPagesRAG } = await import("../services/rag/userPages.js");
+        const existingSource = await userPagesRAG.findExistingSource(
+          pageId,
+          req.user.id,
+          workspaceId,
+        );
 
-          if (content && Array.isArray(content)) {
-            const textParts = content
-              .filter(
-                (block: any) => block?.type === "paragraph" && block?.content,
-              )
-              .map((block: any) =>
-                Array.isArray(block.content)
-                  ? block.content.map((item: any) => item?.text || "").join("")
-                  : "",
-              )
-              .filter(Boolean);
+        if (!existingSource) {
+          return res.json({
+            alreadyEmbedded: false,
+            upToDate: false,
+            message: "No existing embedding found",
+          });
+        }
 
-            if (textParts.length > 0) {
-              textContent = page.title + "\n\n" + textParts.join("\n\n");
+        const isUpToDate =
+          new Date(existingSource.updatedAt) >= new Date(page.updatedAt) &&
+          existingSource.status === "COMPLETED";
+
+        res.json({
+          alreadyEmbedded: true,
+          upToDate: isUpToDate,
+          message: isUpToDate
+            ? `Page "${page.title}" already embedded and up-to-date`
+            : `Page "${page.title}" embedded but outdated`,
+        });
+      } catch (error) {
+        res.json({
+          alreadyEmbedded: false,
+          upToDate: false,
+          message: "RAG service unavailable",
+        });
+      }
+    } catch (error) {
+      console.error("Erreur User Pages Check:", error);
+      res.status(500).json({ error: "Erreur interne du serveur" });
+    }
+  },
+);
+
+router.post(
+  "/user-pages/rag-process",
+  verifyWorkspaceAccess,
+  async (req: any, res) => {
+    try {
+      const { pageIds, workspaceId } = req.body;
+
+      if (!Array.isArray(pageIds) || pageIds.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "pageIds must be a non-empty array" });
+      }
+
+      if (!workspaceId) {
+        return res.status(400).json({ error: "workspaceId is required" });
+      }
+
+      const selectedPages = await prisma.page.findMany({
+        where: { id: { in: pageIds }, workspaceId, isArchived: false },
+        select: {
+          id: true,
+          title: true,
+          blockNoteContent: true,
+          updatedAt: true,
+        },
+      });
+
+      if (selectedPages.length === 0) {
+        return res.json({
+          success: true,
+          message: "Aucune page valide trouvée",
+          processedPages: [],
+        });
+      }
+
+      const { userPagesRAG } = await import("../services/rag/userPages.js");
+      const processedPages = [];
+
+      for (const page of selectedPages) {
+        if (!page.title) continue;
+
+        let textContent = page.title;
+        try {
+          if (page.blockNoteContent) {
+            const content =
+              typeof page.blockNoteContent === "string"
+                ? JSON.parse(page.blockNoteContent)
+                : page.blockNoteContent;
+
+            if (content && Array.isArray(content)) {
+              const textParts = content
+                .filter(
+                  (block: any) => block?.type === "paragraph" && block?.content,
+                )
+                .map((block: any) =>
+                  Array.isArray(block.content)
+                    ? block.content
+                        .map((item: any) => item?.text || "")
+                        .join("")
+                    : "",
+                )
+                .filter(Boolean);
+
+              if (textParts.length > 0) {
+                textContent = page.title + "\n\n" + textParts.join("\n\n");
+              }
             }
           }
+        } catch (error) {
+          console.error(
+            `Erreur extraction contenu page "${page.title}":`,
+            error,
+          );
         }
-      } catch (error) {
-        console.error(`Erreur extraction contenu page "${page.title}":`, error);
-      }
 
-      const sourceId = await userPagesRAG.processUserPage({
-        id: page.id,
-        title: page.title,
-        content: textContent,
-        userId: req.user!.id,
-        workspaceId,
-        updatedAt: page.updatedAt,
-      });
-
-      if (sourceId) {
-        processedPages.push({
-          pageId: page.id,
+        const sourceId = await userPagesRAG.processUserPage({
+          id: page.id,
           title: page.title,
-          sourceId,
-          contentLength: textContent.length,
+          content: textContent,
+          userId: req.user!.id,
+          workspaceId,
+          updatedAt: page.updatedAt,
         });
-      }
-    }
 
-    res.json({
-      success: true,
-      message: `${processedPages.length} page(s) traitée(s) avec RAG`,
-      processedPages,
-      totalPages: selectedPages.length,
-    });
-  } catch (error) {
-    console.error("Erreur User Pages RAG:", error);
-    res.status(500).json({ error: "Erreur interne du serveur" });
-  }
-});
+        if (sourceId) {
+          processedPages.push({
+            pageId: page.id,
+            title: page.title,
+            sourceId,
+            contentLength: textContent.length,
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `${processedPages.length} page(s) traitée(s) avec RAG`,
+        processedPages,
+        totalPages: selectedPages.length,
+      });
+    } catch (error) {
+      console.error("Erreur User Pages RAG:", error);
+      res.status(500).json({ error: "Erreur interne du serveur" });
+    }
+  },
+);
 
 // ============================================================================
 // FILE UPLOAD
@@ -546,68 +568,73 @@ router.post("/upload", upload.array("files", 5), async (req: any, res) => {
 });
 
 // Upload RAG (avec embedding)
-router.post("/upload-rag", upload.single("file"), async (req: any, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: "Utilisateur non authentifié" });
-    }
+router.post(
+  "/upload-rag",
+  verifyWorkspaceAccess,
+  upload.single("file"),
+  async (req: any, res) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: "Utilisateur non authentifié" });
+      }
 
-    if (!req.file) {
-      return res.status(400).json({ error: "Aucun fichier fourni" });
-    }
+      if (!req.file) {
+        return res.status(400).json({ error: "Aucun fichier fourni" });
+      }
 
-    const { workspaceId } = req.body;
-    if (!workspaceId) {
-      return res.status(400).json({ error: "workspaceId requis" });
-    }
+      const { workspaceId } = req.body;
+      if (!workspaceId) {
+        return res.status(400).json({ error: "workspaceId requis" });
+      }
 
-    const file = req.file;
-    const supportedMimes = [
-      "application/pdf",
-      "text/plain",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/msword",
-      "text/csv",
-      "application/json",
-      "text/markdown",
-      "text/html",
-    ];
+      const file = req.file;
+      const supportedMimes = [
+        "application/pdf",
+        "text/plain",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+        "text/csv",
+        "application/json",
+        "text/markdown",
+        "text/html",
+      ];
 
-    if (!supportedMimes.includes(file.mimetype)) {
-      return res.status(400).json({
-        error: "Format non supporté",
-        supportedFormats: supportedMimes,
+      if (!supportedMimes.includes(file.mimetype)) {
+        return res.status(400).json({
+          error: "Format non supporté",
+          supportedFormats: supportedMimes,
+        });
+      }
+
+      const { userFilesRAG } = await import("../services/rag/userFiles.js");
+      const sourceId = await userFilesRAG.processUserFile({
+        buffer: file.buffer,
+        fileName: file.originalname,
+        mimeType: file.mimetype,
+        userId: req.user.id,
+        workspaceId,
       });
+
+      if (!sourceId) {
+        return res.status(500).json({ error: "Échec du traitement RAG" });
+      }
+
+      res.json({
+        success: true,
+        sources: [
+          {
+            sourceId,
+            title: file.originalname,
+            type: file.mimetype === "application/pdf" ? "PDF" : "TEXT_FILE",
+          },
+        ],
+      });
+    } catch (error) {
+      console.error("Erreur upload-rag:", error);
+      res.status(500).json({ error: "Erreur traitement fichier RAG" });
     }
-
-    const { userFilesRAG } = await import("../services/rag/userFiles.js");
-    const sourceId = await userFilesRAG.processUserFile({
-      buffer: file.buffer,
-      fileName: file.originalname,
-      mimeType: file.mimetype,
-      userId: req.user.id,
-      workspaceId,
-    });
-
-    if (!sourceId) {
-      return res.status(500).json({ error: "Échec du traitement RAG" });
-    }
-
-    res.json({
-      success: true,
-      sources: [
-        {
-          sourceId,
-          title: file.originalname,
-          type: file.mimetype === "application/pdf" ? "PDF" : "TEXT_FILE",
-        },
-      ],
-    });
-  } catch (error) {
-    console.error("Erreur upload-rag:", error);
-    res.status(500).json({ error: "Erreur traitement fichier RAG" });
-  }
-});
+  },
+);
 
 // ============================================================================
 // MARKDOWN CONVERSION

@@ -32,7 +32,7 @@ router.get("/subscription", authenticateToken, async (req, res) => {
     console.error("[API] Erreur recuperation abonnement:", error);
     res.status(500).json({
       error: "Erreur lors de la recuperation de l'abonnement",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
+      details: "Une erreur est survenue",
     });
   }
 });
@@ -63,7 +63,7 @@ router.get("/stats", authenticateToken, async (req, res) => {
     console.error("[API] Erreur recuperation stats:", error);
     res.status(500).json({
       error: "Erreur lors de la recuperation des statistiques",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
+      details: "Une erreur est survenue",
     });
   }
 });
@@ -132,7 +132,7 @@ router.post(
       console.error("[API] Erreur creation checkout session:", error);
       res.status(500).json({
         error: "Erreur lors de la creation de la session checkout",
-        details: error instanceof Error ? error.message : "Erreur inconnue",
+        details: "Une erreur est survenue",
       });
     }
   },
@@ -193,14 +193,14 @@ router.get("/portal-url", authenticateToken, async (req, res) => {
       console.error("[API] Erreur API Paddle:", paddleError);
       return res.status(500).json({
         error: "Erreur lors de la recuperation du portail Paddle",
-        details: paddleError?.message || "Erreur inconnue",
+        details: "Une erreur est survenue",
       });
     }
   } catch (error) {
     console.error("[API] Erreur portal-url:", error);
     res.status(500).json({
       error: "Erreur lors de la recuperation de l'URL du portail",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
+      details: "Une erreur est survenue",
     });
   }
 });
@@ -247,7 +247,7 @@ router.post("/cancel", authenticateToken, async (req, res) => {
     console.error("[API] Erreur annulation:", error);
     res.status(500).json({
       error: "Erreur lors de l'annulation",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
+      details: "Une erreur est survenue",
     });
   }
 });
@@ -292,7 +292,7 @@ router.post("/upgrade", authenticateToken, async (req, res) => {
     console.error("[API] Erreur upgrade:", error);
     res.status(500).json({
       error: "Erreur lors de la preparation de l'upgrade",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
+      details: "Une erreur est survenue",
     });
   }
 });

@@ -19,6 +19,8 @@ import {
   correctText,
 } from "../controllers/ai/specialized.js";
 import { autocomplete } from "../controllers/ai/autocomplete.js";
+import { aiConcurrencyLimit } from "../middlewares/aiConcurrencyLimit.js";
+import { dailyTokenQuota } from "../middlewares/dailyTokenQuota.js";
 
 // 🎯 Imports BullMQ pour jobs asynchrones
 import { aiGenerationQueue } from "../lib/queues.js";
@@ -62,6 +64,8 @@ router.get("/test", authenticateToken, testAI);
 
 // Routes protégées - nécessitent une authentification + vérification crédits IA
 router.use(authenticateToken);
+router.use(aiConcurrencyLimit);
+router.use(dailyTokenQuota);
 
 // 🤖 GÉNÉRATION DE CONTENU - Coût: 0.5 crédits
 router.post(
@@ -169,9 +173,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("[AI-ASYNC] Erreur création job:", error);
-      return res
-        .status(500)
-        .json({ error: "Erreur serveur", message: error.message });
+      return res.status(500).json({ error: "Erreur serveur" });
     }
   },
 );
@@ -214,9 +216,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("[AI-ASYNC] Erreur création job:", error);
-      return res
-        .status(500)
-        .json({ error: "Erreur serveur", message: error.message });
+      return res.status(500).json({ error: "Erreur serveur" });
     }
   },
 );
@@ -258,9 +258,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("[AI-ASYNC] Erreur création job:", error);
-      return res
-        .status(500)
-        .json({ error: "Erreur serveur", message: error.message });
+      return res.status(500).json({ error: "Erreur serveur" });
     }
   },
 );
@@ -306,9 +304,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("[AI-ASYNC] Erreur création job:", error);
-      return res
-        .status(500)
-        .json({ error: "Erreur serveur", message: error.message });
+      return res.status(500).json({ error: "Erreur serveur" });
     }
   },
 );
@@ -415,7 +411,6 @@ router.post(
       console.error("❌ [AI-CHAT] Erreur:", error);
       res.status(500).json({
         error: "AI chat error",
-        message: error.message,
       });
     }
   },
