@@ -17,4 +17,4 @@ router.post('/generate',
   }
 );
 
-export default router;
+export { router as graphicsRouter };

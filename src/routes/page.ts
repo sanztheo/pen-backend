@@ -573,4 +573,4 @@ router.patch("/:id/icon", async (req, res) => {
   }
 });
 
-export default router;
+export { router as pageRouter };

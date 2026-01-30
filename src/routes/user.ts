@@ -1,14 +1,15 @@
-import { Router } from 'express';
-// @ts-ignore types optional in dev
-import { authenticateToken } from '../middlewares/auth.js';
-import { getPersonalization, updatePersonalization } from '../controllers/user/personalizationController.js';
+import { Router } from "express";
+import { authenticateToken } from "../middlewares/auth.js";
+import {
+  getPersonalization,
+  updatePersonalization,
+} from "../controllers/user/personalizationController.js";
 
 const router = Router();
 
 router.use(authenticateToken);
 
-router.get('/personalization', getPersonalization);
-router.put('/personalization', updatePersonalization);
+router.get("/personalization", getPersonalization);
+router.put("/personalization", updatePersonalization);
 
-export default router;
-
+export { router as userRouter };

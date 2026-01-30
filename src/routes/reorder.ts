@@ -6,4 +6,4 @@ const router = Router();
 
 router.post('/', authenticateToken, reorderItems);
 
-export default router; 
+export { router as reorderRouter }; 

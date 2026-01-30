@@ -105,8 +105,6 @@ export class UserFilesRAGSystem {
         case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         case "application/msword": {
           // DOC/DOCX via mammoth
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore - module installé via npm
           const mammoth = await import("mammoth");
           const result = await mammoth.extractRawText({ buffer });
           return result.value || "";
@@ -114,8 +112,6 @@ export class UserFilesRAGSystem {
 
         case "text/csv": {
           // CSV via papaparse
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore - module installé via npm
           const Papa = await import("papaparse");
           const text = buffer.toString("utf-8");
           const parsed = Papa.default.parse(text, { header: true });
@@ -138,11 +134,8 @@ export class UserFilesRAGSystem {
 
         case "text/html": {
           // HTML → Markdown via turndown
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore - module installé via npm
+          // @ts-expect-error - turndown n'a pas de types declares (@types/turndown)
           const TurndownService = (await import("turndown")).default;
-          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-          // @ts-ignore
           const turndownService = new TurndownService();
           const html = buffer.toString("utf-8");
           return turndownService.turndown(html);
@@ -335,8 +328,9 @@ export class UserFilesRAGSystem {
     sourceId: string,
     chunks: RAGChunkInput[],
   ): Promise<void> {
-    const { mapWithConcurrency, chunkArray } =
-      await import("../../utils/concurrency.js");
+    const { mapWithConcurrency, chunkArray } = await import(
+      "../../utils/concurrency.js"
+    );
     const concurrency = Math.max(
       1,
       parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10),

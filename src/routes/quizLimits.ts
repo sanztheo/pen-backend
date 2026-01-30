@@ -262,4 +262,4 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-export default router;
+export { router as quizLimitsRouter };

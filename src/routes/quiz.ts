@@ -116,4 +116,4 @@ router.post("/analyze-workspace", (req, res) => {
 // Routes de statistiques détaillées
 router.use("/statistics", quizStatsRouter);
 
-export default router;
+export { router as quizRouter };

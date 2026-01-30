@@ -37,5 +37,5 @@ router.get('/layout', QuizStatsController.getLayout);
 router.put('/layout', QuizStatsController.saveLayout);
 router.post('/layout/reset', QuizStatsController.resetLayout);
 
-export default router;
+export { router as quizStatsRouter };
 

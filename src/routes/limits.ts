@@ -206,4 +206,4 @@ router.get('/can-create/:type', authenticateToken, async (req, res) => {
   }
 });
 
-export default router;
+export { router as limitsRouter };

@@ -41,4 +41,4 @@ router.post("/users/export", AdminController.initiateUserExport);
 router.get("/users/export/:jobId/status", AdminController.getExportStatus);
 router.get("/users/export/:jobId/download", AdminController.downloadExport);
 
-export default router;
+export { router as adminRouter };

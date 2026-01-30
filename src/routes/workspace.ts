@@ -73,4 +73,4 @@ router.get("/:id/pages", async (req, res) => {
   }
 });
 
-export default router;
+export { router as workspaceRouter };
