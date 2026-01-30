@@ -82,6 +82,8 @@ app.post("/webhooks/paddle", express.raw({ type: "application/json" }), handler)
 
 ## Documentation
 
+**Lire la doc AVANT de coder une feature.**
+
 | Document | Contenu |
 |----------|---------|
 | [docs/backend/api-reference.md](../docs/backend/api-reference.md) | Reference API (25+ endpoints) |
@@ -92,10 +94,19 @@ app.post("/webhooks/paddle", express.raw({ type: "application/json" }), handler)
 | [docs/backend/realtime-websocket.md](../docs/backend/realtime-websocket.md) | WebSocket + Yjs |
 | [docs/features/quiz-intelligence.md](../docs/features/quiz-intelligence.md) | Pipeline intelligence quiz |
 | [docs/security/security.md](../docs/security/security.md) | Audit securite |
+| **[docs/admin/index.md](../docs/admin/index.md)** | Dashboard admin (architecture, API, roadmap) |
+| **[docs/guides/infisical.md](../docs/guides/infisical.md)** | Gestion secrets Infisical |
 
 ---
 
 ## Variables d'Environnement
+
+Secrets geres via **Infisical** (`/Backend/DEV`, `/Backend/PROD`).
+
+```bash
+# Lancer avec injection des secrets
+infisical run --env=dev --path=/Backend -- npm run dev
+```
 
 **Obligatoires:**
 ```
@@ -109,7 +120,7 @@ GEMINI_API_KEY, DEEPSEEK_API_KEY, TAVILY_API_KEY
 PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET, PADDLE_ENVIRONMENT
 ```
 
-Secrets geres via Infisical (`/Backend/DEV`, `/Backend/PROD`).
+Voir [docs/guides/infisical.md](../docs/guides/infisical.md) pour installation et commandes.
 
 ---
 
