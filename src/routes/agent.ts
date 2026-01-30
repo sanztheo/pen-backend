@@ -751,4 +751,4 @@ router.delete("/conversations/:id", async (req: Request, res: Response) => {
   }
 });
 
-export default router;
+export { router as agentRouter };

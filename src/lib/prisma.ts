@@ -80,8 +80,9 @@ export async function ensureConnection(maxRetries = 3): Promise<boolean> {
         console.log(`✅ Reconnexion réussie après ${attempt} tentatives`);
       }
       return true;
-    } catch (error: any) {
-      const errorMessage = error.message || String(error);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
       // Détecter les erreurs de connexion
       const isConnectionError =
@@ -146,8 +147,11 @@ export function startKeepAlive() {
     try {
       await prisma.$queryRaw`SELECT 1`;
       console.log(`💓 DB keep-alive [${isProduction ? "PROD" : "DEV"}]`);
-    } catch (error: any) {
-      console.error("❌ Keep-alive ping failed:", error.message);
+    } catch (error: unknown) {
+      console.error(
+        "❌ Keep-alive ping failed:",
+        error instanceof Error ? error.message : String(error),
+      );
       // Tenter une reconnexion automatique
       const reconnected = await ensureConnection(2);
       if (reconnected) {
@@ -245,4 +249,4 @@ console.log(`⏱️  Timeouts: 30s statement, 60s idle transaction`);
 console.log(`🔄 Auto-retry: Activé (3 tentatives max)`);
 console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-export default prisma;
+// Named export uniquement - voir ligne 46 pour l'export principal

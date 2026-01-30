@@ -481,4 +481,4 @@ router.patch("/pages/:id/pin", authenticateToken, async (req, res) => {
   }
 });
 
-export default router;
+export { router as contentRouter };

@@ -171,4 +171,4 @@ router.post('/refund', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-export default router;
+export { router as aiCreditsRouter };

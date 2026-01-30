@@ -659,4 +659,4 @@ router.post("/markdown-to-blocknote", async (req, res) => {
   }
 });
 
-export default router;
+export { router as assistantRouter };

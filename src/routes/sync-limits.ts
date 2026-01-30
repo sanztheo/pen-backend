@@ -123,4 +123,4 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
   }
 });
 
-export default router;
+export { router as sync_limitsRouter };

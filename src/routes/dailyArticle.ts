@@ -32,4 +32,4 @@ router.post('/refresh', onlyLocalAccess, (req, res) => {
   dailyArticleController.refreshDailyArticle(req, res);
 });
 
-export default router;
+export { router as dailyArticleRouter };

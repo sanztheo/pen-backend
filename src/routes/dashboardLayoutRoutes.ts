@@ -25,5 +25,5 @@ router.put('/', DashboardLayoutController.saveLayout);
  */
 router.delete('/', DashboardLayoutController.resetLayout);
 
-export default router;
+export { router as dashboardLayoutRoutesRouter };
 

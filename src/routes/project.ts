@@ -22,4 +22,4 @@ router.put('/:id', updateProject);
 router.delete('/:id', deleteProject);
 router.patch('/:id/pin', toggleProjectPin);
 
-export default router; 
+export { router as projectRouter }; 

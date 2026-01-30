@@ -416,7 +416,7 @@ router.post(
   },
 );
 
-export default router;
+export { router as aiRouter };
 
 // --- Proxy OpenAI compatible - Coût: 0.25 crédit ---
 router.post(

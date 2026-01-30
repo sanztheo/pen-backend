@@ -232,4 +232,4 @@ router.get("/config", (_req: Request, res: Response) => {
   });
 });
 
-export default router;
+export { router as uploadRouter };
