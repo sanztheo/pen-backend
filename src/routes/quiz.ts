@@ -7,7 +7,7 @@ import {
   requirePresetSequenceLimits,
 } from "../middlewares/requireQuizLimits.js";
 import { preprocessorRateLimit } from "../middlewares/rateLimiting.js";
-import quizStatsRouter from "./quizStats.js";
+import { quizStatsRouter } from "./quizStats.js";
 
 const router = Router();
 

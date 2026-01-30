@@ -9,33 +9,33 @@ import * as encoding from "lib0/encoding";
 import * as decoding from "lib0/decoding";
 import * as syncProtocol from "y-protocols/sync";
 
-import authRoutes from "./routes/auth.js";
-import workspaceRoutes from "./routes/workspace.js";
-import projectRoutes from "./routes/project.js";
-import pageRoutes from "./routes/page.js";
-import contentRoutes from "./routes/content.js";
-import aiRoutes from "./routes/ai.js";
-import assistantRoutes from "./routes/assistant.js";
-import conversationsRoutes from "./routes/conversations.js";
-import quizRoutes from "./routes/quiz.js";
+import { authRouter } from "./routes/auth.js";
+import { workspaceRouter } from "./routes/workspace.js";
+import { projectRouter } from "./routes/project.js";
+import { pageRouter } from "./routes/page.js";
+import { contentRouter } from "./routes/content.js";
+import { aiRouter } from "./routes/ai.js";
+import { assistantRouter } from "./routes/assistant.js";
+import { conversationsRouter } from "./routes/conversations.js";
+import { quizRouter } from "./routes/quiz.js";
 import { invalidateBlockNoteCache } from "./lib/redis.js";
 import { ContextCacheService } from "./services/quiz/intelligence/index.js";
-import reorderRoutes from "./routes/reorder.js";
-import graphicsRoutes from "./routes/graphics.js";
-import dashboardLayoutRoutes from "./routes/dashboardLayoutRoutes.js";
-import billingRoutes from "./routes/billing.js";
-import limitsRoutes from "./routes/limits.js";
-import aiCreditsRoutes from "./routes/aiCredits.js";
-import quizLimitsRoutes from "./routes/quizLimits.js";
-import syncLimitsRoutes from "./routes/sync-limits.js";
-import updatesRoutes from "./routes/updates.js";
-import userRoutes from "./routes/user.js";
-import dailyArticleRoutes from "./routes/dailyArticle.js";
-import uploadRoutes from "./routes/upload.js";
+import { reorderRouter } from "./routes/reorder.js";
+import { graphicsRouter } from "./routes/graphics.js";
+import { dashboardLayoutRoutesRouter } from "./routes/dashboardLayoutRoutes.js";
+import { billingRouter } from "./routes/billing.js";
+import { limitsRouter } from "./routes/limits.js";
+import { aiCreditsRouter } from "./routes/aiCredits.js";
+import { quizLimitsRouter } from "./routes/quizLimits.js";
+import { sync_limitsRouter } from "./routes/sync-limits.js";
+import { updatesRouter } from "./routes/updates.js";
+import { userRouter } from "./routes/user.js";
+import { dailyArticleRouter } from "./routes/dailyArticle.js";
+import { uploadRouter } from "./routes/upload.js";
 import { paddleWebhookHandler } from "./routes/paddleWebhooks.js";
-import jobsRoutes from "./routes/jobs.js";
-import agentRoutes from "./routes/agent.js";
-import adminRoutes from "./routes/admin.js";
+import { jobsRouter } from "./routes/jobs.js";
+import { agentRouter } from "./routes/agent.js";
+import { adminRouter } from "./routes/admin.js";
 
 import { startCronJobs } from "./jobs/cronJobs.js";
 import { AuthService } from "./services/auth.js";
@@ -111,9 +111,11 @@ async function testPaddleWebhookRoute(): Promise<void> {
     } else {
       console.log(`⚠️  Route webhook: Status inattendu (${response.status})`);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.log("❌ Route webhook Paddle: INACCESSIBLE");
-    console.log(`   Erreur: ${error.message}`);
+    console.log(
+      `   Erreur: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 
   // Vérifier la config
@@ -177,7 +179,7 @@ app.use(compression());
 app.post(
   "/api/webhooks/paddle",
   express.raw({ type: "application/json" }),
-  (req, res, next) => {
+  (_req, _res, next) => {
     console.log("🏓 [WEBHOOK] Route /api/webhooks/paddle touchée");
     next();
   },
@@ -190,15 +192,15 @@ app.use(globalRateLimit);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-app.get("/health", (req, res) => res.status(200).json({ status: "ok" }));
+app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
 // 🛡️ ROUTES AVEC RATE LIMITING SPÉCIFIQUE
-app.use("/api/auth", authRateLimit, authRoutes); // Protection brute force
-app.use("/api/content", contentRoutes); // 🏠 Nouvelle API simplifiée
-app.use("/api/workspaces", workspaceRoutes);
-app.use("/api/projects", projectRoutes);
-app.use("/api/pages", pageRoutes);
-app.use("/api/ai", aiRateLimit, aiBurstRateLimit, aiRoutes); // Protection spam IA + burst
+app.use("/api/auth", authRateLimit, authRouter); // Protection brute force
+app.use("/api/content", contentRouter); // 🏠 Nouvelle API simplifiée
+app.use("/api/workspaces", workspaceRouter);
+app.use("/api/projects", projectRouter);
+app.use("/api/pages", pageRouter);
+app.use("/api/ai", aiRateLimit, aiBurstRateLimit, aiRouter); // Protection spam IA + burst
 
 // 🤖 Route spéciale pour BlockNote AI - alias direct vers /api/ai/chat
 // BlockNote AI utilise DefaultChatTransport qui appelle /api/chat
@@ -207,43 +209,43 @@ app.post("/api/chat", (req, res, next) => {
   req.url = "/chat";
   req.originalUrl = "/api/ai/chat";
   // Passer la requête au router AI
-  aiRoutes(req, res, next);
+  aiRouter(req, res, next);
 });
 app.use(
   "/api/assistant",
   authenticateToken,
   assistantRateLimit,
   aiBurstRateLimit,
-  assistantRoutes,
+  assistantRouter,
 ); // Auth + rate limit + burst AVANT routes
-app.use("/api/conversations", conversationsRoutes);
-app.use("/api/quiz", quizRateLimit, quizRoutes); // Protection génération quiz
-app.use("/api/quiz/graphics", graphicsRoutes);
-app.use("/api/reorder", reorderRoutes);
-app.use("/api/dashboard-layout", dashboardLayoutRoutes);
+app.use("/api/conversations", conversationsRouter);
+app.use("/api/quiz", quizRateLimit, quizRouter); // Protection génération quiz
+app.use("/api/quiz/graphics", graphicsRouter);
+app.use("/api/reorder", reorderRouter);
+app.use("/api/dashboard-layout", dashboardLayoutRoutesRouter);
 // 🛡️ Admin Dashboard (auth + isAdmin required + rate limited)
-app.use("/api/admin", aiRateLimit, adminRoutes);
-app.use("/api/billing", billingRoutes);
-app.use("/api/limits", limitsRoutes);
-app.use("/api/ai-credits", aiCreditsRoutes);
-app.use("/api/quiz-limits", quizLimitsRoutes);
-app.use("/api/sync-limits", syncLimitsRoutes);
-app.use("/api/updates", updatesRoutes);
-app.use("/api/upload", uploadRoutes);
-app.use("/api/daily-article", dailyArticleRoutes);
-app.use("/api/user", userRoutes);
-app.use("/api/jobs", jobsRoutes); // 🎯 Récupération résultats jobs BullMQ
-app.use("/api/agent", aiRateLimit, aiBurstRateLimit, agentRoutes); // 🤖 Agent Pennote + burst protection
+app.use("/api/admin", aiRateLimit, adminRouter);
+app.use("/api/billing", billingRouter);
+app.use("/api/limits", limitsRouter);
+app.use("/api/ai-credits", aiCreditsRouter);
+app.use("/api/quiz-limits", quizLimitsRouter);
+app.use("/api/sync-limits", sync_limitsRouter);
+app.use("/api/updates", updatesRouter);
+app.use("/api/upload", uploadRouter);
+app.use("/api/daily-article", dailyArticleRouter);
+app.use("/api/user", userRouter);
+app.use("/api/jobs", jobsRouter); // 🎯 Récupération résultats jobs BullMQ
+app.use("/api/agent", aiRateLimit, aiBurstRateLimit, agentRouter); // 🤖 Agent Pennote + burst protection
 
-app.use("*", (req, res) =>
+app.use("*", (_req, res) =>
   res.status(404).json({ error: "Route non trouvée" }),
 );
 app.use(
   (
-    error: any,
-    req: express.Request,
+    error: unknown,
+    _req: express.Request,
     res: express.Response,
-    next: express.NextFunction,
+    _next: express.NextFunction,
   ) => {
     console.error("❌ Erreur non gérée:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
@@ -774,8 +776,11 @@ server.listen(PORT, async () => {
     } else {
       console.error("⚠️ Tâches automatiques désactivées - BDD inaccessible");
     }
-  } catch (error: any) {
-    console.error("❌ Erreur lors du diagnostic de BDD:", error.message);
+  } catch (error: unknown) {
+    console.error(
+      "❌ Erreur lors du diagnostic de BDD:",
+      error instanceof Error ? error.message : String(error),
+    );
   }
 });
 
