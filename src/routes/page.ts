@@ -416,69 +416,76 @@ async function saveBlockNoteContent(req: any, res: any) {
 }
 
 // 🆕 CHARGER CONTENU BLOCKNOTE DIRECTEMENT (Solution officielle + Redis Cache)
-router.get("/:pageId/blocknote-content", async (req, res) => {
-  try {
-    const { pageId } = req.params;
-    const startTime = Date.now();
+// 🔒 SECURITY: Requires authentication + workspace access OR admin privileges
+router.get(
+  "/:pageId/blocknote-content",
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { pageId } = req.params;
+      const userId = req.user!.id;
 
-    console.log("📖 [API] Chargement contenu BlockNote:", {
-      pageId,
-      pageIdType: typeof pageId,
-      pageIdLength: pageId?.length,
-      isValidUUID:
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      // 🚨 VALIDATION UUID
+      if (
+        !pageId ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
           pageId,
-        ),
-    });
+        )
+      ) {
+        return res.status(400).json({
+          error: "PageId doit être un UUID valide",
+          received: pageId,
+        });
+      }
 
-    // 🚨 VALIDATION UUID
-    if (
-      !pageId ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      // 🔒 AUTHORIZATION: Check if user has access to the page's workspace OR is admin
+      const [pageAccess, userAdmin] = await Promise.all([
+        prisma.page.findFirst({
+          where: {
+            id: pageId,
+            workspace: {
+              OR: [
+                { ownerId: userId },
+                { members: { some: { userId, isActive: true } } },
+              ],
+            },
+          },
+          select: { id: true },
+        }),
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { isAdmin: true },
+        }),
+      ]);
+
+      if (!pageAccess && !userAdmin?.isAdmin) {
+        return res.status(403).json({ error: "Accès refusé" });
+      }
+
+      // 🚀 REDIS CACHE: Récupérer depuis cache (2min TTL)
+      const page = await cacheBlockNoteContent(pageId);
+
+      if (!page) {
+        return res.status(404).json({ error: "Page non trouvée" });
+      }
+
+      const content = ((page as any).blockNoteContent as any[]) || [];
+
+      res.json({
+        content,
         pageId,
-      )
-    ) {
-      console.error("❌ [API] PageId invalide:", pageId);
-      return res.status(400).json({
-        error: "PageId doit être un UUID valide",
-        received: pageId,
-      });
-    }
-
-    // 🚀 REDIS CACHE: Récupérer depuis cache (2min TTL)
-    const page = await cacheBlockNoteContent(pageId);
-
-    if (!page) {
-      return res.status(404).json({ error: "Page non trouvée" });
-    }
-
-    const content = ((page as any).blockNoteContent as any[]) || [];
-
-    console.log(
-      `✅ [API] Contenu BlockNote chargé (${Date.now() - startTime}ms):`,
-      {
-        pageId,
+        title: page.title,
         blocksCount: content.length,
         hasNestedBlocks: content.some(
           (b: any) => b.children && b.children.length > 0,
         ),
-      },
-    );
-
-    res.json({
-      content,
-      pageId,
-      title: page.title,
-      blocksCount: content.length,
-      hasNestedBlocks: content.some(
-        (b: any) => b.children && b.children.length > 0,
-      ),
-    });
-  } catch (error) {
-    console.error("❌ [API] Erreur chargement BlockNote:", error);
-    res.status(500).json({ error: "Erreur lors du chargement" });
-  }
-});
+      });
+    } catch (error) {
+      console.error("[PAGE_ROUTES] Erreur chargement BlockNote:", error);
+      res.status(500).json({ error: "Erreur lors du chargement" });
+    }
+  },
+);
 
 // 🎨 METTRE À JOUR L'ICÔNE D'UNE PAGE
 router.patch("/:id/icon", async (req, res) => {

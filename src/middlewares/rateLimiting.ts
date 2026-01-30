@@ -258,6 +258,27 @@ export const assistantRateLimit = rateLimit({
 });
 
 /**
+ * 7. RATE LIMIT ADMIN
+ * Protection des endpoints admin sensibles
+ * Même limite que AI mais par userId admin
+ */
+export const adminRateLimit = rateLimit({
+  ...createBaseConfig("rl:admin:"),
+  windowMs: RATE_LIMIT_CONFIG.ai.windowMs, // 15 minutes
+  max: RATE_LIMIT_CONFIG.ai.max, // 150 req/15min (same as AI)
+  message: {
+    success: false,
+    error: "ADMIN_RATE_LIMIT_EXCEEDED",
+    message: "Trop de requêtes admin. Veuillez réessayer dans 15 minutes.",
+    retryAfter: "15 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = (req as any).user?.id;
+    return userId ? `admin_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
  * Helper pour vérifier si le rate limiting est activé
  */
 export const isRateLimitEnabled = (): boolean => {

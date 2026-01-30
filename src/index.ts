@@ -35,6 +35,7 @@ import uploadRoutes from "./routes/upload.js";
 import { paddleWebhookHandler } from "./routes/paddleWebhooks.js";
 import jobsRoutes from "./routes/jobs.js";
 import agentRoutes from "./routes/agent.js";
+import adminRoutes from "./routes/admin.js";
 
 import { startCronJobs } from "./jobs/cronJobs.js";
 import { AuthService } from "./services/auth.js";
@@ -220,7 +221,8 @@ app.use("/api/quiz", quizRateLimit, quizRoutes); // Protection génération quiz
 app.use("/api/quiz/graphics", graphicsRoutes);
 app.use("/api/reorder", reorderRoutes);
 app.use("/api/dashboard-layout", dashboardLayoutRoutes);
-// 🛡️ SÉCURITÉ: Routes admin supprimées pour éviter les vulnérabilités
+// 🛡️ Admin Dashboard (auth + isAdmin required + rate limited)
+app.use("/api/admin", aiRateLimit, adminRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/limits", limitsRoutes);
 app.use("/api/ai-credits", aiCreditsRoutes);

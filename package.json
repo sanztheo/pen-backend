@@ -33,7 +33,9 @@
     "benchmark:quiz:small": "tsx scripts/quiz/benchmark-pipeline.ts --scenario=small",
     "benchmark:quiz:medium": "tsx scripts/quiz/benchmark-pipeline.ts --scenario=medium",
     "benchmark:quiz:large": "tsx scripts/quiz/benchmark-pipeline.ts --scenario=large",
-    "benchmark:quiz:xlarge": "tsx scripts/quiz/benchmark-pipeline.ts --scenario=xlarge"
+    "benchmark:quiz:xlarge": "tsx scripts/quiz/benchmark-pipeline.ts --scenario=xlarge",
+    "admin:set": "infisical run --path=/Backend/DEV -- tsx scripts/set-admin.ts",
+    "admin:set:prod": "infisical run --path=/Backend/PROD -- tsx scripts/set-admin.ts"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.0",
