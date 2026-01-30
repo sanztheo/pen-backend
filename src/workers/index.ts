@@ -7,9 +7,10 @@
 
 import { quizWorker } from "./quiz.worker.js";
 import { futuraWorker } from "./futura.worker.js";
+import { exportWorker } from "./export.worker.js";
 
 // 📊 Liste de tous les workers actifs
-const workers = [quizWorker, futuraWorker];
+const workers = [quizWorker, futuraWorker, exportWorker];
 
 // 🚀 Démarrer tous les workers
 export const startWorkers = () => {
@@ -47,4 +48,4 @@ export const getWorkersStats = async () => {
 };
 
 // 🎯 Exporter les workers individuellement si besoin
-export { quizWorker, futuraWorker };
+export { quizWorker, futuraWorker, exportWorker };

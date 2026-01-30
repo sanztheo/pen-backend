@@ -63,24 +63,42 @@ export const futuraQueue = new Queue("futura", {
   },
 });
 
+// 📊 Queue pour exports admin (CSV)
+export const adminExportQueue = new Queue("admin-export", {
+  ...defaultQueueOptions,
+  defaultJobOptions: {
+    ...defaultQueueOptions.defaultJobOptions,
+    priority: 2, // Priorité basse (tâche en arrière-plan)
+    removeOnComplete: {
+      age: 3600, // Garder les jobs complétés 1h
+      count: 100,
+    },
+  },
+});
+
 // 📊 Logging de la configuration
 console.log("🎯 [QUEUES] Queues BullMQ initialisées:");
 console.log("   - ai-generation (priorité: 5)");
 console.log("   - ai-quiz (priorité: 5)");
 console.log("   - futura (priorité: 3)");
+console.log("   - admin-export (priorité: 2)");
 
 // 🔧 Fonctions utilitaires pour monitoring
 export const getQueueStats = async () => {
-  const [genCounts, quizCounts, futuraCounts] = await Promise.all([
-    aiGenerationQueue.getJobCounts(),
-    aiQuizQueue.getJobCounts(),
-    futuraQueue.getJobCounts(),
-  ]);
+  const [genCounts, quizCounts, futuraCounts, exportCounts] = await Promise.all(
+    [
+      aiGenerationQueue.getJobCounts(),
+      aiQuizQueue.getJobCounts(),
+      futuraQueue.getJobCounts(),
+      adminExportQueue.getJobCounts(),
+    ],
+  );
 
   return {
     aiGeneration: genCounts,
     aiQuiz: quizCounts,
     futura: futuraCounts,
+    adminExport: exportCounts,
   };
 };
 
@@ -91,6 +109,7 @@ export const closeQueues = async () => {
     aiGenerationQueue.close(),
     aiQuizQueue.close(),
     futuraQueue.close(),
+    adminExportQueue.close(),
   ]);
   console.log("✅ [QUEUES] Queues fermées");
 };
