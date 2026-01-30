@@ -324,15 +324,16 @@ export class PaddleBillingService {
           await Promise.all([
             prisma.quiz.count({ where: { userId, preset: "NONE" } }),
             prisma.quizSequence.count({ where: { userId } }),
-            prisma.usageRecord
-              .aggregate({
+            (async () => {
+              const result = await prisma.usageRecord.aggregate({
                 where: {
                   userId,
                   resourceType: { in: ["ai_credits", "openai_request"] },
                 },
                 _sum: { quantity: true },
-              })
-              .then((result) => result._sum.quantity || 0),
+              });
+              return result._sum.quantity || 0;
+            })(),
           ]);
 
         aiCreditsUsedValue = Math.max(0, aiCreditsAggregated);

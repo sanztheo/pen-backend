@@ -264,11 +264,12 @@ export function setupQuizRefundOnError() {
         );
 
         // Remboursement asynchrone (ne pas bloquer la réponse)
-        QuizLimitsService.refundQuiz(
-          userId,
-          limitType === "custom" ? "custom" : "preset",
-        )
-          .then((refundResult) => {
+        void (async () => {
+          try {
+            const refundResult = await QuizLimitsService.refundQuiz(
+              userId,
+              limitType === "custom" ? "custom" : "preset",
+            );
             if (refundResult.success) {
               SecureLogger.debug(
                 `✅ [QUIZ-MIDDLEWARE] Remboursement automatique réussi`,
@@ -280,13 +281,13 @@ export function setupQuizRefundOnError() {
                 { userId, limitType, error: refundResult.message },
               );
             }
-          })
-          .catch((error) => {
+          } catch (error) {
             SecureLogger.error(
               "❌ Erreur remboursement automatique quiz",
               error,
             );
-          });
+          }
+        })();
 
         // Ajouter info de remboursement dans la réponse
         if (typeof body === "object" && body !== null) {
