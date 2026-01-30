@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticateToken } from "../middlewares/auth.js";
-import requireAICredits from "../middlewares/requireAICredits.js";
+import { requireAICredits } from "../middlewares/requireAICredits.js";
 import { z } from "zod";
 // Utiliser fetch global (Node >= 18)
 import { testAI } from "../controllers/ai/base.js";

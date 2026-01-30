@@ -1,4 +1,4 @@
-import { SequentialQuizConfig } from './types.js';
+import { SequentialQuizConfig } from "./types.js";
 
 /**
  * Stockage temporaire en mémoire pour les séquences de quiz
@@ -20,7 +20,7 @@ class TempSequenceStorage {
     if (config) {
       return { ...config };
     }
-    console.log('❌ [TempStorage] Séquence non trouvée:', sequenceId);
+    console.log("❌ [TempStorage] Séquence non trouvée:", sequenceId);
     return null;
   }
 
@@ -35,13 +35,13 @@ class TempSequenceStorage {
   }
 
   list(): SequentialQuizConfig[] {
-    return Array.from(this.sequences.values()).map(config => ({ ...config }));
+    return Array.from(this.sequences.values()).map((config) => ({ ...config }));
   }
 
   delete(sequenceId: string): boolean {
     const deleted = this.sequences.delete(sequenceId);
     if (deleted) {
-      console.log('🗑️ [TempStorage] Séquence supprimée:', sequenceId);
+      console.log("🗑️ [TempStorage] Séquence supprimée:", sequenceId);
     }
     return deleted;
   }
@@ -52,12 +52,10 @@ class TempSequenceStorage {
 
   getUserSequences(userId: string): SequentialQuizConfig[] {
     return Array.from(this.sequences.values())
-      .filter(config => config.id.includes(userId))
-      .map(config => ({ ...config }));
+      .filter((config) => config.id.includes(userId))
+      .map((config) => ({ ...config }));
   }
 }
 
 // Instance globale pour le stockage temporaire
 export const tempSequenceStorage = new TempSequenceStorage();
-
-export default tempSequenceStorage; 

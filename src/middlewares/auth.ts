@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { AuthService, AuthUser } from "../services/auth.js";
 import { UserSyncService } from "../services/userSync.js";
 import { createClerkClient } from "@clerk/backend";
-import SecureLogger from "./secureLogging.js";
+import { SecureLogger } from "./secureLogging.js";
 
 // Cache en mémoire pour la synchronisation utilisateur (userId -> timestamp)
 const userSyncCache = new Map<string, number>();

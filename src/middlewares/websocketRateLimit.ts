@@ -8,8 +8,8 @@
  * - Reset automatique toutes les minutes
  */
 
-import { WebSocket } from 'ws';
-import SecureLogger from './secureLogging.js';
+import { WebSocket } from "ws";
+import { SecureLogger } from "./secureLogging.js";
 
 /**
  * Tracker de connexions WebSocket par IP
@@ -33,8 +33,8 @@ const wsMessages = new Map<WebSocket, MessageTracker>();
 
 // Configuration du rate limiting WebSocket
 const WS_RATE_LIMIT = {
-  connectionsPerMinute: parseInt(process.env.RATE_LIMIT_WS_CONNECTIONS || '10'),
-  messagesPerMinute: parseInt(process.env.RATE_LIMIT_WS_MESSAGES || '100'),
+  connectionsPerMinute: parseInt(process.env.RATE_LIMIT_WS_CONNECTIONS || "10"),
+  messagesPerMinute: parseInt(process.env.RATE_LIMIT_WS_MESSAGES || "100"),
   windowMs: 60000, // 1 minute
 };
 
@@ -55,7 +55,7 @@ export const checkWebSocketConnectionLimit = (ip: string): boolean => {
 
   // Vérifier la limite
   if (tracker.count >= WS_RATE_LIMIT.connectionsPerMinute) {
-    SecureLogger.warn('🚨 [WS-RATE-LIMIT] Limite de connexions atteinte', {
+    SecureLogger.warn("🚨 [WS-RATE-LIMIT] Limite de connexions atteinte", {
       ip,
       count: tracker.count,
       limit: WS_RATE_LIMIT.connectionsPerMinute,
@@ -87,8 +87,8 @@ export const checkWebSocketMessageLimit = (ws: WebSocket): boolean => {
 
   // Vérifier la limite
   if (tracker.count >= WS_RATE_LIMIT.messagesPerMinute) {
-    SecureLogger.warn('🚨 [WS-RATE-LIMIT] Limite de messages atteinte', {
-      wsId: (ws as any).id || 'unknown',
+    SecureLogger.warn("🚨 [WS-RATE-LIMIT] Limite de messages atteinte", {
+      wsId: (ws as any).id || "unknown",
       count: tracker.count,
       limit: WS_RATE_LIMIT.messagesPerMinute,
     });
@@ -125,7 +125,7 @@ export const cleanupStaleTrackers = () => {
     }
   }
 
-  SecureLogger.debug('🧹 [WS-RATE-LIMIT] Nettoyage trackers obsolètes', {
+  SecureLogger.debug("🧹 [WS-RATE-LIMIT] Nettoyage trackers obsolètes", {
     remainingConnections: wsConnections.size,
     remainingMessages: wsMessages.size,
   });
@@ -138,7 +138,9 @@ export const cleanupStaleTrackers = () => {
 export const startWebSocketCleanup = () => {
   // Nettoyer toutes les 5 minutes
   setInterval(cleanupStaleTrackers, 5 * 60 * 1000);
-  console.log('🧹 [WS-RATE-LIMIT] Nettoyage automatique activé (toutes les 5 minutes)');
+  console.log(
+    "🧹 [WS-RATE-LIMIT] Nettoyage automatique activé (toutes les 5 minutes)",
+  );
 };
 
 /**
@@ -156,7 +158,11 @@ export const getWebSocketRateLimitStats = () => {
  * Log la configuration au démarrage
  */
 export const logWebSocketRateLimitConfig = () => {
-  console.log('🛡️  WebSocket Rate Limiting ACTIVÉ:');
-  console.log(`   - Connexions: ${WS_RATE_LIMIT.connectionsPerMinute} par minute par IP`);
-  console.log(`   - Messages:   ${WS_RATE_LIMIT.messagesPerMinute} par minute par connexion`);
+  console.log("🛡️  WebSocket Rate Limiting ACTIVÉ:");
+  console.log(
+    `   - Connexions: ${WS_RATE_LIMIT.connectionsPerMinute} par minute par IP`,
+  );
+  console.log(
+    `   - Messages:   ${WS_RATE_LIMIT.messagesPerMinute} par minute par connexion`,
+  );
 };

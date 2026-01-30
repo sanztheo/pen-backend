@@ -19,7 +19,7 @@
 import rateLimit, { Options } from "express-rate-limit";
 import { Request, Response } from "express";
 import { getRateLimitStoreWithFallback } from "../config/rateLimitStore.js";
-import SecureLogger from "./secureLogging.js";
+import { SecureLogger } from "./secureLogging.js";
 
 /**
  * Helper pour générer une clé basée sur l'IP de manière sécurisée (IPv4 + IPv6)

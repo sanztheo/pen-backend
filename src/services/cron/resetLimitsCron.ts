@@ -3,9 +3,9 @@
  * Reset quotidien automatique des limites utilisateur (quiz avancés)
  */
 
-import cron from 'node-cron';
-import { prisma } from '../../lib/prisma.js';
-import SecureLogger from '../../middlewares/secureLogging.js';
+import cron from "node-cron";
+import { prisma } from "../../lib/prisma.js";
+import { SecureLogger } from "../../middlewares/secureLogging.js";
 
 /**
  * 🔄 Reset automatique des quiz avancés (tous les jours à minuit)
@@ -13,8 +13,8 @@ import SecureLogger from '../../middlewares/secureLogging.js';
  */
 export function startDailyLimitsReset() {
   // Cron job: Tous les jours à 00:00 (minuit)
-  cron.schedule('0 0 * * *', async () => {
-    SecureLogger.log('🕐 [CRON] Démarrage du reset quotidien des limites');
+  cron.schedule("0 0 * * *", async () => {
+    SecureLogger.log("🕐 [CRON] Démarrage du reset quotidien des limites");
 
     try {
       const now = new Date();
@@ -24,33 +24,40 @@ export function startDailyLimitsReset() {
       const result = await prisma.userLimits.updateMany({
         where: {
           advancedQuizzesResetAt: {
-            lte: twentyFourHoursAgo
+            lte: twentyFourHoursAgo,
           },
           advancedQuizzesUsed: {
-            gt: 0 // Seulement ceux qui ont utilisé au moins 1 quiz avancé
-          }
+            gt: 0, // Seulement ceux qui ont utilisé au moins 1 quiz avancé
+          },
         },
         data: {
           advancedQuizzesUsed: 0,
-          advancedQuizzesResetAt: null
-        }
+          advancedQuizzesResetAt: null,
+        },
       });
 
       if (result.count > 0) {
-        SecureLogger.log(`✅ [CRON] Reset automatique réussi: ${result.count} utilisateur(s) réinitialisé(s)`, {
-          count: result.count,
-          timestamp: now.toISOString()
-        });
+        SecureLogger.log(
+          `✅ [CRON] Reset automatique réussi: ${result.count} utilisateur(s) réinitialisé(s)`,
+          {
+            count: result.count,
+            timestamp: now.toISOString(),
+          },
+        );
       } else {
-        SecureLogger.debug('✨ [CRON] Aucun utilisateur à réinitialiser');
+        SecureLogger.debug("✨ [CRON] Aucun utilisateur à réinitialiser");
       }
-
     } catch (error) {
-      SecureLogger.error('❌ [CRON] Erreur lors du reset automatique des limites', error);
+      SecureLogger.error(
+        "❌ [CRON] Erreur lors du reset automatique des limites",
+        error,
+      );
     }
   });
 
-  SecureLogger.log('🕐 [CRON] Job de reset quotidien initialisé (tous les jours à minuit)');
+  SecureLogger.log(
+    "🕐 [CRON] Job de reset quotidien initialisé (tous les jours à minuit)",
+  );
 }
 
 /**
@@ -65,26 +72,29 @@ export async function manualResetLimits(): Promise<number> {
     const result = await prisma.userLimits.updateMany({
       where: {
         advancedQuizzesResetAt: {
-          lte: twentyFourHoursAgo
+          lte: twentyFourHoursAgo,
         },
         advancedQuizzesUsed: {
-          gt: 0
-        }
+          gt: 0,
+        },
       },
       data: {
         advancedQuizzesUsed: 0,
-        advancedQuizzesResetAt: null
-      }
+        advancedQuizzesResetAt: null,
+      },
     });
 
-    SecureLogger.log(`✅ [MANUAL-RESET] Reset manuel réussi: ${result.count} utilisateur(s)`, {
-      count: result.count,
-      timestamp: now.toISOString()
-    });
+    SecureLogger.log(
+      `✅ [MANUAL-RESET] Reset manuel réussi: ${result.count} utilisateur(s)`,
+      {
+        count: result.count,
+        timestamp: now.toISOString(),
+      },
+    );
 
     return result.count;
   } catch (error) {
-    SecureLogger.error('❌ [MANUAL-RESET] Erreur lors du reset manuel', error);
+    SecureLogger.error("❌ [MANUAL-RESET] Erreur lors du reset manuel", error);
     throw error;
   }
 }
@@ -99,14 +109,19 @@ export async function forceResetUserLimits(userId: string): Promise<boolean> {
       where: { userId },
       data: {
         advancedQuizzesUsed: 0,
-        advancedQuizzesResetAt: null
-      }
+        advancedQuizzesResetAt: null,
+      },
     });
 
-    SecureLogger.log(`✅ [FORCE-RESET] Reset forcé pour l'utilisateur ${userId}`);
+    SecureLogger.log(
+      `✅ [FORCE-RESET] Reset forcé pour l'utilisateur ${userId}`,
+    );
     return true;
   } catch (error) {
-    SecureLogger.error(`❌ [FORCE-RESET] Erreur reset utilisateur ${userId}`, error);
+    SecureLogger.error(
+      `❌ [FORCE-RESET] Erreur reset utilisateur ${userId}`,
+      error,
+    );
     return false;
   }
 }

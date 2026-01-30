@@ -1,7 +1,7 @@
 import { Paddle, Environment } from "@paddle/paddle-node-sdk";
 import { prisma } from "../../lib/prisma.js";
 import type { SubscriptionPlan, SubscriptionStatus } from "@prisma/client";
-import SecureLogger from "../../middlewares/secureLogging.js";
+import { SecureLogger } from "../../middlewares/secureLogging.js";
 
 /**
  * Configuration des plans Paddle
