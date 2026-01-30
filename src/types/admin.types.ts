@@ -112,3 +112,18 @@ export interface PaginatedUserPages {
   limit: number;
   totalPages: number;
 }
+
+// Export job types
+export interface AdminExportJobData {
+  type: "admin-user-export";
+  userId: string;
+  adminEmail: string;
+  filters: UserListFilters;
+}
+
+export interface AdminExportJobResult {
+  success: boolean;
+  downloadKey?: string;
+  rowCount?: number;
+  error?: string;
+}

@@ -36,4 +36,9 @@ router.get("/users", AdminController.getUserList);
 router.get("/users/:userId/pages", AdminController.getUserPages);
 router.post("/users/:userId/toggle-status", AdminController.toggleUserStatus);
 
+// User export (CSV)
+router.post("/users/export", AdminController.initiateUserExport);
+router.get("/users/export/:jobId/status", AdminController.getExportStatus);
+router.get("/users/export/:jobId/download", AdminController.downloadExport);
+
 export default router;
