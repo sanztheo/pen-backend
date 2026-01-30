@@ -40,12 +40,13 @@ router.post("/", authenticateToken, async (req: Request, res: Response) => {
       prisma.project.count({ where: { createdBy: userId } }),
       prisma.quiz.count({ where: { userId, preset: "NONE" } }),
       prisma.quizSequence.count({ where: { userId } }),
-      prisma.usageRecord
-        .aggregate({
+      (async () => {
+        const result = await prisma.usageRecord.aggregate({
           where: { userId, resourceType: "ai_action", action: "ai_deduction" },
           _sum: { quantity: true },
-        })
-        .then((result) => result._sum.quantity || 0),
+        });
+        return result._sum.quantity || 0;
+      })(),
     ]);
 
     // Récupérer l'abonnement actuel pour déterminer les limites

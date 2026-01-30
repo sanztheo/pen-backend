@@ -226,16 +226,18 @@ export const createPage = async (req: Request, res: Response) => {
     }
 
     // 🗑️ REDIS CACHE INVALIDATION: Invalider le cache asynchrone (non-bloquant)
-    redisCache
-      .invalidatePattern(`recent-pages:${req.user!.id}:*`, {
-        namespace: "pages",
-      })
-      .then(() =>
+    void (async () => {
+      try {
+        await redisCache.invalidatePattern(`recent-pages:${req.user!.id}:*`, {
+          namespace: "pages",
+        });
         console.log(
           `🗑️ [Cache] Pages récentes invalidées pour user ${req.user!.id}`,
-        ),
-      )
-      .catch((error) => console.warn("⚠️ [Cache] Échec invalidation:", error));
+        );
+      } catch (error) {
+        console.warn("⚠️ [Cache] Échec invalidation:", error);
+      }
+    })();
 
     console.log(`⏱️  [PERF] TOTAL createPage: ${Date.now() - startTime}ms`);
     res.status(201).json({

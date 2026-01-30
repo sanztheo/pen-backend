@@ -610,12 +610,13 @@ const setupYjsWebSocket = (server: http.Server) => {
         socket.destroy();
         return;
       }
-      authenticateTokenWS(token)
-        .then((user) => {
+      void (async () => {
+        try {
+          const user = await authenticateTokenWS(token);
           if (user) {
             console.log(`[WS] ✅ Sauvegarde WebSocket - user: ${user.id}`);
             // Stocker l'utilisateur dans la request pour l'utiliser dans la connexion
-            (request as any).user = user;
+            (request as unknown as { user: typeof user }).user = user;
             wss.handleUpgrade(request, socket, head, (ws) => {
               wss.emit("connection", ws, request);
             });
@@ -623,23 +624,24 @@ const setupYjsWebSocket = (server: http.Server) => {
             console.log("[WS] ❌ Authentication sauvegarde échouée");
             socket.destroy();
           }
-        })
-        .catch((error) => {
+        } catch (error) {
           console.log("[WS] ❌ Erreur auth sauvegarde:", error);
           socket.destroy();
-        });
+        }
+      })();
     } else if (url.pathname.startsWith("/ws/collaboration/")) {
       if (!token) {
         console.log("[WS] ❌ Token manquant - connexion rejetée");
         socket.destroy();
         return;
       }
-      authenticateTokenWS(token)
-        .then((user) => {
+      void (async () => {
+        try {
+          const user = await authenticateTokenWS(token);
           if (user) {
             console.log(`[WS] ✅ Authentication réussie pour user: ${user.id}`);
             // Stocker l'utilisateur dans la request pour l'utiliser dans la connexion
-            (request as any).user = user;
+            (request as unknown as { user: typeof user }).user = user;
             wss.handleUpgrade(request, socket, head, (ws) => {
               wss.emit("connection", ws, request);
             });
@@ -647,11 +649,11 @@ const setupYjsWebSocket = (server: http.Server) => {
             console.log("[WS] ❌ Authentication échouée - connexion rejetée");
             socket.destroy();
           }
-        })
-        .catch((error) => {
+        } catch (error) {
           console.log("[WS] ❌ Erreur lors de l'authentication:", error);
           socket.destroy();
-        });
+        }
+      })();
     } else if (url.pathname.startsWith("/ws/quiz-progress/")) {
       // Route pour les mises à jour de progression de quiz
       if (!token) {
@@ -685,8 +687,9 @@ const setupYjsWebSocket = (server: http.Server) => {
         return;
       }
 
-      authenticateTokenWS(token)
-        .then(async (user) => {
+      void (async () => {
+        try {
+          const user = await authenticateTokenWS(token);
           if (user) {
             // SEC-04: Vérification ownership du processId
             if (!progressService.isProcessOwner(processId, user.id)) {
@@ -718,11 +721,11 @@ const setupYjsWebSocket = (server: http.Server) => {
             console.log("[WS] ❌ Authentication progression échouée");
             socket.destroy();
           }
-        })
-        .catch((error) => {
+        } catch (error) {
           console.log("[WS] ❌ Erreur auth progression:", error);
           socket.destroy();
-        });
+        }
+      })();
     } else {
       console.log(`[WS] ❌ Chemin non autorisé: ${url.pathname}`);
       socket.destroy();

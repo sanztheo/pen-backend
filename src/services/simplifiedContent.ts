@@ -230,20 +230,25 @@ export class SimplifiedContentService {
       );
 
       // 🚀 Updates asynchrones (non-bloquant) + invalidation cache
-      Promise.all([
-        prisma.userLimits
-          .update({
-            where: { userId },
-            data: { projectsUsed: { increment: 1 } },
-          })
-          .then(() => invalidateUserLimitsCache(userId)), // Invalider cache après update
-        prisma.workspace.update({
-          where: { id: defaultWorkspaceId },
-          data: { lastActivityAt: new Date() },
-        }),
-      ]).catch((err) =>
-        console.error("⚠️ [ASYNC] Erreur updates projet:", err),
-      );
+      void (async () => {
+        try {
+          await Promise.all([
+            (async () => {
+              await prisma.userLimits.update({
+                where: { userId },
+                data: { projectsUsed: { increment: 1 } },
+              });
+              invalidateUserLimitsCache(userId);
+            })(),
+            prisma.workspace.update({
+              where: { id: defaultWorkspaceId },
+              data: { lastActivityAt: new Date() },
+            }),
+          ]);
+        } catch (err) {
+          console.error("⚠️ [ASYNC] Erreur updates projet:", err);
+        }
+      })();
 
       console.log(
         `⏱️  [SIMPLIFIED-PERF] TOTAL createProject: ${Date.now() - startTime}ms`,
