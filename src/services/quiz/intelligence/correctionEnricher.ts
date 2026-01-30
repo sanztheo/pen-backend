@@ -569,5 +569,3 @@ export class CorrectionEnricherService {
 // ============================================================================
 // Exports
 // ============================================================================
-
-export default CorrectionEnricherService;

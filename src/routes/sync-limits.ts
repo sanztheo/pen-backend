@@ -3,47 +3,57 @@
  * Permet de synchroniser manuellement les limitations d'un utilisateur
  */
 
-import { Router, Request, Response } from 'express';
-import { prisma } from '../lib/prisma.js';
-import { authenticateToken } from '../middlewares/auth.js';
-import SecureLogger from '../middlewares/secureLogging.js';
+import { Router, Request, Response } from "express";
+import { prisma } from "../lib/prisma.js";
+import { authenticateToken } from "../middlewares/auth.js";
+import { SecureLogger } from "../middlewares/secureLogging.js";
 
 const router = Router();
 
 /**
  * POST /api/sync-limits - Synchronise les limitations de l'utilisateur avec l'usage réel
  */
-router.post('/', authenticateToken, async (req: Request, res: Response) => {
+router.post("/", authenticateToken, async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({
         success: false,
-        error: 'AUTHENTICATION_REQUIRED',
-        message: 'Authentification requise'
+        error: "AUTHENTICATION_REQUIRED",
+        message: "Authentification requise",
       });
     }
 
-    SecureLogger.debug(`🔄 [SYNC-LIMITS] Synchronisation limites utilisateur`, { userId });
+    SecureLogger.debug(`🔄 [SYNC-LIMITS] Synchronisation limites utilisateur`, {
+      userId,
+    });
 
     // Calculer l'usage réel depuis la base de données
-    const [workspacesCount, projectsCount, customQuizzesCount, presetSequencesCount, aiCreditsUsed] = await Promise.all([
+    const [
+      workspacesCount,
+      projectsCount,
+      customQuizzesCount,
+      presetSequencesCount,
+      aiCreditsUsed,
+    ] = await Promise.all([
       prisma.workspace.count({ where: { ownerId: userId } }),
       prisma.project.count({ where: { createdBy: userId } }),
-      prisma.quiz.count({ where: { userId, preset: 'NONE' } }),
+      prisma.quiz.count({ where: { userId, preset: "NONE" } }),
       prisma.quizSequence.count({ where: { userId } }),
-      prisma.usageRecord.aggregate({
-        where: { userId, resourceType: 'ai_action', action: 'ai_deduction' },
-        _sum: { quantity: true }
-      }).then(result => result._sum.quantity || 0)
+      prisma.usageRecord
+        .aggregate({
+          where: { userId, resourceType: "ai_action", action: "ai_deduction" },
+          _sum: { quantity: true },
+        })
+        .then((result) => result._sum.quantity || 0),
     ]);
 
     // Récupérer l'abonnement actuel pour déterminer les limites
     const subscription = await prisma.userSubscription.findUnique({
-      where: { userId }
+      where: { userId },
     });
 
-    const isPremium = subscription?.plan === 'premium';
+    const isPremium = subscription?.plan === "premium";
 
     // Synchroniser les limites avec l'usage réel
     const updatedLimits = await prisma.userLimits.upsert({
@@ -76,24 +86,24 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
         projectsUsed: projectsCount,
         customQuizzesUsed: customQuizzesCount,
         presetSequencesUsed: presetSequencesCount,
-      }
+      },
     });
 
-    SecureLogger.debug(`✅ [SYNC-LIMITS] Limites synchronisées`, { 
-      userId, 
-      plan: isPremium ? 'PREMIUM' : 'FREE',
+    SecureLogger.debug(`✅ [SYNC-LIMITS] Limites synchronisées`, {
+      userId,
+      plan: isPremium ? "PREMIUM" : "FREE",
       usage: {
         workspaces: workspacesCount,
         projects: projectsCount,
         customQuizzes: customQuizzesCount,
         presetSequences: presetSequencesCount,
-        aiCredits: aiCreditsUsed
-      }
+        aiCredits: aiCreditsUsed,
+      },
     });
 
     res.status(200).json({
       success: true,
-      message: 'Limites synchronisées avec succès',
+      message: "Limites synchronisées avec succès",
       data: {
         limits: {
           aiCreditsLimit: updatedLimits.aiCreditsLimit,
@@ -109,16 +119,18 @@ router.post('/', authenticateToken, async (req: Request, res: Response) => {
           customQuizzesUsed: updatedLimits.customQuizzesUsed,
           presetSequencesUsed: updatedLimits.presetSequencesUsed,
         },
-        plan: isPremium ? 'premium' : 'free'
-      }
+        plan: isPremium ? "premium" : "free",
+      },
     });
-
   } catch (error) {
-    SecureLogger.error('❌ Erreur lors de la synchronisation des limites', error);
+    SecureLogger.error(
+      "❌ Erreur lors de la synchronisation des limites",
+      error,
+    );
     res.status(500).json({
       success: false,
-      error: 'SYNC_LIMITS_ERROR',
-      message: 'Erreur lors de la synchronisation des limites'
+      error: "SYNC_LIMITS_ERROR",
+      message: "Erreur lors de la synchronisation des limites",
     });
   }
 });

@@ -3,7 +3,7 @@
  * Gestion intelligente des erreurs de deadlock (P2034) et timeouts
  */
 
-import SecureLogger from '../middlewares/secureLogging.js';
+import { SecureLogger } from "../middlewares/secureLogging.js";
 
 export interface RetryOptions {
   maxRetries?: number;
@@ -30,14 +30,14 @@ export interface RetryResult<T> {
 export async function retryWithBackoff<T>(
   operation: () => Promise<T>,
   options: RetryOptions = {},
-  context: Record<string, any> = {}
+  context: Record<string, any> = {},
 ): Promise<RetryResult<T>> {
   const {
     maxRetries = 3,
     baseDelay = 100,
     maxDelay = 2000,
     jitter = true,
-    retryableErrors = ['P2034', 'P2024', 'ETIMEDOUT', 'ECONNRESET']
+    retryableErrors = ["P2034", "P2024", "ETIMEDOUT", "ECONNRESET"],
   } = options;
 
   const startTime = Date.now();
@@ -45,34 +45,40 @@ export async function retryWithBackoff<T>(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      SecureLogger.debug(`🔄 [RETRY] Tentative ${attempt + 1}/${maxRetries + 1}`, {
-        ...context,
-        attempt: attempt + 1,
-        maxRetries: maxRetries + 1
-      });
+      SecureLogger.debug(
+        `🔄 [RETRY] Tentative ${attempt + 1}/${maxRetries + 1}`,
+        {
+          ...context,
+          attempt: attempt + 1,
+          maxRetries: maxRetries + 1,
+        },
+      );
 
       const result = await operation();
-      
+
       const totalTime = Date.now() - startTime;
-      SecureLogger.debug(`✅ [RETRY] Succès après ${attempt + 1} tentative(s)`, {
-        ...context,
-        attempts: attempt + 1,
-        totalTime
-      });
+      SecureLogger.debug(
+        `✅ [RETRY] Succès après ${attempt + 1} tentative(s)`,
+        {
+          ...context,
+          attempts: attempt + 1,
+          totalTime,
+        },
+      );
 
       return {
         success: true,
         data: result,
         attempts: attempt + 1,
-        totalTime
+        totalTime,
       };
-
     } catch (error: any) {
       lastError = error;
-      const isRetryable = retryableErrors.some(code => 
-        error.code === code || 
-        error.message?.includes(code) ||
-        (code === 'ETIMEDOUT' && error.message?.includes('timeout'))
+      const isRetryable = retryableErrors.some(
+        (code) =>
+          error.code === code ||
+          error.message?.includes(code) ||
+          (code === "ETIMEDOUT" && error.message?.includes("timeout")),
       );
 
       SecureLogger.warn(`⚠️ [RETRY] Tentative ${attempt + 1} échouée`, {
@@ -81,7 +87,7 @@ export async function retryWithBackoff<T>(
         errorCode: error.code,
         errorMessage: error.message,
         isRetryable,
-        willRetry: isRetryable && attempt < maxRetries
+        willRetry: isRetryable && attempt < maxRetries,
       });
 
       // Si ce n'est pas une erreur retriable ou si on a atteint le max
@@ -91,7 +97,7 @@ export async function retryWithBackoff<T>(
 
       // Calculer le délai avec backoff exponentiel et jitter
       let delay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
-      
+
       if (jitter) {
         // Ajouter du jitter (±25%) pour éviter les "thundering herd"
         const jitterAmount = delay * 0.25;
@@ -103,29 +109,32 @@ export async function retryWithBackoff<T>(
       SecureLogger.debug(`⏳ [RETRY] Attente avant retry`, {
         ...context,
         attempt: attempt + 1,
-        delay: Math.round(delay)
+        delay: Math.round(delay),
       });
 
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
   const totalTime = Date.now() - startTime;
-  SecureLogger.error(`❌ [RETRY] Échec définitif après ${maxRetries + 1} tentatives`, {
-    ...context,
-    attempts: maxRetries + 1,
-    totalTime,
-    finalError: {
-      code: lastError?.code,
-      message: lastError?.message
-    }
-  });
+  SecureLogger.error(
+    `❌ [RETRY] Échec définitif après ${maxRetries + 1} tentatives`,
+    {
+      ...context,
+      attempts: maxRetries + 1,
+      totalTime,
+      finalError: {
+        code: lastError?.code,
+        message: lastError?.message,
+      },
+    },
+  );
 
   return {
     success: false,
     error: lastError,
     attempts: maxRetries + 1,
-    totalTime
+    totalTime,
   };
 }
 
@@ -136,7 +145,7 @@ export async function retryWithBackoff<T>(
  */
 export async function retryPrismaOperation<T>(
   operation: () => Promise<T>,
-  context: Record<string, any> = {}
+  context: Record<string, any> = {},
 ): Promise<RetryResult<T>> {
   return retryWithBackoff(
     operation,
@@ -145,9 +154,9 @@ export async function retryPrismaOperation<T>(
       baseDelay: 150, // Délai initial un peu plus long pour Prisma
       maxDelay: 1500,
       jitter: true,
-      retryableErrors: ['P2034', 'P2024', 'P2002'] // Deadlock, Timeout, Constraint violation
+      retryableErrors: ["P2034", "P2024", "P2002"], // Deadlock, Timeout, Constraint violation
     },
-    { ...context, type: 'prisma_operation' }
+    { ...context, type: "prisma_operation" },
   );
 }
 
@@ -158,7 +167,7 @@ export async function retryPrismaOperation<T>(
  */
 export async function retryPrismaTransaction<T>(
   transaction: () => Promise<T>,
-  context: Record<string, any> = {}
+  context: Record<string, any> = {},
 ): Promise<RetryResult<T>> {
   return retryWithBackoff(
     transaction,
@@ -167,9 +176,9 @@ export async function retryPrismaTransaction<T>(
       baseDelay: 200,
       maxDelay: 2000,
       jitter: true,
-      retryableErrors: ['P2034', 'P2024'] // Focus sur deadlock et timeout
+      retryableErrors: ["P2034", "P2024"], // Focus sur deadlock et timeout
     },
-    { ...context, type: 'prisma_transaction' }
+    { ...context, type: "prisma_transaction" },
   );
 }
 
@@ -179,7 +188,10 @@ export async function retryPrismaTransaction<T>(
  * @param minMs - Délai minimum en millisecondes
  * @param maxMs - Délai maximum en millisecondes
  */
-export function randomJitter(minMs: number = 50, maxMs: number = 200): Promise<void> {
+export function randomJitter(
+  minMs: number = 50,
+  maxMs: number = 200,
+): Promise<void> {
   const delay = Math.random() * (maxMs - minMs) + minMs;
-  return new Promise(resolve => setTimeout(resolve, delay));
+  return new Promise((resolve) => setTimeout(resolve, delay));
 }

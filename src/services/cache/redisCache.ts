@@ -1,7 +1,10 @@
-import Redis from 'ioredis';
+import Redis from "ioredis";
 
 // Configuration Redis (Railway ou local)
-const redisUrl = process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL || 'redis://localhost:6379';
+const redisUrl =
+  process.env.REDIS_URL ||
+  process.env.REDIS_PUBLIC_URL ||
+  "redis://localhost:6379";
 
 const redis = new Redis(redisUrl, {
   retryStrategy: (times: number) => {
@@ -19,20 +22,20 @@ const redis = new Redis(redisUrl, {
 });
 
 // Gestion des erreurs Redis
-redis.on('error', (error) => {
-  console.error('❌ [Redis] Erreur de connexion:', error);
+redis.on("error", (error) => {
+  console.error("❌ [Redis] Erreur de connexion:", error);
 });
 
-redis.on('connect', () => {
-  console.log('✅ [Redis] Connexion établie');
+redis.on("connect", () => {
+  console.log("✅ [Redis] Connexion établie");
 });
 
-redis.on('ready', () => {
-  console.log('✅ [Redis] Prêt à accepter les commandes');
+redis.on("ready", () => {
+  console.log("✅ [Redis] Prêt à accepter les commandes");
 });
 
-redis.on('reconnecting', () => {
-  console.warn('🔄 [Redis] Reconnexion en cours...');
+redis.on("reconnecting", () => {
+  console.warn("🔄 [Redis] Reconnexion en cours...");
 });
 
 // Types
@@ -46,7 +49,7 @@ interface CacheOptions {
  */
 class RedisCacheService {
   private defaultTTL = 120; // 2 minutes par défaut
-  private defaultNamespace = 'pennote';
+  private defaultNamespace = "pennote";
 
   /**
    * Génère une clé de cache avec namespace
@@ -80,7 +83,11 @@ class RedisCacheService {
   /**
    * Stocke une valeur dans le cache
    */
-  async set<T>(key: string, value: T, options?: CacheOptions): Promise<boolean> {
+  async set<T>(
+    key: string,
+    value: T,
+    options?: CacheOptions,
+  ): Promise<boolean> {
     try {
       const cacheKey = this.getKey(key, options?.namespace);
       const ttl = options?.ttl || this.defaultTTL;
@@ -113,22 +120,32 @@ class RedisCacheService {
   /**
    * Invalide toutes les clés correspondant à un pattern
    */
-  async invalidatePattern(pattern: string, options?: CacheOptions): Promise<number> {
+  async invalidatePattern(
+    pattern: string,
+    options?: CacheOptions,
+  ): Promise<number> {
     try {
       const namespace = options?.namespace || this.defaultNamespace;
       const fullPattern = `${namespace}:${pattern}`;
 
       const keys = await redis.keys(fullPattern);
       if (keys.length === 0) {
-        console.log(`🔍 [Redis Cache] Aucune clé trouvée pour pattern: ${fullPattern}`);
+        console.log(
+          `🔍 [Redis Cache] Aucune clé trouvée pour pattern: ${fullPattern}`,
+        );
         return 0;
       }
 
       const result = await redis.del(...keys);
-      console.log(`🗑️ [Redis Cache] INVALIDATE PATTERN: ${fullPattern} (${result} clés supprimées)`);
+      console.log(
+        `🗑️ [Redis Cache] INVALIDATE PATTERN: ${fullPattern} (${result} clés supprimées)`,
+      );
       return result;
     } catch (error) {
-      console.error(`❌ [Redis Cache] Erreur INVALIDATE PATTERN ${pattern}:`, error);
+      console.error(
+        `❌ [Redis Cache] Erreur INVALIDATE PATTERN ${pattern}:`,
+        error,
+      );
       return 0;
     }
   }
@@ -153,7 +170,7 @@ class RedisCacheService {
   async getOrSet<T>(
     key: string,
     factory: () => Promise<T>,
-    options?: CacheOptions
+    options?: CacheOptions,
   ): Promise<T> {
     try {
       // Essayer de récupérer depuis le cache
@@ -183,7 +200,7 @@ class RedisCacheService {
    * Supprime toutes les clés d'un namespace
    */
   async flushNamespace(namespace: string): Promise<number> {
-    return this.invalidatePattern('*', { namespace });
+    return this.invalidatePattern("*", { namespace });
   }
 
   /**
@@ -194,7 +211,7 @@ class RedisCacheService {
       await redis.ping();
       return true;
     } catch (error) {
-      console.error('❌ [Redis] Health check failed:', error);
+      console.error("❌ [Redis] Health check failed:", error);
       return false;
     }
   }
@@ -205,13 +222,12 @@ class RedisCacheService {
   async disconnect(): Promise<void> {
     try {
       await redis.quit();
-      console.log('👋 [Redis] Connexion fermée proprement');
+      console.log("👋 [Redis] Connexion fermée proprement");
     } catch (error) {
-      console.error('❌ [Redis] Erreur lors de la fermeture:', error);
+      console.error("❌ [Redis] Erreur lors de la fermeture:", error);
     }
   }
 }
 
 // Export singleton
 export const redisCache = new RedisCacheService();
-export default redisCache;

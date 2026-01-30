@@ -28,5 +28,3 @@ export const prismaEmbeddings: PrismaClient =
 if (process.env.NODE_ENV !== "production") {
   globalForPrismaEmbeddings.prismaEmbeddings = prismaEmbeddings;
 }
-
-export default prismaEmbeddings;

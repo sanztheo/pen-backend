@@ -3,9 +3,9 @@
  * Gestion des limitations pour les quiz personnalisés et les séquences de preset
  */
 
-import { prisma } from '../../lib/prisma.js';
-import SecureLogger from '../../middlewares/secureLogging.js';
-import { retryPrismaTransaction } from '../../lib/retryWithBackoff.js';
+import { prisma } from "../../lib/prisma.js";
+import { SecureLogger } from "../../middlewares/secureLogging.js";
+import { retryPrismaTransaction } from "../../lib/retryWithBackoff.js";
 
 export interface QuizLimitResult {
   success: boolean;
@@ -27,15 +27,21 @@ export class QuizLimitsService {
    * @param userId - ID de l'utilisateur
    */
   static async canCreateCustomQuiz(userId: string): Promise<QuizLimitResult> {
-    SecureLogger.debug(`🎯 [QUIZ-LIMITS] Vérification limite quiz personnalisés`, { userId });
-    
+    SecureLogger.debug(
+      `🎯 [QUIZ-LIMITS] Vérification limite quiz personnalisés`,
+      { userId },
+    );
+
     try {
       const userLimits = await prisma.userLimits.findUnique({
         where: { userId },
       });
 
       if (!userLimits) {
-        SecureLogger.debug(`📝 [QUIZ-LIMITS] Création nouvelles limites utilisateur`, { userId });
+        SecureLogger.debug(
+          `📝 [QUIZ-LIMITS] Création nouvelles limites utilisateur`,
+          { userId },
+        );
         // Créer les limites si elles n'existent pas
         await prisma.userLimits.create({
           data: {
@@ -43,12 +49,12 @@ export class QuizLimitsService {
             customQuizzesLimit: 5, // Limite par défaut pour free user
           },
         });
-        
+
         return {
           success: true,
           remainingQuizzes: 5,
           limitReached: false,
-          message: 'Quiz personnalisé autorisé',
+          message: "Quiz personnalisé autorisé",
         };
       }
 
@@ -58,17 +64,18 @@ export class QuizLimitsService {
           success: true,
           remainingQuizzes: -1,
           limitReached: false,
-          message: 'Quiz personnalisé autorisé (illimité)',
+          message: "Quiz personnalisé autorisé (illimité)",
         };
       }
 
-      const remaining = userLimits.customQuizzesLimit - userLimits.customQuizzesUsed;
+      const remaining =
+        userLimits.customQuizzesLimit - userLimits.customQuizzesUsed;
       if (remaining <= 0) {
         return {
           success: false,
           remainingQuizzes: 0,
           limitReached: true,
-          message: 'Limite de quiz personnalisés atteinte',
+          message: "Limite de quiz personnalisés atteinte",
         };
       }
 
@@ -76,16 +83,18 @@ export class QuizLimitsService {
         success: true,
         remainingQuizzes: remaining,
         limitReached: false,
-        message: 'Quiz personnalisé autorisé',
+        message: "Quiz personnalisé autorisé",
       };
-
     } catch (error) {
-      SecureLogger.error('Erreur lors de la vérification des limites quiz personnalisés', error);
+      SecureLogger.error(
+        "Erreur lors de la vérification des limites quiz personnalisés",
+        error,
+      );
       return {
         success: false,
         remainingQuizzes: 0,
         limitReached: false,
-        message: 'Erreur lors de la vérification des limites',
+        message: "Erreur lors de la vérification des limites",
       };
     }
   }
@@ -96,8 +105,10 @@ export class QuizLimitsService {
    * @param userId - ID de l'utilisateur
    */
   static async deductCustomQuiz(userId: string): Promise<QuizLimitResult> {
-    SecureLogger.debug(`🚀 [QUIZ-LIMITS] Déduction quiz ultra-optimisée`, { userId });
-    
+    SecureLogger.debug(`🚀 [QUIZ-LIMITS] Déduction quiz ultra-optimisée`, {
+      userId,
+    });
+
     try {
       // 🎯 OPÉRATION ATOMIQUE PURE - Zéro deadlock possible
       // Stratégie: UPSERT pour créer/incrémenter en une seule opération atomique
@@ -127,70 +138,88 @@ export class QuizLimitsService {
            OR ("user_limits"."custom_quizzes_used" + 1) <= "user_limits"."custom_quizzes_limit"
       `;
 
-      SecureLogger.debug(`⚡ [QUIZ-LIMITS] UPSERT atomique exécuté`, { userId, affected: result });
+      SecureLogger.debug(`⚡ [QUIZ-LIMITS] UPSERT atomique exécuté`, {
+        userId,
+        affected: result,
+      });
 
       // Récupérer l'état final pour validation (lecture unique)
       const finalLimits = await prisma.userLimits.findUnique({
         where: { userId },
         select: {
           customQuizzesUsed: true,
-          customQuizzesLimit: true
-        }
+          customQuizzesLimit: true,
+        },
       });
 
       if (!finalLimits) {
-        SecureLogger.error(`❌ [QUIZ-LIMITS] Limites introuvables après UPSERT`, { userId });
+        SecureLogger.error(
+          `❌ [QUIZ-LIMITS] Limites introuvables après UPSERT`,
+          { userId },
+        );
         return {
           success: false,
           remainingQuizzes: 0,
           limitReached: false,
-          message: 'Erreur système lors de la déduction',
+          message: "Erreur système lors de la déduction",
         };
       }
 
       // Vérifier si la déduction a réussi (usage a augmenté)
-      const previousUsage = result === 0 ? finalLimits.customQuizzesUsed - 1 : 0; // Si INSERT, usage était 0
+      const previousUsage =
+        result === 0 ? finalLimits.customQuizzesUsed - 1 : 0; // Si INSERT, usage était 0
       const deductionSucceeded = finalLimits.customQuizzesUsed > previousUsage;
 
       if (!deductionSucceeded) {
-        const currentRemaining = finalLimits.customQuizzesLimit === -1 
-          ? -1
-          : Math.max(0, finalLimits.customQuizzesLimit - finalLimits.customQuizzesUsed);
-        
-        SecureLogger.warn(`❌ [QUIZ-LIMITS] Limite atteinte (déduction refusée)`, { 
-          userId, 
-          currentUsage: finalLimits.customQuizzesUsed,
-          limit: finalLimits.customQuizzesLimit,
-          remainingQuizzes: currentRemaining 
-        });
-        
+        const currentRemaining =
+          finalLimits.customQuizzesLimit === -1
+            ? -1
+            : Math.max(
+                0,
+                finalLimits.customQuizzesLimit - finalLimits.customQuizzesUsed,
+              );
+
+        SecureLogger.warn(
+          `❌ [QUIZ-LIMITS] Limite atteinte (déduction refusée)`,
+          {
+            userId,
+            currentUsage: finalLimits.customQuizzesUsed,
+            limit: finalLimits.customQuizzesLimit,
+            remainingQuizzes: currentRemaining,
+          },
+        );
+
         return {
           success: false,
           remainingQuizzes: currentRemaining,
           limitReached: true,
-          message: 'Limite de quiz personnalisés atteinte',
+          message: "Limite de quiz personnalisés atteinte",
         };
       }
 
       // Succès - calculer les quiz restants
-      const remainingQuizzes = finalLimits.customQuizzesLimit === -1 
-        ? -1 // Illimité
-        : Math.max(0, finalLimits.customQuizzesLimit - finalLimits.customQuizzesUsed);
+      const remainingQuizzes =
+        finalLimits.customQuizzesLimit === -1
+          ? -1 // Illimité
+          : Math.max(
+              0,
+              finalLimits.customQuizzesLimit - finalLimits.customQuizzesUsed,
+            );
 
-      SecureLogger.debug(`✅ [QUIZ-LIMITS] Déduction ultra-rapide réussie`, { 
-        userId, 
-        newUsage: finalLimits.customQuizzesUsed, 
+      SecureLogger.debug(`✅ [QUIZ-LIMITS] Déduction ultra-rapide réussie`, {
+        userId,
+        newUsage: finalLimits.customQuizzesUsed,
         remainingQuizzes,
-        operationType: result === 0 ? 'UPDATE' : 'INSERT'
+        operationType: result === 0 ? "UPDATE" : "INSERT",
       });
 
       // Enregistrer l'utilisation (asynchrone, pas critique)
       setImmediate(() => {
-        this.recordQuizUsage(userId, 'custom_quiz', 1, { 
-          type: 'custom_quiz_creation',
-          method: 'upsert_atomic'
-        }).catch(err => 
-          SecureLogger.warn('Erreur enregistrement usage (non-critique)', err)
+        this.recordQuizUsage(userId, "custom_quiz", 1, {
+          type: "custom_quiz_creation",
+          method: "upsert_atomic",
+        }).catch((err) =>
+          SecureLogger.warn("Erreur enregistrement usage (non-critique)", err),
         );
       });
 
@@ -198,18 +227,21 @@ export class QuizLimitsService {
         success: true,
         remainingQuizzes,
         limitReached: false,
-        message: 'Quiz personnalisé déduit avec succès',
+        message: "Quiz personnalisé déduit avec succès",
       };
-
     } catch (error: any) {
-      SecureLogger.error('❌ Erreur lors de la déduction atomique quiz personnalisé', error);
-      
-      if (error.code === 'P2034') { // Transaction timeout
+      SecureLogger.error(
+        "❌ Erreur lors de la déduction atomique quiz personnalisé",
+        error,
+      );
+
+      if (error.code === "P2034") {
+        // Transaction timeout
         return {
           success: false,
           remainingQuizzes: 0,
           limitReached: false,
-          message: 'Timeout lors de la déduction (trop de trafic)',
+          message: "Timeout lors de la déduction (trop de trafic)",
         };
       }
 
@@ -217,7 +249,7 @@ export class QuizLimitsService {
         success: false,
         remainingQuizzes: 0,
         limitReached: false,
-        message: 'Erreur lors de la déduction du quiz',
+        message: "Erreur lors de la déduction du quiz",
       };
     }
   }
@@ -227,9 +259,15 @@ export class QuizLimitsService {
    * @param userId - ID de l'utilisateur
    * @param preset - Type de preset (BREVET, BAC, PARTIELS)
    */
-  static async canCreatePresetSequence(userId: string, preset: string): Promise<QuizLimitResult> {
-    SecureLogger.debug(`🎯 [QUIZ-LIMITS] Vérification limite séquences preset`, { userId, preset });
-    
+  static async canCreatePresetSequence(
+    userId: string,
+    preset: string,
+  ): Promise<QuizLimitResult> {
+    SecureLogger.debug(
+      `🎯 [QUIZ-LIMITS] Vérification limite séquences preset`,
+      { userId, preset },
+    );
+
     try {
       // Vérifier les limites utilisateur d'abord pour déterminer le plan
       const userLimits = await prisma.userLimits.findUnique({
@@ -244,21 +282,24 @@ export class QuizLimitsService {
             presetSequencesLimit: 1, // Limite par défaut pour free user
           },
         });
-        
+
         return {
           success: true,
           limitReached: false,
-          message: 'Séquence de preset autorisée',
+          message: "Séquence de preset autorisée",
         };
       }
 
       // Premium : illimité - peut créer plusieurs séquences
       if (userLimits.presetSequencesLimit === -1) {
-        SecureLogger.debug(`✅ [QUIZ-LIMITS] Utilisateur premium - séquences illimitées`, { userId });
+        SecureLogger.debug(
+          `✅ [QUIZ-LIMITS] Utilisateur premium - séquences illimitées`,
+          { userId },
+        );
         return {
           success: true,
           limitReached: false,
-          message: 'Séquence de preset autorisée (illimité)',
+          message: "Séquence de preset autorisée (illimité)",
         };
       }
 
@@ -273,29 +314,36 @@ export class QuizLimitsService {
           preset: true,
           currentSubjectIndex: true,
           totalSubjects: true,
-        }
+        },
       });
 
       if (existingSequence) {
-        const progress = Math.round((existingSequence.currentSubjectIndex / existingSequence.totalSubjects) * 100);
-        
-        SecureLogger.debug(`📊 [QUIZ-LIMITS] Séquence existante trouvée (utilisateur gratuit)`, { 
-          userId, 
-          sequenceId: existingSequence.id,
-          progress 
-        });
+        const progress = Math.round(
+          (existingSequence.currentSubjectIndex /
+            existingSequence.totalSubjects) *
+            100,
+        );
+
+        SecureLogger.debug(
+          `📊 [QUIZ-LIMITS] Séquence existante trouvée (utilisateur gratuit)`,
+          {
+            userId,
+            sequenceId: existingSequence.id,
+            progress,
+          },
+        );
 
         return {
           success: false,
           limitReached: true,
-          message: 'Séquence de preset déjà en cours (limite gratuit)',
+          message: "Séquence de preset déjà en cours (limite gratuit)",
           existingSequence: {
             id: existingSequence.id,
             preset: existingSequence.preset,
             currentSubjectIndex: existingSequence.currentSubjectIndex,
             totalSubjects: existingSequence.totalSubjects,
-            progress
-          }
+            progress,
+          },
         };
       }
 
@@ -303,15 +351,17 @@ export class QuizLimitsService {
       return {
         success: true,
         limitReached: false,
-        message: 'Séquence de preset autorisée',
+        message: "Séquence de preset autorisée",
       };
-
     } catch (error) {
-      SecureLogger.error('Erreur lors de la vérification des limites séquences preset', error);
+      SecureLogger.error(
+        "Erreur lors de la vérification des limites séquences preset",
+        error,
+      );
       return {
         success: false,
         limitReached: false,
-        message: 'Erreur lors de la vérification des limites',
+        message: "Erreur lors de la vérification des limites",
       };
     }
   }
@@ -323,7 +373,7 @@ export class QuizLimitsService {
    * @param sequenceData - Données de la séquence
    */
   static async startPresetSequence(
-    userId: string, 
+    userId: string,
     preset: string,
     sequenceData: {
       subjects: any[];
@@ -332,87 +382,99 @@ export class QuizLimitsService {
       higherEdField?: string;
       workspaceIds: string[];
       metadata: any;
-    }
+    },
   ): Promise<{ success: boolean; sequenceId?: string; message: string }> {
-    SecureLogger.debug(`🚀 [QUIZ-LIMITS] Démarrage séquence preset`, { userId, preset });
-    
+    SecureLogger.debug(`🚀 [QUIZ-LIMITS] Démarrage séquence preset`, {
+      userId,
+      preset,
+    });
+
     try {
       // 🔒 TRANSACTION ATOMIQUE avec RETRY
       const retryResult = await retryPrismaTransaction(
         async () => {
-          return await prisma.$transaction(async (tx) => {
-        // Vérifier à nouveau qu'il n'y a pas de séquence en cours
-        const existingSequence = await tx.quizSequence.findFirst({
-          where: {
-            userId,
-            isCompleted: false,
-          },
-        });
+          return await prisma.$transaction(
+            async (tx) => {
+              // Vérifier à nouveau qu'il n'y a pas de séquence en cours
+              const existingSequence = await tx.quizSequence.findFirst({
+                where: {
+                  userId,
+                  isCompleted: false,
+                },
+              });
 
-        if (existingSequence) {
-          return {
-            success: false,
-            message: 'Une séquence est déjà en cours',
-          };
-        }
+              if (existingSequence) {
+                return {
+                  success: false,
+                  message: "Une séquence est déjà en cours",
+                };
+              }
 
-        // Créer la nouvelle séquence
-        const newSequence = await tx.quizSequence.create({
-          data: {
-            userId,
-            preset: preset as any,
-            totalSubjects: sequenceData.totalSubjects,
-            subjects: sequenceData.subjects,
-            subjectResults: [],
-            specialties: (sequenceData.specialties || []) as any[],
-            higherEdField: sequenceData.higherEdField,
-            workspaceIds: sequenceData.workspaceIds,
-            metadata: sequenceData.metadata,
-          },
-        });
+              // Créer la nouvelle séquence
+              const newSequence = await tx.quizSequence.create({
+                data: {
+                  userId,
+                  preset: preset as any,
+                  totalSubjects: sequenceData.totalSubjects,
+                  subjects: sequenceData.subjects,
+                  subjectResults: [],
+                  specialties: (sequenceData.specialties || []) as any[],
+                  higherEdField: sequenceData.higherEdField,
+                  workspaceIds: sequenceData.workspaceIds,
+                  metadata: sequenceData.metadata,
+                },
+              });
 
-        // Incrémenter l'usage des séquences preset
-        await tx.$executeRaw`
+              // Incrémenter l'usage des séquences preset
+              await tx.$executeRaw`
           UPDATE "user_limits" 
           SET "preset_sequences_used" = "preset_sequences_used" + 1
           WHERE "user_id" = ${userId}
         `;
 
-        SecureLogger.debug(`✅ [QUIZ-LIMITS] Séquence preset créée`, { userId, sequenceId: newSequence.id });
+              SecureLogger.debug(`✅ [QUIZ-LIMITS] Séquence preset créée`, {
+                userId,
+                sequenceId: newSequence.id,
+              });
 
-        return {
-          success: true,
-          sequenceId: newSequence.id,
-          message: 'Séquence de preset créée avec succès',
-        };
-          }, {
-            isolationLevel: 'Serializable',
-            timeout: 10000
-          });
+              return {
+                success: true,
+                sequenceId: newSequence.id,
+                message: "Séquence de preset créée avec succès",
+              };
+            },
+            {
+              isolationLevel: "Serializable",
+              timeout: 10000,
+            },
+          );
         },
-        { userId, operation: 'startPresetSequence', preset }
+        { userId, operation: "startPresetSequence", preset },
       );
 
       // Vérifier le résultat du retry
       if (!retryResult.success) {
-        SecureLogger.error(`❌ [QUIZ-LIMITS] Échec définitif création séquence après ${retryResult.attempts} tentatives`, {
-          userId,
-          preset,
-          attempts: retryResult.attempts,
-          totalTime: retryResult.totalTime,
-          error: retryResult.error
-        });
-        
-        if (retryResult.error?.code === 'P2034') {
+        SecureLogger.error(
+          `❌ [QUIZ-LIMITS] Échec définitif création séquence après ${retryResult.attempts} tentatives`,
+          {
+            userId,
+            preset,
+            attempts: retryResult.attempts,
+            totalTime: retryResult.totalTime,
+            error: retryResult.error,
+          },
+        );
+
+        if (retryResult.error?.code === "P2034") {
           return {
             success: false,
-            message: 'Service temporairement surchargé, veuillez réessayer',
+            message: "Service temporairement surchargé, veuillez réessayer",
           };
         }
-        
+
         return {
           success: false,
-          message: 'Erreur lors de la création de la séquence',
+          message: "Erreur lors de la création de la séquence",
         };
       }
 
@@ -420,20 +482,22 @@ export class QuizLimitsService {
 
       // Enregistrer l'utilisation après la transaction
       if (result.success) {
-        await this.recordQuizUsage(userId, 'preset_sequence', 1, { 
-          type: 'preset_sequence_start', 
+        await this.recordQuizUsage(userId, "preset_sequence", 1, {
+          type: "preset_sequence_start",
           preset,
-          sequenceId: result.sequenceId 
+          sequenceId: result.sequenceId,
         });
       }
 
       return result;
-
     } catch (error) {
-      SecureLogger.error('❌ Erreur lors du démarrage de la séquence preset', error);
+      SecureLogger.error(
+        "❌ Erreur lors du démarrage de la séquence preset",
+        error,
+      );
       return {
         success: false,
-        message: 'Erreur lors de la création de la séquence',
+        message: "Erreur lors de la création de la séquence",
       };
     }
   }
@@ -443,20 +507,26 @@ export class QuizLimitsService {
    * @param userId - ID de l'utilisateur
    * @param type - Type de quiz ('custom' ou 'preset')
    */
-  static async refundQuiz(userId: string, type: 'custom' | 'preset'): Promise<{ success: boolean; message?: string }> {
-    SecureLogger.debug(`🔄 [QUIZ-LIMITS] Remboursement quota quiz`, { userId, type });
-    
+  static async refundQuiz(
+    userId: string,
+    type: "custom" | "preset",
+  ): Promise<{ success: boolean; message?: string }> {
+    SecureLogger.debug(`🔄 [QUIZ-LIMITS] Remboursement quota quiz`, {
+      userId,
+      type,
+    });
+
     try {
-      if (type === 'custom') {
+      if (type === "custom") {
         // Remboursement quiz personnalisé
         await prisma.$executeRaw`
           UPDATE "user_limits" 
           SET "custom_quizzes_used" = GREATEST(0, "custom_quizzes_used" - 1)
           WHERE "user_id" = ${userId}
         `;
-        
-        await this.recordQuizUsage(userId, 'custom_quiz_refund', -1, { 
-          reason: 'generation_failure' 
+
+        await this.recordQuizUsage(userId, "custom_quiz_refund", -1, {
+          reason: "generation_failure",
         });
       } else {
         // Remboursement séquence preset - supprimer la séquence non complétée
@@ -474,23 +544,25 @@ export class QuizLimitsService {
             WHERE "user_id" = ${userId}
           `;
 
-          await this.recordQuizUsage(userId, 'preset_sequence_refund', -1, { 
-            reason: 'generation_failure' 
+          await this.recordQuizUsage(userId, "preset_sequence_refund", -1, {
+            reason: "generation_failure",
           });
         }
       }
 
-      SecureLogger.debug(`✅ [QUIZ-LIMITS] Remboursement réussi`, { userId, type });
+      SecureLogger.debug(`✅ [QUIZ-LIMITS] Remboursement réussi`, {
+        userId,
+        type,
+      });
       return {
         success: true,
-        message: 'Quota de quiz remboursé avec succès',
+        message: "Quota de quiz remboursé avec succès",
       };
-
     } catch (error) {
-      SecureLogger.error('❌ Erreur lors du remboursement quota quiz', error);
+      SecureLogger.error("❌ Erreur lors du remboursement quota quiz", error);
       return {
         success: false,
-        message: 'Erreur lors du remboursement',
+        message: "Erreur lors du remboursement",
       };
     }
   }
@@ -504,12 +576,12 @@ export class QuizLimitsService {
   static async canCreateAdvancedQuiz(
     userId: string,
     questionCount: number,
-    pagesCount: number
+    pagesCount: number,
   ): Promise<QuizLimitResult> {
     SecureLogger.debug(`🎯 [QUIZ-LIMITS] Vérification limite quiz avancés`, {
       userId,
       questionCount,
-      pagesCount
+      pagesCount,
     });
 
     // Vérifier si c'est un quiz avancé (>30 questions ET >10 pages)
@@ -518,7 +590,7 @@ export class QuizLimitsService {
       return {
         success: true,
         limitReached: false,
-        message: 'Quiz non-avancé, aucune limite spéciale',
+        message: "Quiz non-avancé, aucune limite spéciale",
       };
     }
 
@@ -528,7 +600,10 @@ export class QuizLimitsService {
       });
 
       if (!userLimits) {
-        SecureLogger.debug(`📝 [QUIZ-LIMITS] Création nouvelles limites utilisateur`, { userId });
+        SecureLogger.debug(
+          `📝 [QUIZ-LIMITS] Création nouvelles limites utilisateur`,
+          { userId },
+        );
         await prisma.userLimits.create({
           data: {
             userId,
@@ -539,20 +614,25 @@ export class QuizLimitsService {
         return {
           success: true,
           limitReached: false,
-          message: 'Quiz avancé autorisé',
+          message: "Quiz avancé autorisé",
         };
       }
 
       // Vérifier et reset si nécessaire (24h après premier quiz avancé)
       const now = new Date();
       if (userLimits.advancedQuizzesResetAt) {
-        const hoursSinceReset = (now.getTime() - userLimits.advancedQuizzesResetAt.getTime()) / (1000 * 60 * 60);
+        const hoursSinceReset =
+          (now.getTime() - userLimits.advancedQuizzesResetAt.getTime()) /
+          (1000 * 60 * 60);
 
         if (hoursSinceReset >= 24) {
-          SecureLogger.debug(`🔄 [QUIZ-LIMITS] Reset automatique quiz avancés`, {
-            userId,
-            hoursSinceReset
-          });
+          SecureLogger.debug(
+            `🔄 [QUIZ-LIMITS] Reset automatique quiz avancés`,
+            {
+              userId,
+              hoursSinceReset,
+            },
+          );
 
           await prisma.userLimits.update({
             where: { userId },
@@ -565,7 +645,7 @@ export class QuizLimitsService {
           return {
             success: true,
             limitReached: false,
-            message: 'Quiz avancé autorisé (reset automatique effectué)',
+            message: "Quiz avancé autorisé (reset automatique effectué)",
           };
         }
       }
@@ -573,7 +653,12 @@ export class QuizLimitsService {
       // Vérifier la limite
       if (userLimits.advancedQuizzesUsed >= userLimits.advancedQuizzesLimit) {
         const hoursUntilReset = userLimits.advancedQuizzesResetAt
-          ? Math.max(0, 24 - ((now.getTime() - userLimits.advancedQuizzesResetAt.getTime()) / (1000 * 60 * 60)))
+          ? Math.max(
+              0,
+              24 -
+                (now.getTime() - userLimits.advancedQuizzesResetAt.getTime()) /
+                  (1000 * 60 * 60),
+            )
           : 0;
 
         return {
@@ -586,15 +671,17 @@ export class QuizLimitsService {
       return {
         success: true,
         limitReached: false,
-        message: 'Quiz avancé autorisé',
+        message: "Quiz avancé autorisé",
       };
-
     } catch (error) {
-      SecureLogger.error('Erreur lors de la vérification des limites quiz avancés', error);
+      SecureLogger.error(
+        "Erreur lors de la vérification des limites quiz avancés",
+        error,
+      );
       return {
         success: false,
         limitReached: false,
-        message: 'Erreur lors de la vérification des limites',
+        message: "Erreur lors de la vérification des limites",
       };
     }
   }
@@ -618,7 +705,7 @@ export class QuizLimitsService {
         return {
           success: false,
           limitReached: false,
-          message: 'Limites utilisateur introuvables',
+          message: "Limites utilisateur introuvables",
         };
       }
 
@@ -631,32 +718,32 @@ export class QuizLimitsService {
         },
       });
 
-      const remaining = userLimits.advancedQuizzesLimit - (userLimits.advancedQuizzesUsed + 1);
+      const remaining =
+        userLimits.advancedQuizzesLimit - (userLimits.advancedQuizzesUsed + 1);
 
       SecureLogger.debug(`✅ [QUIZ-LIMITS] Quiz avancé déduit`, {
         userId,
         newUsage: userLimits.advancedQuizzesUsed + 1,
-        remaining
+        remaining,
       });
 
       // Enregistrer l'utilisation
-      await this.recordQuizUsage(userId, 'advanced_quiz', 1, {
-        type: 'advanced_quiz_creation'
+      await this.recordQuizUsage(userId, "advanced_quiz", 1, {
+        type: "advanced_quiz_creation",
       });
 
       return {
         success: true,
         remainingQuizzes: remaining,
         limitReached: false,
-        message: 'Quiz avancé déduit avec succès',
+        message: "Quiz avancé déduit avec succès",
       };
-
     } catch (error) {
-      SecureLogger.error('❌ Erreur lors de la déduction quiz avancé', error);
+      SecureLogger.error("❌ Erreur lors de la déduction quiz avancé", error);
       return {
         success: false,
         limitReached: false,
-        message: 'Erreur lors de la déduction',
+        message: "Erreur lors de la déduction",
       };
     }
   }
@@ -672,20 +759,23 @@ export class QuizLimitsService {
     userId: string,
     resourceType: string,
     quantity: number,
-    metadata: any = {}
+    metadata: any = {},
   ): Promise<void> {
     try {
       await prisma.usageRecord.create({
         data: {
           userId,
           resourceType,
-          action: quantity > 0 ? 'quiz_creation' : 'quiz_refund',
+          action: quantity > 0 ? "quiz_creation" : "quiz_refund",
           quantity,
           metadata,
         },
       });
     } catch (error) {
-      SecureLogger.error('Erreur lors de l\'enregistrement de l\'utilisation quiz', error);
+      SecureLogger.error(
+        "Erreur lors de l'enregistrement de l'utilisation quiz",
+        error,
+      );
     }
   }
 }

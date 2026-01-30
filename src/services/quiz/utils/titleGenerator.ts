@@ -4,7 +4,7 @@
  */
 
 import OpenAI from "openai";
-import SecureLogger from "../../../middlewares/secureLogging.js";
+import { SecureLogger } from "../../../middlewares/secureLogging.js";
 
 const openai = new OpenAI();
 

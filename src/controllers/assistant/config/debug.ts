@@ -11,12 +11,12 @@ export interface DebugConfig {
   EMBEDDING_DEBUG: boolean;
 }
 
-const DEBUG_CONFIG: DebugConfig = {
-  WEB_TRACING: process.env.DEBUG_WEB === 'true',
-  RAG_VERBOSE: process.env.DEBUG_RAG === 'true',
-  PERFORMANCE_TIMING: process.env.DEBUG_PERF === 'true',
-  SESSION_DEBUG: process.env.DEBUG_SESSION === 'true',
-  EMBEDDING_DEBUG: process.env.DEBUG_EMBEDDING === 'true'
+export const DEBUG_CONFIG: DebugConfig = {
+  WEB_TRACING: process.env.DEBUG_WEB === "true",
+  RAG_VERBOSE: process.env.DEBUG_RAG === "true",
+  PERFORMANCE_TIMING: process.env.DEBUG_PERF === "true",
+  SESSION_DEBUG: process.env.DEBUG_SESSION === "true",
+  EMBEDDING_DEBUG: process.env.DEBUG_EMBEDDING === "true",
 };
 
 export class DebugLogger {
@@ -50,5 +50,3 @@ export class DebugLogger {
     }
   }
 }
-
-export default DEBUG_CONFIG;

@@ -85,6 +85,3 @@ copyStaticMethods(UnifiedQuizControllerObj, RAGController);
 copyStaticMethods(UnifiedQuizControllerObj, PreprocessorController);
 
 export const UnifiedQuizController = UnifiedQuizControllerObj;
-
-// Export par défaut pour rétrocompatibilité
-export default UnifiedQuizController;

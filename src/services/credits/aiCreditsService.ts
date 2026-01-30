@@ -3,9 +3,9 @@
  * Gestion des crédits IA et déduction pour les actions BlockNote
  */
 
-import { prisma } from '../../lib/prisma.js';
-import SecureLogger from '../../middlewares/secureLogging.js';
-import { retryPrismaTransaction } from '../../lib/retryWithBackoff.js';
+import { prisma } from "../../lib/prisma.js";
+import { SecureLogger } from "../../middlewares/secureLogging.js";
+import { retryPrismaTransaction } from "../../lib/retryWithBackoff.js";
 
 export interface CreditDeductionResult {
   success: boolean;
@@ -25,10 +25,14 @@ export class AICreditsService {
   static async deductCredits(
     userId: string,
     amount: number = 0.5,
-    action?: string
+    action?: string,
   ): Promise<CreditDeductionResult> {
-    SecureLogger.debug(`🚀 [SERVER-CREDITS] Déduction ultra-optimisée`, { userId, action, amount });
-    
+    SecureLogger.debug(`🚀 [SERVER-CREDITS] Déduction ultra-optimisée`, {
+      userId,
+      action,
+      amount,
+    });
+
     try {
       // 🎯 UPSERT ATOMIQUE OPTIMISÉ POUR SCALABILITÉ 1000+ UTILISATEURS
       // Implémentation exacte selon BACKEND_CONTEXT.md pour zero deadlock
@@ -57,72 +61,91 @@ export class AICreditsService {
           "updated_at" = ${now}
       `;
 
-      SecureLogger.debug(`⚡ [SERVER-CREDITS] UPSERT atomique exécuté`, { userId, amount, affected: result });
+      SecureLogger.debug(`⚡ [SERVER-CREDITS] UPSERT atomique exécuté`, {
+        userId,
+        amount,
+        affected: result,
+      });
 
       // Lecture finale pour validation (optimisée avec SELECT specific)
       const finalLimits = await prisma.userLimits.findUnique({
         where: { userId },
         select: {
           aiCreditsUsed: true,
-          aiCreditsLimit: true
-        }
+          aiCreditsLimit: true,
+        },
       });
 
       if (!finalLimits) {
-        SecureLogger.error(`❌ [SERVER-CREDITS] Limites introuvables après UPSERT`, { userId });
+        SecureLogger.error(
+          `❌ [SERVER-CREDITS] Limites introuvables après UPSERT`,
+          { userId },
+        );
         return {
           success: false,
           remainingCredits: 0,
           limitReached: false,
-          message: 'Erreur système lors de la déduction',
+          message: "Erreur système lors de la déduction",
         };
       }
 
       // Validation intelligente du succès
-      const expectedMinUsage = result === 0 ? amount : finalLimits.aiCreditsUsed; // Si UPDATE, minimum attendu
+      const expectedMinUsage =
+        result === 0 ? amount : finalLimits.aiCreditsUsed; // Si UPDATE, minimum attendu
       const deductionSucceeded = finalLimits.aiCreditsUsed >= expectedMinUsage;
 
       if (!deductionSucceeded) {
-        const currentRemainingCredits = finalLimits.aiCreditsLimit === -1 
-          ? -1
-          : Math.max(0, finalLimits.aiCreditsLimit - finalLimits.aiCreditsUsed);
-        
-        SecureLogger.warn(`❌ [SERVER-CREDITS] Limite atteinte (déduction refusée)`, { 
-          userId, 
-          amount,
-          currentUsage: finalLimits.aiCreditsUsed,
-          limit: finalLimits.aiCreditsLimit,
-          remainingCredits: currentRemainingCredits 
-        });
-        
+        const currentRemainingCredits =
+          finalLimits.aiCreditsLimit === -1
+            ? -1
+            : Math.max(
+                0,
+                finalLimits.aiCreditsLimit - finalLimits.aiCreditsUsed,
+              );
+
+        SecureLogger.warn(
+          `❌ [SERVER-CREDITS] Limite atteinte (déduction refusée)`,
+          {
+            userId,
+            amount,
+            currentUsage: finalLimits.aiCreditsUsed,
+            limit: finalLimits.aiCreditsLimit,
+            remainingCredits: currentRemainingCredits,
+          },
+        );
+
         return {
           success: false,
           remainingCredits: currentRemainingCredits,
           limitReached: true,
-          message: 'Limite de crédits IA atteinte',
+          message: "Limite de crédits IA atteinte",
         };
       }
 
       // Succès - calculer les crédits restants
-      const remainingCredits = finalLimits.aiCreditsLimit === -1 
-        ? -1 // Illimité
-        : Math.max(0, finalLimits.aiCreditsLimit - finalLimits.aiCreditsUsed);
+      const remainingCredits =
+        finalLimits.aiCreditsLimit === -1
+          ? -1 // Illimité
+          : Math.max(0, finalLimits.aiCreditsLimit - finalLimits.aiCreditsUsed);
 
-      SecureLogger.debug(`✅ [SERVER-CREDITS] Déduction ultra-rapide réussie`, { 
-        userId, 
+      SecureLogger.debug(`✅ [SERVER-CREDITS] Déduction ultra-rapide réussie`, {
+        userId,
         amount,
-        newUsage: finalLimits.aiCreditsUsed, 
+        newUsage: finalLimits.aiCreditsUsed,
         remainingCredits,
-        operationType: result === 0 ? 'UPDATE' : 'INSERT'
+        operationType: result === 0 ? "UPDATE" : "INSERT",
       });
 
       // Enregistrement usage asynchrone (non-bloquant pour performance)
       setImmediate(() => {
-        this.recordUsage(userId, 'ai_action', amount, { 
+        this.recordUsage(userId, "ai_action", amount, {
           action,
-          method: 'upsert_atomic'
-        }).catch(err => 
-          SecureLogger.warn('Erreur enregistrement usage IA (non-critique)', err)
+          method: "upsert_atomic",
+        }).catch((err) =>
+          SecureLogger.warn(
+            "Erreur enregistrement usage IA (non-critique)",
+            err,
+          ),
         );
       });
 
@@ -130,19 +153,22 @@ export class AICreditsService {
         success: true,
         remainingCredits,
         limitReached: false,
-        message: 'Crédits déduits avec succès',
+        message: "Crédits déduits avec succès",
       };
-
     } catch (error: any) {
-      SecureLogger.error('❌ Erreur lors de la déduction atomique des crédits IA', error);
-      
+      SecureLogger.error(
+        "❌ Erreur lors de la déduction atomique des crédits IA",
+        error,
+      );
+
       // Gestion spécifique des erreurs de transaction
-      if (error.code === 'P2034') { // Transaction timeout
+      if (error.code === "P2034") {
+        // Transaction timeout
         return {
           success: false,
           remainingCredits: 0,
           limitReached: false,
-          message: 'Timeout lors de la déduction des crédits (trop de trafic)',
+          message: "Timeout lors de la déduction des crédits (trop de trafic)",
         };
       }
 
@@ -150,7 +176,7 @@ export class AICreditsService {
         success: false,
         remainingCredits: 0,
         limitReached: false,
-        message: 'Erreur lors de la déduction des crédits',
+        message: "Erreur lors de la déduction des crédits",
       };
     }
   }
@@ -177,7 +203,10 @@ export class AICreditsService {
       // Vérifier si under la limite
       return userLimits.aiCreditsUsed < userLimits.aiCreditsLimit;
     } catch (error) {
-      SecureLogger.error('Erreur lors de la vérification des crédits IA', error);
+      SecureLogger.error(
+        "Erreur lors de la vérification des crédits IA",
+        error,
+      );
       return false;
     }
   }
@@ -191,10 +220,14 @@ export class AICreditsService {
   static async refundCredits(
     userId: string,
     amount: number,
-    action?: string
+    action?: string,
   ): Promise<{ success: boolean; newBalance?: number; error?: string }> {
-    SecureLogger.debug(`🔄 [SERVER-CREDITS] Début remboursement`, { userId, action, amount });
-    
+    SecureLogger.debug(`🔄 [SERVER-CREDITS] Début remboursement`, {
+      userId,
+      action,
+      amount,
+    });
+
     try {
       // Récupérer les limites actuelles de l'utilisateur
       const userLimits = await prisma.userLimits.findUnique({
@@ -202,28 +235,34 @@ export class AICreditsService {
       });
 
       if (!userLimits) {
-        SecureLogger.error(`❌ [SERVER-CREDITS] Utilisateur inexistant pour remboursement`, { userId });
+        SecureLogger.error(
+          `❌ [SERVER-CREDITS] Utilisateur inexistant pour remboursement`,
+          { userId },
+        );
         return {
           success: false,
-          error: 'Utilisateur non trouvé pour le remboursement'
+          error: "Utilisateur non trouvé pour le remboursement",
         };
       }
 
-      SecureLogger.debug(`📊 [SERVER-CREDITS] Limites utilisateur avant remboursement`, { 
-        userId, 
-        currentUsage: userLimits.aiCreditsUsed,
-        limit: userLimits.aiCreditsLimit
-      });
+      SecureLogger.debug(
+        `📊 [SERVER-CREDITS] Limites utilisateur avant remboursement`,
+        {
+          userId,
+          currentUsage: userLimits.aiCreditsUsed,
+          limit: userLimits.aiCreditsLimit,
+        },
+      );
 
       // Calculer le nouveau usage (ne peut pas être négatif)
       const newAiCreditsUsed = Math.max(0, userLimits.aiCreditsUsed - amount);
-      SecureLogger.debug(`💳 [SERVER-CREDITS] Calcul remboursement`, { 
-        userId, 
-        previousUsage: userLimits.aiCreditsUsed, 
-        refundAmount: amount, 
-        newUsage: newAiCreditsUsed 
+      SecureLogger.debug(`💳 [SERVER-CREDITS] Calcul remboursement`, {
+        userId,
+        previousUsage: userLimits.aiCreditsUsed,
+        refundAmount: amount,
+        newUsage: newAiCreditsUsed,
       });
-      
+
       // Mettre à jour les crédits
       const updatedLimits = await prisma.userLimits.update({
         where: { userId },
@@ -232,27 +271,40 @@ export class AICreditsService {
         },
       });
 
-      SecureLogger.debug(`💳 [SERVER-CREDITS] Crédits remboursés`, { userId, newUsage: updatedLimits.aiCreditsUsed });
+      SecureLogger.debug(`💳 [SERVER-CREDITS] Crédits remboursés`, {
+        userId,
+        newUsage: updatedLimits.aiCreditsUsed,
+      });
 
       // Enregistrer le remboursement dans les logs
-      await this.recordRefund(userId, 'ai_refund', amount, { action, reason: 'generation_failure' });
+      await this.recordRefund(userId, "ai_refund", amount, {
+        action,
+        reason: "generation_failure",
+      });
 
-      const newBalance = updatedLimits.aiCreditsLimit === -1 
-        ? -1 // Illimité
-        : updatedLimits.aiCreditsLimit - updatedLimits.aiCreditsUsed;
+      const newBalance =
+        updatedLimits.aiCreditsLimit === -1
+          ? -1 // Illimité
+          : updatedLimits.aiCreditsLimit - updatedLimits.aiCreditsUsed;
 
       const result = {
         success: true,
-        newBalance: newBalance < 0 ? 0 : newBalance
+        newBalance: newBalance < 0 ? 0 : newBalance,
       };
-      
-      SecureLogger.debug(`✅ [SERVER-CREDITS] Remboursement réussi`, { userId, newBalance: result.newBalance });
+
+      SecureLogger.debug(`✅ [SERVER-CREDITS] Remboursement réussi`, {
+        userId,
+        newBalance: result.newBalance,
+      });
       return result;
     } catch (error) {
-      SecureLogger.error('❌ Erreur lors du remboursement des crédits IA', error);
+      SecureLogger.error(
+        "❌ Erreur lors du remboursement des crédits IA",
+        error,
+      );
       return {
         success: false,
-        error: 'Erreur lors du remboursement des crédits'
+        error: "Erreur lors du remboursement des crédits",
       };
     }
   }
@@ -278,7 +330,10 @@ export class AICreditsService {
       const remaining = userLimits.aiCreditsLimit - userLimits.aiCreditsUsed;
       return Math.max(0, remaining);
     } catch (error) {
-      SecureLogger.error('Erreur lors de la récupération des crédits restants', error);
+      SecureLogger.error(
+        "Erreur lors de la récupération des crédits restants",
+        error,
+      );
       return 0;
     }
   }
@@ -294,20 +349,23 @@ export class AICreditsService {
     userId: string,
     resourceType: string,
     quantity: number,
-    metadata: any = {}
+    metadata: any = {},
   ): Promise<void> {
     try {
       await prisma.usageRecord.create({
         data: {
           userId,
           resourceType,
-          action: 'ai_deduction',
+          action: "ai_deduction",
           quantity,
           metadata,
         },
       });
     } catch (error) {
-      SecureLogger.error('Erreur lors de l\'enregistrement de l\'utilisation', error);
+      SecureLogger.error(
+        "Erreur lors de l'enregistrement de l'utilisation",
+        error,
+      );
     }
   }
 
@@ -322,20 +380,23 @@ export class AICreditsService {
     userId: string,
     resourceType: string,
     quantity: number,
-    metadata: any = {}
+    metadata: any = {},
   ): Promise<void> {
     try {
       await prisma.usageRecord.create({
         data: {
           userId,
           resourceType,
-          action: 'ai_refund',
+          action: "ai_refund",
           quantity: -quantity, // Négatif pour indiquer un remboursement
           metadata,
         },
       });
     } catch (error) {
-      SecureLogger.error('Erreur lors de l\'enregistrement du remboursement', error);
+      SecureLogger.error(
+        "Erreur lors de l'enregistrement du remboursement",
+        error,
+      );
     }
   }
 
@@ -349,13 +410,17 @@ export class AICreditsService {
         where: { userId },
       });
 
-      if (!userLimits || userLimits.resetType !== 'monthly') {
+      if (!userLimits || userLimits.resetType !== "monthly") {
         return false;
       }
 
       const now = new Date();
       const lastReset = userLimits.lastResetAt;
-      const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
+      const oneMonthAgo = new Date(
+        now.getFullYear(),
+        now.getMonth() - 1,
+        now.getDate(),
+      );
 
       if (lastReset < oneMonthAgo) {
         await prisma.userLimits.update({
@@ -370,7 +435,10 @@ export class AICreditsService {
 
       return false;
     } catch (error) {
-      SecureLogger.error('Erreur lors de la réinitialisation des crédits', error);
+      SecureLogger.error(
+        "Erreur lors de la réinitialisation des crédits",
+        error,
+      );
       return false;
     }
   }
