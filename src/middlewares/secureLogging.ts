@@ -18,7 +18,7 @@ export class SecureLogger {
   /**
    * Log sécurisé qui masque les données sensibles en production
    */
-  static log(message: string, data?: any, options?: SecureLogOptions) {
+  static log(message: string, data?: unknown, options?: SecureLogOptions) {
     if (options?.hideInProduction && this.isProduction) {
       return; // Skip en production
     }
@@ -30,10 +30,12 @@ export class SecureLogger {
   /**
    * Error log toujours affiché mais avec données sanitizées
    */
-  static error(message: string, error?: any) {
+  static error(message: string, error?: unknown) {
     if (this.isProduction) {
       // En production, logs minimaux
-      console.error(message, error?.message || "Erreur interne");
+      const errorMessage =
+        error instanceof Error ? error.message : "Erreur interne";
+      console.error(message, errorMessage);
     } else {
       console.error(message, error);
     }
@@ -42,7 +44,7 @@ export class SecureLogger {
   /**
    * Warning log avec sanitisation
    */
-  static warn(message: string, data?: any, options?: SecureLogOptions) {
+  static warn(message: string, data?: unknown, options?: SecureLogOptions) {
     const sanitizedData = this.sanitizeData(data, options);
     console.warn(message, sanitizedData);
   }
@@ -50,7 +52,7 @@ export class SecureLogger {
   /**
    * Debug log seulement en développement
    */
-  static debug(message: string, data?: any) {
+  static debug(message: string, data?: unknown) {
     if (!this.isProduction) {
       console.log(`🐛 [DEBUG] ${message}`, data);
     }
