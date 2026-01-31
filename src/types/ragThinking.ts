@@ -16,10 +16,11 @@ export interface FirstThinkingPlan {
 // Intermediate Thinking JSON structure - Generated after each tool execution
 export interface IntermediateThinkingOutput {
   thinking: string;
-  toolArguments: Record<string, any>;
+  toolArguments: Record<string, unknown>;
   nextToolName?: string;
   shouldContinue?: boolean; // 🔥 NEW: Allow AI to decide whether to continue or stop
-  modifiedToolSequence?: Array<{  // 🔥 NEW: Allow AI to modify remaining tool sequence
+  modifiedToolSequence?: Array<{
+    // 🔥 NEW: Allow AI to modify remaining tool sequence
     step: number;
     toolName: string;
     description: string;
@@ -30,31 +31,36 @@ export interface IntermediateThinkingOutput {
 export interface IntermediateThinkingBlock {
   iteration: number;
   thinking: string;
-  toolArguments: Record<string, any>;
+  toolArguments: Record<string, unknown>;
   generatedAt: string; // ISO timestamp
   nextToolName?: string;
-  score?: any;  // 🆕 Score du résultat du tool (ToolResultScore) - any pour éviter dépendance circulaire
-  strategyAdjustment?: string;  // 🆕 Recommandations de la stratégie adaptative
+  score?: unknown; // 🆕 Score du résultat du tool (ToolResultScore) - unknown pour éviter dépendance circulaire
+  strategyAdjustment?: string; // 🆕 Recommandations de la stratégie adaptative
 }
 
 // Type guard for JSON validation
-export const isFirstThinkingPlan = (obj: any): obj is FirstThinkingPlan => {
+export const isFirstThinkingPlan = (obj: unknown): obj is FirstThinkingPlan => {
+  if (typeof obj !== "object" || obj === null) return false;
+  const candidate = obj as Record<string, unknown>;
+  if (typeof candidate.plan !== "object" || candidate.plan === null)
+    return false;
+  const plan = candidate.plan as Record<string, unknown>;
   return (
-    obj &&
-    obj.plan &&
-    typeof obj.plan.totalIterations === 'number' &&
-    typeof obj.plan.reasoning === 'string' &&
-    typeof obj.plan.shouldUseTools === 'boolean' &&
-    Array.isArray(obj.plan.toolSequence)
+    typeof plan.totalIterations === "number" &&
+    typeof plan.reasoning === "string" &&
+    typeof plan.shouldUseTools === "boolean" &&
+    Array.isArray(plan.toolSequence)
   );
 };
 
 export const isIntermediateThinkingOutput = (
-  obj: any,
+  obj: unknown,
 ): obj is IntermediateThinkingOutput => {
+  if (typeof obj !== "object" || obj === null) return false;
+  const candidate = obj as Record<string, unknown>;
   return (
-    obj &&
-    typeof obj.thinking === 'string' &&
-    typeof obj.toolArguments === 'object'
+    typeof candidate.thinking === "string" &&
+    typeof candidate.toolArguments === "object" &&
+    candidate.toolArguments !== null
   );
 };

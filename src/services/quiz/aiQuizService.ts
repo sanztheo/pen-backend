@@ -263,9 +263,7 @@ export class AIQuizService {
               userAnswers,
               {
                 graphicsData: correctionCapabilities.graphicsData,
-                // Cast DocumentReferenceLocal[] - CorrectQuizOptions uses [key: string]: any
-                documentsData:
-                  correctionCapabilities.documentsData as unknown as undefined,
+                documentsData: undefined,
                 documentReferences: correctionCapabilities.documentsData,
                 correctionType: "complete",
                 questions: questions.map((q) => ({
@@ -301,9 +299,7 @@ export class AIQuizService {
                 userAnswers,
                 {
                   graphicsData: [],
-                  // Cast DocumentReferenceLocal[] - CorrectQuizOptions uses [key: string]: any
-                  documentsData:
-                    correctionCapabilities.documentsData as unknown as undefined,
+                  documentsData: undefined,
                   documentReferences: correctionCapabilities.documentsData,
                   correctionType: "documents_files",
                   questions: questions.map((q) => ({
@@ -336,9 +332,7 @@ export class AIQuizService {
                 userAnswers,
                 {
                   graphicsData: [],
-                  // Cast DocumentReferenceLocal[] - CorrectQuizOptions uses [key: string]: any
-                  documentsData:
-                    correctionCapabilities.documentsData as unknown as undefined,
+                  documentsData: undefined,
                   documentReferences: correctionCapabilities.documentsData,
                   correctionType: "documents",
                   questions: questions.map((q) => ({

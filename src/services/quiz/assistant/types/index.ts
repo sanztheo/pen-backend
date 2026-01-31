@@ -122,7 +122,7 @@ export interface LegacyQuizAnswer {
 // Interface pour les données de graphique
 export interface GraphicData {
   graphicId: string;
-  config: any;
+  config: Record<string, unknown>;
   library: GraphicLibrary;
   dataValues: number[];
   type?: string;
@@ -191,18 +191,33 @@ export interface CorrectCompleteQuizOptions {
 export interface CorrectQuizOptions {
   type?: CorrectionType;
   graphicsData?: GraphicData[];
-  documentsData?: DocumentData[];
+  documentsData?: DocumentData[] | undefined;
+  documentReferences?: DocumentReference[];
   questions?: QuizQuestion[];
   schoolLevel?: string;
   collegeGrade?: string;
-  [key: string]: any;
+  correctionType?: string;
+  [key: string]: unknown;
+}
+
+// Données pour la génération de graphiques
+export interface GraphicDataPoint {
+  x: number | string;
+  y: number;
+}
+
+export interface GraphicSeriesData {
+  name: string;
+  data: number[] | GraphicDataPoint[];
+  type?: string;
+  color?: string;
 }
 
 // Options de génération de graphique
 export interface GenerateGraphicOptions {
   chartType: ChartType;
   title: string;
-  data: any;
+  data: GraphicSeriesData[] | number[] | Record<string, unknown>;
   library: GraphicLibrary;
   educationalContext?: string;
 }
