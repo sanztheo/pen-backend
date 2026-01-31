@@ -90,6 +90,20 @@ export interface SubjectDocumentConfig {
   maxDocuments: number;
 }
 
+// Configuration graphique par matière
+export interface SubjectGraphicConfig {
+  enableGraphics: boolean;
+  graphicProbability: number;
+  preferredLibraries: ("apexcharts" | "plotly")[];
+  graphicTypes: ("2d" | "3d")[];
+}
+
+// Configuration complète par matière (documents + graphiques)
+export interface SubjectConfigEntry {
+  documentConfig: SubjectDocumentConfig;
+  graphicConfig: SubjectGraphicConfig;
+}
+
 // Configuration graphique pour les questions
 export interface GraphicConfig {
   type: string; // Type de graphique (line, bar, scatter, pie, etc.)
@@ -124,6 +138,20 @@ export interface AxisConfig {
   type?: "numeric" | "category" | "datetime";
 }
 
+// Données graphiques générées par l'IA pour un quiz
+export interface GeneratedGraphicData {
+  id: string;
+  subject: string;
+  topic: string;
+  level: string;
+  library: "apexcharts" | "plotly";
+  type: string;
+  description: string;
+  config: Record<string, unknown>; // Configuration JSON du graphique
+  dataValues: number[]; // Valeurs clés pour l'IA
+  questionContext: string; // Contexte pour la génération de question
+}
+
 // Distribution du temps par question ou par difficulté
 export interface TimeDistribution {
   byQuestion?: Record<string, number>; // questionId -> temps en secondes
@@ -152,7 +180,7 @@ export interface SequentialQuizConfig {
     startedAt: Date;
     estimatedTotalTime: number; // en minutes
     realTotalTime?: number; // en minutes
-    subjectsDocumentConfig?: Record<string, SubjectDocumentConfig>; // Configuration documentaire par matière
+    subjectsDocumentConfig?: Record<string, SubjectConfigEntry>; // Configuration documentaire et graphique par matière
   };
 }
 
@@ -280,7 +308,7 @@ export interface BaseQuestion {
   graphicLibrary?: "apexcharts" | "plotly"; // Bibliothèque utilisée pour le graphique
   graphicType?: string; // Type de graphique (line, bar, scatter, etc.)
   graphicDescription?: string; // Description du graphique pour accessibilité
-  graphicConfig?: GraphicConfig; // Configuration JSON du graphique
+  graphicConfig?: Record<string, unknown>; // Configuration JSON brute du graphique (ApexCharts/Plotly)
   graphicDataValues?: number[]; // Valeurs clés du graphique pour correction IA
 }
 
@@ -350,7 +378,7 @@ export interface GeneratedQuiz {
   subjectBased?: boolean; // true = nouveau système, false/undefined = ancien système
   sourceDocuments?: DocumentChunk[]; // Documents Wikipedia utilisés pour la génération
   hasDocuments?: boolean; // Indique si le quiz contient des documents
-  graphicsData?: GraphicConfig[]; // Graphiques IA générés pour le quiz
+  graphicsData?: GeneratedGraphicData[]; // Graphiques IA générés pour le quiz
   hasGraphics?: boolean; // Indique si le quiz contient des graphiques IA
   metadata?: {
     generatedAt: Date;
@@ -368,7 +396,8 @@ export type AnswerValue =
   | string // Question ouverte
   | string[] // QCM avec réponses multiples
   | boolean // Vrai/Faux
-  | { leftId: string; rightId: string }[]; // Matching
+  | { leftId: string; rightId: string }[] // Matching (format structuré)
+  | Record<string, string>; // Matching (format clé-valeur alternatif)
 
 // Réponses utilisateur
 export interface UserAnswer {

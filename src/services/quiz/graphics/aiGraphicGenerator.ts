@@ -15,7 +15,7 @@ interface GraphicGenerationPrompt {
 }
 
 interface GeneratedGraphic {
-  config: object; // Configuration JSON pure (ApexCharts/Plotly.js)
+  config: Record<string, unknown>; // Configuration JSON pure (ApexCharts/Plotly.js)
   type: "2d" | "3d";
   library: "apexcharts" | "plotly";
   description: string; // Description pour accessibilité

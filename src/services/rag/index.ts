@@ -1,6 +1,9 @@
 // 🚀 RAG System - Service Principal
 import { prismaEmbeddings } from "../../lib/prismaEmbeddings.js";
-import type { RAGSourceType } from "../../../node_modules/.prisma/client-embeddings/index.js";
+import type {
+  RAGSourceType,
+  Prisma,
+} from "../../../node_modules/.prisma/client-embeddings/index.js";
 
 // Type pour la réponse de l'API OpenAI
 interface OpenAIChatCompletion {
@@ -11,7 +14,16 @@ interface OpenAIChatCompletion {
   }>;
 }
 
-// Type pour les chunks Prisma avec source incluse
+// Type pour les informations de source RAG (avec fileName optionnel pour compatibilité)
+interface RAGSourceInfo {
+  id: string;
+  title: string;
+  sourceType: RAGSourceType;
+  fileName?: string | null;
+}
+
+// Type pour les chunks Prisma avec source incluse (retour de findMany avec include)
+// Utilise uniquement les champs retournés par le select Prisma
 interface RAGChunkWithSource {
   id: string;
   sourceId: string;
@@ -29,13 +41,28 @@ interface RAGChunkWithSource {
   source: RAGSourceInfo;
 }
 
-// Type pour les informations de source RAG
-interface RAGSourceInfo {
+// Type pour les chunks retournés par Prisma findMany avec include partiel
+type PrismaChunkWithPartialSource = {
   id: string;
-  title: string;
-  sourceType: RAGSourceType;
-  fileName: string | null;
-}
+  sourceId: string;
+  chunkIndex: number;
+  content: string;
+  cleanContent: string;
+  tokenCount: number;
+  pageNumber: number | null;
+  sectionTitle: string | null;
+  startOffset: number | null;
+  endOffset: number | null;
+  quality: number;
+  language: string;
+  createdAt: Date;
+  source: {
+    id: string;
+    title: string;
+    sourceType: RAGSourceType;
+    fileName: string | null;
+  };
+};
 
 // Type pour les résultats bruts de la requête pgvector
 interface PgVectorSearchResult {
@@ -48,28 +75,6 @@ interface PgVectorSearchResult {
   source_type: RAGSourceType;
   file_name: string | null;
   similarity: number;
-}
-
-// Type pour le whereClause Prisma (structure dynamique)
-interface RAGChunkWhereClause {
-  sourceId?: { in: string[] };
-  source?: {
-    status?: string;
-    userId?: string;
-    workspaceId?: string | null;
-    isGlobal?: boolean;
-    id?: { in: string[] };
-    OR?: Array<
-      | { isGlobal: boolean }
-      | {
-          AND: Array<{
-            userId?: string;
-            workspaceId?: string | null;
-            isGlobal?: boolean;
-          }>;
-        }
-    >;
-  };
 }
 
 // Type pour les données préparées pour insertion de chunks
@@ -92,6 +97,9 @@ interface PDFPageContent {
   pageNumber: number;
   content: string;
 }
+
+// Type alias pour le whereInput Prisma
+type RAGChunkWhereInput = Prisma.RAGChunkWhereInput;
 
 // Types principaux
 export interface RAGChunkInput {
@@ -488,7 +496,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     } = options;
 
     try {
-      let whereClause: RAGChunkWhereClause = {
+      let whereClause: RAGChunkWhereInput = {
         source: {
           status: "COMPLETED",
         },
@@ -522,22 +530,27 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
           `🔍 [RAG-QUALITY] Filtrage par pages spécifiques: ${specificPageIds.join(", ")}`,
         );
       } else {
-        whereClause.source.OR = [
-          // 🌍 Sources globales (Wikipedia) - accessibles à tous
-          { isGlobal: true },
-          // 🔒 Sources privées de l'utilisateur
-          ...(userId && workspaceId
-            ? [
-                {
-                  AND: [
-                    { userId: userId },
-                    { workspaceId: workspaceId },
-                    { isGlobal: false },
-                  ],
-                },
-              ]
-            : []),
-        ];
+        whereClause = {
+          source: {
+            status: "COMPLETED",
+            OR: [
+              // 🌍 Sources globales (Wikipedia) - accessibles à tous
+              { isGlobal: true },
+              // 🔒 Sources privées de l'utilisateur
+              ...(userId && workspaceId
+                ? [
+                    {
+                      AND: [
+                        { userId: userId },
+                        { workspaceId: workspaceId },
+                        { isGlobal: false },
+                      ],
+                    },
+                  ]
+                : []),
+            ],
+          },
+        };
       }
 
       // 🎯 STRATÉGIE DE DIVERSIFICATION :
@@ -574,17 +587,25 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       }
 
       // 🎯 ALGORITHME DE DIVERSIFICATION
-      const diversifiedChunks = this.diversifyBySource(allChunks, limit);
+      const diversifiedChunks = this.diversifyBySource(
+        allChunks as PrismaChunkWithPartialSource[],
+        limit,
+      );
 
       console.log(
         `📊 [RAG-QUALITY] Chunks sélectionnés par source:`,
         this.getSourceStats(diversifiedChunks),
       );
 
-      return diversifiedChunks.map((chunk: RAGChunkWithSource) => ({
+      return diversifiedChunks.map((chunk: PrismaChunkWithPartialSource) => ({
         id: chunk.id,
         content: chunk.cleanContent,
-        source: chunk.source,
+        source: {
+          id: chunk.source.id,
+          title: chunk.source.title,
+          sourceType: chunk.source.sourceType,
+          fileName: chunk.source.fileName ?? undefined,
+        },
         similarity: 1.0, // Score artificiel élevé car c'est du contenu de qualité
         pageNumber: chunk.pageNumber ?? undefined,
         sectionTitle: chunk.sectionTitle ?? undefined,
@@ -599,9 +620,9 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
   // 🎯 Algorithme de diversification des chunks par source
   private diversifyBySource(
-    chunks: RAGChunkWithSource[],
+    chunks: PrismaChunkWithPartialSource[],
     targetLimit: number,
-  ): RAGChunkWithSource[] {
+  ): PrismaChunkWithPartialSource[] {
     // 🔥 EARLY RETURN: Si aucun chunk, retourner immédiatement
     if (chunks.length === 0) {
       console.log(`⚠️ [DIVERSIFICATION] Aucun chunk à diversifier`);
@@ -609,7 +630,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     }
 
     // Grouper les chunks par source
-    const chunksBySource = new Map<string, RAGChunkWithSource[]>();
+    const chunksBySource = new Map<string, PrismaChunkWithPartialSource[]>();
 
     chunks.forEach((chunk) => {
       const sourceId = chunk.source.id;
@@ -636,7 +657,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       2,
       Math.floor(targetLimit / chunksBySource.size) + 1,
     );
-    const diversifiedChunks: RAGChunkWithSource[] = [];
+    const diversifiedChunks: PrismaChunkWithPartialSource[] = [];
 
     // Round-robin pour équilibrer les sources
     let round = 0;
@@ -659,7 +680,9 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 
   // 📊 Stats des sources pour debugging
-  private getSourceStats(chunks: RAGChunkWithSource[]): Record<string, number> {
+  private getSourceStats(
+    chunks: PrismaChunkWithPartialSource[],
+  ): Record<string, number> {
     const stats: Record<string, number> = {};
     chunks.forEach((chunk) => {
       const title = chunk.source.title;
@@ -696,7 +719,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       );
 
       // 2. Construction de la requête avec filtres
-      let whereClause: RAGChunkWhereClause;
+      let whereClause: RAGChunkWhereInput;
 
       // 🆕 Si des sources RAG spécifiques sont demandées, filtrer par ces sources
       if (specificSourceIds && specificSourceIds.length > 0) {
@@ -751,9 +774,11 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       // Filtre par sources spécifiques si demandé (seulement si pas déjà filtré par pages spécifiques)
       if (
         sources.length > 0 &&
-        !(specificPageIds && specificPageIds.length > 0)
+        !(specificPageIds && specificPageIds.length > 0) &&
+        whereClause.source &&
+        typeof whereClause.source === "object"
       ) {
-        whereClause.source.id = { in: sources };
+        (whereClause.source as Record<string, unknown>).id = { in: sources };
       }
 
       console.log(
