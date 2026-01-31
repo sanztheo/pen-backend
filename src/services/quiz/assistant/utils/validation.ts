@@ -12,9 +12,39 @@ const VALID_FUNCTIONS = [
 ];
 
 /**
+ * Interface pour un appel de fonction dans la réponse Assistant
+ */
+interface ToolCallFunction {
+  name: string;
+  arguments: string;
+}
+
+interface ToolCall {
+  function?: ToolCallFunction;
+}
+
+interface AssistantResponseWithToolCalls {
+  tool_calls?: ToolCall[];
+}
+
+/**
+ * Type guard pour vérifier si l'objet a des tool_calls
+ */
+function hasToolCalls(
+  response: unknown,
+): response is AssistantResponseWithToolCalls {
+  return (
+    typeof response === "object" &&
+    response !== null &&
+    "tool_calls" in response &&
+    Array.isArray((response as AssistantResponseWithToolCalls).tool_calls)
+  );
+}
+
+/**
  * Valide la réponse JSON de l'Assistant
  */
-export function validateAssistantResponse(response: any): void {
+export function validateAssistantResponse(response: unknown): void {
   if (!response) {
     throw new Error("Réponse Assistant vide");
   }
@@ -23,18 +53,16 @@ export function validateAssistantResponse(response: any): void {
   if (typeof response === "string") {
     try {
       JSON.parse(response);
-    } catch (error) {
+    } catch {
       throw new Error("Réponse Assistant n'est pas un JSON valide");
     }
   }
 
   // Validation des fonctions attendues
-  if (response.tool_calls && Array.isArray(response.tool_calls)) {
+  if (hasToolCalls(response) && response.tool_calls) {
     for (const toolCall of response.tool_calls) {
       if (!toolCall.function || !toolCall.function.name) {
-        throw new Error(
-          "Appel de fonction manquant dans la réponse Assistant",
-        );
+        throw new Error("Appel de fonction manquant dans la réponse Assistant");
       }
 
       // Valider que c'est une de nos 7 fonctions
@@ -45,7 +73,7 @@ export function validateAssistantResponse(response: any): void {
       // Valider que les arguments sont du JSON
       try {
         JSON.parse(toolCall.function.arguments);
-      } catch (error) {
+      } catch {
         throw new Error(`Arguments invalides pour ${toolCall.function.name}`);
       }
     }
@@ -53,24 +81,57 @@ export function validateAssistantResponse(response: any): void {
 }
 
 /**
+ * Interface pour une réponse contenant des questions
+ */
+interface ResponseWithQuestions {
+  questions: unknown[];
+}
+
+/**
+ * Type guard pour vérifier si l'objet a des questions
+ */
+function isResponseWithQuestions(
+  response: unknown,
+): response is ResponseWithQuestions {
+  return (
+    typeof response === "object" &&
+    response !== null &&
+    "questions" in response &&
+    Array.isArray((response as ResponseWithQuestions).questions)
+  );
+}
+
+/**
  * Vérifie si une réponse contient des questions valides
  */
-export function hasValidQuestions(response: any): boolean {
+export function hasValidQuestions(response: unknown): boolean {
+  return isResponseWithQuestions(response) && response.questions.length > 0;
+}
+
+/**
+ * Interface pour une réponse contenant des corrections
+ */
+interface ResponseWithCorrections {
+  corrections: unknown[];
+}
+
+/**
+ * Type guard pour vérifier si l'objet a des corrections
+ */
+function isResponseWithCorrections(
+  response: unknown,
+): response is ResponseWithCorrections {
   return (
-    response &&
-    response.questions &&
-    Array.isArray(response.questions) &&
-    response.questions.length > 0
+    typeof response === "object" &&
+    response !== null &&
+    "corrections" in response &&
+    Array.isArray((response as ResponseWithCorrections).corrections)
   );
 }
 
 /**
  * Vérifie si une réponse contient des corrections valides
  */
-export function hasValidCorrections(response: any): boolean {
-  return (
-    response &&
-    response.corrections &&
-    Array.isArray(response.corrections)
-  );
+export function hasValidCorrections(response: unknown): boolean {
+  return isResponseWithCorrections(response);
 }

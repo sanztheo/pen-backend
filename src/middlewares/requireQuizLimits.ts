@@ -8,11 +8,30 @@ import { QuizLimitsService } from "../services/credits/quizLimitsService.js";
 import { AuthUser } from "../services/auth.js";
 import { SecureLogger } from "./secureLogging.js";
 import { z } from "zod";
+import { LyceeSpecialty } from "../services/quiz/types.js";
 
 // Interface pour les requêtes authentifiées
 interface AuthRequest extends Request {
   user?: AuthUser;
 }
+
+// LyceeSpecialty enum values for validation
+const LyceeSpecialtyValues = Object.values(LyceeSpecialty) as [
+  string,
+  ...string[],
+];
+
+// JSON value schema for recursive JSON structures
+const JsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number(),
+    z.boolean(),
+    z.null(),
+    z.array(JsonValueSchema),
+    z.record(JsonValueSchema),
+  ]),
+);
 
 // Schémas de validation Zod
 const PresetSequenceSchema = z.object({
@@ -21,12 +40,12 @@ const PresetSequenceSchema = z.object({
       message: "Le preset doit être BREVET, BAC ou PARTIELS",
     }),
   }),
-  subjects: z.array(z.any()).optional().default([]),
+  subjects: z.array(z.record(JsonValueSchema)).optional().default([]),
   totalSubjects: z.number().int().min(0).optional().default(0),
-  specialties: z.array(z.string()).optional(),
+  specialties: z.array(z.enum(LyceeSpecialtyValues)).optional(),
   higherEdField: z.string().optional(),
   workspaceIds: z.array(z.string()).optional().default([]),
-  metadata: z.record(z.any()).optional().default({}),
+  metadata: z.record(JsonValueSchema).optional().default({}),
 });
 
 /**

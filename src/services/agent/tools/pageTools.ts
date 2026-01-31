@@ -1,6 +1,7 @@
 // 📄 Page Tools - Création et gestion de pages via l'agent
 import { tool } from "ai";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma.js";
 import { nanoid } from "nanoid";
 
@@ -110,8 +111,11 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
           const slug = `${baseSlug}-${Date.now()}-${nanoid(4)}`;
 
           // 5. Convertir le contenu texte en format BlockNote
+          // Cast to Prisma.InputJsonValue for JSON column compatibility
           const blockNoteContent = content
-            ? convertTextToBlockNote(content)
+            ? (convertTextToBlockNote(
+                content,
+              ) as unknown as Prisma.InputJsonValue)
             : null;
 
           // 6. Créer la page
@@ -226,6 +230,29 @@ interface InlineContent {
   styles?: Record<string, boolean>;
   href?: string;
   content?: InlineContent[];
+}
+
+/**
+ * BlockNote block structure
+ */
+interface BlockNoteBlock {
+  id: string;
+  type: string;
+  props: BlockNoteBlockProps;
+  content: InlineContent[];
+  children: BlockNoteBlock[];
+}
+
+/**
+ * BlockNote block properties
+ */
+interface BlockNoteBlockProps {
+  textColor: string;
+  backgroundColor: string;
+  textAlignment: string;
+  level?: 1 | 2 | 3;
+  checked?: boolean;
+  [key: string]: string | number | boolean | undefined;
 }
 
 /**
@@ -360,9 +387,9 @@ function parseInlineContent(text: string): InlineContent[] {
 function createBlock(
   type: string,
   content: string,
-  props: Record<string, any> = {},
-): any {
-  const defaultProps = {
+  props: Partial<BlockNoteBlockProps> = {},
+): BlockNoteBlock {
+  const defaultProps: BlockNoteBlockProps = {
     textColor: "default",
     backgroundColor: "default",
     textAlignment: "left",
@@ -381,9 +408,9 @@ function createBlock(
 /**
  * Convert markdown text to BlockNote blocks with full inline formatting support
  */
-function convertTextToBlockNote(text: string): any[] {
+function convertTextToBlockNote(text: string): BlockNoteBlock[] {
   const lines = text.split("\n");
-  const blocks: any[] = [];
+  const blocks: BlockNoteBlock[] = [];
 
   for (const line of lines) {
     const trimmedLine = line.trim();

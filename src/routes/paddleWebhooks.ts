@@ -4,7 +4,81 @@ import {
   PaddleBillingService,
 } from "../services/billing/paddleBilling.js";
 import { prisma } from "../lib/prisma.js";
-import { EventName } from "@paddle/paddle-node-sdk";
+import {
+  EventName,
+  type SubscriptionNotification,
+  type TransactionNotification,
+} from "@paddle/paddle-node-sdk";
+
+/**
+ * Custom data passed through Paddle checkout for user identification
+ */
+interface PaddleCustomData {
+  clerkUserId?: string;
+  clerk_user_id?: string;
+}
+
+/**
+ * Type guard to check if event has subscription data
+ */
+function isSubscriptionEvent(event: {
+  eventType: string;
+  data: unknown;
+}): event is { eventType: string; data: SubscriptionNotification } {
+  return (
+    typeof event.eventType === "string" &&
+    event.eventType.startsWith("subscription.") &&
+    event.data !== null &&
+    typeof event.data === "object"
+  );
+}
+
+/**
+ * Type guard to check if event has transaction data
+ */
+function isTransactionEvent(event: {
+  eventType: string;
+  data: unknown;
+}): event is { eventType: string; data: TransactionNotification } {
+  return (
+    typeof event.eventType === "string" &&
+    event.eventType.startsWith("transaction.") &&
+    event.data !== null &&
+    typeof event.data === "object"
+  );
+}
+
+/**
+ * Safely extract custom data from subscription/transaction data
+ */
+function extractCustomData(data: unknown): PaddleCustomData {
+  if (data === null || typeof data !== "object") {
+    return {};
+  }
+  const typedData = data as Record<string, unknown>;
+  const customData = typedData.customData ?? typedData.custom_data;
+  if (customData === null || typeof customData !== "object") {
+    return {};
+  }
+  return customData as PaddleCustomData;
+}
+
+/**
+ * Safely extract string property from unknown data
+ */
+function extractString(
+  data: unknown,
+  key: string,
+  fallbackKey?: string,
+): string | undefined {
+  if (data === null || typeof data !== "object") {
+    return undefined;
+  }
+  const typedData = data as Record<string, unknown>;
+  const value =
+    typedData[key] ?? (fallbackKey ? typedData[fallbackKey] : undefined);
+  return typeof value === "string" ? value : undefined;
+}
 
 /**
  * 🏓 WEBHOOK PADDLE - BILLING
@@ -84,18 +158,19 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     }
 
     // 1️⃣ Vérifier la signature Paddle (ASYNC - nécessite await)
-    let event: any;
+    let event: Awaited<ReturnType<typeof paddle.webhooks.unmarshal>>;
     try {
       event = await paddle.webhooks.unmarshal(rawBody, secretKey, signature);
       console.log(`✅ [Paddle Webhook] Signature valide`);
-    } catch (e: any) {
-      console.error("[Paddle Webhook] ❌ Signature invalide:", e.message);
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      console.error("[Paddle Webhook] ❌ Signature invalide:", errorMessage);
       return res.status(400).json({ error: "Invalid signature" });
     }
 
-    const eventType = event.eventType as string;
-    const eventId = event.eventId as string;
-    const data = event.data as any;
+    const eventType = event.eventType;
+    const eventId = event.eventId;
+    const eventData = event.data;
 
     // 🔍 DEBUG: Log le type d'événement reçu
     console.log(`📨 [Paddle Webhook] Type: ${eventType}, EventID: ${eventId}`);
@@ -118,34 +193,35 @@ export const paddleWebhookHandler: express.RequestHandler = async (
 
     // 3️⃣ Extraire le userId depuis customData
     // Le frontend doit passer { clerkUserId: "user_xxx" } lors du checkout
-    const customData = data?.customData || data?.custom_data || {};
-    let userId = customData?.clerkUserId || customData?.clerk_user_id;
+    const customData = extractCustomData(eventData);
+    let userId: string | undefined | null =
+      customData.clerkUserId ?? customData.clerk_user_id;
 
     // Si pas de customData, essayer de retrouver via paddleCustomerId
-    if (!userId && data?.customerId) {
-      userId = await PaddleBillingService.findUserByPaddleCustomerId(
-        data.customerId,
-      );
+    const customerId = extractString(eventData, "customerId", "customer_id");
+    if (!userId && customerId) {
+      userId =
+        await PaddleBillingService.findUserByPaddleCustomerId(customerId);
     }
 
     // Si pas de userId via customData, essayer via subscriptionId
-    if (!userId && data?.id) {
-      userId = await PaddleBillingService.findUserByPaddleSubscriptionId(
-        data.id,
-      );
+    const dataId = extractString(eventData, "id");
+    if (!userId && dataId) {
+      userId =
+        await PaddleBillingService.findUserByPaddleSubscriptionId(dataId);
     }
 
     // 4️⃣ TRAITER LES ÉVÉNEMENTS
+    // Use type guards to safely access subscription/transaction data
+    const subData = isSubscriptionEvent(event) ? event.data : undefined;
+    const txnData = isTransactionEvent(event) ? event.data : undefined;
 
     // 📝 subscription.created - Subscription créée
     // 🎁 Si status "trialing" → Activer premium immédiatement pour le trial
-    if (
-      eventType === EventName.SubscriptionCreated ||
-      eventType === "subscription.created"
-    ) {
-      const subscriptionStatus = data?.status;
-      const paddleCustomerId = data?.customerId || data?.customer_id;
-      const paddleSubscriptionId = data?.id;
+    if (eventType === EventName.SubscriptionCreated) {
+      const subscriptionStatus = subData?.status;
+      const paddleCustomerId = subData?.customerId;
+      const paddleSubscriptionId = subData?.id;
 
       console.log(`📝 [Paddle Webhook] subscription.created:`, {
         subscriptionId: paddleSubscriptionId,
@@ -155,10 +231,15 @@ export const paddleWebhookHandler: express.RequestHandler = async (
       });
 
       // 🎁 TRIAL: Si status "trialing", activer premium immédiatement
-      if (subscriptionStatus === "trialing" && userId) {
+      if (
+        subscriptionStatus === "trialing" &&
+        userId &&
+        paddleCustomerId &&
+        paddleSubscriptionId
+      ) {
         const trialStart = new Date();
-        const trialEnd = data?.currentBillingPeriod?.endsAt
-          ? new Date(data.currentBillingPeriod.endsAt)
+        const trialEnd = subData?.currentBillingPeriod?.endsAt
+          ? new Date(subData.currentBillingPeriod.endsAt)
           : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 jours par défaut
 
         console.log(`🎁 [Paddle Webhook] TRIAL activé pour user ${userId}:`, {
@@ -200,33 +281,41 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     }
 
     // ✅ subscription.activated - Plan activé
-    if (
-      eventType === EventName.SubscriptionActivated ||
-      eventType === "subscription.activated"
-    ) {
+    if (eventType === EventName.SubscriptionActivated) {
       if (!userId) {
         console.warn(
           `⚠️ [Paddle Webhook] subscription.activated sans userId:`,
           {
-            subscriptionId: data?.id,
-            customerId: data?.customerId,
+            subscriptionId: subData?.id,
+            customerId: subData?.customerId,
             customData,
           },
         );
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
-      const paddleCustomerId = data?.customerId || data?.customer_id;
-      const paddleSubscriptionId = data?.id;
-      const currentPeriodEnd = data?.currentBillingPeriod?.endsAt
-        ? new Date(data.currentBillingPeriod.endsAt)
+      const paddleCustomerId = subData?.customerId;
+      const paddleSubscriptionId = subData?.id;
+
+      if (!paddleCustomerId || !paddleSubscriptionId) {
+        console.warn(
+          `⚠️ [Paddle Webhook] subscription.activated missing required fields:`,
+          { paddleCustomerId, paddleSubscriptionId },
+        );
+        return res
+          .status(200)
+          .json({ skipped: true, reason: "missing_subscription_data" });
+      }
+
+      const currentPeriodEnd = subData?.currentBillingPeriod?.endsAt
+        ? new Date(subData.currentBillingPeriod.endsAt)
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
       console.log(`✅ [Paddle Webhook] subscription.activated:`, {
         userId,
         paddleCustomerId,
         paddleSubscriptionId,
-        status: data?.status,
+        status: subData?.status,
         currentPeriodEnd: currentPeriodEnd.toISOString(),
       });
 
@@ -248,29 +337,31 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     }
 
     // 🔄 subscription.updated - Mise à jour subscription
-    if (
-      eventType === EventName.SubscriptionUpdated ||
-      eventType === "subscription.updated"
-    ) {
+    if (eventType === EventName.SubscriptionUpdated) {
       if (!userId) {
         console.warn(`⚠️ [Paddle Webhook] subscription.updated sans userId`);
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
-      const currentPeriodStart = data?.currentBillingPeriod?.startsAt
-        ? new Date(data.currentBillingPeriod.startsAt)
+      const currentPeriodStart = subData?.currentBillingPeriod?.startsAt
+        ? new Date(subData.currentBillingPeriod.startsAt)
         : undefined;
-      const currentPeriodEnd = data?.currentBillingPeriod?.endsAt
-        ? new Date(data.currentBillingPeriod.endsAt)
+      const currentPeriodEnd = subData?.currentBillingPeriod?.endsAt
+        ? new Date(subData.currentBillingPeriod.endsAt)
         : undefined;
-      const scheduledChange = data?.scheduledChange;
+      const scheduledChange = subData?.scheduledChange;
 
       console.log(`🔄 [Paddle Webhook] subscription.updated:`, {
         userId,
-        status: data?.status,
+        status: subData?.status,
         currentPeriodStart: currentPeriodStart?.toISOString(),
         currentPeriodEnd: currentPeriodEnd?.toISOString(),
-        scheduledChange,
+        scheduledChange: scheduledChange
+          ? {
+              action: scheduledChange.action,
+              effectiveAt: scheduledChange.effectiveAt,
+            }
+          : undefined,
       });
 
       // Mettre à jour les périodes
@@ -290,27 +381,24 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     }
 
     // ⚠️ subscription.canceled - Annulé (mais actif jusqu'à fin période)
-    if (
-      eventType === EventName.SubscriptionCanceled ||
-      eventType === "subscription.canceled"
-    ) {
+    if (eventType === EventName.SubscriptionCanceled) {
       if (!userId) {
         console.warn(`⚠️ [Paddle Webhook] subscription.canceled sans userId`);
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
-      const effectiveAt = data?.scheduledChange?.effectiveAt
-        ? new Date(data.scheduledChange.effectiveAt)
+      const effectiveAt = subData?.scheduledChange?.effectiveAt
+        ? new Date(subData.scheduledChange.effectiveAt)
         : undefined;
 
       console.log(`⚠️ [Paddle Webhook] subscription.canceled:`, {
         userId,
-        status: data?.status,
+        status: subData?.status,
         effectiveAt: effectiveAt?.toISOString(),
       });
 
       // Si le status est "canceled" (plus actif), remettre en free
-      if (data?.status === "canceled") {
+      if (subData?.status === "canceled") {
         await PaddleBillingService.finalizeCancel(userId);
         console.log(`✅ [Paddle Webhook] Utilisateur remis en free: ${userId}`);
       } else {
@@ -331,10 +419,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     }
 
     // ⏸️ subscription.paused - Plan en pause
-    if (
-      eventType === EventName.SubscriptionPaused ||
-      eventType === "subscription.paused"
-    ) {
+    if (eventType === EventName.SubscriptionPaused) {
       if (!userId) {
         console.warn(`⚠️ [Paddle Webhook] subscription.paused sans userId`);
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
@@ -355,19 +440,27 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     }
 
     // ▶️ subscription.resumed - Plan repris
-    if (
-      eventType === EventName.SubscriptionResumed ||
-      eventType === "subscription.resumed"
-    ) {
+    if (eventType === EventName.SubscriptionResumed) {
       if (!userId) {
         console.warn(`⚠️ [Paddle Webhook] subscription.resumed sans userId`);
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
-      const paddleCustomerId = data?.customerId || data?.customer_id;
-      const paddleSubscriptionId = data?.id;
-      const currentPeriodEnd = data?.currentBillingPeriod?.endsAt
-        ? new Date(data.currentBillingPeriod.endsAt)
+      const paddleCustomerId = subData?.customerId;
+      const paddleSubscriptionId = subData?.id;
+
+      if (!paddleCustomerId || !paddleSubscriptionId) {
+        console.warn(
+          `⚠️ [Paddle Webhook] subscription.resumed missing required fields:`,
+          { paddleCustomerId, paddleSubscriptionId },
+        );
+        return res
+          .status(200)
+          .json({ skipped: true, reason: "missing_subscription_data" });
+      }
+
+      const currentPeriodEnd = subData?.currentBillingPeriod?.endsAt
+        ? new Date(subData.currentBillingPeriod.endsAt)
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
       console.log(`▶️ [Paddle Webhook] subscription.resumed:`, {
@@ -394,14 +487,11 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     }
 
     // 💳 transaction.completed - Paiement réussi
-    if (
-      eventType === EventName.TransactionCompleted ||
-      eventType === "transaction.completed"
-    ) {
+    if (eventType === EventName.TransactionCompleted) {
       console.log(`💳 [Paddle Webhook] transaction.completed:`, {
-        transactionId: data?.id,
-        subscriptionId: data?.subscriptionId,
-        status: data?.status,
+        transactionId: txnData?.id,
+        subscriptionId: txnData?.subscriptionId,
+        status: txnData?.status,
       });
 
       // Juste logger, la subscription.activated gère l'activation
@@ -417,14 +507,12 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     }
 
     // ❌ transaction.payment_failed - Paiement échoué
-    if (
-      eventType === EventName.TransactionPaymentFailed ||
-      eventType === "transaction.payment_failed"
-    ) {
+    if (eventType === EventName.TransactionPaymentFailed) {
+      const firstPayment = txnData?.payments?.[0];
       console.log(`❌ [Paddle Webhook] transaction.payment_failed:`, {
-        transactionId: data?.id,
-        subscriptionId: data?.subscriptionId,
-        errorCode: data?.payments?.[0]?.errorCode,
+        transactionId: txnData?.id,
+        subscriptionId: txnData?.subscriptionId,
+        errorCode: firstPayment?.errorCode,
       });
 
       // TODO: Envoyer email "Problème de paiement"
@@ -450,8 +538,9 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     }
 
     return res.status(200).json({ received: true, unhandled: eventType });
-  } catch (err: any) {
-    console.error("[Paddle Webhook] ❌ Erreur:", err?.message || err);
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error("[Paddle Webhook] ❌ Erreur:", errorMessage);
     return res.status(500).json({ error: "Webhook error" });
   }
 };

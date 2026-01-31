@@ -6,6 +6,38 @@
 import { prisma } from "../../lib/prisma.js";
 import { SecureLogger } from "../../middlewares/secureLogging.js";
 import { retryPrismaTransaction } from "../../lib/retryWithBackoff.js";
+import type { QuizPreset, LyceeSpecialty } from "../quiz/types.js";
+import type { Prisma } from "@prisma/client";
+
+/**
+ * Subject data structure for quiz sequences (JSON-compatible for Prisma)
+ * Represents a single subject entry in the sequence
+ */
+export type SequenceSubjectData = Record<string, unknown>;
+
+/**
+ * Metadata structure for quiz sequences (JSON-compatible for Prisma)
+ */
+export type SequenceMetadata = Record<string, unknown>;
+
+/**
+ * Metadata for quiz usage records (JSON-compatible for Prisma)
+ */
+export type QuizUsageMetadata = Record<string, unknown>;
+
+/**
+ * Helper to cast to Prisma InputJsonValue
+ */
+function toJsonValue<T>(value: T): Prisma.InputJsonValue {
+  return value as unknown as Prisma.InputJsonValue;
+}
+
+/**
+ * Helper to cast string array to LyceeSpecialty array
+ */
+function toLyceeSpecialties(values: string[] | undefined): LyceeSpecialty[] {
+  return (values ?? []) as LyceeSpecialty[];
+}
 
 export interface QuizLimitResult {
   success: boolean;
@@ -379,12 +411,12 @@ export class QuizLimitsService {
     userId: string,
     preset: string,
     sequenceData: {
-      subjects: any[];
+      subjects: SequenceSubjectData[];
       totalSubjects: number;
       specialties?: string[];
       higherEdField?: string;
       workspaceIds: string[];
-      metadata: any;
+      metadata: SequenceMetadata;
     },
   ): Promise<{ success: boolean; sequenceId?: string; message: string }> {
     SecureLogger.debug(`🚀 [QUIZ-LIMITS] Démarrage séquence preset`, {
@@ -417,14 +449,14 @@ export class QuizLimitsService {
               const newSequence = await tx.quizSequence.create({
                 data: {
                   userId,
-                  preset: preset as any,
+                  preset: preset as QuizPreset,
                   totalSubjects: sequenceData.totalSubjects,
-                  subjects: sequenceData.subjects,
+                  subjects: toJsonValue(sequenceData.subjects),
                   subjectResults: [],
-                  specialties: (sequenceData.specialties || []) as any[],
+                  specialties: toLyceeSpecialties(sequenceData.specialties),
                   higherEdField: sequenceData.higherEdField,
                   workspaceIds: sequenceData.workspaceIds,
-                  metadata: sequenceData.metadata,
+                  metadata: toJsonValue(sequenceData.metadata),
                 },
               });
 
@@ -770,7 +802,7 @@ export class QuizLimitsService {
     userId: string,
     resourceType: string,
     quantity: number,
-    metadata: any = {},
+    metadata: QuizUsageMetadata = {},
   ): Promise<void> {
     try {
       await prisma.usageRecord.create({
@@ -779,7 +811,7 @@ export class QuizLimitsService {
           resourceType,
           action: quantity > 0 ? "quiz_creation" : "quiz_refund",
           quantity,
-          metadata,
+          metadata: toJsonValue(metadata),
         },
       });
     } catch (error) {

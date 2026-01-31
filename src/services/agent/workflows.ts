@@ -78,7 +78,15 @@ const MODELS = {
 // HELPER: Extract tool output
 // ============================================================================
 
-function extractToolOutput(toolResults: any[] | undefined): string {
+/**
+ * Represents a tool result item from AI SDK step results
+ */
+interface ToolResultItem {
+  output?: unknown;
+  result?: unknown;
+}
+
+function extractToolOutput(toolResults: ToolResultItem[] | undefined): string {
   if (!toolResults || toolResults.length === 0) return "";
 
   return toolResults
@@ -121,12 +129,13 @@ async function parallelSearch(
         );
 
         if (result && "answer" in result && result.answer) {
+          const sources = result.sources as
+            | Array<{ title: string; url: string; content?: string }>
+            | undefined;
           const content =
             result.answer +
             "\n\nSources:\n" +
-            (result.sources || [])
-              .map((s: any) => `- ${s.title}: ${s.url}`)
-              .join("\n");
+            (sources || []).map((s) => `- ${s.title}: ${s.url}`).join("\n");
 
           return {
             source: "web" as const,
@@ -193,8 +202,15 @@ async function parallelSearch(
           );
 
           if (result && "chunks" in result && result.chunks?.length > 0) {
-            const content = result.chunks
-              .map((c: any) => `[${c.source?.title || "Source"}]\n${c.content}`)
+            const chunks = result.chunks as Array<{
+              content: string;
+              source?: { id: string; title: string; type: string };
+              similarity: number;
+              section?: string;
+              page?: number;
+            }>;
+            const content = chunks
+              .map((c) => `[${c.source?.title || "Source"}]\n${c.content}`)
               .join("\n\n---\n\n");
 
             return {
@@ -842,7 +858,14 @@ export async function runQuickContentWorkflow(
       );
 
       if (result && "chunks" in result && result.chunks?.length > 0) {
-        researchContext = result.chunks.map((c: any) => c.content).join("\n\n");
+        const chunks = result.chunks as Array<{
+          content: string;
+          source?: { id: string; title: string; type: string };
+          similarity: number;
+          section?: string;
+          page?: number;
+        }>;
+        researchContext = chunks.map((c) => c.content).join("\n\n");
       }
     } catch (e) {
       console.error("Quick research failed:", e);
