@@ -3,6 +3,7 @@ import {
   QuizGenerationRequest,
   GeneratedQuiz,
   WorkspaceAnalysisResult,
+  Question,
 } from "../types.js";
 import { PromptUtils } from "../utils/promptUtils.js";
 import { JsonUtils } from "../utils/jsonUtils.js";
@@ -20,24 +21,82 @@ import { PARTIELS_CONFIG } from "../presets/partiels/index.js";
 import { BAC_CONFIG } from "../presets/bac/index.js";
 import { BREVET_CONFIG } from "../presets/brevet/index.js";
 
+// Interface pour une option QCM
+interface QuizOption {
+  id: string;
+  text: string;
+  isCorrect?: boolean;
+}
+
+// Interface pour un élément de matching
+interface MatchingItem {
+  id: string;
+  text: string;
+}
+
+// Interface pour une question brute de l'IA
+interface QuizQuestionFromAI {
+  id?: string;
+  type: string;
+  question: string;
+  options?: QuizOption[];
+  leftColumn?: MatchingItem[];
+  rightColumn?: MatchingItem[];
+  points?: number;
+  difficulty?: string;
+  timeEstimate?: number;
+  category?: string;
+  hasGraphic?: boolean;
+  graphicConfig?: Record<string, unknown>;
+  graphicType?: string;
+  graphicLibrary?: string;
+  graphicDescription?: string;
+  graphicDataValues?: number[];
+  htmlContainer?: string;
+  [key: string]: unknown;
+}
+
 // Interface pour le résultat JSON du quiz généré par l'IA
 interface QuizDataFromAI {
   title?: string;
   aiGeneratedTitle?: string;
   description?: string;
-  questions: Array<{
-    id?: string;
-    type: string;
-    question: string;
-    options?: Array<{ id: string; text: string; isCorrect?: boolean }>;
-    leftColumn?: Array<{ id: string; text: string }>;
-    rightColumn?: Array<{ id: string; text: string }>;
-    points?: number;
-    difficulty?: string;
-    timeEstimate?: number;
-    category?: string;
-    [key: string]: unknown;
-  }>;
+  questions: QuizQuestionFromAI[];
+}
+
+// Interface pour la configuration graphique d'une matière
+interface SubjectGraphicConfiguration {
+  enableAIGraphics: boolean;
+  graphicProbability: number;
+  preferredLibrary: "auto" | "apexcharts" | "plotly";
+}
+
+// Interface pour le mapping des topics par matière
+interface TopicMapping {
+  [pattern: string]: string;
+}
+
+// Interface pour le résumé de contenu workspace
+interface WorkspaceContentSummary {
+  workspace: string;
+  topics: string;
+  content: string;
+}
+
+// Interface pour la configuration documentaire
+interface DocumentConfiguration {
+  enableDocuments: boolean;
+  documentTopics: string[];
+  documentRatio: number;
+  minDocumentLength: number;
+  maxDocuments: number;
+}
+
+// Interface pour la configuration graphique générale
+interface GraphicConfiguration {
+  enableGraphics: boolean;
+  probability?: number;
+  preferredLibrary?: "auto" | "apexcharts" | "plotly";
 }
 
 /**
@@ -153,8 +212,10 @@ export class QuizGenerator {
   /**
    * Obtient la configuration graphique pour une matière donnée
    */
-  private static getGraphicConfigForSubject(subject: string): any {
-    const configs: any = {
+  private static getGraphicConfigForSubject(
+    subject: string,
+  ): SubjectGraphicConfiguration {
+    const configs: Record<string, SubjectGraphicConfiguration> = {
       Physique: {
         enableAIGraphics: true,
         graphicProbability: 0.7,
@@ -190,10 +251,10 @@ export class QuizGenerator {
    * Enrichit les questions avec des graphiques générés par l'IA
    */
   private static async enrichQuestionsWithGraphics(
-    questions: any[],
+    questions: QuizQuestionFromAI[],
     subject: string,
     level: string,
-  ): Promise<any[]> {
+  ): Promise<QuizQuestionFromAI[]> {
     console.log(
       `🎨 [GRAPHICS] Enrichissement des questions pour ${subject} niveau ${level}`,
     );
@@ -266,7 +327,7 @@ export class QuizGenerator {
     const lowerText = questionText.toLowerCase();
 
     // Mapping de mots-clés vers des topics spécifiques
-    const topicMappings: any = {
+    const topicMappings: Record<string, TopicMapping> = {
       Physique: {
         "oscillation|sinusoïd|périod|fréquence|amplitude": "oscillations",
         "position|vitesse|accélération|mouvement|cinématique": "cinématique",
@@ -295,7 +356,7 @@ export class QuizGenerator {
       },
     };
 
-    const subjectMappings = topicMappings[subject] || {};
+    const subjectMappings: TopicMapping = topicMappings[subject] || {};
 
     for (const [pattern, topic] of Object.entries(subjectMappings)) {
       const regex = new RegExp(pattern, "i");
@@ -553,7 +614,7 @@ IMPORTANT pour le titre IA :
       // Validation et normalisation des questions
       // Pour les quiz personnalisés (NONE), toutes les questions valent 1 point
       normalizedQuizData.questions = normalizedQuizData.questions.map(
-        (q: any, index: number) => {
+        (q: QuizQuestionFromAI, index: number) => {
           // Supprimer les doublons dans les QCM
           if (q.type === "MULTIPLE_CHOICE" && q.options) {
             q.options = this.removeDuplicateOptions(
@@ -564,16 +625,20 @@ IMPORTANT pour le titre IA :
 
           // Supprimer les doublons dans les questions de matching
           if (q.type === "MATCHING") {
-            q.leftColumn = this.removeDuplicateMatchingItems(
-              q.leftColumn,
-              "leftColumn",
-              q.id || `Q${index + 1}`,
-            );
-            q.rightColumn = this.removeDuplicateMatchingItems(
-              q.rightColumn,
-              "rightColumn",
-              q.id || `Q${index + 1}`,
-            );
+            if (q.leftColumn) {
+              q.leftColumn = this.removeDuplicateMatchingItems(
+                q.leftColumn,
+                "leftColumn",
+                q.id || `Q${index + 1}`,
+              );
+            }
+            if (q.rightColumn) {
+              q.rightColumn = this.removeDuplicateMatchingItems(
+                q.rightColumn,
+                "rightColumn",
+                q.id || `Q${index + 1}`,
+              );
+            }
           }
 
           return {
@@ -602,17 +667,20 @@ IMPORTANT pour le titre IA :
         aiGeneratedTitle: normalizedQuizData.aiGeneratedTitle, // ✅ Titre généré par l'IA
         description: normalizedQuizData.description,
         schoolLevel: request.schoolLevel,
-        questions: normalizedQuizData.questions.map((q: any) => ({
-          ...q,
-          id: q.id || `q_${Date.now()}_${Math.random()}`,
-        })),
+        questions: normalizedQuizData.questions.map(
+          (q: QuizQuestionFromAI) => ({
+            ...q,
+            id: q.id || `q_${Date.now()}_${Math.random()}`,
+          }),
+        ) as Question[],
         totalPoints: normalizedQuizData.questions.reduce(
-          (sum: number, q: any) => sum + (q.points || 1),
+          (sum: number, q: QuizQuestionFromAI) => sum + (q.points || 1),
           0,
         ),
         estimatedTime: Math.ceil(
           normalizedQuizData.questions.reduce(
-            (sum: number, q: any) => sum + (q.timeEstimate || 60),
+            (sum: number, q: QuizQuestionFromAI) =>
+              sum + (q.timeEstimate || 60),
             0,
           ) / 60,
         ),
@@ -639,7 +707,7 @@ IMPORTANT pour le titre IA :
   private static getSubjectDisplayName(request: QuizGenerationRequest): string {
     if (request.specificSubject) {
       // Mapper les ExamSubject vers des noms lisibles
-      const subjectNames: any = {
+      const subjectNames: Record<string, string> = {
         FRANCAIS: "Français",
         MATHEMATIQUES: "Mathématiques",
         HISTOIRE_GEOGRAPHIE_EMC: "Histoire-Géographie",
@@ -863,17 +931,18 @@ IMPORTANT pour le titre IA :
         aiGeneratedTitle: quizData.aiGeneratedTitle, // ✅ Titre workspace généré par l'IA
         description: quizData.description,
         schoolLevel: request.schoolLevel,
-        questions: quizData.questions.map((q: any) => ({
+        questions: quizData.questions.map((q: QuizQuestionFromAI) => ({
           ...q,
           id: q.id || `q_${Date.now()}_${Math.random()}`,
-        })),
+        })) as Question[],
         totalPoints: quizData.questions.reduce(
-          (sum: number, q: any) => sum + (q.points || 1),
+          (sum: number, q: QuizQuestionFromAI) => sum + (q.points || 1),
           0,
         ),
         estimatedTime: Math.ceil(
           quizData.questions.reduce(
-            (sum: number, q: any) => sum + (q.timeEstimate || 60),
+            (sum: number, q: QuizQuestionFromAI) =>
+              sum + (q.timeEstimate || 60),
             0,
           ) / 60,
         ),
@@ -898,10 +967,10 @@ IMPORTANT pour le titre IA :
    * Détecte la matière principale à partir du contenu des workspaces
    */
   private static detectSubjectFromWorkspaceContent(
-    contentSummary: any[],
+    contentSummary: WorkspaceContentSummary[],
   ): string {
     // Analyse des topics et contenus pour détecter la matière dominante
-    const subjectKeywords: any = {
+    const subjectKeywords: Record<string, string[]> = {
       Physique: [
         "physique",
         "force",
@@ -994,7 +1063,7 @@ IMPORTANT pour le titre IA :
       ],
     };
 
-    const subjectScores: any = {};
+    const subjectScores: Record<string, number> = {};
 
     // Initialiser les scores
     Object.keys(subjectKeywords).forEach((subject) => {
@@ -1033,39 +1102,56 @@ IMPORTANT pour le titre IA :
   }
 
   /**
+   * Type guard pour vérifier si une valeur est une question valide
+   */
+  private static isValidQuestion(value: unknown): value is QuizQuestionFromAI {
+    return (
+      typeof value === "object" &&
+      value !== null &&
+      "id" in value &&
+      "type" in value &&
+      "question" in value
+    );
+  }
+
+  /**
    * Normalise les données du quiz selon différents formats de réponse IA
    */
-  private static normalizeQuizData(quizData: any): any {
-    if (!quizData.questions) {
+  private static normalizeQuizData(quizData: unknown): QuizDataFromAI {
+    // Si c'est un tableau, c'est un tableau de questions
+    if (Array.isArray(quizData)) {
+      console.log("🔧 Détection tableau de questions, normalisation...");
+      return {
+        title: "Quiz généré",
+        description: "",
+        questions: quizData as QuizQuestionFromAI[],
+      };
+    }
+
+    // Si ce n'est pas un objet, erreur
+    if (typeof quizData !== "object" || quizData === null) {
+      throw new Error("Format de réponse IA non reconnu - données invalides");
+    }
+
+    const data = quizData as Record<string, unknown>;
+
+    if (!data.questions) {
       // Cas 1 : L'IA a retourné directement une question unique
-      if (quizData.id && quizData.type && quizData.question) {
+      if (this.isValidQuestion(data)) {
         console.log("🔧 Détection question unique, normalisation...");
         return {
           title: "Quiz généré",
           description: "",
-          questions: [quizData],
+          questions: [data as QuizQuestionFromAI],
         };
       }
-      // Cas 2 : L'IA a retourné un tableau de questions directement
-      else if (Array.isArray(quizData)) {
-        console.log("🔧 Détection tableau de questions, normalisation...");
-        return {
-          title: "Quiz généré",
-          description: "",
-          questions: quizData,
-        };
-      }
-      // Cas 3 : Format inattendu, tentative de récupération
+      // Cas 2 : Format inattendu, tentative de récupération
       else {
         console.log("🔧 Format inattendu, tentative de récupération...");
         // Vérifier s'il y a des propriétés qui ressemblent à des questions
-        const possibleQuestions = Object.values(quizData).filter(
-          (value: any) =>
-            value &&
-            typeof value === "object" &&
-            value.id &&
-            value.type &&
-            value.question,
+        const possibleQuestions = Object.values(data).filter(
+          (value: unknown): value is QuizQuestionFromAI =>
+            this.isValidQuestion(value),
         );
 
         if (possibleQuestions.length > 0) {
@@ -1083,7 +1169,7 @@ IMPORTANT pour le titre IA :
     }
 
     // Sécurisation du champ questions
-    if (!quizData.questions || !Array.isArray(quizData.questions)) {
+    if (!Array.isArray(data.questions)) {
       console.error(
         "❌ Le champ questions est manquant ou mal formé dans la réponse IA:",
         quizData,
@@ -1093,13 +1179,24 @@ IMPORTANT pour le titre IA :
       );
     }
 
-    return quizData;
+    return {
+      title: typeof data.title === "string" ? data.title : undefined,
+      aiGeneratedTitle:
+        typeof data.aiGeneratedTitle === "string"
+          ? data.aiGeneratedTitle
+          : undefined,
+      description:
+        typeof data.description === "string" ? data.description : undefined,
+      questions: data.questions as QuizQuestionFromAI[],
+    };
   }
 
   /**
    * Obtient la configuration documentaire pour une requête donnée
    */
-  private static getDocumentConfig(request: QuizGenerationRequest): any {
+  private static getDocumentConfig(
+    request: QuizGenerationRequest,
+  ): DocumentConfiguration | null {
     if (!request.preset) return null;
 
     // NOUVEAU : Utiliser d'abord la configuration dynamique si disponible
@@ -1121,7 +1218,7 @@ IMPORTANT pour le titre IA :
         if (filiereConfig) {
           return {
             enableDocuments: filiereConfig.enableDocuments || false,
-            documentTopics: filiereConfig.documentTopics || [],
+            documentTopics: [...(filiereConfig.documentTopics || [])],
             documentRatio: filiereConfig.documentRatio || 0,
             minDocumentLength: filiereConfig.minDocumentLength || 300,
             maxDocuments: filiereConfig.maxDocuments || 1,
@@ -1148,7 +1245,7 @@ IMPORTANT pour le titre IA :
           const philo = BAC_CONFIG.troncCommun[0];
           return {
             enableDocuments: philo.enableDocuments || false,
-            documentTopics: philo.documentTopics || [],
+            documentTopics: [...(philo.documentTopics || [])],
             documentRatio: philo.documentRatio || 0,
             minDocumentLength: philo.minDocumentLength || 300,
             maxDocuments: philo.maxDocuments || 1,
@@ -1177,7 +1274,7 @@ IMPORTANT pour le titre IA :
             if (specialtyConfig.subject === currentSubject) {
               return {
                 enableDocuments: specialtyConfig.enableDocuments || false,
-                documentTopics: specialtyConfig.documentTopics || [],
+                documentTopics: [...(specialtyConfig.documentTopics || [])],
                 documentRatio: specialtyConfig.documentRatio || 0,
                 minDocumentLength: specialtyConfig.minDocumentLength || 300,
                 maxDocuments: specialtyConfig.maxDocuments || 1,
@@ -1195,7 +1292,7 @@ IMPORTANT pour le titre IA :
         if (subjectConfig) {
           return {
             enableDocuments: subjectConfig.enableDocuments || false,
-            documentTopics: subjectConfig.documentTopics || [],
+            documentTopics: [...(subjectConfig.documentTopics || [])],
             documentRatio: subjectConfig.documentRatio || 0,
             minDocumentLength: subjectConfig.minDocumentLength || 300,
             maxDocuments: subjectConfig.maxDocuments || 1,
@@ -1245,7 +1342,9 @@ IMPORTANT pour le titre IA :
   /**
    * Obtient la configuration graphique pour une requête donnée
    */
-  private static getGraphicConfig(request: QuizGenerationRequest): any {
+  private static getGraphicConfig(
+    request: QuizGenerationRequest,
+  ): GraphicConfiguration | null {
     if (!request.preset) return null;
 
     try {
@@ -1253,7 +1352,7 @@ IMPORTANT pour le titre IA :
       console.log(`🎨 [GRAPHIC-CONFIG] Analyse matière: ${subjectName}`);
 
       // Configuration par matière pour les graphiques
-      const graphicConfigs: { [key: string]: any } = {
+      const graphicConfigs: Record<string, GraphicConfiguration> = {
         // Matières scientifiques avec graphiques
         Physique: {
           enableGraphics: true,
@@ -1349,13 +1448,13 @@ IMPORTANT pour le titre IA :
    * Supprime les options en doublon dans les QCM
    */
   private static removeDuplicateOptions(
-    options: any[],
+    options: QuizOption[],
     questionId: string,
-  ): any[] {
+  ): QuizOption[] {
     if (!options || options.length === 0) return options;
 
     const seen = new Set<string>();
-    const uniqueOptions: any[] = [];
+    const uniqueOptions: QuizOption[] = [];
     let duplicatesFound = false;
 
     for (const option of options) {
@@ -1386,14 +1485,14 @@ IMPORTANT pour le titre IA :
    * Supprime les éléments en doublon dans les colonnes de matching
    */
   private static removeDuplicateMatchingItems(
-    items: any[],
+    items: MatchingItem[],
     columnName: string,
     questionId: string,
-  ): any[] {
+  ): MatchingItem[] {
     if (!items || items.length === 0) return items;
 
     const seen = new Set<string>();
-    const uniqueItems: any[] = [];
+    const uniqueItems: MatchingItem[] = [];
     let duplicatesFound = false;
 
     for (const item of items) {

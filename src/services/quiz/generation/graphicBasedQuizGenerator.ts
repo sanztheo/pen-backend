@@ -21,6 +21,78 @@ export interface GraphicBasedQuizMetadata {
   totalQuestions: number;
 }
 
+// Configuration par matière pour les graphiques
+interface SubjectGraphicMappingConfig {
+  topics: string[];
+  probability: number;
+  preferredLibrary: string;
+}
+
+// Structure d'une question parsée depuis le JSON de l'IA
+interface ParsedQuestionData {
+  id: string;
+  question: string;
+  type: string;
+  difficulty: string;
+  options: Array<{
+    id: string;
+    text: string;
+    isCorrect: boolean;
+  }>;
+  points: number;
+  hasGraphic?: boolean;
+  graphicId?: string;
+  graphicLibrary?: string;
+  graphicType?: string;
+  graphicDescription?: string;
+  graphicConfig?: Record<string, unknown>;
+  graphicDataValues?: number[];
+}
+
+// Configuration de graphique simplifiée pour l'IA
+interface SimplifiedGraphicConfig {
+  type?: string;
+  message?: string;
+  chart?: unknown;
+  series?: unknown;
+  data?: unknown;
+  xaxis?: unknown;
+  yaxis?: unknown;
+  zaxis?: unknown;
+  title?: unknown;
+  colors?: unknown;
+  layout?: unknown;
+}
+
+/**
+ * Convertit ParsedQuestionData en Question (type union)
+ */
+function convertParsedToQuestion(parsed: ParsedQuestionData): Question {
+  const baseQuestion = {
+    id: parsed.id,
+    question: parsed.question,
+    difficulty: parsed.difficulty as "facile" | "moyen" | "difficile",
+    points: parsed.points,
+    hasGraphic: parsed.hasGraphic,
+    graphicId: parsed.graphicId,
+    graphicLibrary: parsed.graphicLibrary as
+      | "apexcharts"
+      | "plotly"
+      | undefined,
+    graphicType: parsed.graphicType,
+    graphicDescription: parsed.graphicDescription,
+    graphicConfig: parsed.graphicConfig,
+    graphicDataValues: parsed.graphicDataValues,
+  };
+
+  // Par défaut, traiter comme MULTIPLE_CHOICE (type le plus courant pour les quiz graphiques)
+  return {
+    ...baseQuestion,
+    type: QuestionType.MULTIPLE_CHOICE,
+    options: parsed.options,
+  };
+}
+
 // Re-export du type pour compatibilité
 export type GeneratedGraphic = GeneratedGraphicData;
 
@@ -176,7 +248,7 @@ export class GraphicBasedQuizGenerator {
    */
   private static async generateGraphicsFirst(
     subject: string,
-    config: any,
+    config: SubjectGraphicMappingConfig,
     level: string,
     count: number,
   ): Promise<GeneratedGraphic[]> {
@@ -324,9 +396,12 @@ ATTENTION CRITIQUE:
       });
 
       // Parser la réponse JSON (array de questions)
-      const questionsArray = this.parseQuestionsArrayJSON(
+      const parsedQuestions = this.parseQuestionsArrayJSON(
         response.content.trim(),
       );
+
+      // Convertir ParsedQuestionData[] en Question[]
+      const questionsArray = parsedQuestions.map(convertParsedToQuestion);
 
       console.log(
         `✅ [QUESTIONS-FROM-GRAPHICS] ${questionsArray.length} questions générées en une fois`,
@@ -349,7 +424,7 @@ ATTENTION CRITIQUE:
   /**
    * Parse le JSON de question de manière ultra-robuste avec récupération intelligente
    */
-  private static parseQuestionJSON(content: string): any {
+  private static parseQuestionJSON(content: string): ParsedQuestionData {
     try {
       // Nettoyer le contenu d'abord
       let cleanContent = content.trim();
@@ -433,7 +508,9 @@ ATTENTION CRITIQUE:
   /**
    * Tentative de récupération d'une question à partir du contenu brut
    */
-  private static recoverQuestionFromContent(content: string): any {
+  private static recoverQuestionFromContent(
+    content: string,
+  ): ParsedQuestionData {
     try {
       // Tentative 1 : Extraire le JSON principal entre accolades
       const mainJsonMatch = content.match(/\{[\s\S]*\}/);
@@ -612,7 +689,9 @@ CONTEXTE: ${graphic.questionContext}
   /**
    * Simplifie une configuration de graphique pour l'IA (évite les objets complexes)
    */
-  private static simplifyGraphicConfigForAI(config: any): any {
+  private static simplifyGraphicConfigForAI(
+    config: Record<string, unknown>,
+  ): SimplifiedGraphicConfig {
     try {
       // Faire une copie propre sans références circulaires
       const simplified = JSON.parse(JSON.stringify(config));
@@ -679,7 +758,9 @@ CONTEXTE: ${graphic.questionContext}
   /**
    * Parse un array JSON de questions de manière ultra-robuste avec multiple tentatives
    */
-  private static parseQuestionsArrayJSON(content: string): any[] {
+  private static parseQuestionsArrayJSON(
+    content: string,
+  ): ParsedQuestionData[] {
     console.log(
       `🔧 [PARSE-ARRAY] Tentative parsing array de ${content.length} caractères`,
     );
@@ -767,7 +848,9 @@ CONTEXTE: ${graphic.questionContext}
   /**
    * Récupération d'urgence des questions depuis un JSON cassé
    */
-  private static recoverQuestionsArrayFromContent(content: string): any[] {
+  private static recoverQuestionsArrayFromContent(
+    content: string,
+  ): ParsedQuestionData[] {
     try {
       // Tentative 1 : Extraire l'array principal avec nettoyage renforcé
       const arrayMatch = content.match(/\[[\s\S]*\]/);
@@ -791,7 +874,7 @@ CONTEXTE: ${graphic.questionContext}
     try {
       // Tentative 2 : Parser question par question individuellement
       console.log("🔧 Tentative récupération question par question...");
-      const questions: any[] = [];
+      const questions: ParsedQuestionData[] = [];
 
       // Chercher toutes les questions individuelles avec regex
       const questionMatches = [
@@ -913,10 +996,12 @@ CONTEXTE: ${graphic.questionContext}
   /**
    * Obtient la configuration graphique pour une matière
    */
-  private static getGraphicConfigForSubject(subject: string): any {
+  private static getGraphicConfigForSubject(
+    subject: string,
+  ): SubjectGraphicMappingConfig | null {
     // Normaliser le nom de la matière
     const normalizedSubject = this.normalizeSubjectName(subject);
-    return SUBJECT_GRAPHIC_MAPPING[normalizedSubject] || null;
+    return SUBJECT_GRAPHIC_MAPPING[normalizedSubject] ?? null;
   }
 
   /**
