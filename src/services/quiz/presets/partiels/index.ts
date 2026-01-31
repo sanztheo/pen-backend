@@ -1,15 +1,28 @@
-import { QuizGenerationRequest, SequentialQuizConfig, ExamSubject, QuizPreset, SchoolLevel, QuestionType } from '../../types.js';
-import { AIService } from '../../../ai/base.js';
+import {
+  QuizGenerationRequest,
+  SequentialQuizConfig,
+  ExamSubject,
+  QuizPreset,
+  SchoolLevel,
+  QuestionType,
+} from "../../types.js";
+import { AIService } from "../../../ai/base.js";
 
 // Filières d'études supérieures avec leurs matières principales
 export const PARTIELS_CONFIG = {
-  name: 'Partiels Études Supérieures',
+  name: "Partiels Études Supérieures",
   filieres: {
-    'Économie': {
-      subjects: ['Microéconomie', 'Macroéconomie', 'Économétrie', 'Statistiques', 'Mathématiques financières'],
+    Économie: {
+      subjects: [
+        "Microéconomie",
+        "Macroéconomie",
+        "Économétrie",
+        "Statistiques",
+        "Mathématiques financières",
+      ],
       duration: 180, // 3 heures par matière
       questionCount: 25,
-      description: 'Examens d\'économie niveau universitaire',
+      description: "Examens d'économie niveau universitaire",
       enableDocuments: false, // Économie : matière technique sans besoin de documents
       documentTopics: [],
       documentRatio: 0,
@@ -17,36 +30,54 @@ export const PARTIELS_CONFIG = {
       maxDocuments: 1,
       enableGraphics: true,
       graphicProbability: 0.8,
-      preferredLibraries: ['apexcharts', 'plotly'],
-      graphicTypes: ['2d']
+      preferredLibraries: ["apexcharts", "plotly"],
+      graphicTypes: ["2d"],
     },
-    'Droit': {
-      subjects: ['Droit civil', 'Droit constitutionnel', 'Droit des affaires', 'Procédure', 'Droit fiscal'],
+    Droit: {
+      subjects: [
+        "Droit civil",
+        "Droit constitutionnel",
+        "Droit des affaires",
+        "Procédure",
+        "Droit fiscal",
+      ],
       duration: 240, // 4 heures par matière
       questionCount: 25,
-      description: 'Examens juridiques avec cas pratiques',
+      description: "Examens juridiques avec cas pratiques",
       enableDocuments: true,
-      documentTopics: ['droit', 'moderne'],
+      documentTopics: ["droit", "moderne"],
       documentRatio: 0.3, // 30% questions sur documents
       minDocumentLength: 100,
-      maxDocuments: 2
+      maxDocuments: 2,
     },
-    'Médecine': {
-      subjects: ['Anatomie', 'Physiologie', 'Pathologie', 'Pharmacologie', 'Sémiologie'],
+    Médecine: {
+      subjects: [
+        "Anatomie",
+        "Physiologie",
+        "Pathologie",
+        "Pharmacologie",
+        "Sémiologie",
+      ],
       duration: 120, // 2 heures par matière
       questionCount: 30,
-      description: 'QCM et questions cliniques',
+      description: "QCM et questions cliniques",
       enableDocuments: false, // Médecine : connaissances factuelles précises, pas d'analyse de documents
       documentTopics: [],
       documentRatio: 0,
       minDocumentLength: 100,
-      maxDocuments: 0
+      maxDocuments: 0,
     },
-    'Informatique': {
-      subjects: ['Algorithmique', 'Programmation', 'Base de données', 'Réseaux', 'Intelligence artificielle'],
+    Informatique: {
+      subjects: [
+        "Algorithmique",
+        "Programmation",
+        "Base de données",
+        "Réseaux",
+        "Intelligence artificielle",
+      ],
       duration: 180, // 3 heures par matière
       questionCount: 25,
-      description: 'Exercices pratiques et théoriques',
+      description: "Exercices pratiques et théoriques",
       enableDocuments: false, // Informatique : matière technique et pratique, pas d'analyse de documents
       documentTopics: [],
       documentRatio: 0,
@@ -54,58 +85,93 @@ export const PARTIELS_CONFIG = {
       maxDocuments: 0,
       enableGraphics: true,
       graphicProbability: 0.6,
-      preferredLibraries: ['apexcharts'],
-      graphicTypes: ['2d']
+      preferredLibraries: ["apexcharts"],
+      graphicTypes: ["2d"],
     },
-    'Psychologie': {
-      subjects: ['Psychologie cognitive', 'Psychologie sociale', 'Neuropsychologie', 'Statistiques', 'Méthodologie'],
+    Psychologie: {
+      subjects: [
+        "Psychologie cognitive",
+        "Psychologie sociale",
+        "Neuropsychologie",
+        "Statistiques",
+        "Méthodologie",
+      ],
       duration: 180, // 3 heures par matière
       questionCount: 25,
-      description: 'Études de cas et théories psychologiques',
+      description: "Études de cas et théories psychologiques",
       enableDocuments: false, // Psychologie : études empiriques et théories, pas d'analyse de documents Wikipedia
       documentTopics: [],
       documentRatio: 0,
       minDocumentLength: 100,
-      maxDocuments: 0
+      maxDocuments: 0,
     },
-    'Gestion': {
-      subjects: ['Management', 'Marketing', 'Finance', 'Comptabilité', 'Ressources humaines'],
+    Gestion: {
+      subjects: [
+        "Management",
+        "Marketing",
+        "Finance",
+        "Comptabilité",
+        "Ressources humaines",
+      ],
       duration: 180, // 3 heures par matière
       questionCount: 25,
-      description: 'Études de cas d\'entreprise',
+      description: "Études de cas d'entreprise",
       enableDocuments: false, // Gestion : matière pratique et cas d'entreprise, pas de documents
       documentTopics: [],
       documentRatio: 0,
       minDocumentLength: 100,
-      maxDocuments: 1
+      maxDocuments: 1,
     },
-    'Histoire': {
-      subjects: ['Histoire contemporaine', 'Méthodologie historique', 'Sources et archives', 'Historiographie'],
+    Histoire: {
+      subjects: [
+        "Histoire contemporaine",
+        "Méthodologie historique",
+        "Sources et archives",
+        "Historiographie",
+      ],
       duration: 240, // 4 heures par matière
       questionCount: 25,
-      description: 'Dissertations et commentaires de documents',
+      description: "Dissertations et commentaires de documents",
       enableDocuments: true,
-      documentTopics: ['histoire', 'moderne', 'revolution', 'guerre_conflits', 'antiquite'],
+      documentTopics: [
+        "histoire",
+        "moderne",
+        "revolution",
+        "guerre_conflits",
+        "antiquite",
+      ],
       documentRatio: 0.6, // 60% questions sur documents
       minDocumentLength: 100,
-      maxDocuments: 2
+      maxDocuments: 2,
     },
-    'Lettres': {
-      subjects: ['Littérature française', 'Littérature comparée', 'Linguistique', 'Grammaire', 'Stylistique'],
+    Lettres: {
+      subjects: [
+        "Littérature française",
+        "Littérature comparée",
+        "Linguistique",
+        "Grammaire",
+        "Stylistique",
+      ],
       duration: 240, // 4 heures par matière
       questionCount: 25,
-      description: 'Analyses littéraires et dissertations',
+      description: "Analyses littéraires et dissertations",
       enableDocuments: true,
-      documentTopics: ['litterature', 'arts', 'philosophie'],
+      documentTopics: ["litterature", "arts", "philosophie"],
       documentRatio: 0.5, // 50% questions sur documents
       minDocumentLength: 100,
-      maxDocuments: 2
+      maxDocuments: 2,
     },
-    'Sciences': {
-      subjects: ['Mathématiques', 'Physique', 'Chimie', 'Méthodes expérimentales', 'Modélisation'],
+    Sciences: {
+      subjects: [
+        "Mathématiques",
+        "Physique",
+        "Chimie",
+        "Méthodes expérimentales",
+        "Modélisation",
+      ],
       duration: 180, // 3 heures par matière
       questionCount: 25,
-      description: 'Exercices et problèmes scientifiques',
+      description: "Exercices et problèmes scientifiques",
       enableDocuments: false,
       documentTopics: [],
       documentRatio: 0,
@@ -113,26 +179,41 @@ export const PARTIELS_CONFIG = {
       maxDocuments: 0,
       enableGraphics: true,
       graphicProbability: 0.9,
-      preferredLibraries: ['apexcharts', 'plotly'],
-      graphicTypes: ['2d', '3d']
-    }
+      preferredLibraries: ["apexcharts", "plotly"],
+      graphicTypes: ["2d", "3d"],
+    },
   },
-  defaultQuestionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE, QuestionType.TRUE_FALSE],
-  passingGrade: 10
+  defaultQuestionTypes: [
+    QuestionType.OPEN_QUESTION,
+    QuestionType.MULTIPLE_CHOICE,
+    QuestionType.TRUE_FALSE,
+  ],
+  passingGrade: 10,
 } as const;
+
+// Type for subject configuration with document and graphic settings
+interface SubjectConfigEntry {
+  documentConfig: {
+    enableDocuments: boolean;
+    documentTopics: string[];
+    documentRatio: number;
+    minDocumentLength: number;
+    maxDocuments: number;
+  };
+  graphicConfig: {
+    enableGraphics: boolean;
+    graphicProbability: number;
+    preferredLibraries: ("apexcharts" | "plotly")[];
+    graphicTypes: ("2d" | "3d")[];
+  };
+}
 
 /**
  * Génère des matières pertinentes pour une filière d'études via l'IA avec configuration documentaire
  */
 async function generateSubjectsForField(higherEdField: string): Promise<{
   subjects: string[];
-  subjectsConfig: Record<string, {
-    enableDocuments: boolean;
-    documentTopics: string[];
-    documentRatio: number;
-    minDocumentLength: number;
-    maxDocuments: number;
-  }>;
+  subjectsConfig: Record<string, SubjectConfigEntry>;
 }> {
   const prompt = `
 Génère exactement 5 matières universitaires principales pour la filière d'études "${higherEdField}".
@@ -182,85 +263,103 @@ Filière à traiter: ${higherEdField}
 `;
 
   try {
-    console.log(`🎯 Génération de matières IA avec config documentaire pour: ${higherEdField}`);
-    
+    console.log(
+      `🎯 Génération de matières IA avec config documentaire pour: ${higherEdField}`,
+    );
+
     const response = await AIService.generateContent({
       prompt,
       maxTokens: 800,
-      temperature: 0.7
+      temperature: 0.7,
     });
 
     const content = response.content?.trim();
     if (!content) {
-      throw new Error('Réponse IA vide');
+      throw new Error("Réponse IA vide");
     }
 
     // Parser le JSON retourné par l'IA
     const parsed = JSON.parse(content);
-    
-    if (!parsed.subjects || !Array.isArray(parsed.subjects) || parsed.subjects.length !== 5) {
-      throw new Error('Format de réponse IA incorrect');
+
+    if (
+      !parsed.subjects ||
+      !Array.isArray(parsed.subjects) ||
+      parsed.subjects.length !== 5
+    ) {
+      throw new Error("Format de réponse IA incorrect");
     }
 
     // Transformer la configuration IA vers le format attendu
-    const subjectsConfig: Record<string, any> = {};
-    
+    const subjectsConfig: Record<string, SubjectConfigEntry> = {};
+
     for (const subject of parsed.subjects) {
       const subjectAiConfig = parsed.subjectsConfig?.[subject];
       const needsDocuments = subjectAiConfig?.needsDocuments || false;
       const needsGraphics = subjectAiConfig?.needsGraphics || false;
-      
+
       subjectsConfig[subject] = {
         documentConfig: {
           enableDocuments: needsDocuments,
-          documentTopics: needsDocuments ? ['histoire', 'philosophie', 'litterature', 'sciences'] : [],
+          documentTopics: needsDocuments
+            ? ["histoire", "philosophie", "litterature", "sciences"]
+            : [],
           documentRatio: needsDocuments ? 0.4 : 0,
           minDocumentLength: 100,
-          maxDocuments: needsDocuments ? 2 : 0
+          maxDocuments: needsDocuments ? 2 : 0,
         },
         graphicConfig: {
           enableGraphics: needsGraphics,
           graphicProbability: needsGraphics ? 0.5 : 0,
-          preferredLibraries: needsGraphics ? ['apexcharts', 'plotly'] : [],
-          graphicTypes: needsGraphics ? ['2d'] : []
-        }
+          preferredLibraries: needsGraphics ? ["apexcharts", "plotly"] : [],
+          graphicTypes: needsGraphics ? ["2d"] : [],
+        },
       };
     }
 
     console.log(`✅ Matières générées pour ${higherEdField}:`, parsed.subjects);
     console.log(`📄 Configuration complète:`, subjectsConfig);
-    
+
     return {
       subjects: parsed.subjects,
-      subjectsConfig
+      subjectsConfig,
     };
-    
   } catch (error) {
-    console.warn(`⚠️ Erreur génération matières IA pour ${higherEdField}:`, error);
-    
+    console.warn(
+      `⚠️ Erreur génération matières IA pour ${higherEdField}:`,
+      error,
+    );
+
     // Fallback vers des matières génériques SANS documents (sécurité)
     const fallbackSubjects = [
       `Fondamentaux de ${higherEdField}`,
-      `Méthodologie en ${higherEdField}`, 
+      `Méthodologie en ${higherEdField}`,
       `Applications pratiques`,
       `Recherche et innovation`,
-      `Projet de fin d'études`
+      `Projet de fin d'études`,
     ];
-    
-    const fallbackConfig: Record<string, any> = {};
-    fallbackSubjects.forEach(subject => {
+
+    const fallbackConfig: Record<string, SubjectConfigEntry> = {};
+    fallbackSubjects.forEach((subject) => {
       fallbackConfig[subject] = {
-        enableDocuments: false, // Sécurité : pas de documents par défaut
-        documentTopics: [],
-        documentRatio: 0,
-        minDocumentLength: 100,
-        maxDocuments: 0
+        documentConfig: {
+          enableDocuments: false, // Sécurité : pas de documents par défaut
+          documentTopics: [],
+          documentRatio: 0,
+          minDocumentLength: 100,
+          maxDocuments: 0,
+        },
+        graphicConfig: {
+          enableGraphics: false,
+          graphicProbability: 0,
+          preferredLibraries: [],
+          graphicTypes: [],
+        },
       };
     });
-    
+
     return {
       subjects: fallbackSubjects,
-      subjectsConfig: fallbackConfig
+      subjectsConfig: fallbackConfig,
     };
   }
 }
@@ -270,54 +369,81 @@ Filière à traiter: ${higherEdField}
  */
 export async function createPartielsSequentialConfig(
   userId: string,
-  higherEdField: string
+  higherEdField: string,
 ): Promise<SequentialQuizConfig> {
-  const filiereConfig = PARTIELS_CONFIG.filieres[higherEdField as keyof typeof PARTIELS_CONFIG.filieres];
-  
-  let config: any;
-  let subjectsConfig: Record<string, any> = {};
-  
+  const filiereConfig =
+    PARTIELS_CONFIG.filieres[
+      higherEdField as keyof typeof PARTIELS_CONFIG.filieres
+    ];
+
+  interface FiliereConfigType {
+    subjects: readonly string[];
+    duration: number;
+    questionCount: number;
+    description: string;
+  }
+
+  let config: FiliereConfigType;
+  let subjectsConfig: Record<string, SubjectConfigEntry> = {};
+
   if (filiereConfig) {
     // Filière prédéfinie : utiliser la configuration existante
-    console.log(`📚 Utilisation de la configuration prédéfinie pour: ${higherEdField}`);
+    console.log(
+      `📚 Utilisation de la configuration prédéfinie pour: ${higherEdField}`,
+    );
     config = filiereConfig;
-    
+
     // Pour les filières prédéfinies, créer la config pour chaque matière
-    filiereConfig.subjects.forEach(subject => {
+    // Type assertion for optional graphic properties
+    const filiereWithGraphics = filiereConfig as typeof filiereConfig & {
+      enableGraphics?: boolean;
+      graphicProbability?: number;
+      preferredLibraries?: readonly ("apexcharts" | "plotly")[];
+      graphicTypes?: readonly ("2d" | "3d")[];
+    };
+    filiereConfig.subjects.forEach((subject) => {
       subjectsConfig[subject] = {
         documentConfig: {
           enableDocuments: filiereConfig.enableDocuments,
-          documentTopics: filiereConfig.documentTopics,
+          documentTopics: [...filiereConfig.documentTopics],
           documentRatio: filiereConfig.documentRatio,
           minDocumentLength: filiereConfig.minDocumentLength,
-          maxDocuments: filiereConfig.maxDocuments
+          maxDocuments: filiereConfig.maxDocuments,
         },
         graphicConfig: {
-          enableGraphics: (filiereConfig as any).enableGraphics || false,
-          graphicProbability: (filiereConfig as any).graphicProbability || 0,
-          preferredLibraries: (filiereConfig as any).preferredLibraries || [],
-          graphicTypes: (filiereConfig as any).graphicTypes || []
-        }
+          enableGraphics: filiereWithGraphics.enableGraphics ?? false,
+          graphicProbability: filiereWithGraphics.graphicProbability ?? 0,
+          preferredLibraries: filiereWithGraphics.preferredLibraries
+            ? [...filiereWithGraphics.preferredLibraries]
+            : [],
+          graphicTypes: filiereWithGraphics.graphicTypes
+            ? [...filiereWithGraphics.graphicTypes]
+            : [],
+        },
       };
     });
   } else {
     // Filière personnalisée : générer les matières via IA avec configuration documentaire
-    console.log(`🤖 Génération IA des matières avec config documentaire pour: ${higherEdField}`);
+    console.log(
+      `🤖 Génération IA des matières avec config documentaire pour: ${higherEdField}`,
+    );
     const aiGenerated = await generateSubjectsForField(higherEdField);
-    
+
     config = {
       subjects: aiGenerated.subjects,
       duration: 180,
       questionCount: 25,
-      description: 'Examens universitaires'
+      description: "Examens universitaires",
     };
-    
+
     subjectsConfig = aiGenerated.subjectsConfig;
   }
 
   // Créer des sujets "génériques" pour chaque matière
-    const subjects: ExamSubject[] = config.subjects.map((subjectName: string) => mapSubjectNameToEnum(subjectName));
-  
+  const subjects: ExamSubject[] = config.subjects.map((subjectName: string) =>
+    mapSubjectNameToEnum(subjectName),
+  );
+
   return {
     id: `partiels_${userId}_${Date.now()}`,
     preset: QuizPreset.PARTIELS,
@@ -329,20 +455,20 @@ export async function createPartielsSequentialConfig(
     subjectResults: subjects.map((subject, index) => {
       const subjectName = config.subjects[index];
       const subjectConfig = subjectsConfig[subjectName] || {};
-      
+
       return {
         subject,
         isCompleted: false,
         subjectName,
         documentConfig: subjectConfig.documentConfig,
-        graphicConfig: subjectConfig.graphicConfig
+        graphicConfig: subjectConfig.graphicConfig,
       };
     }),
     metadata: {
       startedAt: new Date(),
       estimatedTotalTime: config.subjects.length * config.duration,
-      subjectsDocumentConfig: subjectsConfig // NOUVEAU : configuration documentaire globale
-    }
+      subjectsDocumentConfig: subjectsConfig, // NOUVEAU : configuration documentaire globale
+    },
   };
 }
 
@@ -352,26 +478,32 @@ export async function createPartielsSequentialConfig(
 export function generatePartielsSubjectRequest(
   config: SequentialQuizConfig,
   userId: string,
-  workspaceIds?: string[]
+  workspaceIds?: string[],
 ): QuizGenerationRequest {
   if (!config.higherEdField) {
-    throw new Error('Filière d\'études supérieures non spécifiée');
+    throw new Error("Filière d'études supérieures non spécifiée");
   }
 
-  const filiereConfig = PARTIELS_CONFIG.filieres[config.higherEdField as keyof typeof PARTIELS_CONFIG.filieres];
-  
+  const filiereConfig =
+    PARTIELS_CONFIG.filieres[
+      config.higherEdField as keyof typeof PARTIELS_CONFIG.filieres
+    ];
+
   // Utiliser la configuration prédéfinie ou une configuration générique
   const configToUse = filiereConfig || {
-    subjects: ['Partiel 1', 'Partiel 2', 'Partiel 3'],
+    subjects: ["Partiel 1", "Partiel 2", "Partiel 3"],
     duration: 180,
     questionCount: 20,
-    description: 'Examens universitaires'
+    description: "Examens universitaires",
   };
 
   // Utiliser le nom stocké dans subjectResults pour avoir le vrai nom de la matière
-  const currentSubjectResult = config.subjectResults[config.currentSubjectIndex];
-  const currentSubjectName = currentSubjectResult?.subjectName || configToUse.subjects[config.currentSubjectIndex];
-  
+  const currentSubjectResult =
+    config.subjectResults[config.currentSubjectIndex];
+  const currentSubjectName =
+    currentSubjectResult?.subjectName ||
+    configToUse.subjects[config.currentSubjectIndex];
+
   // Récupérer la configuration documentaire pour cette matière spécifique
   const subjectFullConfig = config.subjectResults[config.currentSubjectIndex];
   const documentConfig = subjectFullConfig?.documentConfig || {
@@ -379,18 +511,24 @@ export function generatePartielsSubjectRequest(
     documentTopics: [],
     documentRatio: 0,
     minDocumentLength: 100,
-    maxDocuments: 0
+    maxDocuments: 0,
   };
   const graphicConfig = subjectFullConfig?.graphicConfig || {
     enableGraphics: false,
     graphicProbability: 0,
     preferredLibraries: [],
-    graphicTypes: []
+    graphicTypes: [],
   };
-  
-  console.log(`📄 [DOCUMENTS] Configuration pour ${currentSubjectName}:`, documentConfig);
-  console.log(`📊 [GRAPHICS] Configuration pour ${currentSubjectName}:`, graphicConfig);
-  
+
+  console.log(
+    `📄 [DOCUMENTS] Configuration pour ${currentSubjectName}:`,
+    documentConfig,
+  );
+  console.log(
+    `📊 [GRAPHICS] Configuration pour ${currentSubjectName}:`,
+    graphicConfig,
+  );
+
   return {
     userId,
     schoolLevel: SchoolLevel.ETUDES_SUPERIEURES,
@@ -405,14 +543,17 @@ export function generatePartielsSubjectRequest(
     description: `${configToUse.description} - Durée: ${configToUse.duration} min - Matière: ${currentSubjectName}`,
     // NOUVEAU : Configuration documentaire dynamique par matière
     documentConfig,
-    graphicConfig
+    graphicConfig,
   };
 }
 
 /**
  * Génère les prompts spécialisés pour chaque filière des Partiels
  */
-export function getPartielsPrompt(higherEdField: string, subjectName: string): string {
+export function getPartielsPrompt(
+  higherEdField: string,
+  subjectName: string,
+): string {
   const baseContext = `
 Tu es un expert en conception d'examens partiels universitaires de niveau supérieur pour la filière ${higherEdField}.
 L'étudiant est en cursus universitaire (Licence/Master) dans la filière ${higherEdField}.
@@ -430,7 +571,10 @@ IMPORTANT : Génère des questions de niveau universitaire avec exigences acadé
 Matière évaluée : ${subjectName}
 `;
 
-  const filiereConfig = PARTIELS_CONFIG.filieres[higherEdField as keyof typeof PARTIELS_CONFIG.filieres];
+  const filiereConfig =
+    PARTIELS_CONFIG.filieres[
+      higherEdField as keyof typeof PARTIELS_CONFIG.filieres
+    ];
   if (!filiereConfig) {
     return `${baseContext}
 
@@ -451,7 +595,7 @@ Privilégie les questions ouvertes permettant la réflexion approfondie dans le 
   }
 
   switch (higherEdField.toLowerCase()) {
-    case 'économie':
+    case "économie":
       return `${baseContext}
 
 PARTIEL D'ÉCONOMIE - MATIÈRE: ${subjectName} (3h)
@@ -473,7 +617,7 @@ Génère des questions qui évaluent :
 
 Format : exercices techniques + questions de réflexion.`;
 
-    case 'droit':
+    case "droit":
       return `${baseContext}
 
 PARTIEL DE DROIT - MATIÈRE: ${subjectName} (4h)
@@ -495,7 +639,7 @@ Génère des questions qui évaluent :
 
 Format : cas pratiques + dissertations juridiques + QCM de cours.`;
 
-    case 'médecine':
+    case "médecine":
       return `${baseContext}
 
 PARTIEL DE MÉDECINE - MATIÈRE: ${subjectName} (2h)
@@ -517,7 +661,7 @@ Génère des questions qui évaluent :
 
 Format principalement QCM + quelques questions rédactionnelles courtes.`;
 
-    case 'informatique':
+    case "informatique":
       return `${baseContext}
 
 PARTIEL D'INFORMATIQUE - MATIÈRE: ${subjectName} (3h)
@@ -540,7 +684,7 @@ Génère des questions qui évaluent :
 
 Format : exercices pratiques + questions théoriques + analyse de code.`;
 
-    case 'psychologie':
+    case "psychologie":
       return `${baseContext}
 
 PARTIEL DE PSYCHOLOGIE - MATIÈRE: ${subjectName} (3h)
@@ -562,7 +706,7 @@ Génère des questions qui évaluent :
 
 Format : études de cas + analyses d'expériences + questions de cours.`;
 
-    case 'gestion':
+    case "gestion":
       return `${baseContext}
 
 PARTIEL DE GESTION - MATIÈRE: ${subjectName} (3h)
@@ -606,21 +750,27 @@ Privilégie les questions ouvertes permettant la réflexion approfondie.`;
  * Retourne le nom de la matière courante pour les partiels
  */
 export function getCurrentSubjectName(config: SequentialQuizConfig): string {
-  if (!config.higherEdField) return 'Matière inconnue';
-  
+  if (!config.higherEdField) return "Matière inconnue";
+
   // NOUVEAU : Utiliser d'abord le nom stocké dans subjectResults
-  const currentSubjectResult = config.subjectResults[config.currentSubjectIndex];
+  const currentSubjectResult =
+    config.subjectResults[config.currentSubjectIndex];
   if (currentSubjectResult && currentSubjectResult.subjectName) {
     return currentSubjectResult.subjectName;
   }
-  
+
   // Fallback vers l'ancienne méthode
-  const filiereConfig = PARTIELS_CONFIG.filieres[config.higherEdField as keyof typeof PARTIELS_CONFIG.filieres];
-  
+  const filiereConfig =
+    PARTIELS_CONFIG.filieres[
+      config.higherEdField as keyof typeof PARTIELS_CONFIG.filieres
+    ];
+
   if (filiereConfig) {
-    return filiereConfig.subjects[config.currentSubjectIndex] || 'Matière inconnue';
+    return (
+      filiereConfig.subjects[config.currentSubjectIndex] || "Matière inconnue"
+    );
   }
-  
+
   // Fallback final
   return `Matière ${config.currentSubjectIndex + 1}`;
 }
@@ -634,20 +784,26 @@ export function calculatePartielsGlobalScore(config: SequentialQuizConfig): {
   grade: number;
   mention?: string;
 } {
-  const totalScore = config.subjectResults.reduce((sum, result) => sum + (result.score || 0), 0);
-  const maxScore = config.subjectResults.reduce((sum, result) => sum + (result.maxScore || 0), 0);
+  const totalScore = config.subjectResults.reduce(
+    (sum, result) => sum + (result.score || 0),
+    0,
+  );
+  const maxScore = config.subjectResults.reduce(
+    (sum, result) => sum + (result.maxScore || 0),
+    0,
+  );
   const grade = maxScore > 0 ? (totalScore / maxScore) * 20 : 0;
-  
+
   let mention: string | undefined;
-  if (grade >= 16) mention = 'Très bien';
-  else if (grade >= 14) mention = 'Bien';
-  else if (grade >= 12) mention = 'Assez bien';
-  
+  if (grade >= 16) mention = "Très bien";
+  else if (grade >= 14) mention = "Bien";
+  else if (grade >= 12) mention = "Assez bien";
+
   return {
     totalScore,
     maxScore,
     grade: Math.round(grade * 100) / 100,
-    mention
+    mention,
   };
 }
 
@@ -667,4 +823,3 @@ function mapSubjectNameToEnum(subjectName: string): ExamSubject {
   // Cela évite de devoir migrer l'enum et de casser d'autres parties du code.
   return ExamSubject.GRAND_ORAL;
 }
- 

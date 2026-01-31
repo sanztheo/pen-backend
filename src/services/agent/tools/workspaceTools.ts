@@ -1,6 +1,7 @@
 // 📄 Workspace Tools - Vercel AI SDK Format
 import { tool } from "ai";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma.js";
 
 /**
@@ -9,6 +10,46 @@ import { prisma } from "../../../lib/prisma.js";
 interface WorkspaceToolsContext {
   userId: string;
   workspaceId: string;
+}
+
+/**
+ * BlockNote content item (text segment within a block)
+ */
+interface BlockNoteContentItem {
+  type?: string;
+  text?: string;
+  styles?: Record<string, unknown>;
+}
+
+/**
+ * BlockNote table row structure
+ */
+interface BlockNoteTableRow {
+  cells?: BlockNoteContentItem[][];
+}
+
+/**
+ * BlockNote table content structure
+ */
+interface BlockNoteTableContent {
+  rows?: BlockNoteTableRow[];
+}
+
+/**
+ * BlockNote block structure
+ */
+interface BlockNoteBlock {
+  id?: string;
+  type?: string;
+  content?: BlockNoteContentItem[] | BlockNoteTableContent;
+  props?: {
+    level?: number;
+    checked?: boolean;
+    language?: string;
+    caption?: string;
+    [key: string]: unknown;
+  };
+  children?: BlockNoteBlock[];
 }
 
 // Définition des schémas Zod pour chaque tool
@@ -62,7 +103,7 @@ Utile pour savoir quelles pages peuvent être référencées ou lues.`,
         );
 
         try {
-          const whereClause: any = {
+          const whereClause: Prisma.PageWhereInput = {
             workspaceId: ctx.workspaceId,
             isArchived: includeArchived ? undefined : false,
           };
@@ -262,7 +303,7 @@ Retourne les noms, IDs, et nombre de pages par projet.`,
 /**
  * Extrait le texte brut depuis un contenu BlockNote
  */
-function extractTextFromBlockNote(blocks: any[]): string {
+function extractTextFromBlockNote(blocks: BlockNoteBlock[]): string {
   const textParts: string[] = [];
 
   for (const block of blocks) {
@@ -276,8 +317,9 @@ function extractTextFromBlockNote(blocks: any[]): string {
       case "numberedListItem":
       case "checkListItem":
         if (block.content && Array.isArray(block.content)) {
-          const blockText = block.content
-            .map((item: any) => item?.text || "")
+          const contentItems = block.content as BlockNoteContentItem[];
+          const blockText = contentItems
+            .map((item) => item?.text || "")
             .filter(Boolean)
             .join("");
           if (blockText) {
@@ -300,9 +342,8 @@ function extractTextFromBlockNote(blocks: any[]): string {
 
       case "codeBlock":
         if (block.content && Array.isArray(block.content)) {
-          const code = block.content
-            .map((item: any) => item?.text || "")
-            .join("");
+          const codeItems = block.content as BlockNoteContentItem[];
+          const code = codeItems.map((item) => item?.text || "").join("");
           if (code) {
             const lang = block.props?.language || "";
             textParts.push("```" + lang + "\n" + code + "\n```");
@@ -312,12 +353,13 @@ function extractTextFromBlockNote(blocks: any[]): string {
 
       case "table":
         // Extraction basique des tables
-        if (block.content?.rows) {
-          for (const row of block.content.rows) {
+        const tableContent = block.content as BlockNoteTableContent | undefined;
+        if (tableContent?.rows) {
+          for (const row of tableContent.rows) {
             if (row.cells) {
-              const cellTexts = row.cells.map((cell: any) => {
+              const cellTexts = row.cells.map((cell) => {
                 if (Array.isArray(cell)) {
-                  return cell.map((item: any) => item?.text || "").join("");
+                  return cell.map((item) => item?.text || "").join("");
                 }
                 return "";
               });

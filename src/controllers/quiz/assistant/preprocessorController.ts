@@ -258,7 +258,18 @@ export class PreprocessorController {
               // Texte
               if (block?.type === "paragraph" && block?.content) {
                 const text = Array.isArray(block.content)
-                  ? block.content.map((item: any) => item?.text || "").join("")
+                  ? block.content
+                      .map((item: unknown) => {
+                        if (
+                          typeof item === "object" &&
+                          item !== null &&
+                          "text" in item
+                        ) {
+                          return String((item as { text: unknown }).text ?? "");
+                        }
+                        return "";
+                      })
+                      .join("")
                   : "";
                 allText += text + "\n";
               }
@@ -315,7 +326,18 @@ export class PreprocessorController {
                 if (block?.type === "paragraph" && block?.content) {
                   const text = Array.isArray(block.content)
                     ? block.content
-                        .map((item: any) => item?.text || "")
+                        .map((item: unknown) => {
+                          if (
+                            typeof item === "object" &&
+                            item !== null &&
+                            "text" in item
+                          ) {
+                            return String(
+                              (item as { text: unknown }).text ?? "",
+                            );
+                          }
+                          return "";
+                        })
                         .join("")
                     : "";
                   allText += text + "\n";

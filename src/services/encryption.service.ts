@@ -131,7 +131,7 @@ export class EncryptionService {
    * @param data - Objet à chiffrer
    * @returns Chaîne chiffrée ou null
    */
-  static encryptJSON(data: any | null | undefined): string | null {
+  static encryptJSON(data: unknown): string | null {
     if (!data) {
       return null;
     }
@@ -151,7 +151,7 @@ export class EncryptionService {
    * @param encrypted - Chaîne chiffrée, objet ou null
    * @returns Objet déchiffré ou null
    */
-  static decryptJSON<T = any>(encrypted: any): T | null {
+  static decryptJSON<T = unknown>(encrypted: unknown): T | null {
     // Cas 1 : null ou undefined
     if (!encrypted) {
       return null;

@@ -1,18 +1,19 @@
-import { Request, Response } from 'express';
-import { z } from 'zod';
-import { prisma } from '../lib/prisma.js';
+import { Request, Response } from "express";
+import { z } from "zod";
+import { Prisma } from "@prisma/client";
+import { prisma } from "../lib/prisma.js";
 
 // Schémas de validation
 const createProjectSchema = z.object({
-  workspaceId: z.string().uuid('ID workspace invalide'),
-  name: z.string().min(1, 'Le nom est requis').max(255),
-  description: z.string().optional()
+  workspaceId: z.string().uuid("ID workspace invalide"),
+  name: z.string().min(1, "Le nom est requis").max(255),
+  description: z.string().optional(),
 });
 
 const updateProjectSchema = z.object({
   name: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
-  settings: z.object({}).optional()
+  settings: z.object({}).optional(),
 });
 
 // Créer un projet
@@ -20,7 +21,7 @@ export const createProject = async (req: Request, res: Response) => {
   const startTime = Date.now(); // 🕐 DÉBUT
   try {
     if (!req.user) {
-      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+      return res.status(401).json({ error: "Utilisateur non authentifié" });
     }
 
     const validatedData = createProjectSchema.parse(req.body);
@@ -32,7 +33,7 @@ export const createProject = async (req: Request, res: Response) => {
     const [userLimits, workspace] = await Promise.all([
       // 1. Vérifier les limitations utilisateur
       prisma.userLimits.findUnique({
-        where: { userId }
+        where: { userId },
       }),
       // 2. Vérifier l'accès au workspace
       prisma.workspace.findFirst({
@@ -44,35 +45,43 @@ export const createProject = async (req: Request, res: Response) => {
               members: {
                 some: {
                   userId: req.user.id,
-                  isActive: true
-                }
-              }
-            }
-          ]
-        }
-      })
+                  isActive: true,
+                },
+              },
+            },
+          ],
+        },
+      }),
     ]);
-    console.log(`⏱️  [PERF] Queries parallèles projet: ${Date.now() - beforeValidations}ms`);
+    console.log(
+      `⏱️  [PERF] Queries parallèles projet: ${Date.now() - beforeValidations}ms`,
+    );
 
     // Validations après parallélisation
     if (!userLimits) {
-      return res.status(404).json({ error: 'Limitations utilisateur non trouvées' });
+      return res
+        .status(404)
+        .json({ error: "Limitations utilisateur non trouvées" });
     }
 
-    const canCreateProject = userLimits.projectsLimit === -1 || userLimits.projectsUsed < userLimits.projectsLimit;
+    const canCreateProject =
+      userLimits.projectsLimit === -1 ||
+      userLimits.projectsUsed < userLimits.projectsLimit;
     if (!canCreateProject) {
       return res.status(403).json({
-        error: 'Limite de projets atteinte',
+        error: "Limite de projets atteinte",
         message: `Vous avez atteint votre limite de ${userLimits.projectsLimit} projets. Passez à Premium pour créer des projets illimités.`,
         limits: {
           used: userLimits.projectsUsed,
-          limit: userLimits.projectsLimit
-        }
+          limit: userLimits.projectsLimit,
+        },
       });
     }
 
     if (!workspace) {
-      return res.status(404).json({ error: 'Workspace non trouvé ou accès refusé' });
+      return res
+        .status(404)
+        .json({ error: "Workspace non trouvé ou accès refusé" });
     }
 
     const beforeCreate = Date.now();
@@ -83,7 +92,7 @@ export const createProject = async (req: Request, res: Response) => {
         description: validatedData.description,
         workspaceId: validatedData.workspaceId,
         createdBy: req.user!.id,
-        parentId: null // Par défaut, les projets sont créés à la racine
+        parentId: null, // Par défaut, les projets sont créés à la racine
       },
       include: {
         owner: {
@@ -91,38 +100,40 @@ export const createProject = async (req: Request, res: Response) => {
             id: true,
             firstName: true,
             lastName: true,
-            email: true
-          }
+            email: true,
+          },
         },
         workspace: {
           select: {
             id: true,
-            name: true
-          }
+            name: true,
+          },
         },
         _count: {
           select: {
-            pages: true
-          }
-        }
-      }
+            pages: true,
+          },
+        },
+      },
     });
-    console.log(`⏱️  [PERF] Création projet DB: ${Date.now() - beforeCreate}ms`);
+    console.log(
+      `⏱️  [PERF] Création projet DB: ${Date.now() - beforeCreate}ms`,
+    );
 
     // 🚀 PHASE 1 OPTIMIZATION: Updates asynchrones (non-bloquant)
     Promise.all([
       // Incrémenter compteur utilisateur
       prisma.userLimits.update({
         where: { userId },
-        data: { projectsUsed: { increment: 1 } }
+        data: { projectsUsed: { increment: 1 } },
       }),
       // Mettre à jour activité workspace
       prisma.workspace.update({
         where: { id: validatedData.workspaceId },
-        data: { lastActivityAt: new Date() }
-      })
+        data: { lastActivityAt: new Date() },
+      }),
     ]).catch((error) => {
-      console.error('⚠️ [ASYNC] Erreur updates non-bloquants:', error);
+      console.error("⚠️ [ASYNC] Erreur updates non-bloquants:", error);
       // Ne pas bloquer la réponse, juste logger
     });
 
@@ -143,20 +154,19 @@ export const createProject = async (req: Request, res: Response) => {
 
     console.log(`⏱️  [PERF] TOTAL createProject: ${Date.now() - startTime}ms`);
     res.status(201).json({
-      message: 'Projet créé avec succès',
-      project
+      message: "Projet créé avec succès",
+      project,
     });
-
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
-        error: 'Données invalides',
-        details: error.errors
+        error: "Données invalides",
+        details: error.errors,
       });
     }
 
-    console.error('Erreur création projet:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error("Erreur création projet:", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
 
@@ -164,7 +174,7 @@ export const createProject = async (req: Request, res: Response) => {
 export const getWorkspaceProjects = async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+      return res.status(401).json({ error: "Utilisateur non authentifié" });
     }
 
     const { workspaceId } = req.params;
@@ -183,25 +193,27 @@ export const getWorkspaceProjects = async (req: Request, res: Response) => {
             members: {
               some: {
                 userId: req.user.id,
-                isActive: true
-              }
-            }
-          }
-        ]
-      }
+                isActive: true,
+              },
+            },
+          },
+        ],
+      },
     });
 
     if (!workspace) {
-      return res.status(404).json({ error: 'Workspace non trouvé ou accès refusé' });
+      return res
+        .status(404)
+        .json({ error: "Workspace non trouvé ou accès refusé" });
     }
 
     const projects = await prisma.project.findMany({
       where: {
         workspaceId,
-        isArchived: false
+        isArchived: false,
       },
       orderBy: {
-        lastActivityAt: 'desc'
+        lastActivityAt: "desc",
       },
       skip,
       take: limit,
@@ -215,36 +227,37 @@ export const getWorkspaceProjects = async (req: Request, res: Response) => {
             id: true,
             firstName: true,
             lastName: true,
-            email: true
-          }
+            email: true,
+          },
         },
         _count: {
           select: {
-            pages: true
-          }
-        }
-      }
+            pages: true,
+          },
+        },
+      },
     });
 
     res.json({ projects, pagination: { page, limit } });
-
   } catch (error) {
-    console.error('Erreur récupération projets:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error("Erreur récupération projets:", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
 
 // Récupérer un projet spécifique
 export const getProject = async (req: Request, res: Response) => {
   try {
-    console.log('🚀 [PROJECT-CTRL] Tentative de récupération de projet...');
+    console.log("🚀 [PROJECT-CTRL] Tentative de récupération de projet...");
     if (!req.user) {
-      console.error('❌ [PROJECT-CTRL] Échec: Utilisateur non authentifié.');
-      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+      console.error("❌ [PROJECT-CTRL] Échec: Utilisateur non authentifié.");
+      return res.status(401).json({ error: "Utilisateur non authentifié" });
     }
 
     const { id } = req.params;
-    console.log(`🔍 [PROJECT-CTRL] Recherche du projet avec ID: ${id} pour l'utilisateur: ${req.user.id}`);
+    console.log(
+      `🔍 [PROJECT-CTRL] Recherche du projet avec ID: ${id} pour l'utilisateur: ${req.user.id}`,
+    );
 
     // Vérifier l'accès via le workspace
     const project = await prisma.project.findFirst({
@@ -254,38 +267,49 @@ export const getProject = async (req: Request, res: Response) => {
         workspace: {
           OR: [
             { ownerId: req.user.id },
-            { members: { some: { userId: req.user.id, isActive: true } } }
-          ]
-        }
+            { members: { some: { userId: req.user.id, isActive: true } } },
+          ],
+        },
       },
       include: {
-        owner: { select: { id: true, firstName: true, lastName: true, email: true } },
+        owner: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
         workspace: { select: { id: true, name: true, ownerId: true } },
-        pages: { 
+        pages: {
           where: { isArchived: false },
-          orderBy: { position: 'asc' }
-        }
-      }
+          orderBy: { position: "asc" },
+        },
+      },
     });
 
     if (!project) {
-      console.warn(`⚠️ [PROJECT-CTRL] Projet non trouvé ou accès refusé pour ID: ${id}`);
-      return res.status(404).json({ error: 'Projet non trouvé ou accès refusé' });
+      console.warn(
+        `⚠️ [PROJECT-CTRL] Projet non trouvé ou accès refusé pour ID: ${id}`,
+      );
+      return res
+        .status(404)
+        .json({ error: "Projet non trouvé ou accès refusé" });
     }
 
     console.log(`✅ [PROJECT-CTRL] Projet trouvé: "${project.name}"`);
     res.json({ project });
-
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error('❌ [PROJECT-CTRL] Erreur de validation Zod:', error.errors);
+      console.error(
+        "❌ [PROJECT-CTRL] Erreur de validation Zod:",
+        error.errors,
+      );
       return res.status(400).json({
-        error: 'Données invalides',
-        details: error.errors
+        error: "Données invalides",
+        details: error.errors,
       });
     }
-    console.error('❌ [PROJECT-CTRL] Erreur interne lors de la récupération du projet:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error(
+      "❌ [PROJECT-CTRL] Erreur interne lors de la récupération du projet:",
+      error,
+    );
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
 
@@ -293,7 +317,7 @@ export const getProject = async (req: Request, res: Response) => {
 export const updateProject = async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+      return res.status(401).json({ error: "Utilisateur non authentifié" });
     }
 
     const { id } = req.params;
@@ -310,25 +334,27 @@ export const updateProject = async (req: Request, res: Response) => {
               members: {
                 some: {
                   userId: req.user.id,
-                  role: { in: ['owner', 'admin', 'member'] },
-                  isActive: true
-                }
-              }
-            }
-          ]
-        }
-      }
+                  role: { in: ["owner", "admin", "member"] },
+                  isActive: true,
+                },
+              },
+            },
+          ],
+        },
+      },
     });
 
     if (!project) {
-      return res.status(404).json({ error: 'Projet non trouvé ou permissions insuffisantes' });
+      return res
+        .status(404)
+        .json({ error: "Projet non trouvé ou permissions insuffisantes" });
     }
 
     const updatedProject = await prisma.project.update({
       where: { id },
       data: {
         ...validatedData,
-        lastActivityAt: new Date()
+        lastActivityAt: new Date(),
       },
       include: {
         owner: {
@@ -336,22 +362,22 @@ export const updateProject = async (req: Request, res: Response) => {
             id: true,
             firstName: true,
             lastName: true,
-            email: true
-          }
+            email: true,
+          },
         },
         workspace: {
           select: {
             id: true,
-            name: true
-          }
-        }
-      }
+            name: true,
+          },
+        },
+      },
     });
 
     // Mettre à jour l'activité du workspace
     await prisma.workspace.update({
       where: { id: project.workspaceId },
-      data: { lastActivityAt: new Date() }
+      data: { lastActivityAt: new Date() },
     });
 
     // ❌ LOGS D'ACTIVITÉ DÉSACTIVÉS pour économiser l'espace
@@ -370,20 +396,19 @@ export const updateProject = async (req: Request, res: Response) => {
     // });
 
     res.json({
-      message: 'Projet mis à jour avec succès',
-      project: updatedProject
+      message: "Projet mis à jour avec succès",
+      project: updatedProject,
     });
-
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
-        error: 'Données invalides',
-        details: error.errors
+        error: "Données invalides",
+        details: error.errors,
       });
     }
 
-    console.error('Erreur mise à jour projet:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error("Erreur mise à jour projet:", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
 
@@ -391,7 +416,7 @@ export const updateProject = async (req: Request, res: Response) => {
 export const deleteProject = async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+      return res.status(401).json({ error: "Utilisateur non authentifié" });
     }
 
     const { id } = req.params;
@@ -404,24 +429,26 @@ export const deleteProject = async (req: Request, res: Response) => {
           { createdBy: req.user.id },
           {
             workspace: {
-              ownerId: req.user.id
-            }
-          }
-        ]
-      }
+              ownerId: req.user.id,
+            },
+          },
+        ],
+      },
     });
 
     if (!project) {
-      return res.status(404).json({ error: 'Projet non trouvé ou permissions insuffisantes' });
+      return res
+        .status(404)
+        .json({ error: "Projet non trouvé ou permissions insuffisantes" });
     }
 
     // Compter les pages avant suppression pour ajuster les compteurs
     const pagesCount = await prisma.page.count({
-      where: { projectId: id }
+      where: { projectId: id },
     });
 
     // Supprimer le projet et décrémenter les compteurs d'usage
-    await prisma.$transaction(async (tx: any) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Supprimer le projet et toutes ses pages en cascade
       await tx.project.delete({
         where: { id },
@@ -432,15 +459,14 @@ export const deleteProject = async (req: Request, res: Response) => {
         where: { userId: req.user!.id },
         data: {
           projectsUsed: {
-            decrement: 1
+            decrement: 1,
           },
           pagesUsed: {
-            decrement: pagesCount
-          }
-        }
+            decrement: pagesCount,
+          },
+        },
       });
     });
-
 
     // ❌ LOGS D'ACTIVITÉ DÉSACTIVÉS pour économiser l'espace
     // await prisma.activityLog.create({
@@ -457,11 +483,10 @@ export const deleteProject = async (req: Request, res: Response) => {
     //   }
     // });
 
-    res.json({ message: 'Projet supprimé avec succès' });
-
+    res.json({ message: "Projet supprimé avec succès" });
   } catch (error) {
-    console.error('Erreur suppression projet:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error("Erreur suppression projet:", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
 
@@ -469,7 +494,7 @@ export const deleteProject = async (req: Request, res: Response) => {
 export const toggleProjectPin = async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-      return res.status(401).json({ error: 'Utilisateur non authentifié' });
+      return res.status(401).json({ error: "Utilisateur non authentifié" });
     }
 
     const { id } = req.params;
@@ -477,22 +502,22 @@ export const toggleProjectPin = async (req: Request, res: Response) => {
 
     // Vérifier que le projet existe et appartient à l'utilisateur
     const project = await prisma.project.findFirst({
-      where: { 
+      where: {
         id,
-        createdBy: userId
-      }
+        createdBy: userId,
+      },
     });
 
     if (!project) {
-      return res.status(404).json({ error: 'Projet non trouvé' });
+      return res.status(404).json({ error: "Projet non trouvé" });
     }
 
     // Toggle le statut isPinned
     const updatedProject = await prisma.project.update({
       where: { id },
-      data: { 
+      data: {
         isPinned: !project.isPinned,
-        updatedAt: new Date()
+        updatedAt: new Date(),
       },
       include: {
         owner: {
@@ -500,19 +525,18 @@ export const toggleProjectPin = async (req: Request, res: Response) => {
             id: true,
             firstName: true,
             lastName: true,
-            email: true
-          }
-        }
-      }
+            email: true,
+          },
+        },
+      },
     });
 
     res.json({
-      message: updatedProject.isPinned ? 'Projet épinglé' : 'Projet désépinglé',
-      project: updatedProject
+      message: updatedProject.isPinned ? "Projet épinglé" : "Projet désépinglé",
+      project: updatedProject,
     });
-
   } catch (error) {
-    console.error('Erreur toggle pin projet:', error);
-    res.status(500).json({ error: 'Erreur interne du serveur' });
+    console.error("Erreur toggle pin projet:", error);
+    res.status(500).json({ error: "Erreur interne du serveur" });
   }
-}; 
+};

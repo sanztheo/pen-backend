@@ -1,8 +1,37 @@
-import { QuizGenerationRequest, SequentialQuizConfig, ExamSubject, QuizPreset, SchoolLevel, LyceeSpecialty, QuestionType } from '../../types.js';
+import {
+  QuizGenerationRequest,
+  SequentialQuizConfig,
+  ExamSubject,
+  QuizPreset,
+  SchoolLevel,
+  LyceeSpecialty,
+  QuestionType,
+} from "../../types.js";
+
+/**
+ * Interface for subject configuration in BAC exams
+ */
+interface BacSubjectConfig {
+  readonly subject: ExamSubject;
+  readonly duration: number;
+  readonly coefficient: number;
+  readonly questionTypes: readonly QuestionType[];
+  readonly questionCount: number;
+  readonly description: string;
+  readonly enableDocuments?: boolean;
+  readonly documentTopics?: readonly string[];
+  readonly documentRatio?: number;
+  readonly minDocumentLength?: number;
+  readonly maxDocuments?: number;
+  readonly enableGraphics?: boolean;
+  readonly graphicProbability?: number;
+  readonly preferredLibraries?: readonly string[];
+  readonly graphicTypes?: readonly string[];
+}
 
 // Configuration officielle du Baccalauréat général
 export const BAC_CONFIG = {
-  name: 'Baccalauréat Général',
+  name: "Baccalauréat Général",
   troncCommun: [
     {
       subject: ExamSubject.PHILOSOPHIE,
@@ -10,13 +39,17 @@ export const BAC_CONFIG = {
       coefficient: 8,
       questionTypes: [QuestionType.OPEN_QUESTION],
       questionCount: 25,
-      description: 'Dissertation ou explication de texte',
+      description: "Dissertation ou explication de texte",
       enableDocuments: true,
-      documentTopics: ['philosophie', 'philosophie_antique', 'philosophie_moderne'],
+      documentTopics: [
+        "philosophie",
+        "philosophie_antique",
+        "philosophie_moderne",
+      ],
       documentRatio: 0.4, // 40% questions sur documents
       minDocumentLength: 100,
-      maxDocuments: 2
-    }
+      maxDocuments: 2,
+    },
   ],
   specialties: {
     [LyceeSpecialty.MATHEMATIQUES]: {
@@ -25,7 +58,7 @@ export const BAC_CONFIG = {
       coefficient: 16,
       questionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE],
       questionCount: 25,
-      description: 'Exercices et problèmes mathématiques',
+      description: "Exercices et problèmes mathématiques",
       enableDocuments: false,
       documentTopics: [],
       documentRatio: 0,
@@ -33,8 +66,8 @@ export const BAC_CONFIG = {
       maxDocuments: 0,
       enableGraphics: true,
       graphicProbability: 0.7,
-      preferredLibraries: ['apexcharts', 'plotly'],
-      graphicTypes: ['2d', '3d']
+      preferredLibraries: ["apexcharts", "plotly"],
+      graphicTypes: ["2d", "3d"],
     },
     [LyceeSpecialty.PHYSIQUE_CHIMIE]: {
       subject: ExamSubject.PHYSIQUE_CHIMIE_SPECIALITE,
@@ -42,7 +75,7 @@ export const BAC_CONFIG = {
       coefficient: 16,
       questionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE],
       questionCount: 25,
-      description: 'Exercices et analyse de documents',
+      description: "Exercices et analyse de documents",
       enableDocuments: false,
       documentTopics: [],
       documentRatio: 0,
@@ -50,8 +83,8 @@ export const BAC_CONFIG = {
       maxDocuments: 0,
       enableGraphics: true,
       graphicProbability: 0.6,
-      preferredLibraries: ['apexcharts', 'plotly'],
-      graphicTypes: ['2d', '3d']
+      preferredLibraries: ["apexcharts", "plotly"],
+      graphicTypes: ["2d", "3d"],
     },
     [LyceeSpecialty.SVT]: {
       subject: ExamSubject.SVT_SPECIALITE,
@@ -59,7 +92,7 @@ export const BAC_CONFIG = {
       coefficient: 16,
       questionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE],
       questionCount: 25,
-      description: 'QCM et questions de synthèse',
+      description: "QCM et questions de synthèse",
       enableDocuments: false,
       documentTopics: [],
       documentRatio: 0,
@@ -67,8 +100,8 @@ export const BAC_CONFIG = {
       maxDocuments: 0,
       enableGraphics: true,
       graphicProbability: 0.5,
-      preferredLibraries: ['apexcharts'],
-      graphicTypes: ['2d']
+      preferredLibraries: ["apexcharts"],
+      graphicTypes: ["2d"],
     },
     [LyceeSpecialty.SES]: {
       subject: ExamSubject.SES_SPECIALITE,
@@ -76,12 +109,12 @@ export const BAC_CONFIG = {
       coefficient: 16,
       questionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE],
       questionCount: 25,
-      description: 'Dissertation et étude de documents',
+      description: "Dissertation et étude de documents",
       enableDocuments: true,
-      documentTopics: ['economie', 'sociologie', 'moderne'],
+      documentTopics: ["economie", "sociologie", "moderne"],
       documentRatio: 0.4, // 40% questions sur documents
       minDocumentLength: 100,
-      maxDocuments: 2
+      maxDocuments: 2,
     },
     [LyceeSpecialty.HISTOIRE_GEO]: {
       subject: ExamSubject.HGGSP,
@@ -89,12 +122,22 @@ export const BAC_CONFIG = {
       coefficient: 16,
       questionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE],
       questionCount: 25,
-      description: 'Dissertation et étude critique de documents',
+      description: "Dissertation et étude critique de documents",
       enableDocuments: true,
-      documentTopics: ['democraties', 'totalitarismes', 'decolonisation', 'guerre_froide', 'puissances', 'mondialisation', 'territoires', 'institutions', 'libertes'],
+      documentTopics: [
+        "democraties",
+        "totalitarismes",
+        "decolonisation",
+        "guerre_froide",
+        "puissances",
+        "mondialisation",
+        "territoires",
+        "institutions",
+        "libertes",
+      ],
       documentRatio: 0.6, // 60% questions sur documents
       minDocumentLength: 100,
-      maxDocuments: 2
+      maxDocuments: 2,
     },
     [LyceeSpecialty.NSI]: {
       subject: ExamSubject.NSI_SPECIALITE,
@@ -102,12 +145,12 @@ export const BAC_CONFIG = {
       coefficient: 16,
       questionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE],
       questionCount: 25,
-      description: 'Exercices pratiques et théoriques',
+      description: "Exercices pratiques et théoriques",
       enableDocuments: false, // NSI : matière technique avec programmation et algorithmique
       documentTopics: [],
       documentRatio: 0,
       minDocumentLength: 100,
-      maxDocuments: 0
+      maxDocuments: 0,
     },
     [LyceeSpecialty.SI]: {
       subject: ExamSubject.SI_SPECIALITE,
@@ -115,24 +158,24 @@ export const BAC_CONFIG = {
       coefficient: 16,
       questionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE],
       questionCount: 25,
-      description: 'Projet et analyse technique',
+      description: "Projet et analyse technique",
       enableDocuments: false, // SI : matière technique et ingénierie, pas d'analyse de documents
       documentTopics: [],
       documentRatio: 0,
       minDocumentLength: 100,
-      maxDocuments: 1
-    }
+      maxDocuments: 1,
+    },
   },
   grandOral: {
     subject: ExamSubject.GRAND_ORAL,
     duration: 20, // 20 minutes + 20 min préparation
     coefficient: 10,
     questionTypes: [QuestionType.OPEN_QUESTION],
-          questionCount: 25,
-    description: 'Présentation et entretien sur les spécialités'
+    questionCount: 25,
+    description: "Présentation et entretien sur les spécialités",
   },
   totalCoefficient: 100,
-  passingGrade: 10
+  passingGrade: 10,
 } as const;
 
 /**
@@ -140,27 +183,39 @@ export const BAC_CONFIG = {
  */
 export function createBacSequentialConfig(
   userId: string,
-  specialties: LyceeSpecialty[]
+  specialties: LyceeSpecialty[],
 ): SequentialQuizConfig {
   if (specialties.length !== 2) {
-    throw new Error('Le Baccalauréat général nécessite exactement 2 spécialités');
+    throw new Error(
+      "Le Baccalauréat général nécessite exactement 2 spécialités",
+    );
   }
 
   // Vérification que les spécialités sont supportées
-  const availableSpecialties = Object.keys(BAC_CONFIG.specialties) as (keyof typeof BAC_CONFIG.specialties)[];
+  const availableSpecialties = Object.keys(
+    BAC_CONFIG.specialties,
+  ) as (keyof typeof BAC_CONFIG.specialties)[];
   for (const specialty of specialties) {
-    if (!availableSpecialties.includes(specialty as keyof typeof BAC_CONFIG.specialties)) {
+    if (
+      !availableSpecialties.includes(
+        specialty as keyof typeof BAC_CONFIG.specialties,
+      )
+    ) {
       throw new Error(`Spécialité non supportée: ${specialty}`);
     }
   }
 
   // Ordre souhaité: d'abord les 2 spécialités, puis Philosophie en dernier
   const subjects: ExamSubject[] = [
-    ...specialties.map(s => BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties].subject),
-    ExamSubject.PHILOSOPHIE
+    ...specialties.map(
+      (s) =>
+        BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]
+          .subject,
+    ),
+    ExamSubject.PHILOSOPHIE,
     // Grand Oral retiré de la séquence
   ];
-  
+
   return {
     id: `bac_${userId}_${Date.now()}`,
     preset: QuizPreset.BAC,
@@ -169,48 +224,61 @@ export function createBacSequentialConfig(
     totalSubjects: subjects.length,
     isCompleted: false,
     specialties,
-    subjectResults: subjects.map(subject => {
+    subjectResults: subjects.map((subject) => {
       // Récupérer la config selon la matière (tronc commun ou spécialité)
-      let cfg: any = null;
+      let cfg: BacSubjectConfig | null = null;
       if (subject === ExamSubject.PHILOSOPHIE) {
         cfg = BAC_CONFIG.troncCommun[0];
       } else {
-        const spec = specialties.find(s => BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]?.subject === subject);
-        if (spec) cfg = BAC_CONFIG.specialties[spec as keyof typeof BAC_CONFIG.specialties];
+        const spec = specialties.find(
+          (s) =>
+            BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]
+              ?.subject === subject,
+        );
+        if (spec)
+          cfg =
+            BAC_CONFIG.specialties[spec as keyof typeof BAC_CONFIG.specialties];
       }
 
-      const documentConfig = cfg?.enableDocuments ? {
-        enableDocuments: cfg.enableDocuments,
-        documentTopics: cfg.documentTopics,
-        documentRatio: cfg.documentRatio,
-        minDocumentLength: cfg.minDocumentLength,
-        maxDocuments: cfg.maxDocuments
-      } : {
-        enableDocuments: false,
-        documentTopics: [],
-        documentRatio: 0,
-        minDocumentLength: 6500,
-        maxDocuments: 0
-      };
+      const documentConfig = cfg?.enableDocuments
+        ? {
+            enableDocuments: cfg.enableDocuments,
+            documentTopics: [...(cfg.documentTopics ?? [])],
+            documentRatio: cfg.documentRatio ?? 0,
+            minDocumentLength: cfg.minDocumentLength ?? 100,
+            maxDocuments: cfg.maxDocuments ?? 0,
+          }
+        : {
+            enableDocuments: false,
+            documentTopics: [] as string[],
+            documentRatio: 0,
+            minDocumentLength: 6500,
+            maxDocuments: 0,
+          };
 
-      const graphicConfig = cfg?.enableGraphics ? {
-        enableGraphics: cfg.enableGraphics,
-        graphicProbability: cfg.graphicProbability,
-        preferredLibraries: cfg.preferredLibraries,
-        graphicTypes: cfg.graphicTypes
-      } : undefined;
+      const graphicConfig = cfg?.enableGraphics
+        ? {
+            enableGraphics: cfg.enableGraphics,
+            graphicProbability: cfg.graphicProbability ?? 0,
+            preferredLibraries: [...(cfg.preferredLibraries ?? [])] as (
+              | "apexcharts"
+              | "plotly"
+            )[],
+            graphicTypes: [...(cfg.graphicTypes ?? [])] as ("2d" | "3d")[],
+          }
+        : undefined;
 
       return {
         subject,
         isCompleted: false,
         documentConfig,
-        graphicConfig
+        graphicConfig,
       };
     }),
     metadata: {
       startedAt: new Date(),
-      estimatedTotalTime: calculateBacTotalDuration(specialties)
-    }
+      estimatedTotalTime: calculateBacTotalDuration(specialties),
+    },
   };
 }
 
@@ -220,10 +288,10 @@ export function createBacSequentialConfig(
 export function generateBacSubjectRequest(
   config: SequentialQuizConfig,
   userId: string,
-  workspaceIds?: string[]
+  workspaceIds?: string[],
 ): QuizGenerationRequest {
   const currentSubject = config.subjects[config.currentSubjectIndex];
-  let subjectConfig: any;
+  let subjectConfig: BacSubjectConfig;
 
   // Déterminer la configuration selon le type de matière
   if (currentSubject === ExamSubject.PHILOSOPHIE) {
@@ -232,41 +300,56 @@ export function generateBacSubjectRequest(
     subjectConfig = BAC_CONFIG.grandOral;
   } else {
     // Spécialité
-    const specialty = config.specialties?.find(s => 
-      BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]?.subject === currentSubject
+    const specialty = config.specialties?.find(
+      (s) =>
+        BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]
+          ?.subject === currentSubject,
     );
     if (!specialty) {
-      throw new Error(`Spécialité introuvable pour la matière: ${currentSubject}`);
+      throw new Error(
+        `Spécialité introuvable pour la matière: ${currentSubject}`,
+      );
     }
-    subjectConfig = BAC_CONFIG.specialties[specialty as keyof typeof BAC_CONFIG.specialties];
+    subjectConfig =
+      BAC_CONFIG.specialties[specialty as keyof typeof BAC_CONFIG.specialties];
   }
 
   // Configuration documentaire pour cette matière (si elle existe)
-  const documentConfig = subjectConfig.enableDocuments ? {
-    enableDocuments: subjectConfig.enableDocuments,
-    documentTopics: subjectConfig.documentTopics,
-    documentRatio: subjectConfig.documentRatio,
-    minDocumentLength: subjectConfig.minDocumentLength,
-    maxDocuments: subjectConfig.maxDocuments
-  } : {
-    enableDocuments: false,
-    documentTopics: [],
-    documentRatio: 0,
-    minDocumentLength: 100,
-    maxDocuments: 0
-  };
+  const documentConfig = subjectConfig.enableDocuments
+    ? {
+        enableDocuments: subjectConfig.enableDocuments,
+        documentTopics: [...(subjectConfig.documentTopics ?? [])],
+        documentRatio: subjectConfig.documentRatio ?? 0,
+        minDocumentLength: subjectConfig.minDocumentLength ?? 100,
+        maxDocuments: subjectConfig.maxDocuments ?? 0,
+      }
+    : {
+        enableDocuments: false,
+        documentTopics: [] as string[],
+        documentRatio: 0,
+        minDocumentLength: 100,
+        maxDocuments: 0,
+      };
 
-  const graphicConfig = subjectConfig.enableGraphics ? {
-    enableGraphics: subjectConfig.enableGraphics,
-    graphicProbability: subjectConfig.graphicProbability,
-    preferredLibraries: subjectConfig.preferredLibraries,
-    graphicTypes: subjectConfig.graphicTypes
-  } : {
-    enableGraphics: false,
-    graphicProbability: 0,
-    preferredLibraries: [],
-    graphicTypes: []
-  };
+  const graphicConfig = subjectConfig.enableGraphics
+    ? {
+        enableGraphics: subjectConfig.enableGraphics,
+        graphicProbability: subjectConfig.graphicProbability ?? 0,
+        preferredLibraries: [...(subjectConfig.preferredLibraries ?? [])] as (
+          | "apexcharts"
+          | "plotly"
+        )[],
+        graphicTypes: [...(subjectConfig.graphicTypes ?? [])] as (
+          | "2d"
+          | "3d"
+        )[],
+      }
+    : {
+        enableGraphics: false,
+        graphicProbability: 0,
+        preferredLibraries: [] as ("apexcharts" | "plotly")[],
+        graphicTypes: [] as ("2d" | "3d")[],
+      };
 
   return {
     userId,
@@ -282,14 +365,17 @@ export function generateBacSubjectRequest(
     description: `${subjectConfig.description} - Durée: ${subjectConfig.duration} min - Coefficient: ${subjectConfig.coefficient}`,
     // NOUVEAU : Configuration documentaire pour utiliser le système Assistant avec documents
     documentConfig,
-    graphicConfig
+    graphicConfig,
   };
 }
 
 /**
  * Génère les prompts spécialisés pour chaque épreuve du Bac
  */
-export function getBacPrompt(subject: ExamSubject, specialties?: LyceeSpecialty[]): string {
+export function getBacPrompt(
+  subject: ExamSubject,
+  specialties?: LyceeSpecialty[],
+): string {
   const baseContext = `
 Tu es un expert concepteur de sujets pour le Baccalauréat général (réforme 2021).
 L'élève est en Terminale et se prépare aux épreuves officielles finales du Baccalauréat.
@@ -491,7 +577,7 @@ Structure officielle :
 2. Entretien avec le jury (10 min)
 3. Échange sur le projet d'orientation (5 min)
 
-Spécialités de l'élève : ${specialties?.join(', ') || 'Non spécifiées'}
+Spécialités de l'élève : ${specialties?.join(", ") || "Non spécifiées"}
 
 Génère des questions qui évaluent :
 - Maîtrise des spécialités
@@ -515,15 +601,16 @@ Génère des questions pour la matière ${subject} adaptées au niveau Baccalaur
 function calculateBacTotalDuration(specialties: LyceeSpecialty[]): number {
   let totalDuration = BAC_CONFIG.troncCommun[0].duration; // Philosophie
   // Grand Oral retiré
-  
+
   // Ajouter les spécialités
   for (const specialty of specialties) {
-    const specialtyConfig = BAC_CONFIG.specialties[specialty as keyof typeof BAC_CONFIG.specialties];
+    const specialtyConfig =
+      BAC_CONFIG.specialties[specialty as keyof typeof BAC_CONFIG.specialties];
     if (specialtyConfig) {
       totalDuration += specialtyConfig.duration;
     }
   }
-  
+
   return totalDuration;
 }
 
@@ -542,7 +629,7 @@ export function calculateBacGlobalScore(config: SequentialQuizConfig): {
   for (const result of config.subjectResults) {
     if (result.score !== undefined && result.maxScore !== undefined) {
       let coefficient: number;
-      
+
       if (result.subject === ExamSubject.PHILOSOPHIE) {
         coefficient = BAC_CONFIG.troncCommun[0].coefficient;
       } else if (result.subject === ExamSubject.GRAND_ORAL) {
@@ -559,17 +646,17 @@ export function calculateBacGlobalScore(config: SequentialQuizConfig): {
   }
 
   const grade = totalCoefficient > 0 ? weightedScore / totalCoefficient : 0;
-  
+
   let mention: string | undefined;
-  if (grade >= 16) mention = 'Très bien';
-  else if (grade >= 14) mention = 'Bien';
-  else if (grade >= 12) mention = 'Assez bien';
-  
+  if (grade >= 16) mention = "Très bien";
+  else if (grade >= 14) mention = "Bien";
+  else if (grade >= 12) mention = "Assez bien";
+
   return {
     totalScore: Math.round(weightedScore),
     maxScore: BAC_CONFIG.totalCoefficient * 20,
     grade: Math.round(grade * 100) / 100,
-    mention
+    mention,
   };
 }
 
@@ -578,23 +665,24 @@ export function calculateBacGlobalScore(config: SequentialQuizConfig): {
  */
 export function getSubjectDisplayName(subject: ExamSubject): string {
   const names: Record<ExamSubject, string> = {
-    [ExamSubject.FRANCAIS]: 'Français',
-    [ExamSubject.MATHEMATIQUES]: 'Mathématiques',
-    [ExamSubject.HISTOIRE_GEOGRAPHIE_EMC]: 'Histoire-Géographie-EMC',
-    [ExamSubject.SCIENCES]: 'Sciences (Physique-Chimie et SVT)',
-    [ExamSubject.ORAL_BREVET]: 'Oral du Brevet',
-    [ExamSubject.PHILOSOPHIE]: 'Philosophie',
-    [ExamSubject.HGGSP]: 'Histoire-Géographie, Géopolitique et Sciences Politiques',
-    [ExamSubject.HLP]: 'Humanités, Littérature et Philosophie',
-    [ExamSubject.LLCER]: 'Langues, Littératures et Cultures Étrangères',
-    [ExamSubject.NSI_SPECIALITE]: 'Numérique et Sciences Informatiques',
-    [ExamSubject.SI_SPECIALITE]: 'Sciences de l\'Ingénieur',
-    [ExamSubject.SES_SPECIALITE]: 'Sciences Économiques et Sociales',
-    [ExamSubject.SVT_SPECIALITE]: 'Sciences de la Vie et de la Terre',
-    [ExamSubject.PHYSIQUE_CHIMIE_SPECIALITE]: 'Physique-Chimie',
-    [ExamSubject.MATHEMATIQUES_SPECIALITE]: 'Mathématiques',
-    [ExamSubject.GRAND_ORAL]: 'Grand Oral'
+    [ExamSubject.FRANCAIS]: "Français",
+    [ExamSubject.MATHEMATIQUES]: "Mathématiques",
+    [ExamSubject.HISTOIRE_GEOGRAPHIE_EMC]: "Histoire-Géographie-EMC",
+    [ExamSubject.SCIENCES]: "Sciences (Physique-Chimie et SVT)",
+    [ExamSubject.ORAL_BREVET]: "Oral du Brevet",
+    [ExamSubject.PHILOSOPHIE]: "Philosophie",
+    [ExamSubject.HGGSP]:
+      "Histoire-Géographie, Géopolitique et Sciences Politiques",
+    [ExamSubject.HLP]: "Humanités, Littérature et Philosophie",
+    [ExamSubject.LLCER]: "Langues, Littératures et Cultures Étrangères",
+    [ExamSubject.NSI_SPECIALITE]: "Numérique et Sciences Informatiques",
+    [ExamSubject.SI_SPECIALITE]: "Sciences de l'Ingénieur",
+    [ExamSubject.SES_SPECIALITE]: "Sciences Économiques et Sociales",
+    [ExamSubject.SVT_SPECIALITE]: "Sciences de la Vie et de la Terre",
+    [ExamSubject.PHYSIQUE_CHIMIE_SPECIALITE]: "Physique-Chimie",
+    [ExamSubject.MATHEMATIQUES_SPECIALITE]: "Mathématiques",
+    [ExamSubject.GRAND_ORAL]: "Grand Oral",
   };
-  
+
   return names[subject] || subject;
-} 
+}

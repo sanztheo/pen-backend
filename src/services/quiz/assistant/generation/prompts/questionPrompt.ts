@@ -5,12 +5,37 @@ import { formatSpecialtyLabel } from "../../config/index.js";
 import { generateQuestionId } from "../../utils/index.js";
 
 /**
+ * Interface for existing question in duplicate prevention
+ */
+interface ExistingQuestion {
+  question: string;
+}
+
+/**
+ * Interface for question generation request parameters
+ */
+interface QuestionPromptRequest {
+  schoolLevel: string;
+  questionTypes: string[];
+  specificSubject?: string;
+  existingQuestions?: ExistingQuestion[];
+  lyceeSpecialties?: string[];
+  focusSpecialty?: string;
+  focusSpecialtyLabel?: string;
+  higherEdField?: string;
+  higherEdLevel?: string;
+  ragContext?: string;
+  coursesOnly?: boolean;
+  difficulty?: string;
+}
+
+/**
  * Construit le prompt utilisateur structuré en XML pour générer une seule question
  * @param request - Paramètres de la requête
  * @param personalization - Contexte de personnalisation utilisateur (optionnel)
  */
 export function buildSingleQuestionPrompt(
-  request: any,
+  request: QuestionPromptRequest,
   personalization?: PersonalizationContext,
 ): string {
   const {
@@ -184,7 +209,7 @@ ${ragContext}
 
 <duplicate_prevention>
 <existing_questions count="${existingQuestions.length}">
-${existingQuestions.map((q: any, i: number) => `<question index="${i + 1}">${q.question}</question>`).join("\n")}
+${existingQuestions.map((q: ExistingQuestion, i: number) => `<question index="${i + 1}">${q.question}</question>`).join("\n")}
 </existing_questions>
 <instruction priority="critical">
 Genere une question COMPLETEMENT DIFFERENTE et ORIGINALE.

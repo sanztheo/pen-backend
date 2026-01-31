@@ -90,11 +90,13 @@ router.post(
           bytes: result.bytes,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error("❌ Erreur upload:", error);
 
       // Gestion erreurs spécifiques
-      if (error.message.includes("FILE_TOO_LARGE")) {
+      if (errorMessage.includes("FILE_TOO_LARGE")) {
         return res.status(413).json({
           error: "Fichier trop volumineux",
           code: "FILE_TOO_LARGE",
@@ -102,7 +104,7 @@ router.post(
         });
       }
 
-      if (error.message.includes("INVALID_FILE_TYPE")) {
+      if (errorMessage.includes("INVALID_FILE_TYPE")) {
         return res.status(415).json({
           error: "Type de fichier non supporté",
           code: "INVALID_FILE_TYPE",
@@ -202,12 +204,15 @@ router.delete(
         publicId,
         duration: `${duration}ms`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       const duration = Date.now() - startTime;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       console.error("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       console.error(`❌ [Route DELETE] ÉCHEC - Durée: ${duration}ms`);
-      console.error("Erreur:", error.message);
-      console.error("Stack:", error.stack);
+      console.error("Erreur:", errorMessage);
+      console.error("Stack:", errorStack);
       console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
       return res.status(500).json({

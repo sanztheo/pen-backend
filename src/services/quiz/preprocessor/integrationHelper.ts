@@ -253,9 +253,25 @@ async function analyzeSourceContent(
 }
 
 /**
+ * Interface for BlockNote inline content item
+ */
+interface BlockNoteInlineItem {
+  text?: string;
+  type?: string;
+}
+
+/**
+ * Interface for BlockNote block structure
+ */
+interface BlockNoteBlock {
+  type?: string;
+  content?: BlockNoteInlineItem[];
+}
+
+/**
  * Extrait le contenu d'un BlockNote
  */
-function extractBlockNoteContent(blockNoteContent: any): {
+function extractBlockNoteContent(blockNoteContent: unknown): {
   text: string;
   hasFormulas: boolean;
   hasDefinitions: boolean;
@@ -265,17 +281,19 @@ function extractBlockNoteContent(blockNoteContent: any): {
   let hasDefinitions = false;
 
   try {
-    const content =
+    const content: unknown =
       typeof blockNoteContent === "string"
         ? JSON.parse(blockNoteContent)
         : blockNoteContent;
 
     if (content && Array.isArray(content)) {
-      for (const block of content) {
+      for (const block of content as BlockNoteBlock[]) {
         // Texte de paragraphes
         if (block?.type === "paragraph" && block?.content) {
           const blockText = Array.isArray(block.content)
-            ? block.content.map((item: any) => item?.text || "").join("")
+            ? block.content
+                .map((item: BlockNoteInlineItem) => item?.text || "")
+                .join("")
             : "";
           text += blockText + "\n";
         }

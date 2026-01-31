@@ -21,30 +21,39 @@ const SENSITIVE_PATTERNS = [
 /**
  * Masque les données sensibles dans un message de log
  */
-export const sanitizeLogMessage = (message: any): string => {
-  if (typeof message !== 'string') {
+export const sanitizeLogMessage = (message: unknown): string => {
+  let messageStr: string;
+  if (typeof message !== "string") {
     try {
-      message = JSON.stringify(message, null, 2);
-    } catch (error) {
-      message = String(message);
+      messageStr = JSON.stringify(message, null, 2);
+    } catch {
+      messageStr = String(message);
     }
+  } else {
+    messageStr = message;
   }
 
-  let sanitized = message;
-  
+  let sanitized = messageStr;
+
   // Appliquer les patterns de masquage
   for (const pattern of SENSITIVE_PATTERNS) {
-    sanitized = sanitized.replace(pattern, (match: string, captured: string) => {
-      if (captured && captured.length > 10) {
-        return match.replace(captured, `${captured.substring(0, 4)}...**MASKED**`);
-      }
-      return match.replace(captured || match, '**MASKED**');
-    });
+    sanitized = sanitized.replace(
+      pattern,
+      (match: string, captured: string) => {
+        if (captured && captured.length > 10) {
+          return match.replace(
+            captured,
+            `${captured.substring(0, 4)}...**MASKED**`,
+          );
+        }
+        return match.replace(captured || match, "**MASKED**");
+      },
+    );
   }
 
   // Limiter la longueur totale du message
   if (sanitized.length > 2000) {
-    sanitized = sanitized.substring(0, 2000) + '...[TRUNCATED]';
+    sanitized = sanitized.substring(0, 2000) + "...[TRUNCATED]";
   }
 
   return sanitized;
@@ -53,18 +62,27 @@ export const sanitizeLogMessage = (message: any): string => {
 /**
  * Console.error sécurisé
  */
-export const secureError = (message: string, error?: any): void => {
+export const secureError = (message: string, error?: unknown): void => {
   const sanitizedMessage = sanitizeLogMessage(message);
-  
+
   if (error) {
     // Masquer les détails de l'erreur qui pourraient contenir des données sensibles
-    const errorInfo = {
-      name: error.name,
-      message: error.message ? sanitizeLogMessage(error.message) : undefined,
-      code: error.code,
-      status: error.status,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    };
+    const errorInfo: Record<string, unknown> = {};
+
+    if (error instanceof Error) {
+      errorInfo.name = error.name;
+      errorInfo.message = sanitizeLogMessage(error.message);
+      errorInfo.stack =
+        process.env.NODE_ENV === "development" ? error.stack : undefined;
+    }
+
+    // Extraire code/status si présents (erreurs HTTP)
+    if (typeof error === "object" && error !== null) {
+      const errObj = error as Record<string, unknown>;
+      if ("code" in errObj) errorInfo.code = errObj.code;
+      if ("status" in errObj) errorInfo.status = errObj.status;
+    }
+
     console.error(sanitizedMessage, errorInfo);
   } else {
     console.error(sanitizedMessage);
@@ -74,9 +92,9 @@ export const secureError = (message: string, error?: any): void => {
 /**
  * Console.log sécurisé
  */
-export const secureLog = (message: string, data?: any): void => {
+export const secureLog = (message: string, data?: unknown): void => {
   const sanitizedMessage = sanitizeLogMessage(message);
-  
+
   if (data) {
     const sanitizedData = sanitizeLogMessage(data);
     console.log(sanitizedMessage, sanitizedData);
@@ -88,9 +106,9 @@ export const secureLog = (message: string, data?: any): void => {
 /**
  * Console.warn sécurisé
  */
-export const secureWarn = (message: string, data?: any): void => {
+export const secureWarn = (message: string, data?: unknown): void => {
   const sanitizedMessage = sanitizeLogMessage(message);
-  
+
   if (data) {
     const sanitizedData = sanitizeLogMessage(data);
     console.warn(sanitizedMessage, sanitizedData);
@@ -102,28 +120,44 @@ export const secureWarn = (message: string, data?: any): void => {
 /**
  * Extraire uniquement les métadonnées sûres d'un objet pour le logging
  */
-export const extractSafeMetadata = (obj: any): any => {
-  if (!obj || typeof obj !== 'object') return {};
-  
+export const extractSafeMetadata = (obj: unknown): Record<string, unknown> => {
+  if (!obj || typeof obj !== "object") return {};
+
+  const objRecord = obj as Record<string, unknown>;
+
   const safeFields = [
-    'id', 'type', 'status', 'method', 'url', 'statusCode', 
-    'timestamp', 'duration', 'length', 'count', 'size',
-    'version', 'model', 'temperature', 'maxTokens'
+    "id",
+    "type",
+    "status",
+    "method",
+    "url",
+    "statusCode",
+    "timestamp",
+    "duration",
+    "length",
+    "count",
+    "size",
+    "version",
+    "model",
+    "temperature",
+    "maxTokens",
   ];
-  
-  const metadata: any = {};
-  
+
+  const metadata: Record<string, unknown> = {};
+
   for (const field of safeFields) {
-    if (obj[field] !== undefined) {
-      metadata[field] = obj[field];
+    if (objRecord[field] !== undefined) {
+      metadata[field] = objRecord[field];
     }
   }
-  
+
   // Ajouter des longueurs de champs sensibles sans exposer le contenu
-  if (obj.content) metadata.contentLength = String(obj.content).length;
-  if (obj.prompt) metadata.promptLength = String(obj.prompt).length;
-  if (obj.text) metadata.textLength = String(obj.text).length;
-  if (obj.message) metadata.messageLength = String(obj.message).length;
-  
+  if (objRecord.content)
+    metadata.contentLength = String(objRecord.content).length;
+  if (objRecord.prompt) metadata.promptLength = String(objRecord.prompt).length;
+  if (objRecord.text) metadata.textLength = String(objRecord.text).length;
+  if (objRecord.message)
+    metadata.messageLength = String(objRecord.message).length;
+
   return metadata;
 };

@@ -252,7 +252,7 @@ export function setupQuizRefundOnError() {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     const originalJson = res.json.bind(res);
 
-    res.json = function (body: any) {
+    res.json = function (body: unknown) {
       // Si c'est une erreur et qu'on a déduit des quotas, les rembourser
       if (res.statusCode >= 400 && req.quizLimits?.deducted && req.user?.id) {
         const userId = req.user.id;
@@ -291,7 +291,7 @@ export function setupQuizRefundOnError() {
 
         // Ajouter info de remboursement dans la réponse
         if (typeof body === "object" && body !== null) {
-          body.refundInfo = {
+          (body as Record<string, unknown>).refundInfo = {
             message: "Quota de quiz remboursé suite à l'erreur",
             type: limitType,
           };

@@ -16,7 +16,7 @@ export interface RetryOptions {
 export interface RetryResult<T> {
   success: boolean;
   data?: T;
-  error?: any;
+  error?: unknown;
   attempts: number;
   totalTime: number;
 }
@@ -30,7 +30,7 @@ export interface RetryResult<T> {
 export async function retryWithBackoff<T>(
   operation: () => Promise<T>,
   options: RetryOptions = {},
-  context: Record<string, any> = {},
+  context: Record<string, unknown> = {},
 ): Promise<RetryResult<T>> {
   const {
     maxRetries = 3,
@@ -41,7 +41,7 @@ export async function retryWithBackoff<T>(
   } = options;
 
   const startTime = Date.now();
-  let lastError: any;
+  let lastError: unknown;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -72,20 +72,28 @@ export async function retryWithBackoff<T>(
         attempts: attempt + 1,
         totalTime,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
+
+      // Type narrowing pour accéder aux propriétés d'erreur
+      const errorCode =
+        error !== null && typeof error === "object" && "code" in error
+          ? String((error as { code: unknown }).code)
+          : undefined;
+      const errorMessage = error instanceof Error ? error.message : undefined;
+
       const isRetryable = retryableErrors.some(
         (code) =>
-          error.code === code ||
-          error.message?.includes(code) ||
-          (code === "ETIMEDOUT" && error.message?.includes("timeout")),
+          errorCode === code ||
+          errorMessage?.includes(code) ||
+          (code === "ETIMEDOUT" && errorMessage?.includes("timeout")),
       );
 
       SecureLogger.warn(`⚠️ [RETRY] Tentative ${attempt + 1} échouée`, {
         ...context,
         attempt: attempt + 1,
-        errorCode: error.code,
-        errorMessage: error.message,
+        errorCode,
+        errorMessage,
         isRetryable,
         willRetry: isRetryable && attempt < maxRetries,
       });
@@ -117,6 +125,14 @@ export async function retryWithBackoff<T>(
   }
 
   const totalTime = Date.now() - startTime;
+  // Extraction sécurisée des infos d'erreur pour le log final
+  const finalErrorCode =
+    lastError !== null && typeof lastError === "object" && "code" in lastError
+      ? String((lastError as { code: unknown }).code)
+      : undefined;
+  const finalErrorMessage =
+    lastError instanceof Error ? lastError.message : undefined;
+
   SecureLogger.error(
     `❌ [RETRY] Échec définitif après ${maxRetries + 1} tentatives`,
     {
@@ -124,8 +140,8 @@ export async function retryWithBackoff<T>(
       attempts: maxRetries + 1,
       totalTime,
       finalError: {
-        code: lastError?.code,
-        message: lastError?.message,
+        code: finalErrorCode,
+        message: finalErrorMessage,
       },
     },
   );
@@ -145,7 +161,7 @@ export async function retryWithBackoff<T>(
  */
 export async function retryPrismaOperation<T>(
   operation: () => Promise<T>,
-  context: Record<string, any> = {},
+  context: Record<string, unknown> = {},
 ): Promise<RetryResult<T>> {
   return retryWithBackoff(
     operation,
@@ -167,7 +183,7 @@ export async function retryPrismaOperation<T>(
  */
 export async function retryPrismaTransaction<T>(
   transaction: () => Promise<T>,
-  context: Record<string, any> = {},
+  context: Record<string, unknown> = {},
 ): Promise<RetryResult<T>> {
   return retryWithBackoff(
     transaction,

@@ -1,10 +1,12 @@
 import { Request, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { CLIENT_URL } from "../utils/config.js";
 import { QuizService } from "../services/quiz/quizService.js";
 import {
   SchoolLevel,
   QuestionType,
   LyceeSpecialty,
+  CollegeGrade,
 } from "../services/quiz/types.js";
 import { OpenAIAssistantService } from "../services/quiz/assistant/index.js";
 import { prisma } from "../lib/prisma.js";
@@ -14,6 +16,9 @@ import {
   Question,
   UserAnswer,
   QuizCorrectionRequest,
+  QuizPreset,
+  ExamSubject,
+  DocumentChunk,
 } from "../services/quiz/types.js";
 import { QuizLimitsService } from "../services/credits/quizLimitsService.js";
 import { PaddleBillingService } from "../services/billing/paddleBilling.js";
@@ -36,15 +41,102 @@ import { quizPreprocessorAgent } from "../services/quiz/preprocessor/QuizPreproc
 import type { PreprocessorPromptParams } from "../services/quiz/preprocessor/prompts.js";
 import { generateQuizTitle } from "../services/quiz/utils/titleGenerator.js";
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Types pour le streaming de quiz
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Données envoyées via Server-Sent Events */
+interface SSEEventData {
+  message?: string;
+  quizId?: string;
+  questionNumber?: number;
+  totalQuestions?: number;
+  question?: Question;
+  quiz?: Record<string, unknown>;
+  canStartAnswering?: boolean;
+  error?: string;
+  details?: string;
+  [key: string]: unknown;
+}
+
+/** Requête de session de streaming */
+interface StreamingSessionRequest {
+  schoolLevel?: string;
+  questionTypes?: string[];
+  questionCount?: number;
+  collegeGrade?: string;
+  lyceeSpecialties?: LyceeSpecialty[];
+  higherEdLevel?: string;
+  higherEdField?: string;
+  preset?: string;
+  title?: string;
+  description?: string;
+  coursesOnly?: boolean;
+  ragContext?: string;
+  pageProjectIds?: string[];
+  specificSubject?: string;
+  sequentialConfig?: Record<string, unknown>;
+  targetGrade?: number;
+  timeLimit?: number;
+  difficulty?: string;
+  useIntelligentGeneration?: boolean;
+  usePersonalization?: boolean;
+  letAIChoose?: boolean;
+}
+
+/** Session de streaming stockée */
+interface StreamingSession {
+  userId: string;
+  request: StreamingSessionRequest;
+  createdAt: Date;
+}
+
+/** Résultat de correction d'une question (compatible avec QuestionResult et EnrichedQuestionResult) */
+interface CorrectionResultItem {
+  questionId: string;
+  userAnswer?: string | boolean | string[] | Record<string, string>;
+  correctAnswer?: string | boolean | string[] | Record<string, string>;
+  score: number;
+  maxScore: number;
+  isCorrect: boolean;
+  explanation?: string;
+  feedback?: string;
+  suggestion?: string;
+  difficulty?: string;
+  isEnriched?: boolean;
+  sourceReferences?: Array<{
+    pageId: string;
+    pageTitle: string;
+    relevantContent: string;
+    relevanceScore: number;
+  }>;
+  conceptSuggestions?: string[];
+  [key: string]: unknown;
+}
+
+/** Réponse utilisateur pour correction */
+interface UserAnswerInput {
+  questionId: string;
+  answer: string | boolean | string[] | Record<string, string>;
+  timeSpent?: number;
+}
+
+/** Bloc de contenu BlockNote */
+interface BlockNoteBlock {
+  type: string;
+  content?: Array<{ text?: string }>;
+  [key: string]: unknown;
+}
+
+/** Extension du type Quiz Prisma avec champs optionnels */
+interface QuizWithExtras {
+  preset?: string;
+  specificSubject?: string;
+  sourceDocuments?: unknown[];
+}
+
 // Stockage temporaire des sessions de streaming
-const streamingSessions = new Map<
-  string,
-  {
-    userId: string;
-    request: any;
-    createdAt: Date;
-  }
->();
+const streamingSessions = new Map<string, StreamingSession>();
 
 const LYCEE_SPECIALTY_LABELS: Record<LyceeSpecialty, string> = {
   [LyceeSpecialty.MATHEMATIQUES]: "Mathématiques",
@@ -317,7 +409,7 @@ export class QuizStreamingController {
       });
 
       // Fonction pour envoyer des événements SSE
-      const sendSSE = (event: string, data: any) => {
+      const sendSSE = (event: string, data: SSEEventData): void => {
         res.write(`event: ${event}\n`);
         res.write(`data: ${JSON.stringify(data)}\n\n`);
       };
@@ -429,7 +521,8 @@ export class QuizStreamingController {
               await prisma.quiz.update({
                 where: { id: quiz.id },
                 data: {
-                  questions: generatedQuestions as any,
+                  questions:
+                    generatedQuestions as unknown as Prisma.InputJsonValue,
                 },
               });
 
@@ -473,7 +566,7 @@ export class QuizStreamingController {
           where: { id: quiz.id },
           data: {
             status: "ready",
-            questions: generatedQuestions as any,
+            questions: generatedQuestions as unknown as Prisma.InputJsonValue,
           },
         });
 
@@ -659,7 +752,7 @@ export class QuizStreamingController {
     });
 
     // Fonction pour envoyer des événements SSE
-    const sendSSE = (event: string, data: any) => {
+    const sendSSE = (event: string, data: SSEEventData): void => {
       const eventData = `event: ${event}\n`;
       const dataData = `data: ${JSON.stringify(data)}\n\n`;
       console.log(`📤 [STREAMING] Envoi SSE - Event: ${event}`);
@@ -847,10 +940,13 @@ export class QuizStreamingController {
             const subscriptionLimit = userLimits?.questionsPerQuizLimit || 10;
 
             // Préparer les paramètres pour le preprocessor
+            const effectiveSchoolLevel = schoolLevel || "COLLEGE";
             const preprocessorParams: PreprocessorPromptParams = {
-              schoolLevel: schoolLevel,
+              schoolLevel: effectiveSchoolLevel,
               studyLevel:
-                QuizStreamingController.mapSchoolLevelToStudyLevel(schoolLevel),
+                QuizStreamingController.mapSchoolLevelToStudyLevel(
+                  effectiveSchoolLevel,
+                ),
               quizType: "ENTRAINEMENT",
               sourceSummary: sourceAnalysis.summary,
               sourceTopics: sourceAnalysis.topics,
@@ -932,8 +1028,9 @@ export class QuizStreamingController {
       // Les utilisateurs premium bénéficient automatiquement du clustering thématique
       // quand ils sélectionnent 2+ pages, sans avoir besoin d'activer manuellement
       let useIntelligentGeneration = requestUseIntelligent;
+      const pageCount = pageProjectIds?.length ?? 0;
 
-      if (!useIntelligentGeneration && pageProjectIds?.length >= 2) {
+      if (!useIntelligentGeneration && pageCount >= 2) {
         try {
           const subscription =
             await PaddleBillingService.getUserSubscription(userId);
@@ -965,18 +1062,15 @@ export class QuizStreamingController {
         `   📚 School Level: ${schoolLevel}${higherEdLevel ? ` (${higherEdLevel})` : ""}${higherEdField ? ` - ${higherEdField}` : ""}`,
       );
       console.log(`   ❓ Questions: ${questionCount}`);
-      console.log(`   📄 Pages sélectionnées: ${pageProjectIds?.length || 0}`);
+      console.log(`   📄 Pages sélectionnées: ${pageCount}`);
       console.log(
         `   🧠 Intelligence: ${useIntelligentGeneration ? "✅ ACTIVÉ" : "❌ DÉSACTIVÉ"}`,
       );
-      if (!useIntelligentGeneration && pageProjectIds?.length >= 2) {
+      if (!useIntelligentGeneration && pageCount >= 2) {
         console.log(
           `   ℹ️  Raison: Utilisateur non-premium (Intelligence requiert Premium + 2 pages)`,
         );
-      } else if (
-        !useIntelligentGeneration &&
-        (pageProjectIds?.length || 0) < 2
-      ) {
+      } else if (!useIntelligentGeneration && pageCount < 2) {
         console.log(`   ℹ️  Raison: Moins de 2 pages sélectionnées`);
       }
       console.log(`${"═".repeat(60)}\n`);
@@ -999,7 +1093,7 @@ export class QuizStreamingController {
         }
 
         quizTitle = await generateQuizTitle({
-          schoolLevel,
+          schoolLevel: schoolLevel || SchoolLevel.COLLEGE,
           pageNames,
           subject: specificSubject,
           questionCount,
@@ -1009,16 +1103,18 @@ export class QuizStreamingController {
       }
 
       // 1. Créer le quiz en base avec état "generating"
+      const quizSchoolLevel =
+        (schoolLevel as SchoolLevel) || SchoolLevel.COLLEGE;
       const quiz = await prisma.quiz.create({
         data: {
           userId,
           title: quizTitle,
-          schoolLevel,
+          schoolLevel: quizSchoolLevel,
           questions: [], // Sera rempli progressivement
           isCompleted: false,
           status: "generating",
-          preset: preset || "NONE",
-          collegeGrade,
+          preset: (preset as QuizPreset) || QuizPreset.NONE,
+          collegeGrade: (collegeGrade as CollegeGrade) || null,
           higherEdField,
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -1041,14 +1137,15 @@ export class QuizStreamingController {
       let questionDistribution: ClusterQuestionDistribution[] = [];
       let contextFromCache = false;
 
-      if (useIntelligentGeneration && pageProjectIds?.length >= 2) {
+      const validPageProjectIds = pageProjectIds || [];
+      if (useIntelligentGeneration && validPageProjectIds.length >= 2) {
         console.log(
-          `🧠 [INTELLIGENT] Mode intelligent activé pour ${pageProjectIds.length} pages`,
+          `🧠 [INTELLIGENT] Mode intelligent activé pour ${validPageProjectIds.length} pages`,
         );
 
         sendSSE("intelligent-preparing", {
           message: "Analyse thématique des pages en cours...",
-          pageCount: pageProjectIds.length,
+          pageCount: validPageProjectIds.length,
         });
 
         // 🚀 PEN-20: Utiliser le cache pour le contexte
@@ -1060,12 +1157,12 @@ export class QuizStreamingController {
         };
 
         const cacheResult = await ContextCacheService.getOrPrepareContext(
-          pageProjectIds,
+          validPageProjectIds,
           questionCount,
           intelligentConfig,
           async () =>
             prepareIntelligentContext(
-              pageProjectIds,
+              validPageProjectIds,
               questionCount,
               intelligentConfig,
             ),
@@ -1175,7 +1272,7 @@ export class QuizStreamingController {
       }
 
       // 🆕 Générer les questions avec Chat Completion + JSON strict (gpt-4o-mini)
-      const generatedQuestions: any[] = [];
+      const generatedQuestions: Question[] = [];
       const assistantService = new OpenAIAssistantService();
 
       console.log(
@@ -1187,7 +1284,7 @@ export class QuizStreamingController {
         ? intelligentContext.enrichedRagContext
         : ragContext;
 
-      const baseRequest: Record<string, any> = {
+      const baseRequest: Record<string, unknown> = {
         userId,
         schoolLevel,
         questionCount: 1,
@@ -1261,7 +1358,7 @@ export class QuizStreamingController {
               });
 
               // Construire la requête avec contexte du cluster
-              const singleQuestionRequest: Record<string, any> = {
+              const singleQuestionRequest: Record<string, unknown> = {
                 ...baseRequest,
                 questionTypes: [specificQuestionType],
                 questionCount: 1,
@@ -1356,7 +1453,10 @@ export class QuizStreamingController {
                   // Sauvegarder immédiatement
                   await prisma.quiz.update({
                     where: { id: quiz.id },
-                    data: { questions: generatedQuestions as any },
+                    data: {
+                      questions:
+                        generatedQuestions as unknown as Prisma.InputJsonValue,
+                    },
                   });
 
                   // Envoyer la question
@@ -1424,7 +1524,7 @@ export class QuizStreamingController {
               message: `Génération de la question ${i + 1} (${specificQuestionType})...`,
             });
 
-            const singleQuestionRequest: Record<string, any> = {
+            const singleQuestionRequest: Record<string, unknown> = {
               ...baseRequest,
               questionTypes: [specificQuestionType],
               questionCount: 1,
@@ -1500,7 +1600,10 @@ export class QuizStreamingController {
 
               await prisma.quiz.update({
                 where: { id: quiz.id },
-                data: { questions: generatedQuestions as any },
+                data: {
+                  questions:
+                    generatedQuestions as unknown as Prisma.InputJsonValue,
+                },
               });
 
               sendSSE("question-generated", {
@@ -1542,7 +1645,7 @@ export class QuizStreamingController {
         where: { id: quiz.id },
         data: {
           status: "ready",
-          questions: generatedQuestions as any,
+          questions: generatedQuestions as unknown as Prisma.InputJsonValue,
         },
       });
 
@@ -1639,7 +1742,7 @@ export class QuizStreamingController {
       });
 
       // Fonction pour envoyer des événements SSE
-      const sendSSE = (event: string, data: any) => {
+      const sendSSE = (event: string, data: SSEEventData): void => {
         res.write(`event: ${event}\n`);
         res.write(`data: ${JSON.stringify(data)}\n\n`);
         if (typeof res.flush === "function") {
@@ -1664,38 +1767,44 @@ export class QuizStreamingController {
           : []) as unknown as Question[];
 
         // Convertir les answers du frontend en UserAnswer[]
-        const userAnswers: UserAnswer[] = answers.map((ans: any) => ({
-          questionId: ans.questionId,
-          answer: ans.answer,
-          timeSpent: ans.timeSpent || 0,
-        }));
+        const userAnswers: UserAnswer[] = answers.map(
+          (ans: UserAnswerInput) => ({
+            questionId: ans.questionId,
+            answer: ans.answer,
+            timeSpent: ans.timeSpent || 0,
+          }),
+        );
 
         // Tracker toutes les corrections pour la sauvegarde
-        const allCorrections: any[] = [];
+        const allCorrections: CorrectionResultItem[] = [];
 
         // Construire la requête de correction
+        const quizExtras = quiz as unknown as QuizWithExtras;
         const correctionRequest: QuizCorrectionRequest = {
           quizId,
           userId,
           userAnswers,
           submittedAt: new Date(),
-          preset: (quiz as any).preset || "NONE",
-          specificSubject: (quiz as any).specificSubject,
+          preset: (quizExtras.preset as QuizPreset) || QuizPreset.NONE,
+          specificSubject: quizExtras.specificSubject as
+            | ExamSubject
+            | undefined,
           schoolLevel: (quiz.schoolLevel as SchoolLevel) || SchoolLevel.COLLEGE,
           // Utiliser les sourceDocuments du quiz (pour la cohérence) ou ceux du body en fallback
           hasDocuments:
             quiz.hasDocuments ||
-            (!!sourceDocuments && sourceDocuments.length > 0),
+            (Array.isArray(sourceDocuments) && sourceDocuments.length > 0),
           sourceDocuments:
-            (quiz.sourceDocuments as any) || sourceDocuments || [],
+            (quizExtras.sourceDocuments as DocumentChunk[]) ||
+            sourceDocuments ||
+            [],
           coursesOnly: false,
           workspaceContent: [],
         };
 
         // Utiliser le générateur de correction streaming
-        const correctionGenerator = await import(
-          "../services/quiz/generators/correctionGenerator.js"
-        );
+        const correctionGenerator =
+          await import("../services/quiz/generators/correctionGenerator.js");
         const generator =
           correctionGenerator.CorrectionGenerator.correctQuizStreaming(
             questions,
@@ -1706,16 +1815,21 @@ export class QuizStreamingController {
         // Itérer sur les événements du générateur
         for await (const event of generator) {
           if (event.type === "closed-questions") {
+            const correctionCount = Array.isArray(event.correction)
+              ? event.correction.length
+              : 0;
             console.log(
-              `✅ [CORRECTION-STREAMING] ${event.correction?.length || 0} questions fermées corrigées`,
+              `✅ [CORRECTION-STREAMING] ${correctionCount} questions fermées corrigées`,
             );
             // Accumuler les corrections
             if (event.correction && Array.isArray(event.correction)) {
-              allCorrections.push(...event.correction);
+              allCorrections.push(
+                ...(event.correction as CorrectionResultItem[]),
+              );
             }
             sendSSE("closed-questions-corrected", {
               corrections: event.correction,
-              count: event.correction?.length || 0,
+              count: correctionCount,
             });
           } else if (event.type === "open-question") {
             console.log(
@@ -1723,7 +1837,13 @@ export class QuizStreamingController {
             );
             // Accumuler la correction
             if (event.correction) {
-              allCorrections.push(event.correction);
+              if (Array.isArray(event.correction)) {
+                allCorrections.push(
+                  ...(event.correction as CorrectionResultItem[]),
+                );
+              } else {
+                allCorrections.push(event.correction as CorrectionResultItem);
+              }
             }
             sendSSE("open-question-corrected", {
               questionNumber: event.questionNumber,
@@ -1734,7 +1854,7 @@ export class QuizStreamingController {
             console.log(`🎉 [CORRECTION-STREAMING] Correction terminée`);
 
             // 📚 PEN-22: Enrichir les corrections avec références aux sources
-            let enrichedCorrections = allCorrections;
+            let enrichedCorrections: CorrectionResultItem[] = allCorrections;
             try {
               console.log(
                 `📚 [ENRICHER] Enrichissement de ${allCorrections.length} corrections...`,
@@ -1749,16 +1869,20 @@ export class QuizStreamingController {
                 enableConceptSuggestions: true,
               };
 
-              enrichedCorrections =
+              const enrichResult =
                 await CorrectionEnricherService.enrichCorrections(
                   questions,
-                  allCorrections,
+                  allCorrections as unknown as Parameters<
+                    typeof CorrectionEnricherService.enrichCorrections
+                  >[1],
                   enrichConfig,
                 );
+              enrichedCorrections =
+                enrichResult as unknown as CorrectionResultItem[];
 
               // Envoyer les corrections enrichies au frontend
               const enrichedCount = enrichedCorrections.filter(
-                (c: any) => c.isEnriched,
+                (c: CorrectionResultItem) => c.isEnriched,
               ).length;
               if (enrichedCount > 0) {
                 sendSSE("corrections-enriched", {
@@ -1801,10 +1925,13 @@ export class QuizStreamingController {
                     percentage: event.finalResult!.percentage || 0,
                     adaptedGrade: event.finalResult!.adaptedGrade || 0,
                     gradeScale: event.finalResult!.gradeScale || "/20",
-                    detailedScoring: enrichedCorrections, // PEN-22: Utiliser les corrections enrichies
-                    aiCorrection: event.finalResult!.aiCorrection as any,
-                    recommendations: event.finalResult!.aiCorrection
-                      ?.recommendations as any,
+                    detailedScoring:
+                      enrichedCorrections as unknown as Prisma.InputJsonValue, // PEN-22: Utiliser les corrections enrichies
+                    aiCorrection: event.finalResult!
+                      .aiCorrection as unknown as Prisma.InputJsonValue,
+                    recommendations: (event.finalResult!.aiCorrection
+                      ?.recommendations ??
+                      []) as unknown as Prisma.InputJsonValue,
                   },
                 });
               });
@@ -1814,9 +1941,8 @@ export class QuizStreamingController {
               );
 
               // 🗑️ Invalider le cache de l'historique après complétion du quiz
-              const { invalidateQuizHistoryCache } = await import(
-                "../lib/redis.js"
-              );
+              const { invalidateQuizHistoryCache } =
+                await import("../lib/redis.js");
               invalidateQuizHistoryCache(userId).catch((err) =>
                 console.warn(
                   "⚠️ [CORRECTION-STREAMING] Échec invalidation cache:",

@@ -3,6 +3,8 @@
  * Réduit la verbosité des logs en production et filtre les données sensibles
  */
 
+import { Request, Response, NextFunction } from "express";
+
 export interface SecureLogOptions {
   maxLength?: number;
   hideInProduction?: boolean;
@@ -77,7 +79,10 @@ export class SecureLogger {
   /**
    * Sanitise les données en supprimant les champs sensibles
    */
-  private static sanitizeData(data: any, options?: SecureLogOptions): any {
+  private static sanitizeData(
+    data: unknown,
+    options?: SecureLogOptions,
+  ): unknown {
     if (!data || typeof data !== "object") {
       return data;
     }
@@ -103,7 +108,9 @@ export class SecureLogger {
     ];
     const maxLength = options?.maxLength || 100;
 
-    const sanitized = { ...data };
+    // Type guard: data is already verified as object above
+    const dataRecord = data as Record<string, unknown>;
+    const sanitized: Record<string, unknown> = { ...dataRecord };
 
     Object.keys(sanitized).forEach((key) => {
       const lowerKey = key.toLowerCase();
@@ -116,11 +123,9 @@ export class SecureLogger {
           sanitized[key] = "[REDACTED]";
         } else {
           // En dev, tronquer seulement
-          if (
-            typeof sanitized[key] === "string" &&
-            sanitized[key].length > maxLength
-          ) {
-            sanitized[key] = sanitized[key].substring(0, maxLength) + "...";
+          const value = sanitized[key];
+          if (typeof value === "string" && value.length > maxLength) {
+            sanitized[key] = value.substring(0, maxLength) + "...";
           }
         }
       }
@@ -133,7 +138,11 @@ export class SecureLogger {
 /**
  * Middleware Express pour logger les requêtes de manière sécurisée
  */
-export const secureRequestLogger = (req: any, res: any, next: any) => {
+export const secureRequestLogger = (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
   const start = Date.now();
 
   // Log seulement en développement ou pour les erreurs

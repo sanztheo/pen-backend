@@ -1,12 +1,41 @@
 // assistant/utils/logging.ts - Utilitaires de logging pour l'assistant
 
+// Interfaces pour le typage des données de logging
+interface LogAnswer {
+  questionId: string;
+  answer: unknown;
+}
+
+interface LogQuestionOption {
+  id: string;
+  isCorrect?: boolean;
+}
+
+interface LogQuestion {
+  id: string;
+  type: string;
+  options?: LogQuestionOption[];
+}
+
+interface LogCorrection {
+  questionId: string;
+  isCorrect: boolean;
+  pointsObtained: number;
+  correctAnswer: unknown;
+  userAnswer: unknown;
+}
+
+interface LogCorrectionResult {
+  corrections?: LogCorrection[];
+}
+
 /**
  * Log détaillé pour debugging des opérations de l'assistant
  */
 export function logOperation(
   operation: string,
-  params: any,
-  result?: any,
+  params: unknown,
+  result?: unknown,
   error?: Error,
 ): void {
   const timestamp = new Date().toISOString();
@@ -28,7 +57,7 @@ export function logOperation(
  */
 export function logGeneration(
   type: string,
-  options: any,
+  options: unknown,
   success: boolean,
   details?: string,
 ): void {
@@ -66,8 +95,8 @@ export function logCorrection(
  */
 export function logCorrectionDebug(
   quizId: string,
-  answers: any[],
-  questions: any[],
+  answers: LogAnswer[],
+  questions: LogQuestion[],
 ): void {
   console.log("🐛 [DEBUG] [CORRECTION] Données reçues:", {
     quizId,
@@ -78,10 +107,10 @@ export function logCorrectionDebug(
     })),
     questionsCount: questions?.length || 0,
     questions:
-      questions?.map((q: any) => ({
+      questions?.map((q) => ({
         id: q.id,
         type: q.type,
-        correctOption: q.options?.find((opt: any) => opt.isCorrect)?.id,
+        correctOption: q.options?.find((opt) => opt.isCorrect)?.id,
       })) || [],
   });
 }
@@ -89,11 +118,11 @@ export function logCorrectionDebug(
 /**
  * Log pour les résultats de correction
  */
-export function logCorrectionResult(result: any): void {
+export function logCorrectionResult(result: LogCorrectionResult): void {
   console.log("🐛 [DEBUG] [CORRECTION] Résultat IA:", {
     correctionsCount: result?.corrections?.length || 0,
     corrections:
-      result?.corrections?.map((corr: any) => ({
+      result?.corrections?.map((corr) => ({
         questionId: corr.questionId,
         isCorrect: corr.isCorrect,
         pointsObtained: corr.pointsObtained,

@@ -17,6 +17,21 @@ interface FuturaArticle {
   };
 }
 
+// Type for RSS parser items with optional fields
+interface RssItem {
+  title?: string;
+  description?: string;
+  link?: string;
+  pubDate?: string;
+  content?: string;
+  contentSnippet?: string;
+  guid?: string;
+  enclosure?: {
+    url?: string;
+    type?: string;
+  };
+}
+
 // Cache pour les résultats de validation AI éducative
 const aiValidationCache = new Map<
   string,
@@ -280,21 +295,23 @@ export class FuturaRssService {
    * @returns Object avec isValid (pertinence éducative) et score de confiance
    */
   private static async validateEducationalRelevanceAI(
-    article: any,
+    article: RssItem,
   ): Promise<{ isValid: boolean; score: number; reason: string }> {
     try {
       // Vérifier le cache
-      const cacheKey = article.guid || article.link;
-      const cached = aiValidationCache.get(cacheKey);
-      if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-        console.log(
-          `📦 Cache hit pour validation éducative: ${cacheKey.substring(0, 50)}...`,
-        );
-        return {
-          isValid: cached.isValid,
-          score: cached.score,
-          reason: cached.reason,
-        };
+      const cacheKey = article.guid ?? article.link ?? "";
+      if (cacheKey) {
+        const cached = aiValidationCache.get(cacheKey);
+        if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+          console.log(
+            `📦 Cache hit pour validation éducative: ${cacheKey.substring(0, 50)}...`,
+          );
+          return {
+            isValid: cached.isValid,
+            score: cached.score,
+            reason: cached.reason,
+          };
+        }
       }
 
       // Rate limiting (silencieux)
@@ -371,12 +388,14 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
       const reason = result.reason || "unknown";
 
       // Mettre en cache
-      aiValidationCache.set(cacheKey, {
-        isValid,
-        score,
-        reason,
-        timestamp: Date.now(),
-      });
+      if (cacheKey) {
+        aiValidationCache.set(cacheKey, {
+          isValid,
+          score,
+          reason,
+          timestamp: Date.now(),
+        });
+      }
 
       // Log uniquement les articles validés (réduire le bruit)
       if (isValid) {
@@ -408,9 +427,12 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
       }
 
       // Valider les articles avec l'AI (on teste les 30 premiers)
-      const first30Articles = feed.items.slice(0, 30);
-      const validatedArticles: { item: any; score: number; reason: string }[] =
-        [];
+      const first30Articles = feed.items.slice(0, 30) as RssItem[];
+      const validatedArticles: {
+        item: RssItem;
+        score: number;
+        reason: string;
+      }[] = [];
 
       console.log(`🔍 Validation AI de ${first30Articles.length} articles...`);
 
@@ -430,12 +452,12 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
       );
 
       // Sélectionner un article au hasard parmi les validés (prioriser les meilleurs scores)
-      let selectedArticle;
+      let selectedArticle: RssItem;
       if (validatedArticles.length === 0) {
         console.warn(
           "⚠️ Aucun article validé par l'AI, utilisation du premier article disponible",
         );
-        selectedArticle = feed.items[0];
+        selectedArticle = feed.items[0] as RssItem;
         console.log(
           `🎲 Article de secours: "${selectedArticle.title?.substring(0, 80)}..."`,
         );

@@ -229,13 +229,16 @@ export class QuizLimitsService {
         limitReached: false,
         message: "Quiz personnalisé déduit avec succès",
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       SecureLogger.error(
         "❌ Erreur lors de la déduction atomique quiz personnalisé",
         error,
       );
 
-      if (error.code === "P2034") {
+      // Gestion spécifique des erreurs Prisma
+      const isPrismaError =
+        error !== null && typeof error === "object" && "code" in error;
+      if (isPrismaError && (error as { code: string }).code === "P2034") {
         // Transaction timeout
         return {
           success: false,
@@ -465,7 +468,15 @@ export class QuizLimitsService {
           },
         );
 
-        if (retryResult.error?.code === "P2034") {
+        // Type guard pour accès sécurisé au code d'erreur
+        const errorCode =
+          retryResult.error !== null &&
+          typeof retryResult.error === "object" &&
+          "code" in retryResult.error
+            ? String((retryResult.error as { code: unknown }).code)
+            : undefined;
+
+        if (errorCode === "P2034") {
           return {
             success: false,
             message: "Service temporairement surchargé, veuillez réessayer",

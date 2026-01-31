@@ -1,6 +1,7 @@
 // assistant/correction/chatCorrection.ts - Correction via Chat Completion avec JSON strict
 
 import OpenAI from "openai";
+import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 import { AIService } from "../../../ai/base.js";
 import {
   QUIZ_CORRECTION_STANDARD_SCHEMA,
@@ -14,6 +15,30 @@ import {
 } from "./prompts/index.js";
 import { logCorrectionDebug, logCorrectionResult } from "../utils/index.js";
 import type { QuizAnswer, CorrectQuizOptions } from "../types/index.js";
+
+/** Individual question correction result */
+interface QuestionCorrection {
+  questionId: string;
+  isCorrect: boolean;
+  score: number;
+  feedback: string;
+  correctAnswer?: string;
+  explanation?: string;
+}
+
+/** Result of quiz correction */
+interface CorrectionResult {
+  corrections: QuestionCorrection[];
+  totalScore?: number;
+  overallFeedback?: string;
+  recommendations?: string[];
+}
+
+/** Extended API config for GPT-5 models */
+interface ExtendedChatConfig extends ChatCompletionCreateParamsNonStreaming {
+  reasoning_effort?: "low" | "medium" | "high";
+  max_completion_tokens?: number;
+}
 
 /**
  * Classe pour la correction de quiz via Chat Completion avec JSON strict
@@ -34,7 +59,7 @@ export class ChatCorrection {
     quizId: string,
     answers: QuizAnswer[],
     options?: CorrectQuizOptions,
-  ): Promise<any> {
+  ): Promise<CorrectionResult> {
     try {
       const correctionModel = AIService.getQuizCorrectionModel();
       console.log(
@@ -46,7 +71,11 @@ export class ChatCorrection {
 
       // Construire les messages pour correction
       const systemPrompt = buildCorrectionSystemPrompt();
-      const userPrompt = buildStandardCorrectionPrompt(quizId, answers, options);
+      const userPrompt = buildStandardCorrectionPrompt(
+        quizId,
+        answers,
+        options,
+      );
 
       // Debug du prompt utilisateur (tronqué)
       console.log(
@@ -59,7 +88,7 @@ export class ChatCorrection {
       );
 
       // Configuration de base pour l'appel API
-      const apiConfig: any = {
+      const apiConfig: ExtendedChatConfig = {
         model: correctionModel,
         messages: [
           {
@@ -95,7 +124,9 @@ export class ChatCorrection {
       }
 
       // Appel chat completion avec JSON strict
-      const completion = await this.openai.chat.completions.create(apiConfig);
+      const completion = await this.openai.chat.completions.create(
+        apiConfig as ChatCompletionCreateParamsNonStreaming,
+      );
 
       const responseContent = completion.choices[0]?.message?.content;
       if (!responseContent) {
@@ -133,7 +164,7 @@ export class ChatCorrection {
     quizId: string,
     answers: QuizAnswer[],
     options?: CorrectQuizOptions,
-  ): Promise<any> {
+  ): Promise<CorrectionResult> {
     try {
       const correctionModel = AIService.getQuizCorrectionModel();
       console.log(
@@ -142,14 +173,18 @@ export class ChatCorrection {
 
       // Construire les messages pour correction complète
       const systemPrompt = buildCompleteCorrectionSystemPrompt();
-      const userPrompt = buildCompleteCorrectionPrompt(quizId, answers, options);
+      const userPrompt = buildCompleteCorrectionPrompt(
+        quizId,
+        answers,
+        options,
+      );
 
       console.log(
         `📤 [CORRECTION] Envoi à ${correctionModel} avec JSON strict (schéma complet)`,
       );
 
       // Configuration de base pour l'appel API
-      const apiConfig: any = {
+      const apiConfig: ExtendedChatConfig = {
         model: correctionModel,
         messages: [
           {
@@ -185,7 +220,9 @@ export class ChatCorrection {
       }
 
       // Appel chat completion avec JSON strict
-      const completion = await this.openai.chat.completions.create(apiConfig);
+      const completion = await this.openai.chat.completions.create(
+        apiConfig as ChatCompletionCreateParamsNonStreaming,
+      );
 
       const responseContent = completion.choices[0]?.message?.content;
       if (!responseContent) {
@@ -221,7 +258,7 @@ export class ChatCorrection {
     quizId: string,
     answers: Array<{ question_id: string; user_answer: string }>,
     options: CorrectQuizOptions = {},
-  ): Promise<any> {
+  ): Promise<CorrectionResult> {
     const formattedAnswers = answers.map((a) => ({
       questionId: a.question_id,
       answer: a.user_answer,

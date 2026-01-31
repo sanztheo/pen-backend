@@ -30,6 +30,18 @@ function getGrokInstance(): OpenAI {
   return grok;
 }
 
+// Interface pour les résultats de streaming d'autocomplétion
+export interface AutocompleteStreamResult {
+  suggestions: string[];
+  context: {
+    beforeCursor: string;
+    afterCursor: string;
+    detectedIntent: string;
+  };
+  isComplete: boolean;
+  currentSuggestionIndex?: number;
+}
+
 export interface AIGenerationOptions {
   prompt: string;
   maxTokens?: number;
@@ -277,9 +289,9 @@ export class AIService {
     _cursorPosition: number,
     _blockType?: string,
     _maxSuggestions: number = 3,
-    _onStreamChunk?: (result: any) => void,
+    _onStreamChunk?: (result: AutocompleteStreamResult) => void,
     _signal?: AbortSignal,
-  ): Promise<any> {
+  ): Promise<AutocompleteStreamResult> {
     console.warn("[DEPRECATED] AutocompleteService a été supprimé");
     return {
       suggestions: [],
@@ -288,6 +300,7 @@ export class AIService {
         afterCursor: "",
         detectedIntent: "unknown",
       },
+      isComplete: true,
     };
   }
 }

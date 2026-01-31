@@ -189,11 +189,14 @@ router.get("/portal-url", authenticateToken, async (req, res) => {
         portalUrl,
         subscriptionId: subscription.paddleSubscriptionId,
       });
-    } catch (paddleError: any) {
+    } catch (paddleError: unknown) {
       console.error("[API] Erreur API Paddle:", paddleError);
       return res.status(500).json({
         error: "Erreur lors de la recuperation du portail Paddle",
-        details: "Une erreur est survenue",
+        details:
+          paddleError instanceof Error
+            ? paddleError.message
+            : "Une erreur est survenue",
       });
     }
   } catch (error) {
