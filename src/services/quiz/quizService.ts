@@ -1,12 +1,14 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { AIQuizService } from "./aiQuizService.js";
 import {
   SchoolLevel,
+  CollegeGrade,
   LyceeSpecialty,
   QuestionType,
   QuizGenerationRequest,
   QuizCorrectionRequest,
+  QuizCorrectionResult,
   GeneratedQuiz,
   UserAnswer,
   UserQuizPreferences,
@@ -18,7 +20,199 @@ import {
   QuizPreset,
   SequentialQuizConfig,
   ExamSubject,
+  QuizSubject,
+  DocumentChunk,
+  QuestionResult,
+  SubjectResult,
 } from "./types.js";
+
+// ============== TYPES INTERNES ==============
+
+/** Données pour la création d'un quiz en base de données */
+interface QuizCreateData {
+  userId: string;
+  title: string;
+  aiGeneratedTitle?: string;
+  schoolLevel: SchoolLevel;
+  questions: Prisma.InputJsonValue;
+  isCompleted: boolean;
+  isSequential: boolean;
+  sequenceId?: string;
+  sequenceOrder?: number;
+  preset: QuizPreset;
+  selectedSpecialties: LyceeSpecialty[];
+  higherEdField?: string;
+  subjects?: Prisma.InputJsonValue;
+  subjectBased?: boolean;
+  currentSubjectIndex?: number;
+  sourceDocuments?: Prisma.InputJsonValue;
+  hasDocuments?: boolean;
+}
+
+/** Quiz récupéré depuis la base de données avec ses relations */
+interface QuizWithRelations {
+  id: string;
+  templateId: string | null;
+  userId: string;
+  title: string;
+  schoolLevel: SchoolLevel;
+  questions: Prisma.JsonValue;
+  userAnswers: Prisma.JsonValue | null;
+  isCompleted: boolean;
+  timeSpent: number | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  aiGeneratedTitle: string | null;
+  collegeGrade: string | null;
+  examSubject: string | null;
+  higherEdField: string | null;
+  isSequential: boolean;
+  preset: QuizPreset;
+  selectedSpecialties: LyceeSpecialty[];
+  sequenceId: string | null;
+  sequenceOrder: number | null;
+  currentSubjectIndex: number | null;
+  subjectBased: boolean;
+  subjects: Prisma.JsonValue | null;
+  hasDocuments: boolean;
+  sourceDocuments: Prisma.JsonValue | null;
+  status: string | null;
+  targetGrade: number | null;
+  timeLimit: number | null;
+  template: {
+    title: string;
+    description: string | null;
+    schoolLevel: SchoolLevel;
+    parameters?: Prisma.JsonValue;
+  } | null;
+  result: {
+    id: string;
+    totalScore: number;
+    maxScore: number;
+    percentage: number;
+    adaptedGrade: number;
+    gradeScale: string;
+    detailedScoring: Prisma.JsonValue;
+    aiCorrection: Prisma.JsonValue;
+    recommendations: Prisma.JsonValue;
+  } | null;
+  user: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+  };
+}
+
+/** Résultat sauvegardé en base de données */
+interface SavedQuizResult {
+  id: string;
+  quizId: string;
+  totalScore: number;
+  maxScore: number;
+  percentage: number;
+  adaptedGrade: number;
+  gradeScale: string;
+  detailedScoring: Prisma.JsonValue;
+  aiCorrection: Prisma.JsonValue;
+  recommendations: Prisma.JsonValue;
+  createdAt: Date;
+}
+
+/** Paramètres de template pour quiz basé sur workspace/pages */
+interface TemplateParameters {
+  workspaceAnalysis?: WorkspaceAnalysisResult[];
+  pageProjectAnalysis?: WorkspaceAnalysisResult[];
+  generationMetadata?: Record<string, unknown>;
+  coursesOnly?: boolean;
+  pageProjectIds?: string[];
+}
+
+/** Source RAG pour le contexte de génération */
+interface RAGSource {
+  title: string;
+  type: string;
+  similarity: number;
+}
+
+/** Page récupérée depuis la base de données */
+interface PageData {
+  id: string;
+  title: string;
+  blockNoteContent: Prisma.JsonValue | null;
+}
+
+/** Bloc de contenu BlockNote */
+interface BlockNoteBlock {
+  type?: string;
+  content?: string | BlockNoteContentItem[];
+  children?: BlockNoteBlock[];
+}
+
+/** Item de contenu dans un bloc BlockNote */
+interface BlockNoteContentItem {
+  type?: string;
+  text?: string;
+}
+
+/** Résultat de génération parallèle de quiz */
+interface ParallelGenerationResult {
+  subject: ExamSubject;
+  quiz: GeneratedQuiz | null;
+  generatedBy: "assistant1" | "assistant2";
+  generationTime: number;
+  error: string | null;
+}
+
+/** Résultat de soumission d'un quiz séquentiel */
+interface SequentialQuizSubmitResult {
+  id: string;
+  quizId: string;
+  totalScore: number;
+  maxScore: number;
+  percentage: number;
+  adaptedGrade: number;
+  detailedScoring: Prisma.JsonValue;
+  aiCorrection: {
+    summary: string;
+    strengths: string[];
+    weaknesses: string[];
+    recommendations: string[];
+  };
+  recommendations: string[];
+  createdAt: string;
+  isCorrectingInProgress?: boolean;
+  isSequenceCompleted?: boolean;
+}
+
+/** Quiz formaté pour l'historique */
+interface FormattedHistoryQuiz {
+  id: string;
+  title: string;
+  preset?: QuizPreset;
+  isSequential: boolean;
+  isSequence?: boolean;
+  isCompleted: boolean;
+  createdAt: Date;
+  updatedAt?: Date;
+  currentSubjectIndex?: number;
+  totalSubjects?: number;
+  subjects?: ExamSubject[];
+  schoolLevel: SchoolLevel | string;
+  questions: Prisma.JsonValue | ExamSubject[];
+  result: {
+    totalScore: number;
+    maxScore: number;
+    percentage: number;
+    adaptedGrade: number;
+    gradeScale: string;
+    detailedScoring: Prisma.JsonValue;
+  } | null;
+  sequenceType: "individual" | "sequence";
+  canContinue?: boolean;
+  nextSubject?: ExamSubject | null;
+}
 
 // Import du gestionnaire de séquences
 import {
@@ -68,18 +262,18 @@ export class QuizService {
       );
 
       // Sauvegarde en base de données (ADAPTÉ pour les sujets)
-      const quizData: any = {
+      const quizData: QuizCreateData = {
         userId: request.userId,
         title:
           generatedQuiz.title || request.title || `Quiz ${request.schoolLevel}`,
         aiGeneratedTitle: generatedQuiz.aiGeneratedTitle,
         schoolLevel: request.schoolLevel,
-        questions: generatedQuiz.questions as any, // Rétrocompatibilité
+        questions: generatedQuiz.questions as unknown as Prisma.InputJsonValue,
         isCompleted: false,
         isSequential: !!sequenceOptions,
         sequenceId: sequenceOptions?.sequenceId,
         sequenceOrder: sequenceOptions?.sequenceOrder,
-        preset: request.preset || "NONE",
+        preset: (request.preset as QuizPreset) || QuizPreset.NONE,
         selectedSpecialties: request.lyceeSpecialties || [],
         higherEdField: request.higherEdField,
       };
@@ -118,7 +312,7 @@ export class QuizService {
         const cleanedSubjects = this.cleanGraphicPropertiesForSave(
           generatedQuiz.subjects,
         );
-        quizData.subjects = cleanedSubjects as any; // Nouveau champ
+        quizData.subjects = cleanedSubjects as unknown as Prisma.InputJsonValue;
         quizData.subjectBased = true;
         quizData.currentSubjectIndex = 0; // Commencer au premier sujet
       }
@@ -128,10 +322,11 @@ export class QuizService {
         console.log(
           `📚 [SAVE] Sauvegarde quiz avec ${generatedQuiz.sourceDocuments.length} documents Wikipedia`,
         );
-        quizData.sourceDocuments = generatedQuiz.sourceDocuments;
+        quizData.sourceDocuments =
+          generatedQuiz.sourceDocuments as unknown as Prisma.InputJsonValue;
         quizData.hasDocuments = generatedQuiz.hasDocuments || true;
       } else {
-        quizData.sourceDocuments = [];
+        quizData.sourceDocuments = [] as unknown as Prisma.InputJsonValue;
         quizData.hasDocuments = false;
       }
 
@@ -199,7 +394,7 @@ export class QuizService {
 
       // 🧠 Intégrer le contexte RAG pour améliorer la génération
       let ragContext = "";
-      let ragSources: any[] = [];
+      let ragSources: RAGSource[] = [];
 
       try {
         // Construire une query basée sur les pages sélectionnées
@@ -234,7 +429,7 @@ export class QuizService {
           );
           ragSources = searchResults.map((r) => ({
             title: r.source.title,
-            type: r.source.type,
+            type: r.source.type || "unknown",
             similarity: r.similarity,
           }));
 
@@ -305,7 +500,8 @@ export class QuizService {
           title: generatedQuiz.title,
           aiGeneratedTitle: generatedQuiz.aiGeneratedTitle,
           schoolLevel: request.schoolLevel,
-          questions: generatedQuiz.questions as any,
+          questions:
+            generatedQuiz.questions as unknown as Prisma.InputJsonValue,
           isCompleted: false,
         },
       });
@@ -395,7 +591,8 @@ export class QuizService {
           title: generatedQuiz.title,
           aiGeneratedTitle: generatedQuiz.aiGeneratedTitle, // ✅ Titre IA workspace
           schoolLevel: request.schoolLevel,
-          questions: generatedQuiz.questions as any,
+          questions:
+            generatedQuiz.questions as unknown as Prisma.InputJsonValue,
           isCompleted: false,
           // examSubject: request.specificSubject || undefined // TODO: Ajouter après migration
         },
@@ -414,7 +611,10 @@ export class QuizService {
   /**
    * Récupère un quiz par son ID
    */
-  static async getQuiz(quizId: string, userId: string): Promise<any> {
+  static async getQuiz(
+    quizId: string,
+    userId: string,
+  ): Promise<QuizWithRelations> {
     try {
       const quiz = await prisma.quiz.findFirst({
         where: {
@@ -452,7 +652,7 @@ export class QuizService {
           : "null",
       });
 
-      return quiz;
+      return quiz as unknown as QuizWithRelations;
     } catch (error) {
       console.error("❌ Erreur récupération quiz:", error);
       throw new Error(
@@ -499,7 +699,7 @@ export class QuizService {
           userId: userId,
         },
         data: {
-          userAnswers: userAnswers as any, // JSON
+          userAnswers: userAnswers as unknown as Prisma.InputJsonValue,
         },
       });
 
@@ -517,10 +717,10 @@ export class QuizService {
     quizId: string,
     userId: string,
     userAnswers: UserAnswer[],
-    sourceDocuments?: any[],
+    sourceDocuments?: DocumentChunk[],
     hasDocuments?: boolean,
     processId?: string,
-  ): Promise<any> {
+  ): Promise<SavedQuizResult> {
     try {
       console.log("📝 Soumission quiz pour correction:", quizId);
 
@@ -564,10 +764,10 @@ export class QuizService {
 
       // Récupération des paramètres coursesOnly et workspaceContent depuis le template
       let coursesOnly = false;
-      let workspaceContent: any[] = [];
+      let workspaceContent: WorkspaceAnalysisResult[] = [];
 
       if (quiz.template && quiz.template.parameters) {
-        const params = quiz.template.parameters as any;
+        const params = quiz.template.parameters as TemplateParameters;
         coursesOnly = params.coursesOnly || false;
 
         // Support des deux systèmes : ancien (workspaceAnalysis) et nouveau (pageProjectAnalysis)
@@ -602,10 +802,10 @@ export class QuizService {
         quizId,
         userId,
         userAnswers,
-        schoolLevel: quiz.schoolLevel,
-        collegeGrade: quiz.collegeGrade,
-        preset: quiz.preset, // Ajout du preset pour utiliser les prompts spécialisés
-        specificSubject, // Utilisation de la matière récupérée
+        schoolLevel: quiz.schoolLevel as SchoolLevel,
+        collegeGrade: quiz.collegeGrade as CollegeGrade | undefined,
+        preset: quiz.preset as QuizPreset, // Ajout du preset pour utiliser les prompts spécialisés
+        specificSubject: specificSubject as ExamSubject | undefined, // Utilisation de la matière récupérée
         coursesOnly, // Nouveau - mode correction basée uniquement sur les cours
         workspaceContent, // Nouveau - contenu des workspaces pour la correction
         sourceDocuments, // NOUVEAU - Documents Wikipedia sources pour la correction
@@ -631,8 +831,9 @@ export class QuizService {
         );
 
         // 🛠️ CORRECTION: Reconstruire les propriétés graphiques lors de la lecture
-        const rawQuestions = quiz.subjects.flatMap(
-          (subject: any) => subject.questions || [],
+        const subjects = quiz.subjects as unknown as QuizSubject[];
+        const rawQuestions = subjects.flatMap(
+          (subject: QuizSubject) => subject.questions || [],
         );
         questionsForCorrection =
           this.reconstructGraphicProperties(rawQuestions);
@@ -645,7 +846,7 @@ export class QuizService {
         console.log(
           `📝 [CORRECTION] Quiz classique - utilisation des questions directes`,
         );
-        questionsForCorrection = quiz.questions as Question[];
+        questionsForCorrection = quiz.questions as unknown as Question[];
       }
 
       if (questionsForCorrection.length === 0) {
@@ -702,42 +903,45 @@ export class QuizService {
       );
 
       // Sauvegarde du résultat et récupération des données complètes
-      let savedResult: any = null;
-      await prisma.$transaction(async (tx: any) => {
-        // Mise à jour du quiz
-        await tx.quiz.update({
-          where: { id: quizId },
-          data: {
-            userAnswers: completeUserAnswers as any,
-            isCompleted: true,
-            completedAt: new Date(),
-          },
-        });
-
-        // Création du résultat avec relation quiz
-        savedResult = await tx.quizResult.create({
-          data: {
-            totalScore: correctionResult.totalScore,
-            maxScore: correctionResult.maxScore,
-            percentage: correctionResult.percentage,
-            adaptedGrade: correctionResult.adaptedGrade,
-            gradeScale: correctionResult.gradeScale,
-            detailedScoring: correctionResult.questionResults as any,
-            aiCorrection: correctionResult.aiCorrection as any,
-            recommendations: correctionResult.aiCorrection
-              .recommendations as any,
-            strengths: correctionResult.aiCorrection.strengths as any,
-            weaknesses: correctionResult.aiCorrection.weaknesses as any,
-            quiz: {
-              connect: { id: quizId },
+      const savedResult = await prisma.$transaction(
+        async (tx: Prisma.TransactionClient) => {
+          // Mise à jour du quiz
+          await tx.quiz.update({
+            where: { id: quizId },
+            data: {
+              userAnswers:
+                completeUserAnswers as unknown as Prisma.InputJsonValue,
+              isCompleted: true,
+              completedAt: new Date(),
             },
-          },
-        });
-      });
+          });
 
-      if (!savedResult) {
-        throw new Error("Erreur lors de la sauvegarde du résultat");
-      }
+          // Création du résultat avec relation quiz
+          const result = await tx.quizResult.create({
+            data: {
+              totalScore: correctionResult.totalScore,
+              maxScore: correctionResult.maxScore,
+              percentage: correctionResult.percentage,
+              adaptedGrade: correctionResult.adaptedGrade,
+              gradeScale: correctionResult.gradeScale,
+              detailedScoring:
+                correctionResult.questionResults as unknown as Prisma.InputJsonValue,
+              aiCorrection:
+                correctionResult.aiCorrection as unknown as Prisma.InputJsonValue,
+              recommendations: correctionResult.aiCorrection
+                .recommendations as unknown as Prisma.InputJsonValue,
+              strengths: correctionResult.aiCorrection
+                .strengths as unknown as Prisma.InputJsonValue,
+              weaknesses: correctionResult.aiCorrection
+                .weaknesses as unknown as Prisma.InputJsonValue,
+              quiz: {
+                connect: { id: quizId },
+              },
+            },
+          });
+          return result;
+        },
+      );
 
       console.log("✅ Quiz corrigé et résultat sauvegardé");
 
@@ -749,6 +953,7 @@ export class QuizService {
         maxScore: savedResult.maxScore,
         percentage: savedResult.percentage,
         adaptedGrade: savedResult.adaptedGrade,
+        gradeScale: savedResult.gradeScale,
         detailedScoring: savedResult.detailedScoring,
         aiCorrection: savedResult.aiCorrection,
         recommendations: savedResult.recommendations,
@@ -769,7 +974,7 @@ export class QuizService {
     userId: string,
     limit = 20,
     offset = 0,
-  ): Promise<any[]> {
+  ): Promise<FormattedHistoryQuiz[]> {
     try {
       // Récupérer les quiz individuels (non-séquentiels)
       const individualQuizzes = await prisma.quiz.findMany({
@@ -809,10 +1014,10 @@ export class QuizService {
       // Transformer les séquences pour les rendre compatibles avec l'affichage
       const formattedSequences = quizSequences.map((sequence) => {
         const subjects = Array.isArray(sequence.subjects)
-          ? sequence.subjects
+          ? (sequence.subjects as unknown as ExamSubject[])
           : [];
         const subjectResults = Array.isArray(sequence.subjectResults)
-          ? sequence.subjectResults
+          ? (sequence.subjectResults as unknown as SubjectResult[])
           : [];
 
         // Calculer les statistiques globales
@@ -820,10 +1025,10 @@ export class QuizService {
         let completedQuizzes = 0;
         let totalCorrect = 0;
 
-        subjectResults.forEach((result: any) => {
-          if (result.quizId && result.completed) {
+        subjectResults.forEach((result: SubjectResult) => {
+          if (result.quizId && result.isCompleted) {
             completedQuizzes++;
-            if (result.score && result.maxScore) {
+            if (result.score !== undefined && result.maxScore !== undefined) {
               totalQuestions += result.maxScore;
               totalCorrect += result.score;
             }
@@ -857,12 +1062,12 @@ export class QuizService {
                   adaptedGrade: globalGrade,
                   gradeScale: "/20",
                   detailedScoring: subjectResults
-                    .filter((r: any) => r.completed)
-                    .map((r: any) => ({
+                    .filter((r: SubjectResult) => r.isCompleted)
+                    .map((r: SubjectResult) => ({
                       questionId: r.subject,
-                      isCorrect: r.score >= r.maxScore * 0.6, // 60% comme seuil de réussite
-                      score: r.score,
-                      maxScore: r.maxScore,
+                      isCorrect: (r.score || 0) >= (r.maxScore || 0) * 0.6, // 60% comme seuil de réussite
+                      score: r.score || 0,
+                      maxScore: r.maxScore || 0,
                     })),
                 }
               : null,
@@ -892,7 +1097,7 @@ export class QuizService {
       );
 
       // Appliquer la pagination sur le résultat combiné
-      return allItems.slice(offset, offset + limit);
+      return allItems.slice(offset, offset + limit) as FormattedHistoryQuiz[];
     } catch (error) {
       console.error("❌ Erreur récupération historique:", error);
       throw new Error("Impossible de récupérer l'historique des quiz");
@@ -1021,16 +1226,17 @@ export class QuizService {
             if (page.blockNoteContent) {
               try {
                 // Extraire le contenu du JSON BlockNote
-                const blockNoteContent = page.blockNoteContent as any[];
+                const blockNoteContent =
+                  page.blockNoteContent as BlockNoteBlock[];
 
                 if (Array.isArray(blockNoteContent)) {
                   const pageContent = blockNoteContent
-                    .map((block) => {
+                    .map((block: BlockNoteBlock) => {
                       if (typeof block.content === "string") {
                         return block.content;
                       } else if (Array.isArray(block.content)) {
                         return block.content
-                          .map((item: any) => item.text || "")
+                          .map((item: BlockNoteContentItem) => item.text || "")
                           .join("");
                       }
                       return "";
@@ -1090,7 +1296,7 @@ export class QuizService {
             workspaceId: workspace.id,
             workspaceName: workspace.name,
             totalPages: workspace.projects.reduce(
-              (sum: number, p: any) => sum + p.pages.length,
+              (sum: number, p: { pages: PageData[] }) => sum + p.pages.length,
               0,
             ),
             analyzedPages: extractedContent.length,
@@ -1178,10 +1384,16 @@ export class QuizService {
    * Traite le contenu d'une page individuelle
    */
   private static async processPageContent(
-    page: any,
+    page: {
+      id: string;
+      title: string | null;
+      blockNoteContent: Prisma.JsonValue | null;
+      workspace: { id: string };
+      project: { id: string; name: string } | null;
+    },
     options: PageProjectAnalysisOptions,
     results: WorkspaceAnalysisResult[],
-  ) {
+  ): Promise<void> {
     const extractedContent: WorkspaceAnalysisResult["extractedContent"] = [];
     let totalWords = 0;
 
@@ -1238,10 +1450,15 @@ export class QuizService {
    * Traite le contenu d'un projet entier (récursivement pour les projets imbriqués)
    */
   private static async processProjectContent(
-    project: any,
+    project: {
+      id: string;
+      name: string;
+      workspace: { id: string };
+      pages: PageData[];
+    },
     options: PageProjectAnalysisOptions,
     results: WorkspaceAnalysisResult[],
-  ) {
+  ): Promise<void> {
     const extractedContent: WorkspaceAnalysisResult["extractedContent"] = [];
     let totalWords = 0;
 
@@ -1319,8 +1536,8 @@ export class QuizService {
    */
   private static async getAllPagesRecursively(
     projectId: string,
-  ): Promise<any[]> {
-    const allPages: any[] = [];
+  ): Promise<PageData[]> {
+    const allPages: PageData[] = [];
 
     // Récupérer le projet avec ses pages et ses enfants
     const project = await prisma.project.findUnique({
@@ -1359,7 +1576,7 @@ export class QuizService {
    * Extrait le contenu textuel depuis le format BlockNote JSON
    */
   private static extractTextFromBlockNoteContent(
-    blockNoteContent: any,
+    blockNoteContent: Prisma.JsonValue,
   ): string {
     if (!blockNoteContent || typeof blockNoteContent !== "object") {
       return "";
@@ -1368,15 +1585,16 @@ export class QuizService {
     let extractedText = "";
 
     // BlockNote structure: array of blocks ou objet avec content
+    const blockNoteObj = blockNoteContent as Record<string, unknown>;
     const content = Array.isArray(blockNoteContent)
-      ? blockNoteContent
-      : blockNoteContent.content;
+      ? (blockNoteContent as BlockNoteBlock[])
+      : (blockNoteObj.content as BlockNoteBlock[] | undefined);
 
     if (!content || !Array.isArray(content)) {
       return "";
     }
 
-    const extractTextFromBlock = (block: any): string => {
+    const extractTextFromBlock = (block: BlockNoteBlock): string => {
       let text = "";
 
       if (!block || typeof block !== "object") {
@@ -1461,8 +1679,13 @@ export class QuizService {
       }
 
       // Calculs statistiques
+      type QuizWithResult = {
+        result: { percentage: number } | null;
+        timeSpent: number | null;
+        questions: Prisma.JsonValue;
+      };
       const scores = completedQuizzes.map(
-        (q: any) => q.result?.percentage || 0,
+        (q: QuizWithResult) => q.result?.percentage || 0,
       );
       const averageScore =
         scores.reduce((sum: number, score: number) => sum + score, 0) /
@@ -1472,14 +1695,17 @@ export class QuizService {
 
       // Analyse par temps
       const totalTime = completedQuizzes.reduce(
-        (sum: number, q: any) => sum + (q.timeSpent || 0),
+        (sum: number, q: QuizWithResult) => sum + (q.timeSpent || 0),
         0,
       );
       const averageQuizTime = totalTime / completedQuizzes.length;
-      const totalQuestions = completedQuizzes.reduce((sum: number, q: any) => {
-        const questions = (q.questions as any[]) || [];
-        return sum + questions.length;
-      }, 0);
+      const totalQuestions = completedQuizzes.reduce(
+        (sum: number, q: QuizWithResult) => {
+          const questions = Array.isArray(q.questions) ? q.questions : [];
+          return sum + questions.length;
+        },
+        0,
+      );
       const averageTimePerQuestion =
         totalQuestions > 0 ? totalTime / totalQuestions : 0;
 
@@ -1533,11 +1759,12 @@ export class QuizService {
           id: config.id,
           userId: options.userId,
           preset: config.preset,
-          subjects: config.subjects as any, // Array d'ExamSubject
+          subjects: config.subjects as unknown as Prisma.InputJsonValue,
           currentSubjectIndex: config.currentSubjectIndex,
           totalSubjects: config.totalSubjects,
           isCompleted: false,
-          subjectResults: config.subjectResults as any,
+          subjectResults:
+            config.subjectResults as unknown as Prisma.InputJsonValue,
           specialties: options.specialties || [],
           higherEdField: options.higherEdField,
           metadata: {
@@ -1600,14 +1827,19 @@ export class QuizService {
         config = {
           id: dbSequence.id,
           preset: dbSequence.preset as QuizPreset,
-          subjects: dbSequence.subjects as ExamSubject[],
+          subjects: dbSequence.subjects as unknown as ExamSubject[],
           totalSubjects: dbSequence.totalSubjects,
           currentSubjectIndex: dbSequence.currentSubjectIndex,
           isCompleted: dbSequence.isCompleted,
-          subjectResults: dbSequence.subjectResults as any[],
+          subjectResults:
+            dbSequence.subjectResults as unknown as SubjectResult[],
           globalScore: dbSequence.globalScore || 0,
           globalMaxScore: dbSequence.globalMaxScore || 0,
-          metadata: (dbSequence.metadata as any) || {},
+          metadata:
+            (dbSequence.metadata as unknown as SequentialQuizConfig["metadata"]) || {
+              startedAt: new Date(),
+              estimatedTotalTime: 0,
+            },
           specialties: (dbSequence.specialties as LyceeSpecialty[]) || [],
           higherEdField: dbSequence.higherEdField || undefined,
         };
@@ -1648,7 +1880,8 @@ export class QuizService {
         data: {
           currentSubjectIndex: config.currentSubjectIndex,
           isCompleted: config.isCompleted,
-          subjectResults: config.subjectResults as any,
+          subjectResults:
+            config.subjectResults as unknown as Prisma.InputJsonValue,
           globalScore: config.globalScore,
           globalMaxScore: config.globalMaxScore,
           updatedAt: new Date(),
@@ -1682,7 +1915,7 @@ export class QuizService {
     quizId: string;
     subject: ExamSubject;
     isLastQuiz: boolean;
-    quiz?: any; // Quiz complet avec documents pour transmission frontend
+    quiz?: QuizWithRelations;
   }> {
     try {
       console.log(
@@ -1769,7 +2002,7 @@ export class QuizService {
         ];
 
         let currentQuizId = "";
-        let currentQuizData: any = null;
+        let currentQuizData: GeneratedQuiz | null = null;
 
         // Traiter les résultats et sauvegarder en base
         for (let i = 0; i < parallelResults.length; i++) {
@@ -1848,9 +2081,12 @@ export class QuizService {
 
         // Récupérer le quiz complet pour transmission frontend
         const fullQuiz = await this.getQuiz(currentQuizId, userId);
+        const sourceDocsArray = fullQuiz.sourceDocuments as unknown as
+          | DocumentChunk[]
+          | null;
         console.log("🔍 DEBUG: Quiz récupéré pour transmission:", {
-          hasSourceDocuments: !!fullQuiz.sourceDocuments,
-          sourceDocumentsLength: fullQuiz.sourceDocuments?.length,
+          hasSourceDocuments: !!sourceDocsArray,
+          sourceDocumentsLength: sourceDocsArray?.length,
           quizId: fullQuiz.id,
           generatedBy: parallelResults[0]?.generatedBy,
           generationTime: parallelResults[0]?.generationTime,
@@ -1955,10 +2191,10 @@ export class QuizService {
     quizId: string,
     userId: string,
     userAnswers: UserAnswer[],
-    sourceDocuments?: any[],
+    sourceDocuments?: DocumentChunk[],
     hasDocuments?: boolean,
   ): Promise<{
-    result: any;
+    result: SequentialQuizSubmitResult;
     nextQuizGenerated: boolean;
     isSequenceCompleted: boolean;
     nextQuizId?: string;
@@ -2036,7 +2272,7 @@ export class QuizService {
     quizId: string,
     userId: string,
     userAnswers: UserAnswer[],
-    sourceDocuments?: any[],
+    sourceDocuments?: DocumentChunk[],
     hasDocuments?: boolean,
     processId?: string,
   ): Promise<void> {
@@ -2057,7 +2293,10 @@ export class QuizService {
       const config = await this.getSequenceConfig(sequenceId, userId);
 
       // Mise à jour de la séquence avec les résultats
-      const updatedConfig = SequenceManager.markQuizSubmitted(config, result);
+      const updatedConfig = SequenceManager.markQuizSubmitted(
+        config,
+        result as unknown as QuizCorrectionResult,
+      );
 
       // Sauvegarde finale dans le stockage temporaire
       tempSequenceStorage.update(sequenceId, updatedConfig);
@@ -2167,7 +2406,7 @@ export class QuizService {
    */
   private static async saveGeneratedQuizToDatabase(
     userId: string,
-    generatedQuiz: any,
+    generatedQuiz: GeneratedQuiz,
     options: {
       sequenceId?: string;
       sequenceOrder?: number;
@@ -2178,26 +2417,21 @@ export class QuizService {
     // Cette méthode reprend la logique de sauvegarde de generateQuiz
     // mais adaptée pour les quiz pré-générés en parallèle
 
+    // Extraire les questions et documents de manière sûre
+    const questions =
+      generatedQuiz.questions || generatedQuiz.subjects?.[0]?.questions || [];
+    const sourceDocuments =
+      generatedQuiz.sourceDocuments ||
+      generatedQuiz.subjects?.[0]?.documents ||
+      [];
+
     const quiz = await prisma.quiz.create({
       data: {
         userId,
         title: generatedQuiz.title || `Quiz ${options.subject || "Généré"}`,
-        questions:
-          generatedQuiz.questions ||
-          generatedQuiz.subjects?.[0]?.questions ||
-          [],
-        sourceDocuments:
-          generatedQuiz.documents ||
-          generatedQuiz.sourceDocuments ||
-          generatedQuiz.subject?.documents ||
-          [],
-        hasDocuments: !!(
-          (generatedQuiz.documents && generatedQuiz.documents.length > 0) ||
-          (generatedQuiz.sourceDocuments &&
-            generatedQuiz.sourceDocuments.length > 0) ||
-          (generatedQuiz.subject?.documents &&
-            generatedQuiz.subject.documents.length > 0)
-        ),
+        questions: questions as unknown as Prisma.InputJsonValue,
+        sourceDocuments: sourceDocuments as unknown as Prisma.InputJsonValue,
+        hasDocuments: sourceDocuments.length > 0,
         preset: (options.preset as QuizPreset) || QuizPreset.NONE,
         sequenceId: options.sequenceId,
         sequenceOrder: options.sequenceOrder,
@@ -2218,8 +2452,10 @@ export class QuizService {
    * 🛠️ CORRECTION: Reconstitue les propriétés graphiques perdues lors de la désérialisation
    * Remplace les valeurs null/vides par les vraies données depuis la base/cache
    */
-  private static reconstructGraphicProperties(rawQuestions: any[]): Question[] {
-    return rawQuestions.map((question: any) => {
+  private static reconstructGraphicProperties(
+    rawQuestions: Question[],
+  ): Question[] {
+    return rawQuestions.map((question: Question) => {
       if (question.hasGraphic && question.graphicId) {
         // Si les propriétés sont vides/null, tenter de les récupérer
         if (
@@ -2303,7 +2539,7 @@ export class QuizService {
             graphicDataValues: estimatedDataValues,
             graphicType: question.graphicType || "2d",
             graphicLibrary: question.graphicLibrary || "apexcharts",
-          };
+          } as Question;
         }
       }
 
@@ -2315,10 +2551,12 @@ export class QuizService {
    * 🛠️ CORRECTION: Nettoie les propriétés graphiques undefined avant sauvegarde JSON
    * Remplace undefined par des valeurs par défaut pour éviter la perte de données
    */
-  private static cleanGraphicPropertiesForSave(subjects: any[]): any[] {
-    return subjects.map((subject) => ({
+  private static cleanGraphicPropertiesForSave(
+    subjects: QuizSubject[],
+  ): QuizSubject[] {
+    return subjects.map((subject: QuizSubject) => ({
       ...subject,
-      questions: subject.questions.map((question: any) => {
+      questions: subject.questions.map((question: Question) => {
         if (question.hasGraphic) {
           return {
             ...question,
@@ -2329,11 +2567,11 @@ export class QuizService {
             graphicType: question.graphicType || "2d", // undefined → '2d'
             graphicLibrary: question.graphicLibrary || "apexcharts", // undefined → 'apexcharts'
             graphicId: question.graphicId || `graphic_${Date.now()}`, // undefined → ID généré
-          };
+          } as Question;
         }
         return question;
       }),
-    }));
+    })) as QuizSubject[];
   }
 
   /**
