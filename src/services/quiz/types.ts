@@ -124,6 +124,17 @@ export interface AxisConfig {
   type?: "numeric" | "category" | "datetime";
 }
 
+// Distribution du temps par question ou par difficulté
+export interface TimeDistribution {
+  byQuestion?: Record<string, number>; // questionId -> temps en secondes
+  byDifficulty?: {
+    facile: number;
+    moyen: number;
+    difficile: number;
+  };
+  byType?: Record<string, number>; // QuestionType -> temps moyen
+}
+
 // Configuration d'un quiz séquentiel
 export interface SequentialQuizConfig {
   id: string;
@@ -415,7 +426,7 @@ export interface QuizCorrectionResult {
     timeAnalysis?: {
       totalTime: number;
       averageTimePerQuestion: number;
-      timeDistribution: any;
+      timeDistribution: TimeDistribution;
     };
     difficultyAnalysis?: {
       easyQuestions: { correct: number; total: number };

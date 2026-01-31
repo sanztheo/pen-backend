@@ -809,7 +809,8 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       `;
 
       console.log(`🚀 [PGVECTOR] Executing vector similarity search...`);
-      const rawResults = await prismaEmbeddings.$queryRawUnsafe<any[]>(sql);
+      const rawResults =
+        await prismaEmbeddings.$queryRawUnsafe<PgVectorSearchResult[]>(sql);
 
       console.log(
         `🚀 [PGVECTOR] Found ${rawResults.length} chunks (top 3 similarities):`,
@@ -820,20 +821,20 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
       // 4. Filtrer par threshold et formater les résultats
       const results = rawResults
-        .filter((row: any) => row.similarity >= threshold)
+        .filter((row: PgVectorSearchResult) => row.similarity >= threshold)
         .slice(0, limit)
-        .map((row: any) => ({
+        .map((row: PgVectorSearchResult) => ({
           id: row.id,
           content: row.clean_content,
           source: {
             id: row.source_id,
             title: row.source_title,
             sourceType: row.source_type,
-            fileName: row.file_name,
+            fileName: row.file_name ?? undefined,
           },
           similarity: row.similarity,
-          pageNumber: row.page_number,
-          sectionTitle: row.section_title,
+          pageNumber: row.page_number ?? undefined,
+          sectionTitle: row.section_title ?? undefined,
         }));
 
       console.log(
@@ -913,7 +914,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 
   private async intelligentChunking(
-    pdfContent: { text: string; totalPages: number; pages: any[] },
+    pdfContent: { text: string; totalPages: number; pages: PDFPageContent[] },
     options: {
       maxSize: number;
       overlap: number;
@@ -988,7 +989,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         const embedding = await this.embeddingService.generateEmbedding(
           chunk.content,
         );
-        return {
+        const preparedChunk: PreparedChunkData = {
           sourceId,
           chunkIndex: i,
           content: chunk.content,
@@ -999,8 +1000,9 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
           sectionTitle: chunk.sectionTitle,
           startOffset: chunk.startOffset,
           endOffset: chunk.endOffset,
-          quality: chunk.quality || 1.0,
-        } as any;
+          quality: chunk.quality ?? 1.0,
+        };
+        return preparedChunk;
       },
     );
 
