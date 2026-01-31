@@ -4,12 +4,41 @@ import {
   SchoolLevel,
   QuestionType,
   Question,
+  QuizGenerationRequest,
+  QuizCorrectionRequest,
+  UserAnswer,
+  DocumentChunk,
+  QuizPreset,
+  WorkspaceAnalysisResult,
 } from "../../../services/quiz/types.js";
 import { prisma } from "../../../lib/prisma.js";
 import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
 import { CorrectionGenerator } from "../../../services/quiz/generators/correctionGenerator.js";
 import { validateSourceDocuments } from "../utils/validators.js";
 import { getUserPersonalization } from "../../../services/quiz/utils/personalizationUtils.js";
+
+/**
+ * Interface pour un bloc BlockNote
+ */
+interface BlockNoteBlock {
+  type?: string;
+  content?: Array<{ text?: string }> | string;
+  children?: BlockNoteBlock[];
+}
+
+/**
+ * Interface pour la requête de génération avec pages/projets
+ */
+interface PageProjectGenerationRequest extends QuizGenerationRequest {
+  pageProjectIds: string[];
+}
+
+/**
+ * Interface pour la requête de génération avec workspaces
+ */
+interface WorkspaceGenerationRequest extends QuizGenerationRequest {
+  workspaceIds: string[];
+}
 
 /**
  * Contrôleur pour les opérations CRUD de base sur les quiz
@@ -277,15 +306,17 @@ export class QuizController {
                       : page.blockNoteContent;
 
                   if (content && Array.isArray(content)) {
-                    const textParts = content
+                    const textParts = (content as BlockNoteBlock[])
                       .filter(
-                        (block: any) =>
+                        (block: BlockNoteBlock) =>
                           block?.type === "paragraph" && block?.content,
                       )
-                      .map((block: any) =>
+                      .map((block: BlockNoteBlock) =>
                         Array.isArray(block.content)
                           ? block.content
-                              .map((item: any) => item?.text || "")
+                              .map(
+                                (item: { text?: string }) => item?.text || "",
+                              )
                               .join("")
                           : "",
                       )
@@ -375,7 +406,7 @@ export class QuizController {
 
         // NOUVEAU: Génération basée sur pages/projets spécifiques avec RAG
         quizId = await QuizService.generateQuizFromPageProjects(
-          generationRequest as any,
+          generationRequest as PageProjectGenerationRequest,
         );
       } else if (workspaceIds && workspaceIds.length > 0) {
         console.log(
@@ -386,7 +417,7 @@ export class QuizController {
         );
         // Génération basée sur workspaces (rétrocompatibilité)
         quizId = await QuizService.generateQuizFromWorkspace(
-          generationRequest as any,
+          generationRequest as WorkspaceGenerationRequest,
         );
       } else {
         console.log("📚 Génération quiz générique sans contenu");
@@ -502,18 +533,21 @@ export class QuizController {
         return;
       }
 
-      const correctionRequest: any = {
+      const correctionRequest: QuizCorrectionRequest = {
         quizId,
         userId,
-        preset: (quiz as any).preset,
-        specificSubject: null,
-        schoolLevel: quiz.schoolLevel as any,
+        preset: quiz.preset as QuizPreset | undefined,
+        specificSubject: undefined,
+        schoolLevel: quiz.schoolLevel as SchoolLevel,
         // Utiliser les sourceDocuments du quiz pour la cohérence
         hasDocuments: quiz.hasDocuments || hasDocuments || false,
-        sourceDocuments: (quiz.sourceDocuments as any) || sourceDocuments || [],
+        sourceDocuments:
+          (quiz.sourceDocuments as unknown as DocumentChunk[]) ||
+          sourceDocuments ||
+          [],
         coursesOnly: false,
-        workspaceContent: [],
-        userAnswers: answers,
+        workspaceContent: [] as WorkspaceAnalysisResult[],
+        userAnswers: answers as UserAnswer[],
         submittedAt: new Date(),
       };
 

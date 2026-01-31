@@ -1,22 +1,88 @@
 // assistant/correction/prompts/correctionUserPrompt.ts - Prompts utilisateur pour la correction
 
 import { getProfessorCorrectionPrompt } from "../../professorPersonas.js";
+import { SchoolLevel } from "../../../types.js";
+import type { AnswerValue, CollegeGrade } from "../../../types.js";
+
+/**
+ * Interface for quiz answer used in correction prompts
+ */
+interface CorrectionAnswer {
+  questionId: string;
+  answer: AnswerValue;
+  timeSpent?: number;
+  sourceType?: string;
+}
+
+/**
+ * Interface for quiz option in multiple choice questions
+ */
+interface CorrectionQuizOption {
+  id: string;
+  text: string;
+  isCorrect?: boolean;
+}
+
+/**
+ * Interface for quiz question used in correction prompts
+ */
+interface CorrectionQuizQuestion {
+  id: string;
+  type: string;
+  question: string;
+  options?: CorrectionQuizOption[];
+}
+
+/**
+ * Interface for correction prompt options
+ * Note: schoolLevel and collegeGrade accept string for backward compatibility with CorrectQuizOptions
+ */
+export interface CorrectionPromptOptions {
+  questions?: CorrectionQuizQuestion[];
+  schoolLevel?: SchoolLevel | string;
+  collegeGrade?: CollegeGrade | string;
+  [key: string]: unknown;
+}
+
+/**
+ * Type guard to check if a value is a valid SchoolLevel
+ */
+function isSchoolLevel(value: unknown): value is SchoolLevel {
+  return (
+    typeof value === "string" &&
+    Object.values(SchoolLevel).includes(value as SchoolLevel)
+  );
+}
+
+/**
+ * Safely convert schoolLevel to SchoolLevel enum with fallback
+ */
+function toSchoolLevel(value: SchoolLevel | string | undefined): SchoolLevel {
+  if (value === undefined) {
+    return SchoolLevel.LYCEE_SECONDE;
+  }
+  if (isSchoolLevel(value)) {
+    return value;
+  }
+  // Fallback for unknown string values
+  return SchoolLevel.LYCEE_SECONDE;
+}
 
 /**
  * Construit le prompt pour la correction standard
  */
 export function buildStandardCorrectionPrompt(
   quizId: string,
-  answers: any[],
-  options?: any,
+  answers: CorrectionAnswer[],
+  options?: CorrectionPromptOptions,
 ): string {
   // Récupérer les questions depuis les options si disponibles
   const questions = options?.questions || [];
 
   // Intégration du persona professoral adaptatif
   const professorPersona = getProfessorCorrectionPrompt(
-    options?.schoolLevel || "LYCEE_SECONDE",
-    options?.collegeGrade,
+    toSchoolLevel(options?.schoolLevel),
+    options?.collegeGrade as CollegeGrade | undefined,
   );
 
   let prompt = `${professorPersona}
@@ -29,7 +95,9 @@ NOMBRE DE RÉPONSES : ${answers.length}
 DÉTAIL DES QUESTIONS ET RÉPONSES :
 ${answers
   .map((answer, index) => {
-    const question = questions.find((q: any) => q.id === answer.questionId);
+    const question = questions.find(
+      (q: CorrectionQuizQuestion) => q.id === answer.questionId,
+    );
     let questionDetails = "";
 
     if (question) {
@@ -44,10 +112,10 @@ ${answers
         question.options.length > 0
       ) {
         const correctOption = question.options.find(
-          (opt: any) => opt.isCorrect === true,
+          (opt: CorrectionQuizOption) => opt.isCorrect === true,
         );
         questionDetails += `
-   Options disponibles: ${question.options.map((opt: any) => `${opt.id}. ${opt.text}${opt.isCorrect ? " [CORRECTE]" : ""}`).join(", ")}
+   Options disponibles: ${question.options.map((opt: CorrectionQuizOption) => `${opt.id}. ${opt.text}${opt.isCorrect ? " [CORRECTE]" : ""}`).join(", ")}
    Réponse correcte attendue: ${correctOption ? correctOption.id : "AUCUNE_DEFINIE"}`;
       }
     }
@@ -119,16 +187,16 @@ GÉNÈRE une correction complète et pédagogique au format JSON strict requis.`
  */
 export function buildCompleteCorrectionPrompt(
   quizId: string,
-  answers: any[],
-  options?: any,
+  answers: CorrectionAnswer[],
+  options?: CorrectionPromptOptions,
 ): string {
   // Récupérer les questions depuis les options si disponibles
   const questions = options?.questions || [];
 
   // Intégration du persona professoral adaptatif
   const professorPersona = getProfessorCorrectionPrompt(
-    options?.schoolLevel || "LYCEE_SECONDE",
-    options?.collegeGrade,
+    toSchoolLevel(options?.schoolLevel),
+    options?.collegeGrade as CollegeGrade | undefined,
   );
 
   let prompt = `${professorPersona}
@@ -142,7 +210,9 @@ TYPE : Quiz multimédia avec analyse croisée
 DÉTAIL DES QUESTIONS ET RÉPONSES :
 ${answers
   .map((answer, index) => {
-    const question = questions.find((q: any) => q.id === answer.questionId);
+    const question = questions.find(
+      (q: CorrectionQuizQuestion) => q.id === answer.questionId,
+    );
     let questionDetails = "";
 
     if (question) {
@@ -157,10 +227,10 @@ ${answers
         question.options.length > 0
       ) {
         const correctOption = question.options.find(
-          (opt: any) => opt.isCorrect === true,
+          (opt: CorrectionQuizOption) => opt.isCorrect === true,
         );
         questionDetails += `
-   Options disponibles: ${question.options.map((opt: any) => `${opt.id}. ${opt.text}${opt.isCorrect ? " [CORRECTE]" : ""}`).join(", ")}
+   Options disponibles: ${question.options.map((opt: CorrectionQuizOption) => `${opt.id}. ${opt.text}${opt.isCorrect ? " [CORRECTE]" : ""}`).join(", ")}
    Réponse correcte attendue: ${correctOption ? correctOption.id : "AUCUNE_DEFINIE"}`;
       }
     }
