@@ -28,6 +28,21 @@ import {
 } from "../services/agent/workflows.js";
 import { AICreditsService } from "../services/credits/aiCreditsService.js";
 import { verifyWorkspaceAccess } from "../middlewares/workspaceAccess.js";
+
+// Interface pour les résultats des workflows
+interface WorkflowResult {
+  content: string;
+  title?: string;
+  summary?: string;
+  sources?: unknown[];
+  searches?: unknown[];
+  iterations?: number;
+  pageId?: string | null;
+  research?: {
+    summary?: string;
+    sources?: unknown[];
+  };
+}
 import { aiConcurrencyLimit } from "../middlewares/aiConcurrencyLimit.js";
 import { dailyTokenQuota } from "../middlewares/dailyTokenQuota.js";
 
@@ -291,7 +306,9 @@ router.post(
       // Cela assure que onFinish sera appelé et les messages sauvegardés
       // NE PAS await - cela bloque sans backpressure en arrière-plan
       result.consumeStream();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error("❌ [AGENT-CHAT] Erreur:", error);
 
       const creditsCost = (req as any).aiCredits?.cost;
@@ -310,7 +327,7 @@ router.post(
         const safeMessage =
           process.env.NODE_ENV === "production"
             ? "Erreur lors de l'exécution de l'agent"
-            : error.message || "Erreur lors de l'exécution de l'agent";
+            : errorMessage || "Erreur lors de l'exécution de l'agent";
         res.status(500).json({
           error: "AGENT_ERROR",
           message: safeMessage,
@@ -390,7 +407,9 @@ router.post(
         toolCalls: result.toolCalls,
         usage: result.usage,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error("❌ [AGENT-SIMPLE] Erreur:", error);
 
       const creditsCost = (req as any).aiCredits?.cost;
@@ -408,7 +427,7 @@ router.post(
       const safeMessage =
         process.env.NODE_ENV === "production"
           ? "Erreur lors de l'exécution de l'agent"
-          : error.message || "Erreur lors de l'exécution de l'agent";
+          : errorMessage || "Erreur lors de l'exécution de l'agent";
       res.status(500).json({
         error: "AGENT_ERROR",
         message: safeMessage,
@@ -487,7 +506,7 @@ router.post(
       }
 
       // Exécuter le workflow selon le mode
-      let result: any;
+      let result: WorkflowResult;
 
       if (mode === "search") {
         // Workflow de recherche approfondie (même workflow que create-deep mais sans page auto)
@@ -519,7 +538,7 @@ router.post(
           content: result.content,
           summary: result.summary,
           sources: result.sources,
-          searchCount: result.searches.length,
+          searchCount: result.searches?.length ?? 0,
           iterations: result.iterations,
           pageId: result.pageId || null,
         });
@@ -583,15 +602,17 @@ router.post(
           title: result.title,
           content: result.content,
           research: {
-            summary: result.research.summary,
-            sources: result.research.sources,
+            summary: result.research?.summary,
+            sources: result.research?.sources,
           },
           iterations: result.iterations,
         });
       }
 
       return res.status(400).json({ error: "Mode non supporté" });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       console.error("❌ [WORKFLOW] Erreur:", error);
 
       const creditsCost = (req as any).aiCredits?.cost;
@@ -609,7 +630,7 @@ router.post(
       const safeMessage =
         process.env.NODE_ENV === "production"
           ? "Erreur lors de l'exécution du workflow"
-          : error.message || "Erreur lors de l'exécution du workflow";
+          : errorMessage || "Erreur lors de l'exécution du workflow";
       res.status(500).json({
         error: "WORKFLOW_ERROR",
         message: safeMessage,
@@ -679,12 +700,13 @@ router.get("/conversations", async (req: Request, res: Response) => {
     );
 
     res.json({ success: true, conversations });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("❌ [CONVERSATIONS] Erreur liste:", error);
     const safeMessage =
       process.env.NODE_ENV === "production"
         ? "Erreur lors de la récupération des conversations"
-        : error.message;
+        : errorMessage;
     res.status(500).json({ error: safeMessage });
   }
 });
@@ -710,12 +732,13 @@ router.get("/conversations/:id", async (req: Request, res: Response) => {
     }
 
     res.json({ success: true, messages });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("❌ [CONVERSATIONS] Erreur chargement:", error);
     const safeMessage =
       process.env.NODE_ENV === "production"
         ? "Erreur lors du chargement de la conversation"
-        : error.message;
+        : errorMessage;
     res.status(500).json({ error: safeMessage });
   }
 });
@@ -741,12 +764,13 @@ router.delete("/conversations/:id", async (req: Request, res: Response) => {
     }
 
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("❌ [CONVERSATIONS] Erreur suppression:", error);
     const safeMessage =
       process.env.NODE_ENV === "production"
         ? "Erreur lors de la suppression de la conversation"
-        : error.message;
+        : errorMessage;
     res.status(500).json({ error: safeMessage });
   }
 });

@@ -41,9 +41,8 @@ const updatePageSchema = z.object({
 router.get("/", authenticateToken, async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { cacheSidebarContent, saveSidebarContent } = await import(
-      "../lib/redis.js"
-    );
+    const { cacheSidebarContent, saveSidebarContent } =
+      await import("../lib/redis.js");
 
     // 🚀 Essayer de récupérer depuis le cache Redis
     const cachedContent = await cacheSidebarContent(userId);
@@ -62,7 +61,7 @@ router.get("/", authenticateToken, async (req, res) => {
     );
 
     res.json(content);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ [CONTENT-API] Erreur récupération contenu:", error);
     res.status(500).json({
       success: false,
@@ -78,9 +77,8 @@ router.get("/", authenticateToken, async (req, res) => {
 router.get("/workspace", authenticateToken, async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { DefaultWorkspaceService } = await import(
-      "../services/defaultWorkspace.js"
-    );
+    const { DefaultWorkspaceService } =
+      await import("../services/defaultWorkspace.js");
     const workspaceId =
       await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
 
@@ -88,7 +86,7 @@ router.get("/workspace", authenticateToken, async (req, res) => {
       success: true,
       workspaceId,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ [CONTENT-API] Erreur récupération workspaceId:", error);
     res.status(500).json({
       success: false,
@@ -110,7 +108,7 @@ router.get("/projects", authenticateToken, async (req, res) => {
       success: true,
       projects,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ [CONTENT-API] Erreur récupération projets:", error);
     res.status(500).json({
       success: false,
@@ -132,7 +130,7 @@ router.get("/pages", authenticateToken, async (req, res) => {
       success: true,
       pages,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ [CONTENT-API] Erreur récupération pages:", error);
     res.status(500).json({
       success: false,
@@ -166,7 +164,7 @@ router.post("/projects", authenticateToken, async (req, res) => {
       message: "Projet créé avec succès",
       project,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,
@@ -175,10 +173,11 @@ router.post("/projects", authenticateToken, async (req, res) => {
       });
     }
 
-    if (error.message.includes("Limite de projets atteinte")) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes("Limite de projets atteinte")) {
       return res.status(403).json({
         success: false,
-        error: error.message,
+        error: errorMessage,
         code: "PROJECTS_LIMIT_REACHED",
         limitType: "project",
       });
@@ -218,7 +217,7 @@ router.post("/pages", authenticateToken, async (req, res) => {
       message: "Page créée avec succès",
       page,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,
@@ -275,7 +274,7 @@ router.put("/projects/:id", authenticateToken, async (req, res) => {
       message: "Projet mis à jour avec succès",
       project,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,
@@ -313,7 +312,7 @@ router.delete("/projects/:id", authenticateToken, async (req, res) => {
       success: true,
       message: "Projet supprimé avec succès",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ [CONTENT-API] Erreur suppression projet:", error);
     res.status(500).json({
       success: false,
@@ -343,7 +342,7 @@ router.delete("/pages/:id", authenticateToken, async (req, res) => {
       success: true,
       message: "Page supprimée avec succès",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ [CONTENT-API] Erreur suppression page:", error);
     res.status(500).json({
       success: false,
@@ -410,7 +409,7 @@ router.patch("/projects/:id/pin", authenticateToken, async (req, res) => {
       message: updatedProject.isPinned ? "Projet épinglé" : "Projet désépinglé",
       project: updatedProject,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ [CONTENT-API] Erreur toggle pin projet:", error);
     res.status(500).json({
       success: false,
@@ -472,7 +471,7 @@ router.patch("/pages/:id/pin", authenticateToken, async (req, res) => {
       message: updatedPage.isPinned ? "Page épinglée" : "Page désépinglée",
       page: updatedPage,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("❌ [CONTENT-API] Erreur toggle pin page:", error);
     res.status(500).json({
       success: false,

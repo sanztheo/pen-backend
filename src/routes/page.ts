@@ -1,4 +1,5 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
+import { Prisma } from "@prisma/client";
 import {
   createPage,
   getPage,
@@ -16,6 +17,39 @@ import {
   cacheBlockNoteContent,
   invalidateBlockNoteCache,
 } from "../lib/redis.js";
+
+// Type for authenticated requests with user
+interface AuthenticatedRequest extends Request {
+  user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  };
+}
+
+// Type for BlockNote node during tree traversal
+interface BlockNoteNode {
+  text?: string;
+  content?: BlockNoteNode | BlockNoteNode[];
+  children?: BlockNoteNode[];
+}
+
+// Type for page with BlockNote content from Prisma
+interface PageWithBlockNote {
+  id: string;
+  title: string;
+  blockNoteContent: BlockNoteBlock[] | null;
+}
+
+// Type for Prisma error with code
+interface PrismaError {
+  code?: string;
+}
+
+function isPrismaError(error: unknown): error is PrismaError {
+  return error !== null && typeof error === "object" && "code" in error;
+}
 
 const router = Router();
 
@@ -133,7 +167,7 @@ router.get("/search", async (req, res) => {
     const { q } = req.query as { q?: string };
     const query = (q || "").toString();
     if (!query) return res.json({ pages: [] });
-    const userId = (req as any).user?.id;
+    const userId = (req as AuthenticatedRequest).user?.id;
     const pages = await prisma.page.findMany({
       where: {
         isArchived: false,
@@ -149,8 +183,11 @@ router.get("/search", async (req, res) => {
       take: 20,
     });
     res.json({ pages });
-  } catch (e) {
-    console.error("[PAGES] Erreur /pages/search:", e);
+  } catch (error: unknown) {
+    console.error(
+      "[PAGES] Erreur /pages/search:",
+      error instanceof Error ? error.message : String(error),
+    );
     res.status(500).json({ error: "Erreur recherche pages" });
   }
 });
@@ -163,7 +200,7 @@ router.get("/search-content", async (req, res) => {
     if (!query) return res.json({ results: [] });
 
     // Récupérer pages avec contenu JSON (filtrées par workspace de l'utilisateur)
-    const userId = (req as any).user?.id;
+    const userId = (req as AuthenticatedRequest).user?.id;
     const pages = await prisma.page.findMany({
       where: {
         isArchived: false,
@@ -176,13 +213,15 @@ router.get("/search-content", async (req, res) => {
       },
       select: { id: true, title: true, blockNoteContent: true },
       take: 500,
-    } as any);
+    });
 
     const qLower = query.toLowerCase();
 
-    const blocksToText = (blocks: any[]): string => {
+    const blocksToText = (blocks: BlockNoteNode[]): string => {
       let text = "";
-      const walk = (node: any): void => {
+      const walk = (
+        node: BlockNoteNode | BlockNoteNode[] | string | null | undefined,
+      ): void => {
         if (!node) return;
         // Inline content
         if (Array.isArray(node)) {
@@ -205,7 +244,9 @@ router.get("/search-content", async (req, res) => {
       };
       try {
         walk(blocks);
-      } catch {}
+      } catch {
+        // Ignore parse errors
+      }
       return text.replace(/\s+/g, " ").trim();
     };
 
@@ -213,19 +254,19 @@ router.get("/search-content", async (req, res) => {
 
     for (const p of pages) {
       try {
-        const raw = (p as any).blockNoteContent;
-        let contentArr: any[] | null = null;
+        const raw: unknown = p.blockNoteContent;
+        let contentArr: BlockNoteNode[] | null = null;
         if (Array.isArray(raw)) {
-          contentArr = raw;
+          contentArr = raw as BlockNoteNode[];
         } else if (typeof raw === "string") {
           try {
-            contentArr = JSON.parse(raw);
+            contentArr = JSON.parse(raw) as BlockNoteNode[];
           } catch {
             contentArr = null;
           }
         } else if (raw && typeof raw === "object") {
           // Certains drivers renvoient un objet JSON déjà parsé
-          contentArr = raw as any as any[];
+          contentArr = raw as BlockNoteNode[];
         }
         if (!Array.isArray(contentArr) || contentArr.length === 0) continue;
         const plain = blocksToText(contentArr);
@@ -234,17 +275,20 @@ router.get("/search-content", async (req, res) => {
           const start = Math.max(0, idx - 80);
           const end = Math.min(plain.length, idx + qLower.length + 80);
           const excerpt = plain.substring(start, end).trim();
-          results.push({ id: (p as any).id, title: (p as any).title, excerpt });
+          results.push({ id: p.id, title: p.title, excerpt });
         }
-      } catch (e) {
+      } catch {
         // ignorer page invalide
       }
       if (results.length >= 50) break;
     }
 
     res.json({ results });
-  } catch (e) {
-    console.error("Erreur /pages/search-content", e);
+  } catch (error: unknown) {
+    console.error(
+      "Erreur /pages/search-content",
+      error instanceof Error ? error.message : String(error),
+    );
     res.status(500).json({ error: "Erreur recherche contenu pages" });
   }
 });
@@ -294,10 +338,10 @@ router.post(
       await prisma.page.update({
         where: { id: pageId },
         data: {
-          blockNoteContent: blocks as any,
+          blockNoteContent: blocks as unknown as Prisma.InputJsonValue,
           updatedAt: new Date(),
         },
-      } as any);
+      });
 
       // Invalider cache Redis
       invalidateBlockNoteCache(pageId).catch((err) =>
@@ -314,11 +358,14 @@ router.post(
         pageId,
         blocksCount: blocks.length,
       });
-    } catch (error: any) {
-      if (error.code === "P2025") {
+    } catch (error: unknown) {
+      if (isPrismaError(error) && error.code === "P2025") {
         return res.status(404).json({ error: "Page non trouvée" });
       }
-      console.error("❌ [API] Erreur import HTML:", error);
+      console.error(
+        "❌ [API] Erreur import HTML:",
+        error instanceof Error ? error.message : String(error),
+      );
       res.status(500).json({ error: "Erreur lors de l'import" });
     }
   },
@@ -337,13 +384,21 @@ router.put(
   saveBlockNoteContent,
 );
 
-async function saveBlockNoteContent(req: any, res: any) {
+async function saveBlockNoteContent(
+  req: Request,
+  res: Response,
+): Promise<void> {
   try {
     const { pageId } = req.params;
-    const { content, changedBlocks, isDifferential } = req.body;
+    const { content, changedBlocks, isDifferential } = req.body as {
+      content?: unknown[];
+      changedBlocks?: unknown[];
+      isDifferential?: boolean;
+    };
 
     if (!content || !Array.isArray(content)) {
-      return res.status(400).json({ error: "Contenu BlockNote requis" });
+      res.status(400).json({ error: "Contenu BlockNote requis" });
+      return;
     }
 
     // 🚀 GESTION OPTIMISÉE SELON LE TYPE DE SAUVEGARDE
@@ -360,26 +415,37 @@ async function saveBlockNoteContent(req: any, res: any) {
       saveStrategy = "full";
     }
 
+    const hasNestedBlocks = content.some((b: unknown) => {
+      if (b && typeof b === "object" && "children" in b) {
+        const children = (b as { children?: unknown[] }).children;
+        return Array.isArray(children) && children.length > 0;
+      }
+      return false;
+    });
+
     console.log(logMessage, {
       pageId,
-      hasNestedBlocks: content.some(
-        (b: any) => b.children && b.children.length > 0,
-      ),
+      hasNestedBlocks,
       strategy: saveStrategy,
     });
 
     // 🎯 TOUJOURS SAUVEGARDER LE CONTENU COMPLET (pour la cohérence)
-    const updatedPage = await prisma.page.update({
+    await prisma.page.update({
       where: { id: pageId },
       data: {
-        ...(content && { blockNoteContent: content as any }),
+        ...(content && {
+          blockNoteContent: content as Prisma.InputJsonValue,
+        }),
         updatedAt: new Date(),
       },
-    } as any);
+    });
 
     // 🗑️ INVALIDER CACHE REDIS après sauvegarde
-    invalidateBlockNoteCache(pageId).catch((err) =>
-      console.error("⚠️ [REDIS] Erreur invalidation cache:", err),
+    invalidateBlockNoteCache(pageId).catch((err: unknown) =>
+      console.error(
+        "⚠️ [REDIS] Erreur invalidation cache:",
+        err instanceof Error ? err.message : String(err),
+      ),
     );
 
     console.log("✅ [API] Contenu BlockNote sauvegardé:", {
@@ -392,25 +458,27 @@ async function saveBlockNoteContent(req: any, res: any) {
       message: "Contenu BlockNote sauvegardé avec succès",
       pageId,
       blocksCount: content.length,
-      hasNestedBlocks: content.some(
-        (b: any) => b.children && b.children.length > 0,
-      ),
+      hasNestedBlocks,
       saveStrategy,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 🔧 Gestion spécifique de l'erreur P2025 (page supprimée)
-    if (error.code === "P2025") {
+    if (isPrismaError(error) && error.code === "P2025") {
       console.log(
         `⚠️ [API] Page ${req.params.pageId} n'existe plus (supprimée). Sauvegarde ignorée.`,
       );
-      return res.status(404).json({
+      res.status(404).json({
         error: "Page non trouvée",
         code: "PAGE_NOT_FOUND",
         message: "Cette page a été supprimée",
       });
+      return;
     }
 
-    console.error("❌ [API] Erreur sauvegarde BlockNote:", error);
+    console.error(
+      "❌ [API] Erreur sauvegarde BlockNote:",
+      error instanceof Error ? error.message : String(error),
+    );
     res.status(500).json({ error: "Erreur lors de la sauvegarde" });
   }
 }
@@ -463,25 +531,34 @@ router.get(
       }
 
       // 🚀 REDIS CACHE: Récupérer depuis cache (2min TTL)
-      const page = await cacheBlockNoteContent(pageId);
+      const page = (await cacheBlockNoteContent(
+        pageId,
+      )) as PageWithBlockNote | null;
 
       if (!page) {
         return res.status(404).json({ error: "Page non trouvée" });
       }
 
-      const content = ((page as any).blockNoteContent as any[]) || [];
+      const content: BlockNoteBlock[] = Array.isArray(page.blockNoteContent)
+        ? page.blockNoteContent
+        : [];
+
+      const hasNestedBlocks = content.some((b: BlockNoteBlock) => {
+        return Array.isArray(b.children) && b.children.length > 0;
+      });
 
       res.json({
         content,
         pageId,
         title: page.title,
         blocksCount: content.length,
-        hasNestedBlocks: content.some(
-          (b: any) => b.children && b.children.length > 0,
-        ),
+        hasNestedBlocks,
       });
-    } catch (error) {
-      console.error("[PAGE_ROUTES] Erreur chargement BlockNote:", error);
+    } catch (error: unknown) {
+      console.error(
+        "[PAGE_ROUTES] Erreur chargement BlockNote:",
+        error instanceof Error ? error.message : String(error),
+      );
       res.status(500).json({ error: "Erreur lors du chargement" });
     }
   },
@@ -556,8 +633,8 @@ router.patch("/:id/icon", async (req, res) => {
       message: "Icône mise à jour avec succès",
       page: updatedPage,
     });
-  } catch (error: any) {
-    if (error.code === "P2025") {
+  } catch (error: unknown) {
+    if (isPrismaError(error) && error.code === "P2025") {
       console.log(
         `⚠️ [API] Page ${req.params.id} n'existe plus lors de la mise à jour de l'icône`,
       );
@@ -568,7 +645,10 @@ router.patch("/:id/icon", async (req, res) => {
       });
     }
 
-    console.error("❌ [API] Erreur mise à jour icône page:", error);
+    console.error(
+      "❌ [API] Erreur mise à jour icône page:",
+      error instanceof Error ? error.message : String(error),
+    );
     res.status(500).json({ error: "Erreur lors de la mise à jour de l'icône" });
   }
 });

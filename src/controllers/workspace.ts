@@ -1,7 +1,12 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-// Types will be inferred from Prisma client
+
+// Type for Prisma interactive transaction client
+type PrismaTransactionClient = Omit<
+  typeof prisma,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+>;
 
 // Schémas de validation
 const createWorkspaceSchema = z.object({
@@ -56,70 +61,72 @@ export const createWorkspace = async (req: Request, res: Response) => {
     }
 
     // Utiliser une transaction pour garantir la cohérence
-    const workspace = await prisma.$transaction(async (tx: any) => {
-      // Créer le workspace
-      const newWorkspace = await tx.workspace.create({
-        data: {
-          name: validatedData.name,
-          description: validatedData.description,
-          color: validatedData.color || "#3B82F6",
-          ownerId: req.user!.id,
-        },
-      });
-
-      // Créer automatiquement le membre propriétaire
-      await tx.workspaceMember.create({
-        data: {
-          workspaceId: newWorkspace.id,
-          userId: req.user!.id,
-          role: "owner",
-          joinedAt: new Date(),
-        },
-      });
-
-      // Incrémenter le compteur d'usage des workspaces
-      await tx.userLimits.update({
-        where: { userId },
-        data: {
-          workspacesUsed: {
-            increment: 1,
+    const workspace = await prisma.$transaction(
+      async (tx: PrismaTransactionClient) => {
+        // Créer le workspace
+        const newWorkspace = await tx.workspace.create({
+          data: {
+            name: validatedData.name,
+            description: validatedData.description,
+            color: validatedData.color || "#3B82F6",
+            ownerId: req.user!.id,
           },
-        },
-      });
+        });
 
-      // Retourner le workspace avec tous les includes nécessaires
-      return await tx.workspace.findUnique({
-        where: { id: newWorkspace.id },
-        include: {
-          owner: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
+        // Créer automatiquement le membre propriétaire
+        await tx.workspaceMember.create({
+          data: {
+            workspaceId: newWorkspace.id,
+            userId: req.user!.id,
+            role: "owner",
+            joinedAt: new Date(),
+          },
+        });
+
+        // Incrémenter le compteur d'usage des workspaces
+        await tx.userLimits.update({
+          where: { userId },
+          data: {
+            workspacesUsed: {
+              increment: 1,
             },
           },
-          members: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  email: true,
+        });
+
+        // Retourner le workspace avec tous les includes nécessaires
+        return await tx.workspace.findUnique({
+          where: { id: newWorkspace.id },
+          include: {
+            owner: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+            members: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    email: true,
+                  },
                 },
               },
             },
-          },
-          _count: {
-            select: {
-              projects: true,
-              members: true,
+            _count: {
+              select: {
+                projects: true,
+                members: true,
+              },
             },
           },
-        },
-      });
-    });
+        });
+      },
+    );
 
     // ❌ LOGS D'ACTIVITÉ DÉSACTIVÉS pour économiser l'espace
     // await prisma.activityLog.create({
@@ -530,7 +537,7 @@ export const deleteWorkspace = async (req: Request, res: Response) => {
     });
 
     // Supprimer le workspace et décrémenter les compteurs d'usage
-    await prisma.$transaction(async (tx: any) => {
+    await prisma.$transaction(async (tx: PrismaTransactionClient) => {
       // Supprimer le workspace. La suppression en cascade est gérée par Prisma.
       await tx.workspace.delete({
         where: { id },

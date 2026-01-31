@@ -81,6 +81,49 @@ export enum ExamSubject {
   GRAND_ORAL = "GRAND_ORAL",
 }
 
+// Configuration documentaire par matière
+export interface SubjectDocumentConfig {
+  enableDocuments: boolean;
+  documentTopics: string[];
+  documentRatio: number;
+  minDocumentLength: number;
+  maxDocuments: number;
+}
+
+// Configuration graphique pour les questions
+export interface GraphicConfig {
+  type: string; // Type de graphique (line, bar, scatter, pie, etc.)
+  library: "apexcharts" | "plotly";
+  data: GraphicDataSeries[];
+  options?: GraphicOptions;
+  title?: string;
+  xAxis?: AxisConfig;
+  yAxis?: AxisConfig;
+}
+
+export interface GraphicDataSeries {
+  name: string;
+  data: number[] | { x: number | string; y: number }[];
+  type?: string;
+  color?: string;
+}
+
+export interface GraphicOptions {
+  responsive?: boolean;
+  legend?: { show: boolean; position?: string };
+  tooltip?: { enabled: boolean };
+  annotations?: Record<string, unknown>;
+  [key: string]: unknown; // Options additionnelles spécifiques à la librairie
+}
+
+export interface AxisConfig {
+  title?: string;
+  min?: number;
+  max?: number;
+  categories?: string[];
+  type?: "numeric" | "category" | "datetime";
+}
+
 // Configuration d'un quiz séquentiel
 export interface SequentialQuizConfig {
   id: string;
@@ -98,7 +141,7 @@ export interface SequentialQuizConfig {
     startedAt: Date;
     estimatedTotalTime: number; // en minutes
     realTotalTime?: number; // en minutes
-    subjectsDocumentConfig?: Record<string, any>; // Configuration documentaire par matière
+    subjectsDocumentConfig?: Record<string, SubjectDocumentConfig>; // Configuration documentaire par matière
   };
 }
 
@@ -226,7 +269,7 @@ export interface BaseQuestion {
   graphicLibrary?: "apexcharts" | "plotly"; // Bibliothèque utilisée pour le graphique
   graphicType?: string; // Type de graphique (line, bar, scatter, etc.)
   graphicDescription?: string; // Description du graphique pour accessibilité
-  graphicConfig?: any; // Configuration JSON du graphique
+  graphicConfig?: GraphicConfig; // Configuration JSON du graphique
   graphicDataValues?: number[]; // Valeurs clés du graphique pour correction IA
 }
 
@@ -294,9 +337,9 @@ export interface GeneratedQuiz {
   totalPoints?: number;
   estimatedTime?: number; // en minutes
   subjectBased?: boolean; // true = nouveau système, false/undefined = ancien système
-  sourceDocuments?: any[]; // Documents Wikipedia utilisés pour la génération
+  sourceDocuments?: DocumentChunk[]; // Documents Wikipedia utilisés pour la génération
   hasDocuments?: boolean; // Indique si le quiz contient des documents
-  graphicsData?: any[]; // Graphiques IA générés pour le quiz
+  graphicsData?: GraphicConfig[]; // Graphiques IA générés pour le quiz
   hasGraphics?: boolean; // Indique si le quiz contient des graphiques IA
   metadata?: {
     generatedAt: Date;
@@ -309,10 +352,17 @@ export interface GeneratedQuiz {
   };
 }
 
+// Types de réponses possibles pour les différents types de questions
+export type AnswerValue =
+  | string // Question ouverte
+  | string[] // QCM avec réponses multiples
+  | boolean // Vrai/Faux
+  | { leftId: string; rightId: string }[]; // Matching
+
 // Réponses utilisateur
 export interface UserAnswer {
   questionId: string;
-  answer: any; // Type flexible pour différents types de réponses
+  answer: AnswerValue; // Type union pour différents types de réponses
   timeSpent?: number; // en secondes
   confidence?: number; // 1-5
 }
@@ -341,7 +391,7 @@ export interface QuestionResult {
   score: number;
   maxScore: number;
   feedback: string;
-  correctAnswer?: any;
+  correctAnswer?: AnswerValue;
   explanation?: string;
   difficulty: string;
   timeSpent?: number;

@@ -1,36 +1,36 @@
-import { 
-  QuizGenerationRequest, 
-  SequentialQuizConfig, 
-  QuizPreset, 
-  LyceeSpecialty, 
+import {
+  QuizGenerationRequest,
+  SequentialQuizConfig,
+  QuizPreset,
+  LyceeSpecialty,
   CollegeGrade,
   SubjectResult,
   QuizCorrectionRequest,
-  QuizCorrectionResult
-} from '../types.js';
+  QuizCorrectionResult,
+} from "../types.js";
 
 // Import des modules spécialisés
-import { 
-  createBrevetSequentialConfig, 
+import {
+  createBrevetSequentialConfig,
   generateBrevetSubjectRequest,
   calculateBrevetGlobalScore,
-  BREVET_CONFIG 
-} from './brevet/index.js';
+  BREVET_CONFIG,
+} from "./brevet/index.js";
 
-import { 
-  createBacSequentialConfig, 
+import {
+  createBacSequentialConfig,
   generateBacSubjectRequest,
   calculateBacGlobalScore,
-  BAC_CONFIG 
-} from './bac/index.js';
+  BAC_CONFIG,
+} from "./bac/index.js";
 
-import { 
-  createPartielsSequentialConfig, 
+import {
+  createPartielsSequentialConfig,
   generatePartielsSubjectRequest,
   calculatePartielsGlobalScore,
   getCurrentSubjectName,
-  PARTIELS_CONFIG 
-} from './partiels/index.js';
+  PARTIELS_CONFIG,
+} from "./partiels/index.js";
 
 /**
  * Interface pour les options de création de séquence
@@ -48,12 +48,14 @@ export interface SequenceCreationOptions {
  * Gestionnaire principal pour les quiz séquentiels
  */
 export class SequenceManager {
-  
   /**
    * Crée une nouvelle configuration séquentielle selon le preset
    */
-  static async createSequentialConfig(options: SequenceCreationOptions): Promise<SequentialQuizConfig> {
-    const { userId, preset, specialties, higherEdField, collegeGrade } = options;
+  static async createSequentialConfig(
+    options: SequenceCreationOptions,
+  ): Promise<SequentialQuizConfig> {
+    const { userId, preset, specialties, higherEdField, collegeGrade } =
+      options;
 
     switch (preset) {
       case QuizPreset.BREVET:
@@ -61,13 +63,15 @@ export class SequenceManager {
 
       case QuizPreset.BAC:
         if (!specialties || specialties.length !== 2) {
-          throw new Error('Le Baccalauréat nécessite exactement 2 spécialités');
+          throw new Error("Le Baccalauréat nécessite exactement 2 spécialités");
         }
         return createBacSequentialConfig(userId, specialties);
 
       case QuizPreset.PARTIELS:
         if (!higherEdField) {
-          throw new Error('Les partiels nécessitent de spécifier une filière d\'études supérieures');
+          throw new Error(
+            "Les partiels nécessitent de spécifier une filière d'études supérieures",
+          );
         }
         return await createPartielsSequentialConfig(userId, higherEdField);
 
@@ -81,24 +85,24 @@ export class SequenceManager {
    */
   static generateCurrentSubjectRequest(
     config: SequentialQuizConfig,
-    workspaceIds?: string[]
+    workspaceIds?: string[],
   ): QuizGenerationRequest {
     if (config.isCompleted) {
-      throw new Error('La séquence de quiz est déjà terminée');
+      throw new Error("La séquence de quiz est déjà terminée");
     }
 
     if (config.currentSubjectIndex >= config.totalSubjects) {
-      throw new Error('Index de matière invalide');
+      throw new Error("Index de matière invalide");
     }
 
     // L'ID est au format: brevet_user_XXXXX_timestamp
-    const parts = config.id.split('_');
-    const userId = parts.slice(1, -1).join('_'); // Récupérer tout entre le preset et le timestamp
-    
-    console.log('🔍 Extraction userId depuis ID séquence:', { 
-      sequenceId: config.id, 
+    const parts = config.id.split("_");
+    const userId = parts.slice(1, -1).join("_"); // Récupérer tout entre le preset et le timestamp
+
+    console.log("🔍 Extraction userId depuis ID séquence:", {
+      sequenceId: config.id,
       extractedUserId: userId,
-      parts 
+      parts,
     });
 
     switch (config.preset) {
@@ -119,10 +123,14 @@ export class SequenceManager {
   /**
    * Met à jour la configuration après génération d'un quiz
    */
-  static markQuizGenerated(config: SequentialQuizConfig, quizId: string): SequentialQuizConfig {
+  static markQuizGenerated(
+    config: SequentialQuizConfig,
+    quizId: string,
+  ): SequentialQuizConfig {
     const updatedConfig = { ...config };
-    const currentResult = updatedConfig.subjectResults[config.currentSubjectIndex];
-    
+    const currentResult =
+      updatedConfig.subjectResults[config.currentSubjectIndex];
+
     if (currentResult) {
       currentResult.quizId = quizId;
       currentResult.isGenerating = false;
@@ -135,24 +143,26 @@ export class SequenceManager {
    * Met à jour la configuration après soumission d'un quiz
    */
   static markQuizSubmitted(
-    config: SequentialQuizConfig, 
-    correctionResult: QuizCorrectionResult
+    config: SequentialQuizConfig,
+    correctionResult: QuizCorrectionResult,
   ): SequentialQuizConfig {
     const updatedConfig = { ...config };
-    const currentResult = updatedConfig.subjectResults[config.currentSubjectIndex];
-    
+    const currentResult =
+      updatedConfig.subjectResults[config.currentSubjectIndex];
+
     if (currentResult) {
       currentResult.isCompleted = true;
       currentResult.score = correctionResult.totalScore;
       currentResult.maxScore = correctionResult.maxScore;
       currentResult.percentage = correctionResult.percentage;
       // 🔧 FIX: Gérer le cas où startedAt peut être une chaîne ou un objet Date
-      const startedAt = config.metadata.startedAt instanceof Date 
-        ? config.metadata.startedAt 
-        : new Date(config.metadata.startedAt);
-      
+      const startedAt =
+        config.metadata.startedAt instanceof Date
+          ? config.metadata.startedAt
+          : new Date(config.metadata.startedAt);
+
       currentResult.timeSpent = Math.round(
-        (new Date().getTime() - startedAt.getTime()) / 60000
+        (new Date().getTime() - startedAt.getTime()) / 60000,
       ); // en minutes
       currentResult.isCorrecting = false;
     }
@@ -165,15 +175,15 @@ export class SequenceManager {
     } else {
       // Séquence terminée
       updatedConfig.isCompleted = true;
-      
+
       // Calculer les scores globaux
       const globalScore = this.calculateGlobalScore(updatedConfig);
       updatedConfig.globalScore = globalScore.totalScore;
       updatedConfig.globalMaxScore = globalScore.maxScore;
-      
+
       // Mettre à jour le temps total réel
       updatedConfig.metadata.realTotalTime = Math.round(
-        (new Date().getTime() - config.metadata.startedAt.getTime()) / 60000
+        (new Date().getTime() - config.metadata.startedAt.getTime()) / 60000,
       );
     }
 
@@ -183,10 +193,13 @@ export class SequenceManager {
   /**
    * Marque la correction comme en cours
    */
-  static markCorrectionInProgress(config: SequentialQuizConfig): SequentialQuizConfig {
+  static markCorrectionInProgress(
+    config: SequentialQuizConfig,
+  ): SequentialQuizConfig {
     const updatedConfig = { ...config };
-    const currentResult = updatedConfig.subjectResults[config.currentSubjectIndex];
-    
+    const currentResult =
+      updatedConfig.subjectResults[config.currentSubjectIndex];
+
     if (currentResult) {
       currentResult.isCorrecting = true;
     }
@@ -198,7 +211,10 @@ export class SequenceManager {
    * Vérifie si un quiz suivant doit être généré
    */
   static shouldGenerateNext(config: SequentialQuizConfig): boolean {
-    return !config.isCompleted && config.currentSubjectIndex + 1 < config.totalSubjects;
+    return (
+      !config.isCompleted &&
+      config.currentSubjectIndex + 1 < config.totalSubjects
+    );
   }
 
   /**
@@ -214,8 +230,9 @@ export class SequenceManager {
 
     switch (config.preset) {
       case QuizPreset.BREVET:
-        const brevetSubject = BREVET_CONFIG.subjects[config.currentSubjectIndex];
-        name = brevetSubject ? brevetSubject.description : 'Matière inconnue';
+        const brevetSubject =
+          BREVET_CONFIG.subjects[config.currentSubjectIndex];
+        name = brevetSubject ? brevetSubject.description : "Matière inconnue";
         break;
 
       case QuizPreset.BAC:
@@ -228,14 +245,14 @@ export class SequenceManager {
         break;
 
       default:
-        name = 'Matière inconnue';
+        name = "Matière inconnue";
     }
 
     return {
       name,
       index: config.currentSubjectIndex + 1,
       total: config.totalSubjects,
-      isLast: config.currentSubjectIndex === config.totalSubjects - 1
+      isLast: config.currentSubjectIndex === config.totalSubjects - 1,
     };
   }
 
@@ -260,14 +277,20 @@ export class SequenceManager {
 
       default:
         // Calcul générique
-        const totalScore = config.subjectResults.reduce((sum, result) => sum + (result.score || 0), 0);
-        const maxScore = config.subjectResults.reduce((sum, result) => sum + (result.maxScore || 0), 0);
+        const totalScore = config.subjectResults.reduce(
+          (sum, result) => sum + (result.score || 0),
+          0,
+        );
+        const maxScore = config.subjectResults.reduce(
+          (sum, result) => sum + (result.maxScore || 0),
+          0,
+        );
         const grade = maxScore > 0 ? (totalScore / maxScore) * 20 : 0;
-        
+
         return {
           totalScore,
           maxScore,
-          grade: Math.round(grade * 100) / 100
+          grade: Math.round(grade * 100) / 100,
         };
     }
   }
@@ -283,43 +306,57 @@ export class SequenceManager {
     estimatedTimeRemaining?: number; // en minutes
     globalProgress: number; // pourcentage
   } {
-    const completed = config.subjectResults.filter(r => r.isCompleted).length;
+    const completed = config.subjectResults.filter((r) => r.isCompleted).length;
     const globalProgress = Math.round((completed / config.totalSubjects) * 100);
 
     let presetName: string;
     switch (config.preset) {
       case QuizPreset.BREVET:
-        presetName = 'Brevet des Collèges';
+        presetName = "Brevet des Collèges";
         break;
       case QuizPreset.BAC:
-        presetName = 'Baccalauréat Général';
+        presetName = "Baccalauréat Général";
         break;
       case QuizPreset.PARTIELS:
-        presetName = `Partiels ${config.higherEdField || ''}`;
+        presetName = `Partiels ${config.higherEdField || ""}`;
         break;
       default:
-        presetName = 'Quiz Séquentiel';
+        presetName = "Quiz Séquentiel";
     }
 
-    const summary: any = {
+    const summary: {
+      preset: string;
+      completed: number;
+      total: number;
+      globalProgress: number;
+      currentSubject?: string;
+      estimatedTimeRemaining?: number;
+    } = {
       preset: presetName,
       completed,
       total: config.totalSubjects,
-      globalProgress
+      globalProgress,
     };
 
     if (!config.isCompleted) {
       summary.currentSubject = this.getCurrentSubjectInfo(config).name;
-      
+
       // Estimation du temps restant basée sur le temps déjà écoulé
       if (completed > 0) {
-        const elapsedTime = (new Date().getTime() - config.metadata.startedAt.getTime()) / 60000;
+        const elapsedTime =
+          (new Date().getTime() - config.metadata.startedAt.getTime()) / 60000;
         const avgTimePerSubject = elapsedTime / completed;
-        summary.estimatedTimeRemaining = Math.round(avgTimePerSubject * (config.totalSubjects - completed));
+        summary.estimatedTimeRemaining = Math.round(
+          avgTimePerSubject * (config.totalSubjects - completed),
+        );
       } else {
         // Utiliser l'estimation initiale
-        const remainingSubjects = config.totalSubjects - config.currentSubjectIndex;
-        summary.estimatedTimeRemaining = Math.round(config.metadata.estimatedTotalTime * (remainingSubjects / config.totalSubjects));
+        const remainingSubjects =
+          config.totalSubjects - config.currentSubjectIndex;
+        summary.estimatedTimeRemaining = Math.round(
+          config.metadata.estimatedTotalTime *
+            (remainingSubjects / config.totalSubjects),
+        );
       }
     }
 
@@ -330,11 +367,19 @@ export class SequenceManager {
    * Valide la configuration d'une séquence
    */
   static validateSequentialConfig(config: SequentialQuizConfig): boolean {
-    if (!config.id || !config.preset || !config.subjects || config.subjects.length === 0) {
+    if (
+      !config.id ||
+      !config.preset ||
+      !config.subjects ||
+      config.subjects.length === 0
+    ) {
       return false;
     }
 
-    if (config.currentSubjectIndex < 0 || config.currentSubjectIndex >= config.totalSubjects) {
+    if (
+      config.currentSubjectIndex < 0 ||
+      config.currentSubjectIndex >= config.totalSubjects
+    ) {
       return false;
     }
 
@@ -345,13 +390,15 @@ export class SequenceManager {
     // Validations spécifiques par preset
     switch (config.preset) {
       case QuizPreset.BAC:
-        return config.specialties !== undefined && config.specialties.length === 2;
-      
+        return (
+          config.specialties !== undefined && config.specialties.length === 2
+        );
+
       case QuizPreset.PARTIELS:
         return config.higherEdField !== undefined;
-      
+
       default:
         return true;
     }
   }
-} 
+}

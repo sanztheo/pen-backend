@@ -2,7 +2,11 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
-import { ragSystem } from "../../rag/index.js";
+import { ragSystem, type RAGSearchOptions } from "../../rag/index.js";
+import type {
+  RAGSourceType,
+  Prisma,
+} from "../../../../node_modules/.prisma/client-embeddings/index.js";
 
 /**
  * Context utilisateur injecté via closure dans createRagTools()
@@ -87,7 +91,7 @@ Utilise cet outil EN PREMIER pour savoir quelles sources sont disponibles avant 
 
         try {
           // Construire le WHERE clause
-          const whereClause: any = {
+          const whereClause: Prisma.RAGSourceWhereInput = {
             status: "COMPLETED",
             OR: [
               // Sources privées de l'utilisateur
@@ -100,13 +104,15 @@ Utilise cet outil EN PREMIER pour savoir quelles sources sont disponibles avant 
           };
 
           // Ajouter sources globales si demandé
-          if (includeGlobal) {
-            whereClause.OR.push({ isGlobal: true });
+          if (includeGlobal && whereClause.OR) {
+            (whereClause.OR as Prisma.RAGSourceWhereInput[]).push({
+              isGlobal: true,
+            });
           }
 
           // Filtrer par type si spécifié
           if (sourceTypes && sourceTypes.length > 0) {
-            whereClause.sourceType = { in: sourceTypes };
+            whereClause.sourceType = { in: sourceTypes as RAGSourceType[] };
           }
 
           const sources = await prismaEmbeddings.rAGSource.findMany({
@@ -166,7 +172,7 @@ Idéal pour répondre à des questions factuelles ou trouver des informations pr
         );
 
         try {
-          const searchOptions: any = {
+          const searchOptions: RAGSearchOptions = {
             userId: ctx.userId,
             workspaceId: ctx.workspaceId,
             limit,

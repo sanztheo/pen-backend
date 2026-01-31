@@ -171,7 +171,7 @@ router.post(
         message:
           "Job créé avec succès. Utilisez GET /api/jobs/:jobId pour récupérer le résultat",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[AI-ASYNC] Erreur création job:", error);
       return res.status(500).json({ error: "Erreur serveur" });
     }
@@ -214,7 +214,7 @@ router.post(
         status: "pending",
         message: "Job créé avec succès",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[AI-ASYNC] Erreur création job:", error);
       return res.status(500).json({ error: "Erreur serveur" });
     }
@@ -256,7 +256,7 @@ router.post(
         status: "pending",
         message: "Job créé avec succès",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[AI-ASYNC] Erreur création job:", error);
       return res.status(500).json({ error: "Erreur serveur" });
     }
@@ -302,7 +302,7 @@ router.post(
         status: "pending",
         message: "Job créé avec succès",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[AI-ASYNC] Erreur création job:", error);
       return res.status(500).json({ error: "Erreur serveur" });
     }
@@ -407,7 +407,7 @@ router.post(
       } else {
         res.end();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("❌ [AI-CHAT] Erreur:", error);
       res.status(500).json({
         error: "AI chat error",
@@ -453,7 +453,7 @@ router.post(
       const isFixedTempModel =
         typeof model === "string" && /(o1|o3|nano)/i.test(model);
 
-      const payload: any = { ...body };
+      const payload: Record<string, unknown> = { ...body };
       if (
         isFixedTempModel &&
         Object.prototype.hasOwnProperty.call(payload, "temperature") &&
@@ -494,7 +494,7 @@ router.post(
       );
 
       res.status(response.status).send(text);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[AI Proxy] Error:", error);
       res.status(500).json({ error: "AI proxy error" });
     }

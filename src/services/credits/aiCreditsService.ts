@@ -3,6 +3,7 @@
  * Gestion des crédits IA et déduction pour les actions BlockNote
  */
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { SecureLogger } from "../../middlewares/secureLogging.js";
 import { retryPrismaTransaction } from "../../lib/retryWithBackoff.js";
@@ -155,14 +156,16 @@ export class AICreditsService {
         limitReached: false,
         message: "Crédits déduits avec succès",
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       SecureLogger.error(
         "❌ Erreur lors de la déduction atomique des crédits IA",
         error,
       );
 
-      // Gestion spécifique des erreurs de transaction
-      if (error.code === "P2034") {
+      // Gestion spécifique des erreurs de transaction Prisma
+      const isPrismaError =
+        error !== null && typeof error === "object" && "code" in error;
+      if (isPrismaError && (error as { code: string }).code === "P2034") {
         // Transaction timeout
         return {
           success: false,
@@ -349,7 +352,7 @@ export class AICreditsService {
     userId: string,
     resourceType: string,
     quantity: number,
-    metadata: any = {},
+    metadata: Prisma.InputJsonValue = {},
   ): Promise<void> {
     try {
       await prisma.usageRecord.create({
@@ -380,7 +383,7 @@ export class AICreditsService {
     userId: string,
     resourceType: string,
     quantity: number,
-    metadata: any = {},
+    metadata: Prisma.InputJsonValue = {},
   ): Promise<void> {
     try {
       await prisma.usageRecord.create({

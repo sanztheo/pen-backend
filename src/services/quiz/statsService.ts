@@ -104,6 +104,22 @@ export interface QuestionTypeStats {
   totalQuestions: number;
 }
 
+// Type interne pour quiz avec résultat (retourné par Prisma include)
+type QuizWithResult = {
+  id: string;
+  title: string;
+  questions: unknown;
+  difficulty: string | null;
+  schoolLevel: string;
+  selectedSpecialties: string[];
+  higherEdField: string | null;
+  timeSpent: number | null;
+  isCompleted: boolean;
+  completedAt: Date | null;
+  createdAt: Date;
+  result: { percentage: number; detailedScoring: unknown } | null;
+};
+
 export class StatsService {
   /**
    * Récupère les statistiques avancées complètes d'un utilisateur
@@ -159,7 +175,7 @@ export class StatsService {
     );
 
     const totalQuestions = completedQuizzes.reduce((sum, q) => {
-      const questions = (q.questions as any[]) || [];
+      const questions = (q.questions as unknown[]) || [];
       return sum + questions.length;
     }, 0);
 
@@ -218,7 +234,7 @@ export class StatsService {
       timeSpent: Math.round((quiz.timeSpent || 0) / 60), // en minutes
       quizId: quiz.id,
       quizTitle: quiz.title,
-      questionCount: ((quiz.questions as any[]) || []).length,
+      questionCount: ((quiz.questions as unknown[]) || []).length,
     }));
   }
 
@@ -242,7 +258,7 @@ export class StatsService {
     });
 
     // Grouper par spécialités sélectionnées ou par higherEdField
-    const subjectMap = new Map<string, any[]>();
+    const subjectMap = new Map<string, QuizWithResult[]>();
 
     quizzes.forEach((quiz) => {
       // Essayer d'extraire les spécialités
@@ -359,7 +375,7 @@ export class StatsService {
     );
 
     const totalQuestions = quizzes.reduce((sum, q) => {
-      const questions = (q.questions as any[]) || [];
+      const questions = (q.questions as unknown[]) || [];
       return sum + questions.length;
     }, 0);
 
@@ -437,27 +453,35 @@ export class StatsService {
       include: { result: true },
     });
 
-    const pageUsageMap = new Map<string, any[]>();
+    interface PageUsageItem {
+      quiz: (typeof quizzes)[0];
+      pageTitle: string;
+    }
+    const pageUsageMap = new Map<string, PageUsageItem[]>();
 
     quizzes.forEach((quiz) => {
-      const sourceDocuments = quiz.sourceDocuments as any;
+      const sourceDocuments = quiz.sourceDocuments as unknown;
 
       // sourceDocuments peut être soit un tableau directement, soit un objet avec une propriété pages
-      let pages = [];
+      let pages: unknown[] = [];
       if (Array.isArray(sourceDocuments)) {
         pages = sourceDocuments;
-      } else if (sourceDocuments && Array.isArray(sourceDocuments.pages)) {
-        pages = sourceDocuments.pages;
+      } else if (sourceDocuments && typeof sourceDocuments === "object") {
+        const docs = sourceDocuments as Record<string, unknown>;
+        if (Array.isArray(docs.pages)) {
+          pages = docs.pages;
+        }
       }
 
-      pages.forEach((page: any) => {
-        const pageId = page.id || page.pageId || "unknown";
+      pages.forEach((page: unknown) => {
+        const p = page as Record<string, unknown>;
+        const pageId = String(p.id || p.pageId || "unknown");
         if (!pageUsageMap.has(pageId)) {
           pageUsageMap.set(pageId, []);
         }
         pageUsageMap.get(pageId)!.push({
           quiz,
-          pageTitle: page.title || page.pageTitle || "Sans titre",
+          pageTitle: String(p.title || p.pageTitle || "Sans titre"),
         });
       });
     });
@@ -517,12 +541,15 @@ export class StatsService {
     >();
 
     quizzes.forEach((quiz) => {
-      const questions = (quiz.questions as any[]) || [];
-      const detailedScoring = (quiz.result?.detailedScoring as any[]) || [];
+      const questions = (quiz.questions as unknown[]) || [];
+      const detailedScoring = (quiz.result?.detailedScoring as unknown[]) || [];
 
       questions.forEach((question, index) => {
-        const type = question.type || "UNKNOWN";
-        const scoring = detailedScoring[index];
+        const q = question as Record<string, unknown>;
+        const type = String(q.type || "UNKNOWN");
+        const scoring = detailedScoring[index] as
+          | Record<string, unknown>
+          | undefined;
 
         if (!typeMap.has(type)) {
           typeMap.set(type, {
@@ -538,8 +565,8 @@ export class StatsService {
         stats.totalQuestions++;
 
         if (scoring) {
-          stats.totalScore += scoring.score || 0;
-          stats.maxScore += scoring.maxScore || 1;
+          stats.totalScore += (scoring.score as number) || 0;
+          stats.maxScore += (scoring.maxScore as number) || 1;
         }
       });
     });
@@ -561,7 +588,7 @@ export class StatsService {
 
   // ===== Méthodes utilitaires privées =====
 
-  private static analyzeDifficultyGroup(quizzes: any[]) {
+  private static analyzeDifficultyGroup(quizzes: QuizWithResult[]) {
     const scores = quizzes
       .map((q) => q.result?.percentage || 0)
       .filter((s) => s > 0);
@@ -579,14 +606,14 @@ export class StatsService {
     };
   }
 
-  private static calculateAverageTime(quizzes: any[]): number {
+  private static calculateAverageTime(quizzes: QuizWithResult[]): number {
     if (quizzes.length === 0) return 0;
     const totalTime = quizzes.reduce((sum, q) => sum + (q.timeSpent || 0), 0);
     return totalTime / quizzes.length;
   }
 
   private static calculateTrend(
-    quizzes: any[],
+    quizzes: QuizWithResult[],
   ): "improving" | "stable" | "declining" {
     if (quizzes.length < 3) return "stable";
 
@@ -611,7 +638,7 @@ export class StatsService {
     return "stable";
   }
 
-  private static calculateStreaks(quizzes: any[]): {
+  private static calculateStreaks(quizzes: QuizWithResult[]): {
     currentStreak: number;
     longestStreak: number;
   } {

@@ -1,8 +1,35 @@
 import { Request, Response } from "express";
 import { z } from "zod";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { redisCache } from "../services/cache/redisCache.js";
 import { invalidateBlockNoteCache } from "../lib/redis.js";
+
+// Type pour les pages du projet avec arborescence
+interface ProjectPageWithChildren {
+  id: string;
+  title: string;
+  parentId: string | null;
+  position: number;
+  _count: { children: number };
+  author: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+  children: ProjectPageWithChildren[];
+  hasChildren: boolean;
+  depth: number;
+}
+
+// Type pour les données de mise à jour de page
+interface PageUpdateData {
+  title?: string;
+  position?: number;
+  parentId?: string | null;
+  projectId?: string | null;
+  slug?: string;
+}
 
 // Schémas de validation
 const createPageSchema = z
@@ -12,7 +39,7 @@ const createPageSchema = z
     position: z.number().int().min(0).optional(),
     projectId: z.string().uuid("ID projet invalide").optional(),
     workspaceId: z.string().uuid("ID workspace invalide").optional(),
-    blockNoteContent: z.any().optional(), // Contenu pré-rempli (import PDF)
+    blockNoteContent: z.unknown().optional(), // Contenu pré-rempli (import PDF) - JSON structure
   })
   .refine((data) => data.projectId || data.workspaceId, {
     message: "Un projectId ou un workspaceId est requis",
@@ -158,7 +185,9 @@ export const createPage = async (req: Request, res: Response) => {
         workspaceId: finalWorkspaceId,
         parentId: validatedData.parentId,
         createdBy: req.user!.id,
-        blockNoteContent: validatedData.blockNoteContent || null,
+        blockNoteContent: validatedData.blockNoteContent as
+          | Prisma.InputJsonValue
+          | undefined,
       },
       include: {
         author: {
@@ -498,46 +527,55 @@ export const getProjectPages = async (req: Request, res: Response) => {
       },
     });
 
-    // Construction d'arborescence (inchangée)
-    const pageMap = new Map<string, any>();
-    const rootPages: any[] = [];
-    pages.forEach((page: any) => {
-      pageMap.set(page.id, {
-        ...page,
+    // Construction d'arborescence avec types stricts
+    const pageMap = new Map<string, ProjectPageWithChildren>();
+    const rootPages: ProjectPageWithChildren[] = [];
+
+    // Type pour les pages retournées par Prisma
+    type ProjectPageFromDB = (typeof pages)[number];
+
+    pages.forEach((pageItem: ProjectPageFromDB) => {
+      pageMap.set(pageItem.id, {
+        ...pageItem,
         children: [],
-        hasChildren: page._count.children > 0,
+        hasChildren: pageItem._count.children > 0,
         depth: 0,
       });
     });
+
     const calculateDepth = (pageId: string, depth: number = 0): void => {
-      const page = pageMap.get(pageId);
-      if (page) {
-        page.depth = depth;
+      const pageItem = pageMap.get(pageId);
+      if (pageItem) {
+        pageItem.depth = depth;
         pages
-          .filter((p: any) => p.parentId === pageId)
-          .forEach((child: any) => {
+          .filter((p: ProjectPageFromDB) => p.parentId === pageId)
+          .forEach((child: ProjectPageFromDB) => {
             const childPage = pageMap.get(child.id);
             if (childPage) {
-              page.children.push(childPage);
+              pageItem.children.push(childPage);
               calculateDepth(child.id, depth + 1);
             }
           });
       }
     };
+
     pages
-      .filter((page: any) => !page.parentId)
-      .forEach((rootPage: any) => {
+      .filter((pageItem: ProjectPageFromDB) => !pageItem.parentId)
+      .forEach((rootPage: ProjectPageFromDB) => {
         const rootPageWithChildren = pageMap.get(rootPage.id);
         if (rootPageWithChildren) {
           rootPages.push(rootPageWithChildren);
           calculateDepth(rootPage.id, 0);
         }
       });
+
     const stats = {
       totalPages: pages.length,
       rootPages: rootPages.length,
       maxDepth: Math.max(
-        ...Array.from(pageMap.values()).map((p) => p.depth),
+        ...Array.from(pageMap.values()).map(
+          (p: ProjectPageWithChildren) => p.depth,
+        ),
         0,
       ),
     };
@@ -589,7 +627,7 @@ export const updatePage = async (req: Request, res: Response) => {
         .json({ error: "Page non trouvée ou permissions insuffisantes" });
     }
 
-    let updateData: any = { ...validatedData };
+    const updateData: PageUpdateData = { ...validatedData };
 
     // Gérer le déplacement de la page
     if (validatedData.projectId !== undefined) {
@@ -815,38 +853,50 @@ export const deletePage = async (req: Request, res: Response) => {
     const totalPagesToDelete = 1 + allDescendantIds.length; // 1 pour la page elle-même + ses descendants
 
     // Supprimer les pages et décrémenter le compteur d'usage
-    await prisma.$transaction(async (tx: any) => {
-      // 🧠 RAG: supprimer la/les sources liées à la page (et descendants) AVANT la suppression
-      try {
-        const { userPagesRAG } = await import("../services/rag/userPages.js");
-        // Racine + descendants (même workspace)
-        const allIds = [id, ...allDescendantIds];
-        for (const pid of allIds) {
-          await userPagesRAG.removeUserPage(
-            pid,
-            req.user!.id,
-            page.workspace.id,
+    await prisma.$transaction(
+      async (
+        tx: Omit<
+          PrismaClient,
+          | "$connect"
+          | "$disconnect"
+          | "$on"
+          | "$transaction"
+          | "$use"
+          | "$extends"
+        >,
+      ) => {
+        // 🧠 RAG: supprimer la/les sources liées à la page (et descendants) AVANT la suppression
+        try {
+          const { userPagesRAG } = await import("../services/rag/userPages.js");
+          // Racine + descendants (même workspace)
+          const allIds = [id, ...allDescendantIds];
+          for (const pid of allIds) {
+            await userPagesRAG.removeUserPage(
+              pid,
+              req.user!.id,
+              page.workspace.id,
+            );
+          }
+        } catch (e) {
+          console.warn(
+            "🧠 [RAG] Échec suppression sources liées à la page (continuation):",
+            e,
           );
         }
-      } catch (e) {
-        console.warn(
-          "🧠 [RAG] Échec suppression sources liées à la page (continuation):",
-          e,
-        );
-      }
 
-      // Supprimer la page (suppression en cascade des enfants grâce au schéma)
-      await tx.page.delete({
-        where: { id: id },
-      });
+        // Supprimer la page (suppression en cascade des enfants grâce au schéma)
+        await tx.page.delete({
+          where: { id: id },
+        });
 
-      // Décrémenter le compteur d'usage des pages (protégé contre valeurs négatives)
-      await tx.$executeRaw`
+        // Décrémenter le compteur d'usage des pages (protégé contre valeurs négatives)
+        await tx.$executeRaw`
         UPDATE "user_limits"
         SET "pages_used" = GREATEST(0, "pages_used" - ${totalPagesToDelete})
         WHERE "user_id" = ${req.user!.id}
       `;
-    });
+      },
+    );
 
     // 🗑️ REDIS CACHE INVALIDATION: Invalider le cache BlockNote pour toutes les pages supprimées
     const allDeletedIds = [id, ...allDescendantIds];

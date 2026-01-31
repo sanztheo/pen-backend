@@ -11,6 +11,88 @@ interface OpenAIChatCompletion {
   }>;
 }
 
+// Type pour les chunks Prisma avec source incluse
+interface RAGChunkWithSource {
+  id: string;
+  sourceId: string;
+  chunkIndex: number;
+  content: string;
+  cleanContent: string;
+  tokenCount: number;
+  pageNumber: number | null;
+  sectionTitle: string | null;
+  startOffset: number | null;
+  endOffset: number | null;
+  quality: number;
+  language: string;
+  createdAt: Date;
+  source: RAGSourceInfo;
+}
+
+// Type pour les informations de source RAG
+interface RAGSourceInfo {
+  id: string;
+  title: string;
+  sourceType: RAGSourceType;
+  fileName: string | null;
+}
+
+// Type pour les résultats bruts de la requête pgvector
+interface PgVectorSearchResult {
+  id: string;
+  clean_content: string;
+  page_number: number | null;
+  section_title: string | null;
+  source_id: string;
+  source_title: string;
+  source_type: RAGSourceType;
+  file_name: string | null;
+  similarity: number;
+}
+
+// Type pour le whereClause Prisma (structure dynamique)
+interface RAGChunkWhereClause {
+  sourceId?: { in: string[] };
+  source?: {
+    status?: string;
+    userId?: string;
+    workspaceId?: string | null;
+    isGlobal?: boolean;
+    id?: { in: string[] };
+    OR?: Array<
+      | { isGlobal: boolean }
+      | {
+          AND: Array<{
+            userId?: string;
+            workspaceId?: string | null;
+            isGlobal?: boolean;
+          }>;
+        }
+    >;
+  };
+}
+
+// Type pour les données préparées pour insertion de chunks
+interface PreparedChunkData {
+  sourceId: string;
+  chunkIndex: number;
+  content: string;
+  cleanContent: string;
+  embedding: string;
+  tokenCount: number;
+  pageNumber: number | undefined;
+  sectionTitle: string | undefined;
+  startOffset: number | undefined;
+  endOffset: number | undefined;
+  quality: number;
+}
+
+// Type pour le contenu PDF extrait par page
+interface PDFPageContent {
+  pageNumber: number;
+  content: string;
+}
+
 // Types principaux
 export interface RAGChunkInput {
   content: string;
@@ -406,7 +488,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     } = options;
 
     try {
-      let whereClause: any = {
+      let whereClause: RAGChunkWhereClause = {
         source: {
           status: "COMPLETED",
         },
@@ -499,13 +581,13 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         this.getSourceStats(diversifiedChunks),
       );
 
-      return diversifiedChunks.map((chunk: any) => ({
+      return diversifiedChunks.map((chunk: RAGChunkWithSource) => ({
         id: chunk.id,
         content: chunk.cleanContent,
         source: chunk.source,
         similarity: 1.0, // Score artificiel élevé car c'est du contenu de qualité
-        pageNumber: chunk.pageNumber,
-        sectionTitle: chunk.sectionTitle,
+        pageNumber: chunk.pageNumber ?? undefined,
+        sectionTitle: chunk.sectionTitle ?? undefined,
       }));
     } catch (error) {
       console.error("Erreur getBestQualityChunks:", error);
@@ -516,7 +598,10 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 
   // 🎯 Algorithme de diversification des chunks par source
-  private diversifyBySource(chunks: any[], targetLimit: number): any[] {
+  private diversifyBySource(
+    chunks: RAGChunkWithSource[],
+    targetLimit: number,
+  ): RAGChunkWithSource[] {
     // 🔥 EARLY RETURN: Si aucun chunk, retourner immédiatement
     if (chunks.length === 0) {
       console.log(`⚠️ [DIVERSIFICATION] Aucun chunk à diversifier`);
@@ -524,7 +609,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     }
 
     // Grouper les chunks par source
-    const chunksBySource = new Map<string, any[]>();
+    const chunksBySource = new Map<string, RAGChunkWithSource[]>();
 
     chunks.forEach((chunk) => {
       const sourceId = chunk.source.id;
@@ -551,7 +636,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       2,
       Math.floor(targetLimit / chunksBySource.size) + 1,
     );
-    const diversifiedChunks: any[] = [];
+    const diversifiedChunks: RAGChunkWithSource[] = [];
 
     // Round-robin pour équilibrer les sources
     let round = 0;
@@ -574,7 +659,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 
   // 📊 Stats des sources pour debugging
-  private getSourceStats(chunks: any[]): Record<string, number> {
+  private getSourceStats(chunks: RAGChunkWithSource[]): Record<string, number> {
     const stats: Record<string, number> = {};
     chunks.forEach((chunk) => {
       const title = chunk.source.title;
@@ -611,7 +696,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       );
 
       // 2. Construction de la requête avec filtres
-      let whereClause: any;
+      let whereClause: RAGChunkWhereClause;
 
       // 🆕 Si des sources RAG spécifiques sont demandées, filtrer par ces sources
       if (specificSourceIds && specificSourceIds.length > 0) {

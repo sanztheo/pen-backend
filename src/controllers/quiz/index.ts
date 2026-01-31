@@ -50,13 +50,15 @@ import { PagesProjectsController } from "./content/pagesProjectsController.js";
 import { RAGController } from "./content/ragController.js";
 import { PreprocessorController } from "./assistant/preprocessorController.js";
 
-/**
- * Helper function to copy all static methods from a class to a target object
- */
-function copyStaticMethods(target: any, source: any) {
+// Note: Ce helper utilise 'object' car il copie dynamiquement des méthodes statiques de classes.
+// Le cast interne vers Record est nécessaire pour l'accès par index.
+function copyStaticMethods(target: object, source: object) {
   Object.getOwnPropertyNames(source).forEach((key) => {
     if (key !== "prototype" && key !== "length" && key !== "name") {
-      target[key] = source[key];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (target as Record<string, unknown>)[key] = (
+        source as Record<string, unknown>
+      )[key];
     }
   });
 }
@@ -66,8 +68,12 @@ function copyStaticMethods(target: any, source: any) {
  *
  * Fusionne toutes les méthodes statiques des contrôleurs modulaires
  * en un seul objet accessible via QuizController.methodName()
+ *
+ * Note: Typage explicite requis car les méthodes sont copiées dynamiquement
+ * et doivent être compatibles avec les handlers Express.
  */
-const UnifiedQuizControllerObj: any = {};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const UnifiedQuizControllerObj: Record<string, any> = {};
 
 // Quiz de base
 copyStaticMethods(UnifiedQuizControllerObj, BaseQuizController);

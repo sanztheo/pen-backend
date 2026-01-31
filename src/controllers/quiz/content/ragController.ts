@@ -1,6 +1,41 @@
 import { Request, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma.js";
 import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
+
+/**
+ * Types pour le parsing de blockNoteContent
+ */
+interface BlockNoteContentItem {
+  text?: string;
+  type?: string;
+}
+
+interface BlockNoteBlock {
+  type?: string;
+  content?: BlockNoteContentItem[] | unknown;
+}
+
+/**
+ * Type pour les résultats de questions
+ */
+interface QuestionResult {
+  questionId: string;
+  isCorrect: boolean;
+  userAnswer?: string;
+  correctAnswer?: string;
+  score?: number;
+  maxScore?: number;
+}
+
+/**
+ * Type pour les sources RAG dans la réponse
+ */
+interface RAGSourceResponse {
+  title: string;
+  type: string | undefined;
+  similarity: number;
+}
 
 /**
  * Contrôleur pour la gestion du contexte RAG et des corrections rapides
@@ -100,15 +135,18 @@ export class RAGController {
                       : page.blockNoteContent;
 
                   if (content && Array.isArray(content)) {
-                    const textParts = content
+                    const textParts = (content as BlockNoteBlock[])
                       .filter(
-                        (block: any) =>
+                        (block: BlockNoteBlock) =>
                           block?.type === "paragraph" && block?.content,
                       )
-                      .map((block: any) =>
+                      .map((block: BlockNoteBlock) =>
                         Array.isArray(block.content)
-                          ? block.content
-                              .map((item: any) => item?.text || "")
+                          ? (block.content as BlockNoteContentItem[])
+                              .map(
+                                (item: BlockNoteContentItem) =>
+                                  item?.text ?? "",
+                              )
                               .join("")
                           : "",
                       )
@@ -214,7 +252,7 @@ export class RAGController {
         );
 
         let ragContext = "";
-        let ragSourcesForResponse: any[] = [];
+        let ragSourcesForResponse: RAGSourceResponse[] = [];
 
         if (searchResults.length > 0) {
           // Mode "pages uniquement" : filtrer seulement les pages utilisateur
@@ -344,10 +382,10 @@ export class RAGController {
           globalFeedback: `Résultat: ${totalScore}/${maxScore} (${percentage}%) - Correction automatique`,
           recommendations: [],
           strengths: [
-            `Bonnes réponses sur ${questionResults.filter((r: any) => r.isCorrect).length} question(s)`,
+            `Bonnes réponses sur ${(questionResults as QuestionResult[]).filter((r: QuestionResult) => r.isCorrect).length} question(s)`,
           ],
           weaknesses: [
-            `Erreurs sur ${questionResults.filter((r: any) => !r.isCorrect).length} question(s)`,
+            `Erreurs sur ${(questionResults as QuestionResult[]).filter((r: QuestionResult) => !r.isCorrect).length} question(s)`,
           ],
         },
         metadata: {
@@ -358,31 +396,36 @@ export class RAGController {
       };
 
       // Sauvegarder le résultat ET marquer le quiz comme terminé (même logique que submitQuiz)
-      const savedResult = await prisma.$transaction(async (tx: any) => {
-        // Marquer le quiz comme terminé
-        await tx.quiz.update({
-          where: { id: quizId },
-          data: {
-            isCompleted: true,
-            completedAt: new Date(),
-          },
-        });
+      const savedResult = await prisma.$transaction(
+        async (tx: Prisma.TransactionClient) => {
+          // Marquer le quiz comme terminé
+          await tx.quiz.update({
+            where: { id: quizId },
+            data: {
+              isCompleted: true,
+              completedAt: new Date(),
+            },
+          });
 
-        // Créer le résultat
-        return await tx.quizResult.create({
-          data: {
-            quizId,
-            totalScore,
-            maxScore,
-            percentage,
-            adaptedGrade: Math.round((totalScore / maxScore) * 20),
-            gradeScale: "/20",
-            detailedScoring: questionResults as any,
-            aiCorrection: quizResult.aiCorrection as any,
-            recommendations: quizResult.aiCorrection.recommendations as any,
-          },
-        });
-      });
+          // Créer le résultat
+          return await tx.quizResult.create({
+            data: {
+              quizId,
+              totalScore,
+              maxScore,
+              percentage,
+              adaptedGrade: Math.round((totalScore / maxScore) * 20),
+              gradeScale: "/20",
+              detailedScoring:
+                questionResults as unknown as Prisma.InputJsonValue,
+              aiCorrection:
+                quizResult.aiCorrection as unknown as Prisma.InputJsonValue,
+              recommendations: quizResult.aiCorrection
+                .recommendations as unknown as Prisma.InputJsonValue,
+            },
+          });
+        },
+      );
 
       console.log(
         `✅ [FAST-CORRECTION] Résultat sauvegardé et quiz marqué comme terminé: ${savedResult.id}`,

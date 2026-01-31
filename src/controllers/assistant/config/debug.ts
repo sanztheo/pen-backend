@@ -20,31 +20,31 @@ export const DEBUG_CONFIG: DebugConfig = {
 };
 
 export class DebugLogger {
-  static web(message: string, ...args: any[]) {
+  static web(message: string, ...args: unknown[]) {
     if (DEBUG_CONFIG.WEB_TRACING) {
       console.log(`🌐 [WEB-DEBUG] ${message}`, ...args);
     }
   }
 
-  static rag(message: string, ...args: any[]) {
+  static rag(message: string, ...args: unknown[]) {
     if (DEBUG_CONFIG.RAG_VERBOSE) {
       console.log(`🔍 [RAG-DEBUG] ${message}`, ...args);
     }
   }
 
-  static performance(message: string, ...args: any[]) {
+  static performance(message: string, ...args: unknown[]) {
     if (DEBUG_CONFIG.PERFORMANCE_TIMING) {
       console.log(`⚡ [PERF-DEBUG] ${message}`, ...args);
     }
   }
 
-  static session(message: string, ...args: any[]) {
+  static session(message: string, ...args: unknown[]) {
     if (DEBUG_CONFIG.SESSION_DEBUG) {
       console.log(`🔍 [SESSION-DEBUG] ${message}`, ...args);
     }
   }
 
-  static embedding(message: string, ...args: any[]) {
+  static embedding(message: string, ...args: unknown[]) {
     if (DEBUG_CONFIG.EMBEDDING_DEBUG) {
       console.log(`🧠 [EMBEDDING-DEBUG] ${message}`, ...args);
     }

@@ -108,7 +108,11 @@ export class AuthService {
 
   // Note: Clerk gère la création d'utilisateurs via son interface web
   // Ces méthodes ne sont plus nécessaires avec Clerk
-  static async createUser(email: string, password: string, metadata?: any) {
+  static async createUser(
+    email: string,
+    password: string,
+    metadata?: Record<string, unknown>,
+  ) {
     throw new Error("Utilisez l'interface Clerk pour créer des utilisateurs");
   }
 
@@ -129,7 +133,10 @@ export class AuthService {
   }
 
   // Mettre à jour les métadonnées d'un utilisateur via Clerk
-  static async updateUserMetadata(userId: string, metadata: any) {
+  static async updateUserMetadata(
+    userId: string,
+    metadata: Record<string, unknown>,
+  ) {
     try {
       // Note: Cette méthode nécessiterait l'API Backend de Clerk
       // Pour l'instant, nous indiquons que cela doit être fait via l'interface

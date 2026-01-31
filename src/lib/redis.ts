@@ -264,7 +264,20 @@ export const invalidateBlockNoteCache = async (pageId: string) => {
  * 🔧 Helper: Reconvertir les dates après désérialisation JSON
  * JSON.parse() convertit les dates en strings, on doit les reconvertir en Date
  */
-const deserializeRAGSession = (session: any) => {
+interface RAGSessionData {
+  id?: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  lastQueryAt?: string | null;
+  sourcesUsed?: Array<{
+    createdAt?: string | null;
+    updatedAt?: string | null;
+    [key: string]: unknown;
+  }>;
+  [key: string]: unknown;
+}
+
+const deserializeRAGSession = (session: RAGSessionData | null) => {
   if (!session) return null;
 
   return {
@@ -273,7 +286,7 @@ const deserializeRAGSession = (session: any) => {
     updatedAt: session.updatedAt ? new Date(session.updatedAt) : null,
     lastQueryAt: session.lastQueryAt ? new Date(session.lastQueryAt) : null,
     sourcesUsed:
-      session.sourcesUsed?.map((source: any) => ({
+      session.sourcesUsed?.map((source) => ({
         ...source,
         createdAt: source.createdAt ? new Date(source.createdAt) : null,
         updatedAt: source.updatedAt ? new Date(source.updatedAt) : null,
@@ -439,7 +452,7 @@ export const cacheSidebarContent = async (userId: string) => {
 /**
  * Sauvegarder le contenu de la sidebar dans le cache
  */
-export const saveSidebarContent = async (userId: string, content: any) => {
+export const saveSidebarContent = async (userId: string, content: unknown) => {
   try {
     const cacheKey = `sidebar:${userId}`;
     await redis.setex(cacheKey, 300, JSON.stringify(content)); // 5min TTL
@@ -498,7 +511,7 @@ export const saveQuizHistoryCache = async (
   userId: string,
   limit: number,
   offset: number,
-  history: any,
+  history: unknown,
 ) => {
   try {
     const cacheKey = `quiz-history:${userId}:${limit}:${offset}`;

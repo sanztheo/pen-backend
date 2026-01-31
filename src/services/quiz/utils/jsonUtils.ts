@@ -47,7 +47,7 @@ export class JsonUtils {
   /**
    * Parse JSON avec méthodes de récupération avancées
    */
-  static parseJsonWithRecovery(content: string): any {
+  static parseJsonWithRecovery(content: string): unknown {
     // Nettoyer d'abord le contenu
     const cleanedContent = this.cleanJsonContent(content);
 
@@ -145,7 +145,7 @@ export class JsonUtils {
   /**
    * Tente d'extraire le JSON du contenu markdown ou texte
    */
-  static extractJsonFromText(content: string): any {
+  static extractJsonFromText(content: string): unknown {
     try {
       // Essayer de parser directement
       return JSON.parse(content);

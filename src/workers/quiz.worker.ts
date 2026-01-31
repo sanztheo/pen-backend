@@ -38,8 +38,8 @@ export interface QuizJobResult {
   success: boolean;
   quizId?: string;
   error?: string;
-  questions?: any[];
-  correction?: any;
+  questions?: unknown[];
+  correction?: unknown;
 }
 
 // 🔧 Processeur de jobs Quiz
@@ -138,12 +138,13 @@ const processQuizJob = async (
       default:
         throw new Error(`Type de job inconnu: ${type}`);
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
     console.error(`❌ [QUIZ-WORKER] Erreur job ${type}:`, error);
 
     return {
       success: false,
-      error: error.message || "Erreur inconnue",
+      error: errorMessage || "Erreur inconnue",
     };
   }
 };

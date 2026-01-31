@@ -1,6 +1,71 @@
+import OpenAI from "openai";
+import { Stream } from "openai/streaming";
+import type {
+  ChatCompletionChunk,
+  ChatCompletionCreateParamsStreaming,
+  ChatCompletionCreateParamsNonStreaming,
+} from "openai/resources/chat/completions";
+import type { CompletionUsage } from "openai/resources/completions";
 import { AIService, AIGenerationOptions, AIGenerationResult } from "./base.js";
 import { CodeDetectionService } from "./codeDetection.js";
 import { OpenAIQuotaManager } from "./quotaManager.js";
+
+/**
+ * Extended delta type to support reasoning_content from Grok/xAI and other reasoning models
+ */
+interface ExtendedChatCompletionDelta {
+  content?: string | null;
+  reasoning_content?: string | null;
+  role?: "developer" | "system" | "user" | "assistant" | "tool";
+  refusal?: string | null;
+}
+
+/**
+ * Payload for streaming chat completions (supports both standard and reasoning models)
+ */
+interface ChatCompletionStreamPayload extends Omit<
+  ChatCompletionCreateParamsStreaming,
+  "max_tokens"
+> {
+  max_tokens?: number;
+  max_completion_tokens?: number;
+  reasoning_effort?: "low" | "medium" | "high";
+}
+
+/**
+ * Payload for non-streaming chat completions (supports both standard and reasoning models)
+ */
+interface ChatCompletionPayload extends Omit<
+  ChatCompletionCreateParamsNonStreaming,
+  "max_tokens"
+> {
+  max_tokens?: number;
+  max_completion_tokens?: number;
+  reasoning_effort?: "low" | "medium" | "high";
+}
+
+/**
+ * Response structure from OpenAI API (non-streaming)
+ */
+interface ChatCompletionResponse {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    message: {
+      role: string;
+      content: string | null;
+    };
+    finish_reason: string | null;
+  }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
 
 /**
  * Service pour la génération de contenu avec IA
@@ -68,9 +133,10 @@ export class ContentGenerationService {
       );
 
       // 🧠 SÉLECTION DU CLIENT (OpenAI vs Grok)
-      let client: any;
-      const isGrok = typeof model === "string" && model.toLowerCase().includes("grok");
-      
+      let client: OpenAI;
+      const isGrok =
+        typeof model === "string" && model.toLowerCase().includes("grok");
+
       if (isGrok) {
         console.log("🧠 [PROVIDER] Utilisation de xAI (Grok)");
         client = AIService.getGrok();
@@ -100,8 +166,12 @@ export class ContentGenerationService {
 
         const isFixedTempModelStream =
           typeof model === "string" && /(o1|o3|nano|gpt-5)/i.test(model);
-        const payloadStream: any = { model, messages, stream: true };
-        
+        const payloadStream: ChatCompletionStreamPayload = {
+          model,
+          messages,
+          stream: true,
+        };
+
         if (isFixedTempModelStream) {
           // Ne jamais dépasser la limite provider
           payloadStream.max_completion_tokens = Math.min(
@@ -120,11 +190,11 @@ export class ContentGenerationService {
 
         const stream = (await client.chat.completions.create(payloadStream, {
           signal: controller.signal, // 🚫 Passer le signal à OpenAI
-        })) as any;
+        })) as Stream<ChatCompletionChunk>;
 
         let fullContent = "";
         let accumulatedReasoning = ""; // 🆕 Accumulateur de raisonnement
-        let usage: any = undefined;
+        let usage: CompletionUsage | undefined = undefined;
         let finishReason = "unknown";
 
         try {
@@ -137,10 +207,12 @@ export class ContentGenerationService {
               throw new Error("Requête annulée");
             }
 
-            const delta = chunk.choices[0]?.delta as any;
+            const delta = chunk.choices[0]?.delta as
+              | ExtendedChatCompletionDelta
+              | undefined;
             const content = delta?.content || "";
             const reasoning = delta?.reasoning_content || ""; // 🧠 Capture Grok/OpenAI reasoning
-            
+
             if (reasoning) {
               accumulatedReasoning += reasoning;
               // Stream thinking to frontend
@@ -148,7 +220,7 @@ export class ContentGenerationService {
                 options.onThinking(reasoning);
               }
               // Log live thinking chunks (stdout pour voir le flux en temps réel)
-              process.stdout.write(reasoning); 
+              process.stdout.write(reasoning);
             }
 
             if (content) {
@@ -203,7 +275,11 @@ export class ContentGenerationService {
 
         // 🧠 Log complet du thinking si existant (DEMANDE UTILISATEUR)
         if (accumulatedReasoning.length > 0) {
-          console.log("\n🧠 [COMPLETE THINKING]:\n" + accumulatedReasoning + "\n-------------------\n");
+          console.log(
+            "\n🧠 [COMPLETE THINKING]:\n" +
+              accumulatedReasoning +
+              "\n-------------------\n",
+          );
         }
 
         // Optionnel: si coupé par longueur et que l'appelant a demandé plus de tokens, tenter une continuation simple
@@ -218,7 +294,7 @@ export class ContentGenerationService {
                 content: "Continue la réponse précédente.",
               },
             ];
-            const payloadFollow: any = {
+            const payloadFollow: ChatCompletionStreamPayload = {
               model,
               messages: followupMessages,
               stream: true,
@@ -238,7 +314,7 @@ export class ContentGenerationService {
             }
             const stream2 = (await client.chat.completions.create(
               payloadFollow,
-            )) as any;
+            )) as Stream<ChatCompletionChunk>;
             for await (const chunk of stream2) {
               const content = chunk.choices[0]?.delta?.content || "";
               if (content) {
@@ -289,7 +365,7 @@ export class ContentGenerationService {
       // Adapter la charge utile pour les modèles o1/o3/nano/gpt-5 (température fixe et champ max_completion_tokens)
       const isFixedTempModel =
         typeof model === "string" && /(o1|o3|nano|gpt-5)/i.test(model);
-      const payload: any = { model, messages };
+      const payload: ChatCompletionPayload = { model, messages };
       if (isFixedTempModel) {
         payload.max_completion_tokens = targetTokens;
         // Ne pas envoyer temperature (non supporté / fixé pour ces modèles)
@@ -344,7 +420,7 @@ export class ContentGenerationService {
         throw new Error(`Erreur OpenAI (${response.status}): ${errorText}`);
       }
 
-      const data: any = await response.json();
+      const data = (await response.json()) as ChatCompletionResponse;
       const content = data.choices?.[0]?.message?.content || "";
 
       const responseTime = Date.now() - startTime;
@@ -388,7 +464,7 @@ export class ContentGenerationService {
             ? Math.min(PROVIDER_HARD_CAP, options.maxTokens || 30000)
             : Math.min(6000, options.maxTokens || 2000);
 
-          const continuationPayload: any = {
+          const continuationPayload: ChatCompletionPayload = {
             model,
             messages: continuationMessages,
           };
@@ -413,7 +489,8 @@ export class ContentGenerationService {
           );
 
           if (continuationResponse.ok) {
-            const continuationData: any = await continuationResponse.json();
+            const continuationData =
+              (await continuationResponse.json()) as ChatCompletionResponse;
             const continuationContent =
               continuationData.choices?.[0]?.message?.content || "";
             finalContent += continuationContent;

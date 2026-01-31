@@ -1,8 +1,21 @@
-import { prisma } from '../lib/prisma.js';
+import { prisma } from "../lib/prisma.js";
+
+// Interface pour les éléments de layout du dashboard
+export interface DashboardLayoutItem {
+  i: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW?: number;
+  minH?: number;
+  maxW?: number;
+  maxH?: number;
+}
 
 export interface DashboardLayout {
   visibleCharts: string[];
-  layout?: any[];
+  layout?: DashboardLayoutItem[];
 }
 
 /**
@@ -25,7 +38,7 @@ export const DashboardLayoutService = {
 
     return {
       visibleCharts: layout.visibleCharts as string[],
-      layout: layout.layout as any[],
+      layout: layout.layout as unknown as DashboardLayoutItem[],
     };
   },
 
@@ -34,18 +47,22 @@ export const DashboardLayoutService = {
    */
   async saveUserLayout(
     userId: string,
-    data: DashboardLayout
+    data: DashboardLayout,
   ): Promise<DashboardLayout> {
     const layout = await prisma.userDashboardLayout.upsert({
       where: { userId },
       create: {
         userId,
         visibleCharts: data.visibleCharts,
-        layout: data.layout || [],
+        layout: (data.layout || []) as unknown as Parameters<
+          typeof prisma.userDashboardLayout.create
+        >[0]["data"]["layout"],
       },
       update: {
         visibleCharts: data.visibleCharts,
-        layout: data.layout || [],
+        layout: (data.layout || []) as unknown as Parameters<
+          typeof prisma.userDashboardLayout.update
+        >[0]["data"]["layout"],
         updatedAt: new Date(),
       },
       select: {
@@ -56,7 +73,7 @@ export const DashboardLayoutService = {
 
     return {
       visibleCharts: layout.visibleCharts as string[],
-      layout: layout.layout as any[],
+      layout: layout.layout as unknown as DashboardLayoutItem[],
     };
   },
 
@@ -64,11 +81,12 @@ export const DashboardLayoutService = {
    * Réinitialise la disposition aux valeurs par défaut
    */
   async resetUserLayout(userId: string): Promise<void> {
-    await prisma.userDashboardLayout.delete({
-      where: { userId },
-    }).catch(() => {
-      // Si le layout n'existe pas, on ignore l'erreur
-    });
+    await prisma.userDashboardLayout
+      .delete({
+        where: { userId },
+      })
+      .catch(() => {
+        // Si le layout n'existe pas, on ignore l'erreur
+      });
   },
 };
-

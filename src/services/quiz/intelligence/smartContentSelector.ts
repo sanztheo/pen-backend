@@ -126,7 +126,7 @@ export class SmartContentSelectorService {
 
       if (!pageData?.blockNoteContent) continue;
 
-      const blocks = pageData.blockNoteContent as any[];
+      const blocks = pageData.blockNoteContent as unknown[];
       let chunkIndex = 0;
 
       // 1. Extraire les définitions depuis les concepts

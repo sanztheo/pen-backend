@@ -12,7 +12,7 @@
  * qui utilise Vercel AI SDK v5 avec streaming SSE.
  */
 
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import multer from "multer";
 import { prisma } from "../lib/prisma.js";
 import { prismaEmbeddings } from "../lib/prismaEmbeddings.js";
@@ -20,6 +20,89 @@ import { wikipediaSearch } from "../controllers/assistant.js";
 import { verifyWorkspaceAccess } from "../middlewares/workspaceAccess.js";
 import { aiConcurrencyLimit } from "../middlewares/aiConcurrencyLimit.js";
 import { dailyTokenQuota } from "../middlewares/dailyTokenQuota.js";
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+/** Wikipedia RAG enriched article structure */
+interface EnrichedWikipediaArticle {
+  title: string;
+  url: string;
+  fullContent: string;
+  categories: string[];
+  relevantSections: string[];
+}
+
+/** Wikipedia RAG process request body */
+interface WikipediaRagProcessBody {
+  pageIds: number[];
+  query?: string;
+  mode?: "ask" | "search" | "create";
+  reflection?: "rapide" | "profond";
+  workspaceId?: string;
+}
+
+/** Source reference for filtering */
+interface SourceReference {
+  id?: string;
+  title: string;
+  type?: string;
+}
+
+/** Selected sources for RAG context */
+interface SelectedSources {
+  wikipediaSources?: SourceReference[];
+  mentionedPages?: SourceReference[];
+  fileSources?: SourceReference[];
+  sourcesScope?: "all" | "custom";
+}
+
+/** RAG context request body */
+interface RagContextBody {
+  query: string;
+  workspaceId: string;
+  sessionKey?: string;
+  selectedSources?: SelectedSources;
+}
+
+/** User pages check embedding request body */
+interface CheckEmbeddingBody {
+  pageId: string;
+  workspaceId: string;
+}
+
+/** User pages RAG process request body */
+interface UserPagesRagProcessBody {
+  pageIds: string[];
+  workspaceId: string;
+}
+
+/** Upload RAG request body */
+interface UploadRagBody {
+  workspaceId: string;
+}
+
+/** BlockNote block content item */
+interface BlockNoteContentItem {
+  type?: string;
+  text?: string;
+}
+
+/** BlockNote block structure */
+interface BlockNoteBlock {
+  type?: string;
+  content?: BlockNoteContentItem[];
+  children?: BlockNoteBlock[];
+}
+
+/** PDF parse result */
+interface PdfParseResult {
+  text?: string;
+}
+
+/** PDF parse function type */
+type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
 
 const router = Router();
 
@@ -39,7 +122,10 @@ router.get("/wikipedia/search", wikipediaSearch);
 router.post(
   "/wikipedia/rag-process",
   verifyWorkspaceAccess,
-  async (req: any, res) => {
+  async (
+    req: Request<unknown, unknown, WikipediaRagProcessBody>,
+    res: Response,
+  ) => {
     try {
       const { wikipediaRAG } = await import("../services/rag/wikipedia.js");
       const {
@@ -65,7 +151,7 @@ router.post(
 
       if (workspaceId && enrichedResult.articles.length > 0) {
         const articles = enrichedResult.articles.map(
-          (article: any, index: number) => ({
+          (article: EnrichedWikipediaArticle, index: number) => ({
             pageid: pageIds[index] || Math.random(),
             title: article.title,
             extract: article.fullContent.slice(0, 500) + "...",
@@ -77,7 +163,7 @@ router.post(
 
         try {
           await wikipediaRAG.processWikipediaArticles(
-            req.user.id,
+            req.user!.id,
             workspaceId,
             articles,
           );
@@ -106,228 +192,247 @@ router.post(
 // RAG CONTEXT
 // ============================================================================
 
-router.post("/rag/context", verifyWorkspaceAccess, async (req: any, res) => {
-  try {
-    const { ragSystem } = await import("../services/rag/index.js");
-    const { sessionMemory } = await import("../services/rag/sessionMemory.js");
-    const { query, workspaceId, sessionKey, selectedSources } = req.body;
+router.post(
+  "/rag/context",
+  verifyWorkspaceAccess,
+  async (req: Request<unknown, unknown, RagContextBody>, res: Response) => {
+    try {
+      const { ragSystem } = await import("../services/rag/index.js");
+      const { sessionMemory } =
+        await import("../services/rag/sessionMemory.js");
+      const { query, workspaceId, sessionKey, selectedSources } = req.body;
 
-    if (!query) {
-      return res.status(400).json({ error: "Query is required" });
-    }
-
-    // Vérifier si des sources sont sélectionnées
-    const hasSelectedSources =
-      selectedSources &&
-      (selectedSources.wikipediaSources?.length > 0 ||
-        selectedSources.mentionedPages?.length > 0 ||
-        selectedSources.fileSources?.length > 0 ||
-        selectedSources.sourcesScope === "all");
-
-    // Vérifier session active
-    let hasActiveSession = false;
-    let activeSessionSources = null;
-    if (!hasSelectedSources && req.user) {
-      try {
-        const activeSession = await sessionMemory.getActiveSession(
-          req.user.id,
-          workspaceId,
-        );
-        if (activeSession) {
-          hasActiveSession = true;
-          activeSessionSources = await sessionMemory.getSessionSources(
-            activeSession.id,
-          );
-        }
-      } catch (error) {
-        console.error("Erreur vérification session:", error);
+      if (!query) {
+        return res.status(400).json({ error: "Query is required" });
       }
-    }
 
-    // Décider si on doit utiliser RAG
-    let shouldUseRAG = false;
-    const isSimpleGreeting =
-      /^(salut|hello|hi|bonjour|bonsoir|coucou|hey)[\s!?]*$/i.test(
-        query.trim(),
+      // Vérifier si des sources sont sélectionnées
+      const hasSelectedSources =
+        selectedSources &&
+        ((selectedSources.wikipediaSources?.length ?? 0) > 0 ||
+          (selectedSources.mentionedPages?.length ?? 0) > 0 ||
+          (selectedSources.fileSources?.length ?? 0) > 0 ||
+          selectedSources.sourcesScope === "all");
+
+      // Vérifier session active
+      let hasActiveSession = false;
+      let activeSessionSources = null;
+      if (!hasSelectedSources && req.user) {
+        try {
+          const activeSession = await sessionMemory.getActiveSession(
+            req.user.id,
+            workspaceId,
+          );
+          if (activeSession && activeSession.id) {
+            hasActiveSession = true;
+            activeSessionSources = await sessionMemory.getSessionSources(
+              activeSession.id,
+            );
+          }
+        } catch (error) {
+          console.error("Erreur vérification session:", error);
+        }
+      }
+
+      // Décider si on doit utiliser RAG
+      let shouldUseRAG = false;
+      const isSimpleGreeting =
+        /^(salut|hello|hi|bonjour|bonsoir|coucou|hey)[\s!?]*$/i.test(
+          query.trim(),
+        );
+      const isVeryShort = query.trim().length < 10;
+
+      if (hasSelectedSources) {
+        shouldUseRAG = true;
+      } else if (isSimpleGreeting || isVeryShort) {
+        shouldUseRAG = false;
+      } else {
+        if (
+          hasActiveSession &&
+          activeSessionSources &&
+          activeSessionSources.length > 0
+        ) {
+          shouldUseRAG = await ragSystem.shouldUseRAG(
+            query,
+            activeSessionSources ?? undefined,
+          );
+        } else {
+          shouldUseRAG = await ragSystem.shouldUseRAG(query);
+        }
+      }
+
+      if (!shouldUseRAG) {
+        return res.json({
+          success: true,
+          ragContext: "",
+          sessionMemory: "",
+          sessionId: null,
+          sourcesUsed: [],
+          searchResults: [],
+          searchResultsCount: 0,
+          skipReason: "Query trop simple/générale pour RAG",
+        });
+      }
+
+      // Créer ou récupérer la session
+      const sessionId = await sessionMemory.getOrCreateSession(
+        req.user!.id,
+        workspaceId,
+        sessionKey,
       );
-    const isVeryShort = query.trim().length < 10;
 
-    if (hasSelectedSources) {
-      shouldUseRAG = true;
-    } else if (isSimpleGreeting || isVeryShort) {
-      shouldUseRAG = false;
-    } else {
+      // Rechercher les sources spécifiques
+      const specificSourceIds: string[] = [];
+
+      // Fichiers joints
       if (
-        hasActiveSession &&
+        (selectedSources?.fileSources?.length ?? 0) > 0 &&
+        selectedSources?.fileSources
+      ) {
+        for (const file of selectedSources.fileSources) {
+          const fileId = file.id ?? "";
+          const isValidUUID =
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+              fileId,
+            );
+
+          const fileRecord = await prismaEmbeddings.rAGSource.findFirst({
+            where: isValidUUID
+              ? {
+                  id: fileId,
+                  userId: req.user!.id,
+                  workspaceId,
+                  status: "COMPLETED",
+                }
+              : {
+                  title: file.title,
+                  userId: req.user!.id,
+                  workspaceId,
+                  status: "COMPLETED",
+                },
+            select: { id: true },
+          });
+
+          if (fileRecord) specificSourceIds.push(fileRecord.id);
+        }
+      }
+
+      // Sources Wikipedia
+      if (
+        specificSourceIds.length === 0 &&
+        (selectedSources?.wikipediaSources?.length ?? 0) > 0 &&
+        selectedSources?.wikipediaSources
+      ) {
+        for (const source of selectedSources.wikipediaSources) {
+          const sourceRecord = await prismaEmbeddings.rAGSource.findFirst({
+            where: { title: source.title, isGlobal: true, status: "COMPLETED" },
+            select: { id: true },
+          });
+          if (sourceRecord) specificSourceIds.push(sourceRecord.id);
+        }
+      }
+
+      // Sources de session
+      if (
+        specificSourceIds.length === 0 &&
         activeSessionSources &&
         activeSessionSources.length > 0
       ) {
-        shouldUseRAG = await ragSystem.shouldUseRAG(
-          query,
-          activeSessionSources ?? undefined,
-        );
+        for (const source of activeSessionSources) {
+          const sourceRecord = await prismaEmbeddings.rAGSource.findFirst({
+            where: { title: source.title, isGlobal: true, status: "COMPLETED" },
+            select: { id: true },
+          });
+          if (sourceRecord) specificSourceIds.push(sourceRecord.id);
+        }
+      }
+
+      // Recherche RAG
+      let searchResults;
+      if (specificSourceIds.length > 0) {
+        const allResults = [];
+        const chunksPerSource = Math.ceil(12 / specificSourceIds.length);
+
+        for (const sourceId of specificSourceIds) {
+          const sourceResults = await ragSystem.intelligentSearch(query, {
+            userId: req.user!.id,
+            workspaceId,
+            limit: chunksPerSource,
+            specificSourceIds: [sourceId],
+          });
+          allResults.push(...sourceResults);
+        }
+        searchResults = allResults.sort(() => Math.random() - 0.5);
       } else {
-        shouldUseRAG = await ragSystem.shouldUseRAG(query);
-      }
-    }
-
-    if (!shouldUseRAG) {
-      return res.json({
-        success: true,
-        ragContext: "",
-        sessionMemory: "",
-        sessionId: null,
-        sourcesUsed: [],
-        searchResults: [],
-        searchResultsCount: 0,
-        skipReason: "Query trop simple/générale pour RAG",
-      });
-    }
-
-    // Créer ou récupérer la session
-    const sessionId = await sessionMemory.getOrCreateSession(
-      req.user.id,
-      workspaceId,
-      sessionKey,
-    );
-
-    // Rechercher les sources spécifiques
-    let specificSourceIds: string[] = [];
-
-    // Fichiers joints
-    if (selectedSources?.fileSources?.length > 0) {
-      for (const file of selectedSources.fileSources) {
-        const isValidUUID =
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-            file.id,
-          );
-
-        const fileRecord = await prismaEmbeddings.rAGSource.findFirst({
-          where: isValidUUID
-            ? {
-                id: file.id,
-                userId: req.user.id,
-                workspaceId,
-                status: "COMPLETED",
-              }
-            : {
-                title: file.title,
-                userId: req.user.id,
-                workspaceId,
-                status: "COMPLETED",
-              },
-          select: { id: true },
-        });
-
-        if (fileRecord) specificSourceIds.push(fileRecord.id);
-      }
-    }
-
-    // Sources Wikipedia
-    if (
-      specificSourceIds.length === 0 &&
-      selectedSources?.wikipediaSources?.length > 0
-    ) {
-      for (const source of selectedSources.wikipediaSources) {
-        const sourceRecord = await prismaEmbeddings.rAGSource.findFirst({
-          where: { title: source.title, isGlobal: true, status: "COMPLETED" },
-          select: { id: true },
-        });
-        if (sourceRecord) specificSourceIds.push(sourceRecord.id);
-      }
-    }
-
-    // Sources de session
-    if (
-      specificSourceIds.length === 0 &&
-      activeSessionSources &&
-      activeSessionSources.length > 0
-    ) {
-      for (const source of activeSessionSources) {
-        const sourceRecord = await prismaEmbeddings.rAGSource.findFirst({
-          where: { title: source.title, isGlobal: true, status: "COMPLETED" },
-          select: { id: true },
-        });
-        if (sourceRecord) specificSourceIds.push(sourceRecord.id);
-      }
-    }
-
-    // Recherche RAG
-    let searchResults;
-    if (specificSourceIds.length > 0) {
-      const allResults = [];
-      const chunksPerSource = Math.ceil(12 / specificSourceIds.length);
-
-      for (const sourceId of specificSourceIds) {
-        const sourceResults = await ragSystem.intelligentSearch(query, {
-          userId: req.user.id,
+        searchResults = await ragSystem.intelligentSearch(query, {
+          userId: req.user!.id,
           workspaceId,
-          limit: chunksPerSource,
-          specificSourceIds: [sourceId],
+          limit: 12,
         });
-        allResults.push(...sourceResults);
       }
-      searchResults = allResults.sort(() => Math.random() - 0.5);
-    } else {
-      searchResults = await ragSystem.intelligentSearch(query, {
-        userId: req.user.id,
-        workspaceId,
-        limit: 12,
-      });
-    }
 
-    // Filtrer selon sourcesScope
-    if (selectedSources?.sourcesScope === "custom") {
-      const mentionedTitles = new Set([
-        ...(selectedSources.wikipediaSources || []).map((s: any) => s.title),
-        ...(selectedSources.mentionedPages || []).map((p: any) => p.title),
-        ...(selectedSources.fileSources || []).map((f: any) => f.title),
-      ]);
-      searchResults = searchResults.filter((r) =>
-        mentionedTitles.has(r.source.title),
+      // Filtrer selon sourcesScope
+      if (selectedSources?.sourcesScope === "custom") {
+        const mentionedTitles = new Set([
+          ...(selectedSources.wikipediaSources || []).map(
+            (s: SourceReference) => s.title,
+          ),
+          ...(selectedSources.mentionedPages || []).map(
+            (p: SourceReference) => p.title,
+          ),
+          ...(selectedSources.fileSources || []).map(
+            (f: SourceReference) => f.title,
+          ),
+        ]);
+        searchResults = searchResults.filter((r) =>
+          mentionedTitles.has(r.source.title),
+        );
+      }
+
+      // Construire le contexte
+      const optimizedContext = await ragSystem.buildOptimizedContext(
+        query,
+        searchResults,
       );
-    }
-
-    // Construire le contexte
-    const optimizedContext = await ragSystem.buildOptimizedContext(
-      query,
-      searchResults,
-    );
-    const sessionMemoryText = await sessionMemory.getRecentMemory(sessionId, 5);
-
-    // Sauvegarder les sources utilisées
-    if (sessionId && searchResults.length > 0) {
-      const uniqueSourcesMap = new Map();
-      searchResults.forEach((r) => {
-        uniqueSourcesMap.set(r.source.id, {
-          id: r.source.id,
-          title: r.source.title,
-          type: r.source.sourceType || "wikipedia",
-        });
-      });
-      await sessionMemory.saveSessionSources(
+      const sessionMemoryText = await sessionMemory.getRecentMemory(
         sessionId,
-        Array.from(uniqueSourcesMap.values()),
+        5,
       );
-    }
 
-    res.json({
-      success: true,
-      ragContext: optimizedContext,
-      sessionMemory: sessionMemoryText,
-      sessionId,
-      sourcesUsed: searchResults.map((r) => r.source.title),
-      searchResults,
-      searchResultsCount: searchResults.length,
-    });
-  } catch (error) {
-    console.error("Erreur RAG context:", error);
-    res.status(500).json({
-      error: "Erreur interne du serveur",
-      details: "Une erreur est survenue",
-    });
-  }
-});
+      // Sauvegarder les sources utilisées
+      if (sessionId && searchResults.length > 0) {
+        const uniqueSourcesMap = new Map();
+        searchResults.forEach((r) => {
+          uniqueSourcesMap.set(r.source.id, {
+            id: r.source.id,
+            title: r.source.title,
+            type: r.source.sourceType || "wikipedia",
+          });
+        });
+        await sessionMemory.saveSessionSources(
+          sessionId,
+          Array.from(uniqueSourcesMap.values()),
+        );
+      }
+
+      res.json({
+        success: true,
+        ragContext: optimizedContext,
+        sessionMemory: sessionMemoryText,
+        sessionId,
+        sourcesUsed: searchResults.map((r) => r.source.title),
+        searchResults,
+        searchResultsCount: searchResults.length,
+      });
+    } catch (error) {
+      console.error("Erreur RAG context:", error);
+      res.status(500).json({
+        error: "Erreur interne du serveur",
+        details: "Une erreur est survenue",
+      });
+    }
+  },
+);
 
 // ============================================================================
 // USER PAGES RAG
@@ -336,7 +441,7 @@ router.post("/rag/context", verifyWorkspaceAccess, async (req: any, res) => {
 router.post(
   "/user-pages/check-embedding",
   verifyWorkspaceAccess,
-  async (req: any, res) => {
+  async (req: Request<unknown, unknown, CheckEmbeddingBody>, res: Response) => {
     try {
       const { pageId, workspaceId } = req.body;
 
@@ -363,7 +468,7 @@ router.post(
         const { userPagesRAG } = await import("../services/rag/userPages.js");
         const existingSource = await userPagesRAG.findExistingSource(
           pageId,
-          req.user.id,
+          req.user!.id,
           workspaceId,
         );
 
@@ -403,7 +508,10 @@ router.post(
 router.post(
   "/user-pages/rag-process",
   verifyWorkspaceAccess,
-  async (req: any, res) => {
+  async (
+    req: Request<unknown, unknown, UserPagesRagProcessBody>,
+    res: Response,
+  ) => {
     try {
       const { pageIds, workspaceId } = req.body;
 
@@ -452,12 +560,13 @@ router.post(
             if (content && Array.isArray(content)) {
               const textParts = content
                 .filter(
-                  (block: any) => block?.type === "paragraph" && block?.content,
+                  (block: BlockNoteBlock) =>
+                    block?.type === "paragraph" && block?.content,
                 )
-                .map((block: any) =>
+                .map((block: BlockNoteBlock) =>
                   Array.isArray(block.content)
                     ? block.content
-                        .map((item: any) => item?.text || "")
+                        .map((item: BlockNoteContentItem) => item?.text || "")
                         .join("")
                     : "",
                 )
@@ -517,62 +626,66 @@ const upload = multer({
 });
 
 // Upload simple (extraction texte sans persistance)
-router.post("/upload", upload.array("files", 5), async (req: any, res) => {
-  try {
-    const files = (req.files as any[]) || [];
-    const results: Array<{
-      name: string;
-      mimetype: string;
-      size: number;
-      text: string;
-    }> = [];
+router.post(
+  "/upload",
+  upload.array("files", 5),
+  async (req: Request, res: Response) => {
+    try {
+      const files = (req.files as Express.Multer.File[]) || [];
+      const results: Array<{
+        name: string;
+        mimetype: string;
+        size: number;
+        text: string;
+      }> = [];
 
-    for (const f of files) {
-      let text = "";
-      if (f.mimetype === "application/pdf") {
-        try {
-          let pdfParseFn: any;
+      for (const f of files) {
+        let text = "";
+        if (f.mimetype === "application/pdf") {
           try {
-            const mod = await import("pdf-parse/lib/pdf-parse.js");
-            pdfParseFn = (mod as any).default || (mod as any);
-          } catch {
-            const mod = await import("pdf-parse");
-            pdfParseFn = (mod as any).default || (mod as any);
+            let pdfParseFn: PdfParseFn;
+            try {
+              const mod = await import("pdf-parse/lib/pdf-parse.js");
+              pdfParseFn = (mod.default || mod) as PdfParseFn;
+            } catch {
+              const mod = await import("pdf-parse");
+              pdfParseFn = (mod.default || mod) as PdfParseFn;
+            }
+            const data = await pdfParseFn(f.buffer);
+            text = data?.text || "";
+          } catch (pdfError) {
+            // 🛡️ SÉCURITÉ: Log l'échec du parsing PDF pour monitoring
+            console.warn(
+              `⚠️ [ASSISTANT] PDF parsing failed for "${f.originalname}" (${f.size} bytes):`,
+              pdfError instanceof Error ? pdfError.message : "Unknown error",
+            );
+            text = "";
           }
-          const data = await pdfParseFn(f.buffer);
-          text = data?.text || "";
-        } catch (pdfError) {
-          // 🛡️ SÉCURITÉ: Log l'échec du parsing PDF pour monitoring
-          console.warn(
-            `⚠️ [ASSISTANT] PDF parsing failed for "${f.originalname}" (${f.size} bytes):`,
-            pdfError instanceof Error ? pdfError.message : "Unknown error",
-          );
-          text = "";
+        } else if (f.mimetype === "text/plain") {
+          text = f.buffer.toString("utf-8");
         }
-      } else if (f.mimetype === "text/plain") {
-        text = f.buffer.toString("utf-8");
+        results.push({
+          name: f.originalname,
+          mimetype: f.mimetype,
+          size: f.size,
+          text,
+        });
       }
-      results.push({
-        name: f.originalname,
-        mimetype: f.mimetype,
-        size: f.size,
-        text,
-      });
-    }
 
-    res.json({ files: results });
-  } catch (e) {
-    console.error("upload error", e);
-    res.status(500).json({ error: "Erreur upload fichiers" });
-  }
-});
+      res.json({ files: results });
+    } catch (e) {
+      console.error("upload error", e);
+      res.status(500).json({ error: "Erreur upload fichiers" });
+    }
+  },
+);
 
 // Upload RAG (avec embedding)
 router.post(
   "/upload-rag",
   verifyWorkspaceAccess,
   upload.single("file"),
-  async (req: any, res) => {
+  async (req: Request<unknown, unknown, UploadRagBody>, res: Response) => {
     try {
       if (!req.user) {
         return res.status(401).json({ error: "Utilisateur non authentifié" });

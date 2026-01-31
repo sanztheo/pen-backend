@@ -496,7 +496,7 @@ const setupYjsWebSocket = (server: http.Server) => {
     }
 
     // Configuration des listeners pour la persistance
-    const updateHandler = (update: Uint8Array, origin: any) => {
+    const updateHandler = (update: Uint8Array, origin: unknown) => {
       if (origin !== ws) {
         persistence.storeUpdate(pageId, update);
       }

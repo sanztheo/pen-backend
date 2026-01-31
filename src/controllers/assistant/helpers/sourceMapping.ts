@@ -19,6 +19,23 @@ export interface MappedSource {
 }
 
 /**
+ * Page object from workspace with basic properties
+ */
+interface PageObject {
+  id: string;
+  title: string;
+}
+
+/**
+ * Attachment object with optional RAG source reference
+ */
+interface AttachmentObject {
+  ragSourceId?: string;
+  fileName?: string;
+  name?: string;
+}
+
+/**
  * Map les sources RAG du frontend vers les vrais UUIDs de la DB
  * @param ragSources Sources reçues du frontend (avec IDs inventés comme "wiki_7266")
  * @returns Sources avec vrais UUIDs de la DB
@@ -88,8 +105,8 @@ export async function mapRagSourcesToRealUUIDs(
  */
 export async function mapAllSourcesToRealUUIDs(
   ragSources: RagSourceInput[] = [],
-  pageObjects: any[] = [],
-  attachments: any[] = [],
+  pageObjects: PageObject[] = [],
+  attachments: AttachmentObject[] = [],
 ): Promise<MappedSource[]> {
   const mappedSources: MappedSource[] = [];
 
@@ -118,7 +135,10 @@ export async function mapAllSourcesToRealUUIDs(
   // 3. Pièces jointes (déjà avec vrais UUIDs si indexées)
   if (attachments.length > 0) {
     const attachmentSources = attachments
-      .filter((a) => a.ragSourceId) // Seulement si déjà indexé en RAG
+      .filter(
+        (a): a is AttachmentObject & { ragSourceId: string } =>
+          typeof a.ragSourceId === "string" && a.ragSourceId.length > 0,
+      ) // Seulement si déjà indexé en RAG
       .map((a) => ({
         id: a.ragSourceId, // UUID de la RAGSource correspondante
         title: a.fileName || a.name || "Attachment",

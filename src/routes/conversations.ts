@@ -8,6 +8,23 @@ import {
 } from "../middlewares/workspaceAccess.js";
 import OpenAI from "openai";
 
+// Interface pour les données de création de page dans les messages
+interface PageCreationData {
+  pageId: string | null;
+  status: "created" | "deleted" | "pending";
+  deletedAt?: string | null;
+  recreatedAt?: string | null;
+  [key: string]: unknown;
+}
+
+// Type pour les données de mise à jour de message (compatible Prisma)
+type MessageUpdateData = {
+  pageId?: string | null;
+  isPageDeleted?: boolean;
+  projectId?: string | null;
+  pageCreationData?: Record<string, unknown>;
+};
+
 const router = Router();
 
 // Configuration OpenAI
@@ -492,14 +509,14 @@ router.patch(
       });
 
       // Mettre à jour
-      const updateData: any = {};
+      const updateData: MessageUpdateData = {};
       if (newPageId !== undefined) updateData.pageId = newPageId;
       if (isPageDeleted !== undefined) updateData.isPageDeleted = isPageDeleted;
       if (projectId !== undefined) updateData.projectId = projectId;
 
       // 🔥 NOUVEAU: Mettre à jour pageCreationData
       if (message.pageCreationData) {
-        const currentData = message.pageCreationData as any;
+        const currentData = message.pageCreationData as PageCreationData;
 
         // Cas 1: Suppression de page
         if (isPageDeleted === true) {
@@ -533,7 +550,9 @@ router.patch(
 
       const updatedMessage = await prisma.aIMessage.update({
         where: { id: message.id },
-        data: updateData,
+        data: updateData as Parameters<
+          typeof prisma.aIMessage.update
+        >[0]["data"],
       });
 
       console.log("[DEBUG_MODAL] ✅ Message mis à jour avec succès:", {

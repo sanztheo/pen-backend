@@ -18,6 +18,117 @@ import {
 import * as fs from "fs";
 import * as path from "path";
 
+// Interface pour les données de correction d'une question ouverte
+interface OpenQuestionCorrectionData {
+  score: number;
+  explanation?: string;
+  suggestion?: string;
+}
+
+// Interface pour les données d'analyse de performance
+interface PerformanceAnalysisData {
+  summary?: string;
+  strengths?: string[];
+  weaknesses?: string[];
+  recommendations?: string[];
+  personalizedTips?: string[];
+}
+
+// Types pour les résultats de correction (compatible avec QuestionResult)
+interface QuestionCorrectionResult extends BaseCorrectionResult {
+  questionId: string;
+  suggestion?: string;
+  feedback?: string;
+  difficulty?: string;
+}
+
+interface SourceDocument {
+  title?: string;
+  content?: string;
+  text?: string;
+}
+
+interface WorkspaceContent {
+  workspaceName: string;
+  contentSummary: {
+    mainTopics: string[];
+  };
+  extractedContent: Array<{
+    content: string;
+  }>;
+}
+
+// Type pour les résultats de correction IA bruts
+interface AIQuestionResult {
+  questionId: string;
+  userAnswer?: string;
+  correctAnswer?: string;
+  score?: number;
+  maxScore?: number;
+  isCorrect?: boolean | string;
+  explanation?: string;
+}
+
+// Type pour les exercices de sujets
+interface AIExerciseResult {
+  exerciseId: string;
+  userAnswer?: string;
+  correctAnswer?: string;
+  score?: number;
+  maxScore?: number;
+  isCorrect?: boolean | string;
+  explanation?: string;
+}
+
+// Type pour les suggestions IA
+interface AISuggestionItem {
+  questionId: string;
+  suggestion: string;
+}
+
+// Type pour les réponses JSON de correction IA
+interface AICorrectionResponse {
+  questionResults?: AIQuestionResult[];
+  exerciseResults?: AIExerciseResult[];
+}
+
+// Type pour les réponses JSON de correction d'une seule question
+interface SingleQuestionCorrectionResponse {
+  score: number;
+  explanation: string;
+  suggestion: string;
+}
+
+// Type pour les réponses JSON d'analyse
+interface AnalysisResponse {
+  summary?: string;
+  strengths?: string[];
+  weaknesses?: string[];
+  recommendations?: string[];
+  personalizedTips?: string[];
+}
+
+// Type pour les réponses d'exercice de sujet
+interface SubjectExerciseAnswer {
+  exerciseId: string;
+  answer: string | boolean | undefined;
+}
+
+// Type de base pour les résultats de correction (partagé)
+interface BaseCorrectionResult {
+  userAnswer: string;
+  correctAnswer: string;
+  score: number;
+  maxScore: number;
+  isCorrect: boolean;
+  explanation: string;
+}
+
+// Type pour les résultats d'exercice de sujet
+interface SubjectExerciseResult extends BaseCorrectionResult {
+  exerciseId: string;
+}
+
 // Types pour la correction de sujets
 interface SubjectCorrectionRequest {
   subjectId: string;
@@ -27,8 +138,8 @@ interface SubjectCorrectionRequest {
   schoolLevel?: string;
   subject?: string;
   hasDocuments?: boolean;
-  sourceDocuments?: any[];
-  workspaceContent?: any[];
+  sourceDocuments?: SourceDocument[];
+  workspaceContent?: WorkspaceContent[];
   coursesOnly?: boolean;
 }
 
@@ -36,7 +147,7 @@ interface SubjectExercise {
   id: string;
   type: "QCM" | "VRAI_FAUX" | "TEXTE_LIBRE" | "CALCUL";
   question: string;
-  correctAnswer?: any;
+  correctAnswer?: boolean | string;
   options?: Array<{ id: string; text: string; isCorrect: boolean }>;
   points: number;
   difficulty?: string;
@@ -359,7 +470,7 @@ export class CorrectionGenerator {
         `🤖 [HYBRID] Questions ouvertes nécessitant l'IA : ${openQuestions.length}`,
       );
 
-      let aiCorrections: any[] = [];
+      let aiCorrections: QuestionCorrectionResult[] = [];
       let maxTokens = 0; // Déclarer ici pour l'accès dans les métadonnées
 
       // Si on a des questions ouvertes, utiliser l'IA seulement pour elles
@@ -424,12 +535,13 @@ CONSIGNES DE CORRECTION STRICTE POUR QUESTIONS OUVERTES :
           const basePrompt = PromptUtils.getPresetPrompt(
             request.preset,
             request.specificSubject,
+            // Type assertion needed: partial request for correction context
             {
               schoolLevel: request.schoolLevel,
               collegeGrade: request.collegeGrade,
               preset: request.preset,
               specificSubject: request.specificSubject,
-            } as any,
+            } as unknown as Parameters<typeof PromptUtils.getPresetPrompt>[2],
           );
 
           levelPrompt = `${basePrompt}
@@ -469,9 +581,9 @@ Les QCM, Vrai/Faux et Matching sont déjà corrigés automatiquement.`;
 DOCUMENTS WIKIPEDIA DE RÉFÉRENCE :
 ${request.sourceDocuments
   .map(
-    (doc: any, index: number) => `
-Document ${index + 1}: ${doc.title} 
-Contenu: ${doc.content.substring(0, 500)}...
+    (doc: SourceDocument, index: number) => `
+Document ${index + 1}: ${doc.title}
+Contenu: ${(doc.content || "").substring(0, 500)}...
 `,
   )
   .join("\n---\n")}
@@ -562,7 +674,9 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
           result.content.substring(0, 300) + "...",
         );
 
-        const aiCorrectionData = JsonUtils.extractJsonFromText(result.content);
+        const aiCorrectionData = JsonUtils.extractJsonFromText(
+          result.content,
+        ) as AICorrectionResponse;
 
         // Traiter les corrections IA pour les questions ouvertes
         aiCorrections = this.processQuestionResults(
@@ -611,7 +725,9 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         percentage: Math.round(realPercentage * 100) / 100,
         adaptedGrade: Math.round(realAdaptedGrade * 100) / 100,
         gradeScale: "20",
-        questionResults: sortedCorrections,
+        // Cast: QuestionCorrectionResult is runtime-compatible with QuestionResult
+        questionResults:
+          sortedCorrections as unknown as QuizCorrectionResult["questionResults"],
         aiCorrection: {
           globalFeedback:
             aiCorrections.length > 0
@@ -665,7 +781,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
     type: "closed-questions" | "open-question" | "completion";
     questionNumber?: number;
     totalOpenQuestions?: number;
-    correction?: any;
+    correction?: QuestionCorrectionResult | QuestionCorrectionResult[];
     finalResult?: QuizCorrectionResult;
   }> {
     const startTime = Date.now();
@@ -700,7 +816,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         `🤖 [HYBRID-STREAMING] Questions ouvertes nécessitant l'IA : ${openQuestions.length}`,
       );
 
-      let aiCorrections: any[] = [];
+      let aiCorrections: QuestionCorrectionResult[] = [];
 
       // Si on a des questions ouvertes, corriger une par une
       if (openQuestions.length > 0) {
@@ -793,7 +909,9 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         percentage: Math.round(realPercentage * 100) / 100,
         adaptedGrade: Math.round(realAdaptedGrade * 100) / 100,
         gradeScale: "20",
-        questionResults: sortedCorrections,
+        // Cast: QuestionCorrectionResult is runtime-compatible with QuestionResult
+        questionResults:
+          sortedCorrections as unknown as QuizCorrectionResult["questionResults"],
         aiCorrection: {
           globalFeedback: detailedAnalysis.summary,
           strengths: detailedAnalysis.strengths,
@@ -834,7 +952,9 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
   /**
    * Helper : Extrait les points forts depuis les corrections
    */
-  private static extractStrengthsFromCorrections(corrections: any[]): string[] {
+  private static extractStrengthsFromCorrections(
+    corrections: BaseCorrectionResult[],
+  ): string[] {
     const strengths = [];
     const correctAnswers = corrections.filter((c) => c.isCorrect);
 
@@ -860,7 +980,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
    * Helper : Extrait les faiblesses depuis les corrections
    */
   private static extractWeaknessesFromCorrections(
-    corrections: any[],
+    corrections: BaseCorrectionResult[],
   ): string[] {
     const weaknesses = [];
     const incorrectAnswers = corrections.filter((c) => c.score === 0);
@@ -885,7 +1005,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
    * Helper : Génère des recommandations basées sur les performances
    */
   private static generateRecommendations(
-    corrections: any[],
+    corrections: BaseCorrectionResult[],
     percentage: number,
   ): string[] {
     const recommendations = [];
@@ -919,7 +1039,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
     userAnswers: UserAnswer[],
   ): Array<{
     question: Question;
-    userAnswer: any;
+    userAnswer: string;
     timeSpent?: number;
     correctAnswer: string;
   }> {
@@ -1040,11 +1160,11 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
    * Traite les résultats de questions de la correction IA
    */
   private static processQuestionResults(
-    questionResults: any[],
+    questionResults: AIQuestionResult[],
     questions: Question[],
-  ): any[] {
+  ): QuestionCorrectionResult[] {
     return (
-      questionResults?.map((qr: any) => {
+      questionResults?.map((qr: AIQuestionResult) => {
         // Trouver la vraie question pour récupérer le maxScore correct
         const actualQuestion = questions.find((q) => q.id === qr.questionId);
         const actualMaxScore = actualQuestion
@@ -1098,22 +1218,30 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
   /**
    * Recalcule les scores pour garantir la cohérence
    */
-  private static recalculateScores(detailedScoring: any[]): {
+  private static recalculateScores(
+    detailedScoring: QuestionCorrectionResult[],
+  ): {
     realTotalScore: number;
     realMaxScore: number;
     realPercentage: number;
     realAdaptedGrade: number;
   } {
     // Calculer le score total réel à partir des questions individuelles
-    const realTotalScore = detailedScoring.reduce((sum: number, qr: any) => {
-      const score = isNaN(qr.score) ? 0 : Number(qr.score);
-      return sum + score;
-    }, 0);
+    const realTotalScore = detailedScoring.reduce(
+      (sum: number, qr: QuestionCorrectionResult) => {
+        const score = isNaN(qr.score) ? 0 : Number(qr.score);
+        return sum + score;
+      },
+      0,
+    );
 
-    const realMaxScore = detailedScoring.reduce((sum: number, qr: any) => {
-      const maxScore = isNaN(qr.maxScore) ? 0 : Number(qr.maxScore);
-      return sum + maxScore;
-    }, 0);
+    const realMaxScore = detailedScoring.reduce(
+      (sum: number, qr: QuestionCorrectionResult) => {
+        const maxScore = isNaN(qr.maxScore) ? 0 : Number(qr.maxScore);
+        return sum + maxScore;
+      },
+      0,
+    );
 
     // Calculer le pourcentage réel avec protection contre division par zéro
     const realPercentage =
@@ -1136,7 +1264,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
    */
   static async correctSubject(
     exercises: SubjectExercise[],
-    userAnswers: Array<{ exerciseId: string; answer: any }>,
+    userAnswers: SubjectExerciseAnswer[],
     request: SubjectCorrectionRequest,
   ): Promise<SubjectCorrectionResult> {
     const startTime = Date.now();
@@ -1166,7 +1294,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         `🤖 [SUBJECT-HYBRID] Exercices ouverts nécessitant l'IA : ${openExercises.length}`,
       );
 
-      let aiCorrections: any[] = [];
+      let aiCorrections: SubjectExerciseResult[] = [];
       let maxTokens = 0;
 
       // Si on a des exercices ouverts, utiliser l'IA seulement pour eux
@@ -1247,7 +1375,9 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
           `🐛 [DEBUG] Réponse IA pour exercices ouverts du sujet (${result.content.length} caractères)`,
         );
 
-        const aiCorrectionData = JsonUtils.extractJsonFromText(result.content);
+        const aiCorrectionData = JsonUtils.extractJsonFromText(
+          result.content,
+        ) as AICorrectionResponse;
 
         // Traiter les corrections IA pour les exercices ouverts
         aiCorrections = this.processSubjectExerciseResults(
@@ -1332,16 +1462,8 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
    */
   private static correctClosedSubjectExercises(
     exercises: SubjectExercise[],
-    userAnswers: Array<{ exerciseId: string; answer: any }>,
-  ): Array<{
-    exerciseId: string;
-    userAnswer: string;
-    correctAnswer: string;
-    score: number;
-    maxScore: number;
-    isCorrect: boolean;
-    explanation: string;
-  }> {
+    userAnswers: SubjectExerciseAnswer[],
+  ): SubjectExerciseResult[] {
     const closedExercises = exercises.filter(
       (ex) => ex.type === "QCM" || ex.type === "VRAI_FAUX",
     );
@@ -1435,7 +1557,9 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
   /**
    * Helpers pour la correction de sujets
    */
-  private static normalizeVraiFauxAnswer(answer: any): boolean {
+  private static normalizeVraiFauxAnswer(
+    answer: string | boolean | undefined,
+  ): boolean {
     if (typeof answer === "boolean") return answer;
     if (typeof answer === "string") {
       const normalized = answer.toLowerCase().trim();
@@ -1470,7 +1594,7 @@ CORRECTION D'EXERCICES OUVERTS DE SUJET :
         topics: ws.contentSummary.mainTopics.join(", "),
         content: ws.extractedContent
           .slice(0, 2)
-          .map((c: any) => c.content)
+          .map((c: { content: string }) => c.content)
           .join("\n\n"),
       }));
 
@@ -1502,7 +1626,7 @@ CONSIGNES : Base ta correction STRICTEMENT sur le contenu des cours fourni ci-de
 DOCUMENTS DE RÉFÉRENCE :
 ${request.sourceDocuments
   .map(
-    (doc: any, index: number) => `
+    (doc: SourceDocument, index: number) => `
 Document ${index + 1}: ${doc.title || "Document"} 
 Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Contenu non disponible"}...
 `,
@@ -1515,30 +1639,43 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Con
 
   private static prepareOpenExercisesForCorrection(
     exercises: SubjectExercise[],
-    userAnswers: Array<{ exerciseId: string; answer: any }>,
+    userAnswers: SubjectExerciseAnswer[],
   ): Array<{
     exercise: SubjectExercise;
-    userAnswer: any;
+    userAnswer: string;
     correctAnswer: string;
   }> {
     return exercises.map((ex) => {
       const userAnswer = userAnswers.find((ua) => ua.exerciseId === ex.id);
+      const rawAnswer = userAnswer?.answer;
+      const formattedAnswer =
+        typeof rawAnswer === "boolean"
+          ? rawAnswer
+            ? "Vrai"
+            : "Faux"
+          : rawAnswer || "Pas de réponse";
+      const rawCorrect = ex.correctAnswer;
+      const formattedCorrect =
+        typeof rawCorrect === "boolean"
+          ? rawCorrect
+            ? "Vrai"
+            : "Faux"
+          : rawCorrect || `Réponse attendue pour : ${ex.question}`;
 
       return {
         exercise: ex,
-        userAnswer: userAnswer?.answer || "Pas de réponse",
-        correctAnswer:
-          ex.correctAnswer || `Réponse attendue pour : ${ex.question}`,
+        userAnswer: formattedAnswer,
+        correctAnswer: formattedCorrect,
       };
     });
   }
 
   private static processSubjectExerciseResults(
-    exerciseResults: any[],
+    exerciseResults: AIExerciseResult[],
     exercises: SubjectExercise[],
-  ): any[] {
+  ): SubjectExerciseResult[] {
     return (
-      exerciseResults?.map((er: any) => {
+      exerciseResults?.map((er: AIExerciseResult) => {
         const actualExercise = exercises.find((ex) => ex.id === er.exerciseId);
         const actualMaxScore = actualExercise
           ? actualExercise.points
@@ -1585,21 +1722,29 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Con
     );
   }
 
-  private static recalculateSubjectScores(detailedScoring: any[]): {
+  private static recalculateSubjectScores(
+    detailedScoring: SubjectExerciseResult[],
+  ): {
     realTotalScore: number;
     realMaxScore: number;
     realPercentage: number;
     realAdaptedGrade: number;
   } {
-    const realTotalScore = detailedScoring.reduce((sum: number, er: any) => {
-      const score = isNaN(er.score) ? 0 : Number(er.score);
-      return sum + score;
-    }, 0);
+    const realTotalScore = detailedScoring.reduce(
+      (sum: number, er: SubjectExerciseResult) => {
+        const score = isNaN(er.score) ? 0 : Number(er.score);
+        return sum + score;
+      },
+      0,
+    );
 
-    const realMaxScore = detailedScoring.reduce((sum: number, er: any) => {
-      const maxScore = isNaN(er.maxScore) ? 0 : Number(er.maxScore);
-      return sum + maxScore;
-    }, 0);
+    const realMaxScore = detailedScoring.reduce(
+      (sum: number, er: SubjectExerciseResult) => {
+        const maxScore = isNaN(er.maxScore) ? 0 : Number(er.maxScore);
+        return sum + maxScore;
+      },
+      0,
+    );
 
     const realPercentage =
       realMaxScore > 0 ? (realTotalScore / realMaxScore) * 100 : 0;
@@ -1617,10 +1762,10 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Con
    * Génère des suggestions IA pour les questions fermées incorrectes
    */
   private static async generateSuggestionsForClosedQuestions(
-    autoCorrections: any[],
+    autoCorrections: QuestionCorrectionResult[],
     questions: Question[],
     request: QuizCorrectionRequest,
-  ): Promise<any[]> {
+  ): Promise<QuestionCorrectionResult[]> {
     // Questions qui nécessitent une suggestion (pas parfait)
     const questionsNeedingSuggestions = autoCorrections.filter(
       (c) => c.score < c.maxScore,
@@ -1664,7 +1809,7 @@ Réponds UNIQUEMENT en JSON array valide.`;
       const suggestionsMap = new Map();
 
       if (Array.isArray(suggestionsData)) {
-        suggestionsData.forEach((item: any) => {
+        suggestionsData.forEach((item: AISuggestionItem) => {
           if (item.questionId && item.suggestion) {
             suggestionsMap.set(item.questionId, item.suggestion);
           }
@@ -1690,7 +1835,7 @@ Réponds UNIQUEMENT en JSON array valide.`;
     question: OpenQuestion,
     userAnswer: UserAnswer | undefined,
     request: QuizCorrectionRequest,
-  ): Promise<any> {
+  ): Promise<QuestionCorrectionResult> {
     const basePrompt = this.buildSingleOpenQuestionPrompt(
       question,
       userAnswer,
@@ -1704,7 +1849,9 @@ Réponds UNIQUEMENT en JSON array valide.`;
       model: AIService.getQuizCorrectionModel(),
     });
 
-    const correctionData = JsonUtils.extractJsonFromText(result.content);
+    const correctionData = JsonUtils.extractJsonFromText(
+      result.content,
+    ) as OpenQuestionCorrectionData;
 
     // 🔧 FIX: Vérifier si l'utilisateur n'a pas répondu
     const hasNoAnswer =
@@ -1778,7 +1925,7 @@ ${userAnswer?.answer || "Pas de réponse fournie"}`;
         topics: ws.contentSummary.mainTopics.join(", "),
         content: ws.extractedContent
           .slice(0, 2)
-          .map((c: any) => c.content)
+          .map((c: { content: string }) => c.content)
           .join("\n\n"),
       }));
 
@@ -1819,7 +1966,7 @@ Réponds UNIQUEMENT en JSON valide.`;
    */
   private static async generateDetailedAnalysis(
     questions: Question[],
-    corrections: any[],
+    corrections: QuestionCorrectionResult[],
     request: QuizCorrectionRequest,
     totalScore: number,
     maxScore: number,
@@ -1893,7 +2040,9 @@ Format JSON STRICT requis.`;
       });
 
       console.log("🧠 [ANALYSIS] Réponse IA reçue, parsing...");
-      const analysisData = JsonUtils.extractJsonFromText(result.content);
+      const analysisData = JsonUtils.extractJsonFromText(
+        result.content,
+      ) as PerformanceAnalysisData;
 
       return {
         summary: analysisData.summary || "Analyse non disponible",

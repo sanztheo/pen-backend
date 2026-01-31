@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 
 type NiveauScolaire = "college" | "lycee" | "etudes_superieures" | "autre";
@@ -48,43 +49,44 @@ const sanitizeEnum = <T extends string>(
   return validValues.includes(normalized as T) ? (normalized as T) : undefined;
 };
 
-const normalizeInput = (body: any): Personalization => {
+const normalizeInput = (body: unknown): Personalization => {
   const out: Personalization = {};
   if (!body || typeof body !== "object") return out;
+  const input = body as Record<string, unknown>;
 
   // === Nouveau système en cascade ===
-  if (body.niveauScolaire !== undefined) {
+  if (input.niveauScolaire !== undefined) {
     out.niveauScolaire = sanitizeEnum(
-      body.niveauScolaire,
+      input.niveauScolaire,
       VALID_NIVEAU_SCOLAIRE,
     );
   }
-  if (body.classeCollege !== undefined) {
-    out.classeCollege = sanitizeEnum(body.classeCollege, VALID_CLASSE_COLLEGE);
+  if (input.classeCollege !== undefined) {
+    out.classeCollege = sanitizeEnum(input.classeCollege, VALID_CLASSE_COLLEGE);
   }
-  if (body.classeLycee !== undefined) {
-    out.classeLycee = sanitizeEnum(body.classeLycee, VALID_CLASSE_LYCEE);
+  if (input.classeLycee !== undefined) {
+    out.classeLycee = sanitizeEnum(input.classeLycee, VALID_CLASSE_LYCEE);
   }
-  if (body.classeEtudesSup !== undefined) {
-    out.classeEtudesSup = sanitize(body.classeEtudesSup, 50);
+  if (input.classeEtudesSup !== undefined) {
+    out.classeEtudesSup = sanitize(input.classeEtudesSup, 50);
   }
-  if (body.classeAutre !== undefined) {
-    out.classeAutre = sanitize(body.classeAutre, 120);
+  if (input.classeAutre !== undefined) {
+    out.classeAutre = sanitize(input.classeAutre, 120);
   }
-  if (body.specialites !== undefined) {
-    out.specialites = sanitize(body.specialites, 200);
+  if (input.specialites !== undefined) {
+    out.specialites = sanitize(input.specialites, 200);
   }
 
   // === Champs existants ===
-  if (body.classe !== undefined) out.classe = sanitize(body.classe, 120);
-  if (body.etude !== undefined) out.etude = sanitize(body.etude, 120);
-  if (body.filiere !== undefined) out.filiere = sanitize(body.filiere, 120);
-  if (body.langue !== undefined) out.langue = sanitize(body.langue, 10);
-  if (body.presentation !== undefined)
-    out.presentation = sanitize(body.presentation, 700);
-  if (body.attente !== undefined) out.attente = sanitize(body.attente, 500);
-  if (body.onboardingCompleted !== undefined)
-    out.onboardingCompleted = Boolean(body.onboardingCompleted);
+  if (input.classe !== undefined) out.classe = sanitize(input.classe, 120);
+  if (input.etude !== undefined) out.etude = sanitize(input.etude, 120);
+  if (input.filiere !== undefined) out.filiere = sanitize(input.filiere, 120);
+  if (input.langue !== undefined) out.langue = sanitize(input.langue, 10);
+  if (input.presentation !== undefined)
+    out.presentation = sanitize(input.presentation, 700);
+  if (input.attente !== undefined) out.attente = sanitize(input.attente, 500);
+  if (input.onboardingCompleted !== undefined)
+    out.onboardingCompleted = Boolean(input.onboardingCompleted);
   return out;
 };
 
@@ -108,7 +110,9 @@ export const getPersonalization = async (req: Request, res: Response) => {
     );
     console.log("🔍 [DEBUG] Type:", typeof user?.onboardingCompleted);
 
-    const personalization = (user?.settings as any)?.personalization || {};
+    const settings = user?.settings as Record<string, unknown> | null;
+    const personalization =
+      (settings?.personalization as Personalization | undefined) || {};
 
     // Ajouter onboardingCompleted depuis le champ User
     const result = {
@@ -147,9 +151,10 @@ export const updatePersonalization = async (req: Request, res: Response) => {
       select: { settings: true },
     });
 
-    const currentSettings = (existing?.settings as any) || {};
+    const currentSettings =
+      (existing?.settings as Record<string, unknown> | null) || {};
     const currentPersona =
-      (currentSettings.personalization as Personalization) || {};
+      (currentSettings.personalization as Personalization | undefined) || {};
 
     // Ne merger que les données de personnalisation (sans onboardingCompleted)
     const merged: Personalization = {
@@ -162,7 +167,10 @@ export const updatePersonalization = async (req: Request, res: Response) => {
     const newSettings = { ...currentSettings, personalization: merged };
 
     // Préparer les données de mise à jour
-    const updateData: any = { settings: newSettings };
+    const updateData: {
+      settings: Prisma.InputJsonValue;
+      onboardingCompleted?: boolean;
+    } = { settings: newSettings as Prisma.InputJsonValue };
 
     // Si onboardingCompleted est fourni, l'ajouter à l'update du User
     if (onboardingCompleted !== undefined) {

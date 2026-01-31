@@ -62,7 +62,7 @@ export class ProgressService {
       percentage: number;
       stage: string;
       message?: string;
-      details?: any;
+      details?: Record<string, unknown>;
     },
   ): void {
     const ws = this.connections.get(processId);
@@ -100,7 +100,7 @@ export class ProgressService {
   /**
    * Marque un processus comme terminé avec succès
    */
-  sendSuccess(processId: string, result: any): void {
+  sendSuccess(processId: string, result: unknown): void {
     const ws = this.connections.get(processId);
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
