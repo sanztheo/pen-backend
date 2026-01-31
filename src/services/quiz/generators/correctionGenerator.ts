@@ -8,7 +8,43 @@ import {
   UserAnswer,
   QuizCorrectionRequest,
   QuizCorrectionResult,
+  AnswerValue,
 } from "../types.js";
+
+/**
+ * Convertit une AnswerValue en string pour l'affichage et le stockage
+ */
+function answerValueToString(answer: AnswerValue | undefined): string {
+  if (answer === undefined || answer === null) {
+    return "Pas de réponse";
+  }
+  if (typeof answer === "string") {
+    return answer;
+  }
+  if (typeof answer === "boolean") {
+    return answer ? "Vrai" : "Faux";
+  }
+  if (Array.isArray(answer)) {
+    // Cas string[] (QCM multiples)
+    if (answer.length === 0) {
+      return "Pas de réponse";
+    }
+    if (typeof answer[0] === "string") {
+      return (answer as string[]).join(", ");
+    }
+    // Cas { leftId, rightId }[] (Matching)
+    return (answer as { leftId: string; rightId: string }[])
+      .map((m) => `${m.leftId} → ${m.rightId}`)
+      .join(", ");
+  }
+  // Cas Record<string, string> (Matching alternatif)
+  if (typeof answer === "object") {
+    return Object.entries(answer)
+      .map(([left, right]) => `${left} → ${right}`)
+      .join(", ");
+  }
+  return String(answer);
+}
 import { PromptUtils } from "../utils/promptUtils.js";
 import { JsonUtils } from "../utils/jsonUtils.js";
 import {
@@ -1873,7 +1909,7 @@ Réponds UNIQUEMENT en JSON array valide.`;
 
     return {
       questionId: question.id,
-      userAnswer: userAnswer?.answer || "Pas de réponse",
+      userAnswer: answerValueToString(userAnswer?.answer),
       correctAnswer: question.expectedAnswer || "",
       score: finalScore,
       maxScore,

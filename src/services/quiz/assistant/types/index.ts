@@ -20,7 +20,11 @@ export type ChartType =
   | "heatmap";
 
 // Types de correction
-export type CorrectionType = "standard" | "with_graphics" | "with_documents" | "complete";
+export type CorrectionType =
+  | "standard"
+  | "with_graphics"
+  | "with_documents"
+  | "complete";
 export type SourceType = "graphic" | "document" | "mixed" | "knowledge";
 
 // Interface pour les options de génération de quiz
@@ -99,10 +103,13 @@ export interface GenerateStandardQuizOptions {
   questionTypes?: string[];
 }
 
+// Type de réponse flexible (importé depuis types.ts principal)
+import { AnswerValue } from "../../types.js";
+
 // Interface pour les réponses de quiz
 export interface QuizAnswer {
   questionId: string;
-  answer: string;
+  answer: AnswerValue;
   timeSpent?: number;
 }
 

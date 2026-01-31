@@ -5,6 +5,7 @@ import {
   QuizPreset,
   SchoolLevel,
   QuestionType,
+  SubjectConfigEntry,
 } from "../../types.js";
 import { AIService } from "../../../ai/base.js";
 
@@ -191,22 +192,7 @@ export const PARTIELS_CONFIG = {
   passingGrade: 10,
 } as const;
 
-// Type for subject configuration with document and graphic settings
-interface SubjectConfigEntry {
-  documentConfig: {
-    enableDocuments: boolean;
-    documentTopics: string[];
-    documentRatio: number;
-    minDocumentLength: number;
-    maxDocuments: number;
-  };
-  graphicConfig: {
-    enableGraphics: boolean;
-    graphicProbability: number;
-    preferredLibraries: ("apexcharts" | "plotly")[];
-    graphicTypes: ("2d" | "3d")[];
-  };
-}
+// SubjectConfigEntry is now imported from types.ts
 
 /**
  * Génère des matières pertinentes pour une filière d'études via l'IA avec configuration documentaire
