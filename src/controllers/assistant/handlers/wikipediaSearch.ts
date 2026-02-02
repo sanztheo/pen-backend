@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import fetch from "node-fetch";
 import { z } from "zod";
+import { logger } from "../../../utils/logger.js";
 
 export interface WikipediaArticle {
   title: string;
@@ -156,7 +157,7 @@ export const wikipediaSearch = async (
       return;
     }
 
-    console.log(
+    logger.log(
       `🔍 [WikipediaSearch] Recherche: "${searchQuery}" (lang: ${lang})`,
     );
 
@@ -173,7 +174,7 @@ export const wikipediaSearch = async (
         origin: "*", // Pour les requêtes CORS
       }).toString();
 
-    console.log(`📡 [WikipediaSearch] URL de recherche: ${searchUrl}`);
+    logger.log(`📡 [WikipediaSearch] URL de recherche: ${searchUrl}`);
 
     const searchResponse = await fetch(searchUrl, {
       headers: {
@@ -193,7 +194,7 @@ export const wikipediaSearch = async (
     const searchData = searchParsed.data;
 
     if (!searchData.query?.search) {
-      console.log(
+      logger.log(
         `⚠️ [WikipediaSearch] Aucun résultat trouvé pour: "${searchQuery}"`,
       );
       res.json({ articles: [], totalFound: 0 });
@@ -201,7 +202,7 @@ export const wikipediaSearch = async (
     }
 
     const searchResults = searchData.query.search;
-    console.log(
+    logger.log(
       `📊 [WikipediaSearch] ${searchResults.length} résultats trouvés`,
     );
 
@@ -225,7 +226,7 @@ export const wikipediaSearch = async (
         origin: "*",
       }).toString();
 
-    console.log(`📖 [WikipediaSearch] URL des extraits: ${extractUrl}`);
+    logger.log(`📖 [WikipediaSearch] URL des extraits: ${extractUrl}`);
 
     const extractResponse = await fetch(extractUrl, {
       headers: {
@@ -277,7 +278,7 @@ export const wikipediaSearch = async (
         }
 
         articles.push(article);
-        console.log(
+        logger.log(
           `✅ [WikipediaSearch] Article ajouté: "${article.title}" (${article.extract.length} chars)`,
         );
       }
@@ -288,12 +289,12 @@ export const wikipediaSearch = async (
       totalFound: searchData.query?.searchinfo?.totalhits || articles.length,
     };
 
-    console.log(
+    logger.log(
       `🎯 [WikipediaSearch] Retour de ${articles.length} articles pour "${searchQuery}"`,
     );
     res.json(result);
   } catch (error) {
-    console.error("❌ [WikipediaSearch] Erreur:", error);
+    logger.error("❌ [WikipediaSearch] Erreur:", error);
     res.status(500).json({
       error: "Erreur lors de la recherche Wikipedia",
       details: error instanceof Error ? error.message : "Erreur inconnue",
@@ -316,7 +317,7 @@ export const wikipediaGetEnrichedArticles = async (
       return;
     }
 
-    console.log(
+    logger.log(
       `🔍 [WikipediaEnriched] Mode: ${mode}, Pages: ${pageIds.length}, Query: "${query}"`,
     );
 
@@ -332,7 +333,7 @@ export const wikipediaGetEnrichedArticles = async (
     if (mode === "create" && req.body.reflection === "profond") {
       charLimit = 30000;
     }
-    console.log(`📏 [WikipediaEnriched] Limite caractères: ${charLimit}`);
+    logger.log(`📏 [WikipediaEnriched] Limite caractères: ${charLimit}`);
 
     const articles: WikipediaArticle[] = [];
 
@@ -363,7 +364,7 @@ export const wikipediaGetEnrichedArticles = async (
       });
 
       if (!contentResponse.ok) {
-        console.error(
+        logger.error(
           `❌ Erreur récupération article ${pageId}: ${contentResponse.status}`,
         );
         continue;
@@ -372,14 +373,14 @@ export const wikipediaGetEnrichedArticles = async (
       const contentRaw: unknown = await contentResponse.json();
       const contentParsed = WikipediaExtractResponseSchema.safeParse(contentRaw);
       if (!contentParsed.success) {
-        console.warn(`⚠️ Réponse Wikipedia invalide pour ${pageId}`);
+        logger.warn(`⚠️ Réponse Wikipedia invalide pour ${pageId}`);
         continue;
       }
       const contentData = contentParsed.data;
       const pageData = contentData.query?.pages?.[pageId];
 
       if (!pageData || pageData.missing) {
-        console.warn(`⚠️ Article ${pageId} non trouvé`);
+        logger.warn(`⚠️ Article ${pageId} non trouvé`);
         continue;
       }
 
@@ -389,7 +390,7 @@ export const wikipediaGetEnrichedArticles = async (
           cat.title.replace("Catégorie:", "").replace("Category:", ""),
         ) || [];
 
-      console.log(
+      logger.log(
         `📂 [${pageData.title}] ${categories.length} catégories trouvées:`,
         categories.slice(0, 5),
       );
@@ -406,7 +407,7 @@ export const wikipediaGetEnrichedArticles = async (
           categories,
           query || "",
         );
-        console.log(
+        logger.log(
           `🎯 [${pageData.title}] ${relevantCategories.length} catégories pertinentes sélectionnées`,
         );
 
@@ -417,11 +418,11 @@ export const wikipediaGetEnrichedArticles = async (
             lang,
             Math.floor(charLimit * 0.2),
           );
-          console.log(
+          logger.log(
             `📖 [${pageData.title}] Contenu des catégories: ${categoryContent.length} chars`,
           );
         } else {
-          console.log(
+          logger.log(
             `⚠️ [${pageData.title}] Aucune catégorie pertinente, utilisation de toutes les catégories`,
           );
           relevantCategories = categories.slice(0, 8);
@@ -452,14 +453,14 @@ export const wikipediaGetEnrichedArticles = async (
       };
 
       articles.push(article);
-      console.log(
+      logger.log(
         `✅ [WikipediaEnriched] Article traité: "${article.title}" (${article.fullContent?.length || 0} chars)`,
       );
     }
 
     res.json({ articles, mode, totalProcessed: articles.length });
   } catch (error) {
-    console.error("❌ [WikipediaEnriched] Erreur:", error);
+    logger.error("❌ [WikipediaEnriched] Erreur:", error);
     res.status(500).json({
       error: "Erreur lors de la récupération enrichie Wikipedia",
       details: error instanceof Error ? error.message : "Erreur inconnue",
@@ -481,7 +482,7 @@ async function analyzeRelevantCategories(
     return categories.slice(0, 8);
   }
 
-  console.log(`🧠 Analyse de ${categories.length} catégories pour: "${query}"`);
+  logger.log(`🧠 Analyse de ${categories.length} catégories pour: "${query}"`);
 
   // IA améliorée basée sur les mots-clés et le contexte
   const queryWords = query
@@ -599,7 +600,7 @@ async function analyzeRelevantCategories(
 
     if (!shouldExclude && score > 0) {
       relevantCategories.push({ category, score });
-      console.log(`📝 Catégorie "${category}": score ${score}`);
+      logger.log(`📝 Catégorie "${category}": score ${score}`);
     }
   });
 
@@ -607,7 +608,7 @@ async function analyzeRelevantCategories(
   relevantCategories.sort((a, b) => b.score - a.score);
   const selected = relevantCategories.slice(0, 8).map((item) => item.category);
 
-  console.log(`🎯 ${selected.length} catégories sélectionnées:`, selected);
+  logger.log(`🎯 ${selected.length} catégories sélectionnées:`, selected);
   return selected;
 }
 
@@ -665,7 +666,7 @@ async function getCategoryContent(
         }
       }
     } catch (error) {
-      console.error(`Erreur récupération catégorie ${category}:`, error);
+      logger.error(`Erreur récupération catégorie ${category}:`, error);
     }
   }
 
@@ -687,7 +688,7 @@ export const wikipediaGetArticle = async (
       return;
     }
 
-    console.log(
+    logger.log(
       `📄 [WikipediaGetArticle] Récupération: pageid=${pageid}, title=${title} (lang: ${lang})`,
     );
 
@@ -745,12 +746,12 @@ export const wikipediaGetArticle = async (
         `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(pageData.title)}`,
     };
 
-    console.log(
+    logger.log(
       `✅ [WikipediaGetArticle] Article récupéré: "${article.title}" (${article.extract.length} chars)`,
     );
     res.json({ article });
   } catch (error) {
-    console.error("❌ [WikipediaGetArticle] Erreur:", error);
+    logger.error("❌ [WikipediaGetArticle] Erreur:", error);
     res.status(500).json({
       error: "Erreur lors de la récupération de l'article Wikipedia",
       details: error instanceof Error ? error.message : "Erreur inconnue",

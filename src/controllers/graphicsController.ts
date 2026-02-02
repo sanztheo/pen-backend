@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { AIGraphicGenerator } from '../services/quiz/graphics/aiGraphicGenerator.js';
 import { secureError } from '../lib/secureLogging.js';
+import { logger } from "../utils/logger.js";
 
 // 🛡️ Liste des bibliothèques de graphiques supportées
 const SUPPORTED_LIBRARIES = [
@@ -35,7 +36,7 @@ export class GraphicsController {
       // 🛡️ Validation stricte des paramètres avec Zod
       const validatedData = generateGraphicSchema.parse(req.body);
 
-      console.log(`[GRAPHICS-API] Génération demandée: ${validatedData.subject} - ${validatedData.topic} (${validatedData.level})`);
+      logger.log(`[GRAPHICS-API] Génération demandée: ${validatedData.subject} - ${validatedData.topic} (${validatedData.level})`);
 
       // Génération par l'IA
       const graphic = await this.aiGraphicGenerator.generateGraphicWithAI({
@@ -46,7 +47,7 @@ export class GraphicsController {
         questionContext: validatedData.questionContext || `Question de ${validatedData.subject} sur ${validatedData.topic}`
       });
 
-      console.log(`[GRAPHICS-API] Graphique généré: ${graphic.type} avec ${graphic.library}`);
+      logger.log(`[GRAPHICS-API] Graphique généré: ${graphic.type} avec ${graphic.library}`);
 
       res.json({
         success: true,

@@ -1,4 +1,5 @@
 import { AIService } from "../../ai/base.js";
+import { logger } from "../../../utils/logger.js";
 import {
   QuizGenerationRequest,
   GeneratedQuiz,
@@ -191,16 +192,16 @@ export class QuizGenerator {
    * Détermine le nombre maximum de tokens selon le preset utilisé
    */
   private static getMaxTokensForPreset(preset?: string): number {
-    console.log("🔍 [TOKEN-DETECTION] Preset reçu:", preset);
+    logger.log("🔍 [TOKEN-DETECTION] Preset reçu:", preset);
 
     // Presets officiels : 32K tokens pour des quiz plus longs et détaillés
     if (preset === "BREVET" || preset === "BAC" || preset === "PARTIELS") {
-      console.log("🚀 [TOKEN-DETECTION] Preset officiel détecté → 32K tokens");
+      logger.log("🚀 [TOKEN-DETECTION] Preset officiel détecté → 32K tokens");
       return 32000; // gpt-4o-mini supporte bien les longs contextes
     }
 
     // Quiz personnalisés : 16K tokens (limite standard)
-    console.log("📝 [TOKEN-DETECTION] Quiz personnalisé → 16K tokens");
+    logger.log("📝 [TOKEN-DETECTION] Quiz personnalisé → 16K tokens");
     return 16000;
   }
 
@@ -337,7 +338,7 @@ export class QuizGenerator {
     subject: string,
     level: string,
   ): Promise<QuizQuestionFromAI[]> {
-    console.log(
+    logger.log(
       `🎨 [GRAPHICS] Enrichissement des questions pour ${subject} niveau ${level}`,
     );
 
@@ -349,7 +350,7 @@ export class QuizGenerator {
       // Déterminer si cette question bénéficierait d'un graphique
       if (this.shouldGenerateGraphic(subject, question.question || "", level)) {
         try {
-          console.log(
+          logger.log(
             `📊 [GRAPHICS] Génération graphique pour: "${question.question?.substring(0, 50)}..."`,
           );
 
@@ -379,11 +380,11 @@ export class QuizGenerator {
             htmlContainer: graphic.htmlContainer || "quiz-graphic-container",
           };
 
-          console.log(
+          logger.log(
             `✅ [GRAPHICS] Graphique ${graphic.type} (${graphic.library}) ajouté à la question`,
           );
         } catch (error) {
-          console.error("❌ [GRAPHICS] Erreur génération graphique:", error);
+          logger.error("❌ [GRAPHICS] Erreur génération graphique:", error);
           // Continuer sans graphique en cas d'erreur
         }
       }
@@ -392,7 +393,7 @@ export class QuizGenerator {
     }
 
     const graphicsCount = enrichedQuestions.filter((q) => q.hasGraphic).length;
-    console.log(
+    logger.log(
       `🎨 [GRAPHICS] ${graphicsCount}/${questions.length} questions enrichies avec des graphiques`,
     );
 
@@ -474,7 +475,7 @@ export class QuizGenerator {
     request: QuizGenerationRequest,
     startTime: number,
   ): Promise<GeneratedQuiz> {
-    console.log(
+    logger.log(
       "📚 [SUBJECT-GENERATION] Utilisation du système de sujets thématiques",
     );
 
@@ -484,11 +485,11 @@ export class QuizGenerator {
       const graphicConfig = this.getGraphicConfig(request);
       const subjectName = this.getCurrentSubjectName(request);
 
-      console.log(
+      logger.log(
         `📄 [DOCUMENTS] Configuration pour ${subjectName}:`,
         documentConfig,
       );
-      console.log(
+      logger.log(
         `🎨 [GRAPHICS] Configuration pour ${subjectName}:`,
         graphicConfig,
       );
@@ -496,7 +497,7 @@ export class QuizGenerator {
       // Priorité aux graphiques pour les matières scientifiques
       if (graphicConfig && graphicConfig.enableGraphics) {
         // Génération avec graphiques IA (workflow: graphique → questions)
-        console.log("🎨 [GRAPHICS] Génération quiz graphique activée");
+        logger.log("🎨 [GRAPHICS] Génération quiz graphique activée");
         const graphicResult =
           await GraphicBasedQuizGenerator.generateGraphicBasedQuiz(
             request,
@@ -515,7 +516,7 @@ export class QuizGenerator {
           },
         };
 
-        console.log(
+        logger.log(
           `✅ [GRAPHICS] Quiz graphique généré avec ${graphicResult.graphicMetadata.generatedGraphics.length} graphiques`,
         );
         return enhancedQuiz;
@@ -523,7 +524,7 @@ export class QuizGenerator {
 
       if (documentConfig && documentConfig.enableDocuments) {
         // Génération avec documents
-        console.log("📚 [DOCUMENTS] Génération quiz documentaire activée");
+        logger.log("📚 [DOCUMENTS] Génération quiz documentaire activée");
         const documentResult =
           await documentBasedQuizGenerator.generateDocumentBasedQuiz(
             request,
@@ -542,12 +543,12 @@ export class QuizGenerator {
           },
         };
 
-        console.log(
+        logger.log(
           `✅ [DOCUMENTS] Quiz documentaire généré avec ${documentResult.documentMetadata.sourceDocuments.length} documents`,
         );
 
         // DEBUG: Vérifier les données avant retour
-        console.log("🐛 DEBUG quizGenerator enhancedQuiz:", {
+        logger.log("🐛 DEBUG quizGenerator enhancedQuiz:", {
           hasSourceDocuments: !!enhancedQuiz.sourceDocuments,
           sourceDocumentsLength: enhancedQuiz.sourceDocuments?.length,
           hasDocuments: enhancedQuiz.hasDocuments,
@@ -558,7 +559,7 @@ export class QuizGenerator {
       }
 
       // Génération classique si pas de documents
-      console.log(
+      logger.log(
         "📝 [SUBJECT-GENERATION] Génération classique sans documents",
       );
 
@@ -602,7 +603,7 @@ export class QuizGenerator {
         },
       };
     } catch (error) {
-      console.error("❌ Erreur génération quiz par sujets:", error);
+      logger.error("❌ Erreur génération quiz par sujets:", error);
       throw error;
     }
   }
@@ -614,7 +615,7 @@ export class QuizGenerator {
     request: QuizGenerationRequest,
     startTime: number,
   ): Promise<GeneratedQuiz> {
-    console.log(
+    logger.log(
       "📝 [TRADITIONAL-GENERATION] Utilisation du système question par question",
     );
 
@@ -766,7 +767,7 @@ IMPORTANT pour le titre IA :
 
       return quiz;
     } catch (error) {
-      console.error("Erreur génération quiz IA:", error);
+      logger.error("Erreur génération quiz IA:", error);
       throw new Error(
         `Échec de la génération du quiz: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -817,7 +818,7 @@ IMPORTANT pour le titre IA :
     const startTime = Date.now();
 
     try {
-      console.log(
+      logger.log(
         "📄 [CONTENT] Génération basée sur contenu utilisateur avec coursesOnly:",
         request.coursesOnly,
       );
@@ -979,13 +980,13 @@ IMPORTANT pour le titre IA :
         primarySubject = this.detectSubjectFromWorkspaceContent(contentSummary);
       }
 
-      console.log(
+      logger.log(
         `🎯 [SUBJECT-DETECTION] Matière utilisée: ${primarySubject} (higherEdField: ${request.higherEdField || "N/A"})`,
       );
 
       // ⚠️ GRAPHIQUES DÉSACTIVÉS pour quiz personnalisés (pas de presets)
       if (!request.preset || request.preset === "NONE") {
-        console.log(
+        logger.log(
           "⚠️ [GRAPHICS] Graphiques désactivés pour quiz personnalisé",
         );
       } else {
@@ -1024,7 +1025,7 @@ IMPORTANT pour le titre IA :
 
       return quiz;
     } catch (error) {
-      console.error("Erreur génération quiz workspace IA:", error);
+      logger.error("Erreur génération quiz workspace IA:", error);
       throw new Error(
         `Échec de la génération du quiz basé sur workspace: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -1156,14 +1157,14 @@ IMPORTANT pour le titre IA :
     )[0];
 
     if (dominantSubject && (dominantSubject[1] as number) > 0) {
-      console.log(
+      logger.log(
         `🔍 [SUBJECT-DETECTION] Matière détectée: ${dominantSubject[0]} (score: ${dominantSubject[1]})`,
       );
       return dominantSubject[0] as string;
     }
 
     // Matière par défaut si aucune détection
-    console.log(
+    logger.log(
       "🔍 [SUBJECT-DETECTION] Aucune matière détectée, utilisation par défaut",
     );
     return "Général";
@@ -1188,7 +1189,7 @@ IMPORTANT pour le titre IA :
   private static normalizeQuizData(quizData: unknown): QuizDataFromAI {
     // Si c'est un tableau, c'est un tableau de questions
     if (Array.isArray(quizData)) {
-      console.log("🔧 Détection tableau de questions, normalisation...");
+      logger.log("🔧 Détection tableau de questions, normalisation...");
       return {
         title: "Quiz généré",
         description: "",
@@ -1206,7 +1207,7 @@ IMPORTANT pour le titre IA :
     if (!data.questions) {
       // Cas 1 : L'IA a retourné directement une question unique
       if (this.isValidQuestion(data)) {
-        console.log("🔧 Détection question unique, normalisation...");
+        logger.log("🔧 Détection question unique, normalisation...");
         return {
           title: "Quiz généré",
           description: "",
@@ -1215,7 +1216,7 @@ IMPORTANT pour le titre IA :
       }
       // Cas 2 : Format inattendu, tentative de récupération
       else {
-        console.log("🔧 Format inattendu, tentative de récupération...");
+        logger.log("🔧 Format inattendu, tentative de récupération...");
         // Vérifier s'il y a des propriétés qui ressemblent à des questions
         const possibleQuestions = Object.values(data).filter(
           (value: unknown): value is QuizQuestionFromAI =>
@@ -1238,7 +1239,7 @@ IMPORTANT pour le titre IA :
 
     // Sécurisation du champ questions
     if (!Array.isArray(data.questions)) {
-      console.error(
+      logger.error(
         "❌ Le champ questions est manquant ou mal formé dans la réponse IA:",
         quizData,
       );
@@ -1269,7 +1270,7 @@ IMPORTANT pour le titre IA :
 
     // NOUVEAU : Utiliser d'abord la configuration dynamique si disponible
     if (request.documentConfig) {
-      console.log(
+      logger.log(
         "📄 [CONFIG] Utilisation de la configuration dynamique:",
         request.documentConfig,
       );
@@ -1294,7 +1295,7 @@ IMPORTANT pour le titre IA :
         }
 
         // NOUVEAU : Pour les filières personnalisées, pas de documents par défaut
-        console.log(
+        logger.log(
           "📄 [CONFIG] Filière personnalisée détectée - pas de documents par défaut",
         );
         return {
@@ -1368,7 +1369,7 @@ IMPORTANT pour le titre IA :
         }
       }
     } catch (error) {
-      console.warn(
+      logger.warn(
         "⚠️ Erreur lors de la récupération de la config documentaire:",
         error,
       );
@@ -1417,7 +1418,7 @@ IMPORTANT pour le titre IA :
 
     try {
       const subjectName = this.getCurrentSubjectName(request);
-      console.log(`🎨 [GRAPHIC-CONFIG] Analyse matière: ${subjectName}`);
+      logger.log(`🎨 [GRAPHIC-CONFIG] Analyse matière: ${subjectName}`);
 
       // Configuration par matière pour les graphiques
       const graphicConfigs: Record<string, GraphicConfiguration> = {
@@ -1483,7 +1484,7 @@ IMPORTANT pour le titre IA :
             key.toLowerCase().includes(lowerSubject)
           ) {
             config = value;
-            console.log(
+            logger.log(
               `🎨 [GRAPHIC-CONFIG] Correspondance trouvée: ${key} → ${subjectName}`,
             );
             break;
@@ -1492,19 +1493,19 @@ IMPORTANT pour le titre IA :
       }
 
       if (config) {
-        console.log(
+        logger.log(
           `🎨 [GRAPHIC-CONFIG] Configuration trouvée pour ${subjectName}:`,
           config,
         );
         return config;
       }
 
-      console.log(
+      logger.log(
         `🎨 [GRAPHIC-CONFIG] Aucune configuration graphique pour ${subjectName}`,
       );
       return { enableGraphics: false };
     } catch (error) {
-      console.warn(
+      logger.warn(
         "⚠️ Erreur lors de la récupération de la config graphique:",
         error,
       );
@@ -1530,7 +1531,7 @@ IMPORTANT pour le titre IA :
 
       if (!textLower || seen.has(textLower)) {
         duplicatesFound = true;
-        console.warn(
+        logger.warn(
           `⚠️ [DUPLICATE-FIX] Question ${questionId}: Option en doublon détectée et supprimée: "${option.text}"`,
         );
         continue;
@@ -1541,7 +1542,7 @@ IMPORTANT pour le titre IA :
     }
 
     if (duplicatesFound) {
-      console.log(
+      logger.log(
         `✅ [DUPLICATE-FIX] Question ${questionId}: ${options.length - uniqueOptions.length} doublon(s) supprimé(s)`,
       );
     }
@@ -1568,7 +1569,7 @@ IMPORTANT pour le titre IA :
 
       if (!textLower || seen.has(textLower)) {
         duplicatesFound = true;
-        console.warn(
+        logger.warn(
           `⚠️ [DUPLICATE-FIX] Question ${questionId} (${columnName}): Élément en doublon détecté et supprimé: "${item.text}"`,
         );
         continue;
@@ -1579,7 +1580,7 @@ IMPORTANT pour le titre IA :
     }
 
     if (duplicatesFound) {
-      console.log(
+      logger.log(
         `✅ [DUPLICATE-FIX] Question ${questionId} (${columnName}): ${items.length - uniqueItems.length} doublon(s) supprimé(s)`,
       );
     }

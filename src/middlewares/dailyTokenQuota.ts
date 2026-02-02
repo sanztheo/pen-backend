@@ -3,6 +3,7 @@
  * Protection ultime contre les abus prolonges
  */
 
+import { logger } from "../utils/logger.js";
 import type { Request, Response, NextFunction } from "express";
 import { redis } from "../lib/redis.js";
 
@@ -77,7 +78,7 @@ export const dailyTokenQuota = async (
     next();
   } catch (err) {
     // Redis failure: allow request through (fail open)
-    console.error("[DAILY-QUOTA] Erreur Redis:", err);
+    logger.error("[DAILY-QUOTA] Erreur Redis:", err);
     next();
   }
 };

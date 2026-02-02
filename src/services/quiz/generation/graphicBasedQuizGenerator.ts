@@ -3,6 +3,7 @@
  * Workflow : 1) Génère le graphique d'abord 2) Donne le JSON à l'IA 3) L'IA crée les questions basées sur ce graphique
  */
 
+import { logger } from "../../../utils/logger.js";
 import {
   QuizGenerationRequest,
   GeneratedQuiz,
@@ -164,7 +165,7 @@ export class GraphicBasedQuizGenerator {
   ): Promise<GraphicBasedQuizResult> {
     const startTime = Date.now();
 
-    console.log(
+    logger.log(
       `🎨 [GRAPHIC-QUIZ] Génération quiz basé sur graphiques pour ${subjectName}`,
     );
 
@@ -193,7 +194,7 @@ export class GraphicBasedQuizGenerator {
         throw new Error("Aucun graphique généré");
       }
 
-      console.log(`🎨 [GRAPHIC-QUIZ] ${graphics.length} graphiques générés`);
+      logger.log(`🎨 [GRAPHIC-QUIZ] ${graphics.length} graphiques générés`);
 
       // 3. Générer les questions basées sur ces graphiques
       const questions = await this.generateQuestionsFromGraphics(
@@ -229,7 +230,7 @@ export class GraphicBasedQuizGenerator {
         totalQuestions: questions.length,
       };
 
-      console.log(
+      logger.log(
         `✅ [GRAPHIC-QUIZ] Quiz généré avec ${questions.length} questions graphiques`,
       );
 
@@ -238,7 +239,7 @@ export class GraphicBasedQuizGenerator {
         graphicMetadata,
       };
     } catch (error) {
-      console.error("❌ [GRAPHIC-QUIZ] Erreur génération:", error);
+      logger.error("❌ [GRAPHIC-QUIZ] Erreur génération:", error);
       throw error;
     }
   }
@@ -252,7 +253,7 @@ export class GraphicBasedQuizGenerator {
     level: string,
     count: number,
   ): Promise<GeneratedGraphic[]> {
-    console.log(
+    logger.log(
       `🎨 [GRAPHIC-FIRST] Génération de ${count} graphiques pour ${subject}`,
     );
 
@@ -288,11 +289,11 @@ export class GraphicBasedQuizGenerator {
         };
 
         graphics.push(graphic);
-        console.log(
+        logger.log(
           `✅ [GRAPHIC-FIRST] Graphique ${i + 1}/${count} généré: ${graphicResult.type} (${graphicResult.library})`,
         );
       } catch (error) {
-        console.error(`❌ [GRAPHIC-FIRST] Erreur graphique ${i + 1}:`, error);
+        logger.error(`❌ [GRAPHIC-FIRST] Erreur graphique ${i + 1}:`, error);
         // Continuer avec les autres graphiques
       }
     }
@@ -311,7 +312,7 @@ export class GraphicBasedQuizGenerator {
   ): Promise<Question[]> {
     const totalQuestions = request.questionCount || 3;
 
-    console.log(
+    logger.log(
       `📝 [QUESTIONS-FROM-GRAPHICS] Génération groupée de ${totalQuestions} questions basées sur ${graphics.length} graphiques (approche optimisée)`,
     );
 
@@ -385,7 +386,7 @@ ATTENTION CRITIQUE:
 - Utilise "D'après" et "l'axe" normalement (pas d'échappement excessif)
 - Teste mentalement que ton JSON array est valide avant de répondre`;
 
-      console.log(
+      logger.log(
         `🤖 [QUESTIONS-FROM-GRAPHICS] Appel IA unique pour ${totalQuestions} questions`,
       );
 
@@ -403,18 +404,18 @@ ATTENTION CRITIQUE:
       // Convertir ParsedQuestionData[] en Question[]
       const questionsArray = parsedQuestions.map(convertParsedToQuestion);
 
-      console.log(
+      logger.log(
         `✅ [QUESTIONS-FROM-GRAPHICS] ${questionsArray.length} questions générées en une fois`,
       );
       return questionsArray;
     } catch (error) {
-      console.error(
+      logger.error(
         `❌ [QUESTIONS-FROM-GRAPHICS] Erreur génération groupée:`,
         error,
       );
 
       // Fallback : créer des questions de base
-      console.log(
+      logger.log(
         `🔄 [QUESTIONS-FROM-GRAPHICS] Fallback vers génération individuelle`,
       );
       return this.generateFallbackQuestions(graphics, totalQuestions);
@@ -446,8 +447,8 @@ ATTENTION CRITIQUE:
       // Essayer de parser directement
       return JSON.parse(cleanContent);
     } catch (error) {
-      console.error("❌ Erreur parsing JSON question:", error);
-      console.log(
+      logger.error("❌ Erreur parsing JSON question:", error);
+      logger.log(
         "🔧 Contenu reçu (100 premiers chars):",
         content.substring(0, 100) + "...",
       );
@@ -516,16 +517,16 @@ ATTENTION CRITIQUE:
       const mainJsonMatch = content.match(/\{[\s\S]*\}/);
       if (mainJsonMatch) {
         const extractedJson = this.cleanJSONString(mainJsonMatch[0]);
-        console.log("🔧 Tentative extraction JSON principal...");
+        logger.log("🔧 Tentative extraction JSON principal...");
         return JSON.parse(extractedJson);
       }
     } catch (recoveryError) {
-      console.log("❌ Échec extraction JSON principal:", recoveryError);
+      logger.log("❌ Échec extraction JSON principal:", recoveryError);
     }
 
     try {
       // Tentative 2 : Extraction par étapes des champs essentiels
-      console.log("🔧 Tentative extraction manuelle des champs...");
+      logger.log("🔧 Tentative extraction manuelle des champs...");
 
       const questionMatch = content.match(/"question"\s*:\s*"([^"]+)"/);
       const typeMatch = content.match(/"type"\s*:\s*"([^"]+)"/);
@@ -559,7 +560,7 @@ ATTENTION CRITIQUE:
             }));
           }
         } catch (optionError) {
-          console.log(
+          logger.log(
             "❌ Erreur extraction options, utilisation des options par défaut",
           );
         }
@@ -588,17 +589,17 @@ ATTENTION CRITIQUE:
           "Graphique récupéré automatiquement",
       };
 
-      console.log(
+      logger.log(
         "✅ Question récupérée avec succès:",
         recoveredQuestion.question,
       );
       return recoveredQuestion;
     } catch (manualError) {
-      console.error("❌ Échec récupération manuelle:", manualError);
+      logger.error("❌ Échec récupération manuelle:", manualError);
     }
 
     // Fallback final : créer une question de base
-    console.log("🔧 Création question de fallback...");
+    logger.log("🔧 Création question de fallback...");
     return {
       id: `fallback_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       question: "Question générée automatiquement (erreur de parsing JSON)",
@@ -726,7 +727,7 @@ CONTEXTE: ${graphic.questionContext}
         layout: simplified.layout, // Pour Plotly
       };
     } catch (error) {
-      console.log("❌ Erreur simplification config:", error);
+      logger.log("❌ Erreur simplification config:", error);
       return {
         type: "configuration_simplifiée",
         message: "Voir description et valeurs clés",
@@ -761,7 +762,7 @@ CONTEXTE: ${graphic.questionContext}
   private static parseQuestionsArrayJSON(
     content: string,
   ): ParsedQuestionData[] {
-    console.log(
+    logger.log(
       `🔧 [PARSE-ARRAY] Tentative parsing array de ${content.length} caractères`,
     );
 
@@ -791,13 +792,13 @@ CONTEXTE: ${graphic.questionContext}
         throw new Error("La réponse n'est pas un array de questions");
       }
 
-      console.log(
+      logger.log(
         `✅ [PARSE-ARRAY] ${parsed.length} questions parsées avec succès`,
       );
       return parsed;
     } catch (error) {
-      console.error("❌ Erreur parsing JSON array questions:", error);
-      console.log(
+      logger.error("❌ Erreur parsing JSON array questions:", error);
+      logger.log(
         "🔧 Contenu autour de l'erreur (pos 1400-1450):",
         content.substring(1380, 1450),
       );
@@ -857,23 +858,23 @@ CONTEXTE: ${graphic.questionContext}
       if (arrayMatch) {
         let extractedArray = arrayMatch[0];
         extractedArray = this.cleanArrayJSONString(extractedArray);
-        console.log("🔧 Tentative extraction array avec nettoyage renforcé...");
+        logger.log("🔧 Tentative extraction array avec nettoyage renforcé...");
 
         const recovered = JSON.parse(extractedArray);
         if (Array.isArray(recovered)) {
-          console.log(
+          logger.log(
             `✅ [RECOVERY-1] ${recovered.length} questions récupérées`,
           );
           return recovered;
         }
       }
     } catch (recoveryError) {
-      console.log("❌ Échec récupération renforcée:", recoveryError);
+      logger.log("❌ Échec récupération renforcée:", recoveryError);
     }
 
     try {
       // Tentative 2 : Parser question par question individuellement
-      console.log("🔧 Tentative récupération question par question...");
+      logger.log("🔧 Tentative récupération question par question...");
       const questions: ParsedQuestionData[] = [];
 
       // Chercher toutes les questions individuelles avec regex
@@ -910,7 +911,7 @@ CONTEXTE: ${graphic.questionContext}
             questions.push(questionObj);
           }
         } catch (questionError) {
-          console.log(
+          logger.log(
             `❌ Erreur parsing question individuelle:`,
             questionError,
           );
@@ -918,13 +919,13 @@ CONTEXTE: ${graphic.questionContext}
       }
 
       if (questions.length > 0) {
-        console.log(
+        logger.log(
           `✅ [RECOVERY-2] ${questions.length} questions récupérées individuellement`,
         );
         return questions;
       }
     } catch (individualError) {
-      console.log("❌ Échec récupération individuelle:", individualError);
+      logger.log("❌ Échec récupération individuelle:", individualError);
     }
 
     // Fallback final : déclencher l'erreur pour activer le fallback général
@@ -938,7 +939,7 @@ CONTEXTE: ${graphic.questionContext}
     graphics: GeneratedGraphic[],
     totalQuestions: number,
   ): Question[] {
-    console.log(
+    logger.log(
       `🔄 [FALLBACK] Génération de ${totalQuestions} questions de fallback`,
     );
 

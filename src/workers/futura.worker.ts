@@ -8,6 +8,7 @@
  * - refresh-weekly-article: Rafraîchissement hebdomadaire automatique
  */
 
+import { logger } from "../utils/logger.js";
 import { Worker, Job } from "bullmq";
 import { redis } from "../lib/redis.js";
 import { FuturaRssService } from "../services/futuraRss.service.js";
@@ -29,7 +30,7 @@ export interface FuturaResult {
 const processJob = async (job: Job<FuturaJobData>): Promise<FuturaResult> => {
   const { type, forceNew = false } = job.data;
 
-  console.log(`📰 [Futura Worker] Traitement job: ${type}`);
+  logger.log(`📰 [Futura Worker] Traitement job: ${type}`);
 
   try {
     if (type === "refresh-weekly-article") {
@@ -50,7 +51,7 @@ const processJob = async (job: Job<FuturaJobData>): Promise<FuturaResult> => {
         throw new Error("Échec de la sauvegarde de l'article");
       }
 
-      console.log(
+      logger.log(
         `✅ [Futura Worker] Article sauvegardé: "${savedArticle.title}"`,
       );
 
@@ -63,7 +64,7 @@ const processJob = async (job: Job<FuturaJobData>): Promise<FuturaResult> => {
 
     throw new Error(`Type de job inconnu: ${type}`);
   } catch (error) {
-    console.error(`❌ [Futura Worker] Erreur:`, error);
+    logger.error(`❌ [Futura Worker] Erreur:`, error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Erreur inconnue",
@@ -87,15 +88,15 @@ export const futuraWorker = new Worker<FuturaJobData, FuturaResult>(
 
 // 📊 Events du worker
 futuraWorker.on("completed", (job, result) => {
-  console.log(`✅ [Futura Worker] Job ${job.id} complété`, result);
+  logger.log(`✅ [Futura Worker] Job ${job.id} complété`, result);
 });
 
 futuraWorker.on("failed", (job, error) => {
-  console.error(`❌ [Futura Worker] Job ${job?.id} échoué:`, error);
+  logger.error(`❌ [Futura Worker] Job ${job?.id} échoué:`, error);
 });
 
 futuraWorker.on("error", (error) => {
-  console.error(`❌ [Futura Worker] Erreur du worker:`, error);
+  logger.error(`❌ [Futura Worker] Erreur du worker:`, error);
 });
 
-console.log("✅ [Futura Worker] Démarré et en attente de jobs");
+logger.log("✅ [Futura Worker] Démarré et en attente de jobs");

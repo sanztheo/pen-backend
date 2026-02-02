@@ -1,4 +1,5 @@
 import express from "express";
+import { logger } from "../utils/logger.js";
 import {
   PaddleBillingService,
   paddle,
@@ -29,7 +30,7 @@ router.get("/subscription", authenticateToken, async (req, res) => {
       subscription,
     });
   } catch (error) {
-    console.error("[API] Erreur recuperation abonnement:", error);
+    logger.error("[API] Erreur recuperation abonnement:", error);
     res.status(500).json({
       error: "Erreur lors de la recuperation de l'abonnement",
       details: "Une erreur est survenue",
@@ -60,7 +61,7 @@ router.get("/stats", authenticateToken, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("[API] Erreur recuperation stats:", error);
+    logger.error("[API] Erreur recuperation stats:", error);
     res.status(500).json({
       error: "Erreur lors de la recuperation des statistiques",
       details: "Une erreur est survenue",
@@ -107,7 +108,7 @@ router.post(
 
       const hadTrial = existingSubscription?.trialStart !== null;
 
-      console.log(`[BILLING] Checkout session pour user ${userId}:`, {
+      logger.log(`[BILLING] Checkout session pour user ${userId}:`, {
         priceId: selectedPriceId,
         email: userEmail,
         hadTrial,
@@ -129,7 +130,7 @@ router.post(
         hadTrial, // Inform frontend if user already had trial
       });
     } catch (error) {
-      console.error("[API] Erreur creation checkout session:", error);
+      logger.error("[API] Erreur creation checkout session:", error);
       res.status(500).json({
         error: "Erreur lors de la creation de la session checkout",
         details: "Une erreur est survenue",
@@ -190,7 +191,7 @@ router.get("/portal-url", authenticateToken, async (req, res) => {
         subscriptionId: subscription.paddleSubscriptionId,
       });
     } catch (paddleError: unknown) {
-      console.error("[API] Erreur API Paddle:", paddleError);
+      logger.error("[API] Erreur API Paddle:", paddleError);
       return res.status(500).json({
         error: "Erreur lors de la recuperation du portail Paddle",
         details:
@@ -200,7 +201,7 @@ router.get("/portal-url", authenticateToken, async (req, res) => {
       });
     }
   } catch (error) {
-    console.error("[API] Erreur portal-url:", error);
+    logger.error("[API] Erreur portal-url:", error);
     res.status(500).json({
       error: "Erreur lors de la recuperation de l'URL du portail",
       details: "Une erreur est survenue",
@@ -240,14 +241,14 @@ router.post("/cancel", authenticateToken, async (req, res) => {
     // Marquer comme annule dans la DB
     await PaddleBillingService.cancelSubscription(userId);
 
-    console.log(`[BILLING] Abonnement annule pour user ${userId}`);
+    logger.log(`[BILLING] Abonnement annule pour user ${userId}`);
 
     res.json({
       success: true,
       message: "Abonnement annule. Actif jusqu'a la fin de la periode.",
     });
   } catch (error) {
-    console.error("[API] Erreur annulation:", error);
+    logger.error("[API] Erreur annulation:", error);
     res.status(500).json({
       error: "Erreur lors de l'annulation",
       details: "Une erreur est survenue",
@@ -292,7 +293,7 @@ router.post("/upgrade", authenticateToken, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("[API] Erreur upgrade:", error);
+    logger.error("[API] Erreur upgrade:", error);
     res.status(500).json({
       error: "Erreur lors de la preparation de l'upgrade",
       details: "Une erreur est survenue",

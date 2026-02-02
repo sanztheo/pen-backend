@@ -1,6 +1,7 @@
 // 📄 User Pages RAG System - Traitement intelligent des pages workspace
 import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
 import type { RAGChunkInput } from "./index.js";
+import { logger } from "../../utils/logger.js";
 
 type PreparedRAGChunkRow = {
   sourceId: string;
@@ -63,7 +64,7 @@ export class UserPagesRAGSystem {
 
       return existingSource;
     } catch (error) {
-      console.error(
+      logger.error(
         `❌ [USER-PAGE] Erreur recherche source existante pour page ${pageId}:`,
         error,
       );
@@ -78,7 +79,7 @@ export class UserPagesRAGSystem {
    */
   async processUserPage(page: UserPageContent): Promise<string | null> {
     try {
-      console.log(`📄 [USER-PAGE] Traitement: "${page.title}" (${page.id})`);
+      logger.log(`📄 [USER-PAGE] Traitement: "${page.title}" (${page.id})`);
 
       // 🔍 Vérifier si la page a déjà une source RAG
       const existingSource = await prisma.rAGSource.findFirst({
@@ -108,7 +109,7 @@ export class UserPagesRAGSystem {
           existingSource.status === "COMPLETED"
         ) {
           // ✅ Page déjà à jour, juste marquer comme utilisée
-          console.log(
+          logger.log(
             `✅ [USER-PAGE] Page "${page.title}" déjà à jour, pas de retraitement`,
           );
 
@@ -121,7 +122,7 @@ export class UserPagesRAGSystem {
         }
 
         // ♻️ Mise à jour nécessaire de la source existante
-        console.log(`♻️ [USER-PAGE] Mise à jour: "${page.title}"`);
+        logger.log(`♻️ [USER-PAGE] Mise à jour: "${page.title}"`);
 
         // Supprimer les anciens chunks
         await prisma.rAGChunk.deleteMany({
@@ -145,7 +146,7 @@ export class UserPagesRAGSystem {
         });
       } else {
         // 🆕 Création d'une nouvelle source
-        console.log(`🆕 [USER-PAGE] Nouvelle source: "${page.title}"`);
+        logger.log(`🆕 [USER-PAGE] Nouvelle source: "${page.title}"`);
 
         source = await prisma.rAGSource.create({
           data: {
@@ -169,7 +170,7 @@ export class UserPagesRAGSystem {
       const chunks = await this.chunkUserPageContent(page);
 
       if (chunks.length === 0) {
-        console.log(`⚠️ [USER-PAGE] Aucun chunk généré pour: "${page.title}"`);
+        logger.log(`⚠️ [USER-PAGE] Aucun chunk généré pour: "${page.title}"`);
 
         // Marquer comme failed si pas de contenu utilisable
         await prisma.rAGSource.update({
@@ -195,12 +196,12 @@ export class UserPagesRAGSystem {
         },
       });
 
-      console.log(
+      logger.log(
         `✅ [USER-PAGE] Terminé: "${page.title}" (${chunks.length} chunks)`,
       );
       return source.id;
     } catch (error) {
-      console.error(`❌ [USER-PAGE] Erreur traitement "${page.title}":`, error);
+      logger.error(`❌ [USER-PAGE] Erreur traitement "${page.title}":`, error);
       return null;
     }
   }
@@ -217,7 +218,7 @@ export class UserPagesRAGSystem {
     workspaceId: string,
   ): Promise<boolean> {
     try {
-      console.log(`🗑️ [USER-PAGE] Suppression RAG pour page: ${pageId}`);
+      logger.log(`🗑️ [USER-PAGE] Suppression RAG pour page: ${pageId}`);
 
       // Supprimer TOUTES les sources RAG liées à cette page (au cas où plusieurs versions existent)
       const result = await prisma.rAGSource.deleteMany({
@@ -232,12 +233,12 @@ export class UserPagesRAGSystem {
         },
       });
 
-      console.log(
+      logger.log(
         `✅ [USER-PAGE] Sources RAG supprimées pour page ${pageId}: ${result.count}`,
       );
       return true;
     } catch (error) {
-      console.error(`❌ [USER-PAGE] Erreur suppression:`, error);
+      logger.error(`❌ [USER-PAGE] Erreur suppression:`, error);
       return false;
     }
   }
@@ -260,7 +261,7 @@ export class UserPagesRAGSystem {
         },
       });
     } catch (error) {
-      console.error("❌ [USER-PAGE] Erreur mise à jour lastUsedAt:", error);
+      logger.error("❌ [USER-PAGE] Erreur mise à jour lastUsedAt:", error);
     }
   }
 
@@ -274,7 +275,7 @@ export class UserPagesRAGSystem {
     const cleanContent = this.cleanMarkdownContent(page.content);
 
     if (cleanContent.length < 50) {
-      console.log(
+      logger.log(
         `⚠️ [USER-PAGE] Contenu trop court: "${page.title}" (${cleanContent.length} chars)`,
       );
       return chunks;
@@ -454,7 +455,7 @@ export class UserPagesRAGSystem {
     );
 
     const t0 = Date.now();
-    console.log(
+    logger.log(
       `⚙️  [USER-PAGE] Embedding ${chunks.length} chunks (x${concurrency})…`,
     );
 
@@ -475,7 +476,7 @@ export class UserPagesRAGSystem {
             quality: chunk.quality ?? 1.0,
           } satisfies PreparedRAGChunkRow;
         } catch (error) {
-          console.error(`❌ [USER-PAGE] Erreur embedding chunk ${i}:`, error);
+          logger.error(`❌ [USER-PAGE] Erreur embedding chunk ${i}:`, error);
           // On ignore ce chunk en cas d'erreur individuelle
           return null;
         }
@@ -511,12 +512,12 @@ export class UserPagesRAGSystem {
         `;
         inserted++;
       }
-      console.log(
+      logger.log(
         `💾 [USER-PAGE] Inséré ${inserted}/${filtered.length} chunks…`,
       );
     }
 
-    console.log(`✅ [USER-PAGE] Terminé en ${Date.now() - t0} ms`);
+    logger.log(`✅ [USER-PAGE] Terminé en ${Date.now() - t0} ms`);
   }
 
   // 🔧 Méthodes utilitaires
@@ -526,7 +527,7 @@ export class UserPagesRAGSystem {
       const { ragSystem } = await import("./index.js");
       return await ragSystem.embeddingService.generateEmbedding(text);
     } catch (error) {
-      console.error("❌ [USER-PAGE] Erreur génération embedding:", error);
+      logger.error("❌ [USER-PAGE] Erreur génération embedding:", error);
       throw error;
     }
   }

@@ -1,5 +1,6 @@
 // 🚀 RAG System - Service Principal
 import { prismaEmbeddings } from "../../lib/prismaEmbeddings.js";
+import { logger } from "../../utils/logger.js";
 import type {
   RAGSourceType,
   Prisma,
@@ -237,7 +238,7 @@ export class RAGSystem {
 
       return source.id;
     } catch (error) {
-      console.error("Erreur traitement PDF:", error);
+      logger.error("Erreur traitement PDF:", error);
       throw new Error(
         `Échec du traitement PDF: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -312,18 +313,18 @@ Si AUCUNE source n'est pertinente (ex: sources sur "Caca" pour une question sur 
         ?.toUpperCase();
 
       if (availableSources && availableSources.length > 0) {
-        console.log(
+        logger.log(
           `🧠 [RAG-DETECTION-SMART] Query: "${query}" | Sources: [${availableSources.map((s) => s.title).join(", ")}] → Decision: ${decision}`,
         );
       } else {
-        console.log(
+        logger.log(
           `🧠 [RAG-DETECTION] Query: "${query}" → Decision: ${decision}`,
         );
       }
 
       return decision === "OUI";
     } catch (error) {
-      console.error("Erreur détection RAG, fallback to false:", error);
+      logger.error("Erreur détection RAG, fallback to false:", error);
       return false; // 🔧 FIX: En cas d'erreur, ne PAS forcer le RAG avec des sources non pertinentes
     }
   }
@@ -335,19 +336,19 @@ Si AUCUNE source n'est pertinente (ex: sources sur "Caca" pour une question sur 
   ): Promise<RAGSearchResult[]> {
     try {
       const questionType = await this.detectQuestionType(query);
-      console.log(
+      logger.log(
         `🔍 [RAG-NOTEBOOKLM] Type de question détecté: ${questionType}`,
       );
 
       switch (questionType) {
         case "RESUME":
-          console.log(
+          logger.log(
             `🔍 [RAG-NOTEBOOKLM] Question de résumé → meilleurs chunks par qualité`,
           );
           return await this.getBestQualityChunks(options);
 
         case "EXPLICATION":
-          console.log(
+          logger.log(
             `🔍 [RAG-NOTEBOOKLM] Question d'explication → recherche vectorielle optimisée`,
           );
           return await this.search(query, {
@@ -358,13 +359,13 @@ Si AUCUNE source n'est pertinente (ex: sources sur "Caca" pour une question sur 
 
         case "FACTUELLE":
         default:
-          console.log(
+          logger.log(
             `🔍 [RAG-NOTEBOOKLM] Question factuelle → recherche vectorielle standard`,
           );
           return await this.search(query, options);
       }
     } catch (error) {
-      console.error(
+      logger.error(
         "Erreur détection type question, fallback recherche standard:",
         error,
       );
@@ -399,13 +400,13 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       // 🔍 Debug complet de l'appel OpenAI
       const isGpt5Nano =
         process.env.OPENAI_DETECTION_MODEL?.includes("gpt-5-nano");
-      console.log(
+      logger.log(
         `🔑 [API-DEBUG] OPENAI_API_KEY présente: ${!!process.env.OPENAI_API_KEY}`,
       );
-      console.log(
+      logger.log(
         `🤖 [API-DEBUG] Model utilisé: ${process.env.OPENAI_DETECTION_MODEL || "gpt-4o-mini"}`,
       );
-      console.log(`⚙️ [API-DEBUG] Mode gpt-5-nano détecté: ${isGpt5Nano}`);
+      logger.log(`⚙️ [API-DEBUG] Mode gpt-5-nano détecté: ${isGpt5Nano}`);
 
       const response = await fetch(
         "https://api.openai.com/v1/chat/completions",
@@ -431,13 +432,13 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         },
       );
 
-      console.log(
+      logger.log(
         `🌐 [API-DEBUG] Response status: ${response.status} ${response.statusText}`,
       );
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(
+        logger.error(
           `❌ [API-ERROR] OpenAI API Error: ${response.status} - ${errorText}`,
         );
         return "RESUME"; // Fallback intelligent pour "Résumé"
@@ -450,7 +451,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       const result = raw;
       const rawResponse = result.choices?.[0]?.message?.content?.trim();
 
-      console.log(`📤 [API-DEBUG] Raw JSON response: "${rawResponse}"`);
+      logger.log(`📤 [API-DEBUG] Raw JSON response: "${rawResponse}"`);
 
       try {
         // 🚀 Parse du JSON strict
@@ -460,7 +461,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
             ? jsonResponseRaw.type.toUpperCase()
             : undefined;
 
-        console.log(
+        logger.log(
           `🎯 [DETECT-JSON-2025] Query: "${query}" → JSON: ${rawResponse} → Type: ${questionType}`,
         );
 
@@ -472,21 +473,21 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
           return questionType;
         }
 
-        console.warn(
+        logger.warn(
           `⚠️ [JSON-ERROR] Type invalide dans JSON: "${questionType}"`,
         );
       } catch (parseError) {
-        console.error(
+        logger.error(
           `❌ [JSON-PARSE-ERROR] JSON invalide: "${rawResponse}"`,
           parseError,
         );
       }
 
       // Fallback intelligent si JSON échoue
-      console.warn(`🔄 [JSON-FALLBACK] Utilisation du fallback déterministe`);
+      logger.warn(`🔄 [JSON-FALLBACK] Utilisation du fallback déterministe`);
       return this.detectQuestionTypeFallback(query);
     } catch (error) {
-      console.error("❌ [API-ERROR] Erreur détection type question:", error);
+      logger.error("❌ [API-ERROR] Erreur détection type question:", error);
 
       return this.detectQuestionTypeFallback(query);
     }
@@ -526,16 +527,16 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     ];
 
     if (resumeKeywords.some((keyword) => queryLower.includes(keyword))) {
-      console.log(`🔄 [FALLBACK] "${query}" → RESUME (mot-clé détecté)`);
+      logger.log(`🔄 [FALLBACK] "${query}" → RESUME (mot-clé détecté)`);
       return "RESUME";
     }
 
     if (explanationKeywords.some((keyword) => queryLower.includes(keyword))) {
-      console.log(`🔄 [FALLBACK] "${query}" → EXPLICATION (mot-clé détecté)`);
+      logger.log(`🔄 [FALLBACK] "${query}" → EXPLICATION (mot-clé détecté)`);
       return "EXPLICATION";
     }
 
-    console.log(`🔄 [FALLBACK] "${query}" → FACTUELLE (défaut)`);
+    logger.log(`🔄 [FALLBACK] "${query}" → FACTUELLE (défaut)`);
     return "FACTUELLE";
   }
 
@@ -566,7 +567,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
             status: "COMPLETED",
           },
         };
-        console.log(
+        logger.log(
           `🔍 [RAG-QUALITY] Filtrage par sources RAG spécifiques: ${specificSourceIds.join(", ")}`,
         );
       }
@@ -582,7 +583,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
             isGlobal: false,
           },
         };
-        console.log(
+        logger.log(
           `🔍 [RAG-QUALITY] Filtrage par pages spécifiques: ${specificPageIds.join(", ")}`,
         );
       } else {
@@ -613,7 +614,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       // 1. Récupérer plus de chunks par source
       // 2. Appliquer un algorithme de diversification
 
-      console.log(
+      logger.log(
         "📊 [RAG-QUALITY] Stratégie de diversification pour résumé...",
       );
 
@@ -636,7 +637,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
       // 🔥 EARLY RETURN: Si aucun chunk trouvé, retourner immédiatement
       if (allChunks.length === 0) {
-        console.log(
+        logger.log(
           `⚠️ [RAG-QUALITY] Aucun chunk trouvé pour les critères donnés`,
         );
         return [];
@@ -648,7 +649,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         limit,
       );
 
-      console.log(
+      logger.log(
         `📊 [RAG-QUALITY] Chunks sélectionnés par source:`,
         this.getSourceStats(diversifiedChunks),
       );
@@ -667,7 +668,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         sectionTitle: chunk.sectionTitle ?? undefined,
       }));
     } catch (error) {
-      console.error("Erreur getBestQualityChunks:", error);
+      logger.error("Erreur getBestQualityChunks:", error);
       throw new Error(
         `Échec de la récupération: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -681,7 +682,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   ): PrismaChunkWithPartialSource[] {
     // 🔥 EARLY RETURN: Si aucun chunk, retourner immédiatement
     if (chunks.length === 0) {
-      console.log(`⚠️ [DIVERSIFICATION] Aucun chunk à diversifier`);
+      logger.log(`⚠️ [DIVERSIFICATION] Aucun chunk à diversifier`);
       return [];
     }
 
@@ -696,13 +697,13 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       chunksBySource.get(sourceId)!.push(chunk);
     });
 
-    console.log(
+    logger.log(
       `📊 [DIVERSIFICATION] ${chunksBySource.size} sources disponibles, cible: ${targetLimit} chunks`,
     );
 
     // 🔥 SAFETY CHECK: Si aucune source, retourner immédiatement (évite division par zéro)
     if (chunksBySource.size === 0) {
-      console.log(
+      logger.log(
         `⚠️ [DIVERSIFICATION] Aucune source disponible après groupement`,
       );
       return [];
@@ -763,14 +764,14 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     } = options;
 
     try {
-      console.log(
+      logger.log(
         `🔍 [RAG-SEARCH] Début recherche: query="${query}", userId="${userId}", workspaceId="${workspaceId}"`,
       );
 
       // 1. Génération embedding de la question
       const queryEmbedding =
         await this.embeddingService.generateEmbedding(query);
-      console.log(
+      logger.log(
         `🔍 [RAG-SEARCH] Embedding généré: ${JSON.stringify(queryEmbedding).length} chars`,
       );
 
@@ -779,7 +780,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
       // 🆕 Si des sources RAG spécifiques sont demandées, filtrer par ces sources
       if (specificSourceIds && specificSourceIds.length > 0) {
-        console.log(
+        logger.log(
           `🔍 [RAG-SEARCH] Filtrage par sources RAG spécifiques: ${specificSourceIds.join(", ")}`,
         );
         whereClause = {
@@ -791,7 +792,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       }
       // 🆕 Sinon, si des pages spécifiques sont demandées, filtrer par ces pages
       else if (specificPageIds && specificPageIds.length > 0) {
-        console.log(
+        logger.log(
           `🔍 [RAG-SEARCH] Filtrage par pages spécifiques: ${specificPageIds.join(", ")}`,
         );
         whereClause = {
@@ -837,7 +838,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         (whereClause.source as Record<string, unknown>).id = { in: sources };
       }
 
-      console.log(
+      logger.log(
         `🔍 [RAG-SEARCH] WhereClause:`,
         JSON.stringify(whereClause, null, 2),
       );
@@ -889,11 +890,11 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         LIMIT ${limit * 2}
       `;
 
-      console.log(`🚀 [PGVECTOR] Executing vector similarity search...`);
+      logger.log(`🚀 [PGVECTOR] Executing vector similarity search...`);
       const rawResults =
         await prismaEmbeddings.$queryRawUnsafe<PgVectorSearchResult[]>(sql);
 
-      console.log(
+      logger.log(
         `🚀 [PGVECTOR] Found ${rawResults.length} chunks (top 3 similarities):`,
         rawResults
           .slice(0, 3)
@@ -918,7 +919,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
           sectionTitle: row.section_title ?? undefined,
         }));
 
-      console.log(
+      logger.log(
         `🔍 [RAG-SEARCH] Résultats finaux après filtrage par threshold ${threshold}: ${results.length}`,
       );
 
@@ -940,7 +941,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
               await userPagesRAG.updateLastUsed(userPageSourceIds, userId);
             }
           } catch (error) {
-            console.error(
+            logger.error(
               "🔄 [RAG] Erreur mise à jour pages utilisateur:",
               error,
             );
@@ -950,7 +951,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
       return results;
     } catch (error) {
-      console.error("Erreur recherche RAG:", error);
+      logger.error("Erreur recherche RAG:", error);
       throw new Error(
         `Échec de la recherche: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -1058,7 +1059,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     );
 
     const t0 = Date.now();
-    console.log(
+    logger.log(
       `⚙️  [RAG] Embedding ${chunks.length} chunks avec parallélisation x${concurrency}…`,
     );
 
@@ -1117,10 +1118,10 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         `;
         inserted++;
       }
-      console.log(`💾 [RAG] Inséré ${inserted}/${prepared.length} chunks…`);
+      logger.log(`💾 [RAG] Inséré ${inserted}/${prepared.length} chunks…`);
     }
 
-    console.log(
+    logger.log(
       `✅ [RAG] Embedding + insertion terminés en ${Date.now() - t0} ms`,
     );
   }
@@ -1188,7 +1189,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       const norm2Sqrt = Math.sqrt(norm2);
 
       if (norm1Sqrt === 0 || norm2Sqrt === 0) {
-        console.log(
+        logger.log(
           `⚠️ [SIMILARITY] Vector normalization is zero - returning 0`,
         );
         return 0;
@@ -1198,7 +1199,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
       // 🚀 FIX: Valider que le résultat n'est pas NaN
       if (isNaN(similarity)) {
-        console.log(`⚠️ [SIMILARITY] NaN detected - vectors:`, {
+        logger.log(`⚠️ [SIMILARITY] NaN detected - vectors:`, {
           vec1Length: vec1.length,
           vec2Length: vec2.length,
         });
@@ -1227,7 +1228,7 @@ class EmbeddingService {
 
   async generateEmbedding(text: string): Promise<number[]> {
     try {
-      console.log(
+      logger.log(
         `🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${text.slice(0, 50)}..."`,
       );
       const startTime = Date.now();
@@ -1259,12 +1260,12 @@ class EmbeddingService {
       }
 
       const duration = Date.now() - startTime;
-      console.log(
+      logger.log(
         `✅ [EMBEDDING-FAST] Embedding généré en ${duration}ms: ${embedding.length} dimensions`,
       );
       return embedding;
     } catch (error) {
-      console.error("❌ [EMBEDDING-FAST] Erreur génération embedding:", error);
+      logger.error("❌ [EMBEDDING-FAST] Erreur génération embedding:", error);
       throw error;
     }
   }
@@ -1272,7 +1273,7 @@ class EmbeddingService {
   // 🚀 BONUS: Méthode batch pour traiter plusieurs chunks d'un coup (future optimisation)
   async generateBatchEmbeddings(texts: string[]): Promise<number[][]> {
     try {
-      console.log(
+      logger.log(
         `🚀 [EMBEDDING-BATCH] Génération batch de ${texts.length} embeddings...`,
       );
       const startTime = Date.now();
@@ -1308,12 +1309,12 @@ class EmbeddingService {
       }
 
       const duration = Date.now() - startTime;
-      console.log(
+      logger.log(
         `✅ [EMBEDDING-BATCH] ${embeddings.length} embeddings générés en ${duration}ms (${Math.round(duration / embeddings.length)}ms/embedding)`,
       );
       return embeddings;
     } catch (error) {
-      console.error("❌ [EMBEDDING-BATCH] Erreur génération batch:", error);
+      logger.error("❌ [EMBEDDING-BATCH] Erreur génération batch:", error);
       throw error;
     }
   }

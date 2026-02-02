@@ -3,6 +3,7 @@ import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
 import { deduplicationService } from "./deduplication.js";
 import type { RAGChunkInput } from "./index.js";
 import { z } from "zod";
+import { logger } from "../../utils/logger.js";
 
 type PreparedRAGChunkRow = {
   sourceId: string;
@@ -50,7 +51,7 @@ export class WikipediaRAGSystem {
         titles,
       );
 
-    console.log(
+    logger.log(
       `🔄 [DEDUP] Vérification de ${titles.length} articles Wikipedia`,
     );
 
@@ -60,7 +61,7 @@ export class WikipediaRAGSystem {
 
         // 🔄 Si la source existe déjà et a des chunks, la réutiliser
         if (dedupResult?.exists && !dedupResult.shouldUpdate) {
-          console.log(
+          logger.log(
             `♻️ [DEDUP] Réutilisation: "${article.title}" (${dedupResult.chunksCount} chunks existants)`,
           );
           processedSources.push(dedupResult.sourceId!);
@@ -69,7 +70,7 @@ export class WikipediaRAGSystem {
 
         // 🔄 Si existe mais sans chunks, nettoyer et recréer
         if (dedupResult?.exists && dedupResult.shouldUpdate) {
-          console.log(
+          logger.log(
             `🧹 [DEDUP] Nettoyage et re-embedding: "${article.title}"`,
           );
           await deduplicationService.forceUpdate(dedupResult.sourceId!);
@@ -120,7 +121,7 @@ export class WikipediaRAGSystem {
               isGlobal: true, // 🔥 Source globale partagée
             },
           });
-          console.log(
+          logger.log(
             `🌍 [WIKIPEDIA-GLOBAL] Source globale créée: "${article.title}" (ID: ${source.id})`,
           );
         }
@@ -142,7 +143,7 @@ export class WikipediaRAGSystem {
 
         processedSources.push(source.id);
       } catch (error) {
-        console.error(`Erreur traitement article ${article.title}:`, error);
+        logger.error(`Erreur traitement article ${article.title}:`, error);
         // Continuer avec les autres articles
       }
     }
@@ -200,7 +201,7 @@ export class WikipediaRAGSystem {
 
         totalTokens += this.estimateTokens(enrichedContent);
       } catch (error) {
-        console.error(`Erreur enrichissement article ${pageid}:`, error);
+        logger.error(`Erreur enrichissement article ${pageid}:`, error);
       }
     }
 
@@ -335,7 +336,7 @@ export class WikipediaRAGSystem {
         ? introSection.content.slice(0, 500)
         : fullText.slice(0, 500);
 
-      console.log(
+      logger.log(
         `📖 [WIKIPEDIA] "${title}": ${fullText.length} chars, ${sections.length} sections, ${categories.length} catégories`,
       );
 
@@ -349,7 +350,7 @@ export class WikipediaRAGSystem {
         sections,
       };
     } catch (error) {
-      console.error(`Erreur récupération Wikipedia ${pageid}:`, error);
+      logger.error(`Erreur récupération Wikipedia ${pageid}:`, error);
       throw error;
     }
   }
@@ -504,7 +505,7 @@ export class WikipediaRAGSystem {
     );
 
     const t0 = Date.now();
-    console.log(
+    logger.log(
       `⚙️  [WIKIPEDIA] Embedding ${chunks.length} chunks (x${concurrency})…`,
     );
 
@@ -552,12 +553,12 @@ export class WikipediaRAGSystem {
         `;
         inserted++;
       }
-      console.log(
+      logger.log(
         `💾 [WIKIPEDIA] Inséré ${inserted}/${prepared.length} chunks…`,
       );
     }
 
-    console.log(`✅ [WIKIPEDIA] Terminé en ${Date.now() - t0} ms`);
+    logger.log(`✅ [WIKIPEDIA] Terminé en ${Date.now() - t0} ms`);
   }
 
   private async calculateSectionRelevance(
@@ -622,7 +623,7 @@ export class WikipediaRAGSystem {
       const { ragSystem } = await import("./index.js");
       return await ragSystem.embeddingService.generateEmbedding(text);
     } catch (error) {
-      console.error("Erreur génération embedding Wikipedia:", error);
+      logger.error("Erreur génération embedding Wikipedia:", error);
       throw error;
     }
   }

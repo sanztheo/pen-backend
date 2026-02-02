@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import multer, { FileFilterCallback } from "multer";
 import { authenticateToken } from "../middlewares/auth.js";
+import { logger } from "../utils/logger.js";
 import {
   uploadToCloudinary,
   deleteFromCloudinary,
@@ -69,7 +70,7 @@ router.post(
       const { buffer, mimetype, originalname } = req.file;
       const userId = req.user.id;
 
-      console.log("📤 Upload demandé:", {
+      logger.log("📤 Upload demandé:", {
         userId,
         filename: originalname,
         mimetype,
@@ -99,7 +100,7 @@ router.post(
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error("❌ Erreur upload:", error);
+      logger.error("❌ Erreur upload:", error);
 
       // Gestion erreurs spécifiques
       if (errorMessage.includes("FILE_TOO_LARGE")) {
@@ -133,14 +134,14 @@ router.delete(
   authenticateToken,
   async (req: Request, res: Response) => {
     const startTime = Date.now();
-    console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log("🗑️ [Route DELETE] NOUVELLE REQUÊTE DE SUPPRESSION");
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    logger.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    logger.log("🗑️ [Route DELETE] NOUVELLE REQUÊTE DE SUPPRESSION");
+    logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
     try {
       const { publicId } = req.params;
 
-      console.log("📝 [Route DELETE] Paramètres reçus:", {
+      logger.log("📝 [Route DELETE] Paramètres reçus:", {
         publicIdRaw: req.params.publicId,
         publicIdDecoded: decodeURIComponent(publicId),
         headers: {
@@ -151,7 +152,7 @@ router.delete(
 
       // Validation: publicId présent
       if (!publicId) {
-        console.log("❌ [Route DELETE] Échec: publicId manquant");
+        logger.log("❌ [Route DELETE] Échec: publicId manquant");
         return res.status(400).json({
           error: "publicId requis",
           code: "MISSING_PUBLIC_ID",
@@ -160,7 +161,7 @@ router.delete(
 
       // Validation: utilisateur authentifié
       if (!req.user) {
-        console.log("❌ [Route DELETE] Échec: utilisateur non authentifié");
+        logger.log("❌ [Route DELETE] Échec: utilisateur non authentifié");
         return res.status(401).json({
           error: "Utilisateur non authentifié",
           code: "UNAUTHORIZED",
@@ -178,21 +179,21 @@ router.delete(
         publicId.startsWith(expectedPrefix) ||
         publicId.startsWith(expectedPrefixAlt);
 
-      console.log("🔐 [Route DELETE] Vérification ownership:", {
+      logger.log("🔐 [Route DELETE] Vérification ownership:", {
         userId,
         publicId,
         isOwner,
       });
 
       if (!isOwner) {
-        console.log("❌ [Route DELETE] Échec: ownership refusé");
+        logger.log("❌ [Route DELETE] Échec: ownership refusé");
         return res.status(403).json({
           error: "Accès refusé: cette image ne vous appartient pas",
           code: "FORBIDDEN",
         });
       }
 
-      console.log(
+      logger.log(
         "✅ [Route DELETE] Validation réussie, appel service Cloudinary...",
       );
 
@@ -200,9 +201,9 @@ router.delete(
       await deleteFromCloudinary(publicId);
 
       const duration = Date.now() - startTime;
-      console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.log(`✅ [Route DELETE] SUCCÈS - Durée: ${duration}ms`);
-      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+      logger.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      logger.log(`✅ [Route DELETE] SUCCÈS - Durée: ${duration}ms`);
+      logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
       return res.status(200).json({
         success: true,
@@ -215,11 +216,11 @@ router.delete(
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
-      console.error("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-      console.error(`❌ [Route DELETE] ÉCHEC - Durée: ${duration}ms`);
-      console.error("Erreur:", errorMessage);
-      console.error("Stack:", errorStack);
-      console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+      logger.error("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      logger.error(`❌ [Route DELETE] ÉCHEC - Durée: ${duration}ms`);
+      logger.error("Erreur:", errorMessage);
+      logger.error("Stack:", errorStack);
+      logger.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
       return res.status(500).json({
         error: "Échec de la suppression",

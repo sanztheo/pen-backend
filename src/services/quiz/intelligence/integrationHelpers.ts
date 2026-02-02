@@ -6,6 +6,7 @@
  * dans le système de streaming SSE existant sans le remplacer.
  */
 
+import { logger } from "../../../utils/logger.js";
 import {
   ThematicClustererService,
   ThematicCluster,
@@ -98,35 +99,35 @@ export async function prepareIntelligentContext(
     return null;
   }
 
-  console.log(
+  logger.log(
     `🧠 [INTELLIGENT] Préparation contexte intelligent pour ${pageIds.length} pages, ${questionCount} questions`,
   );
 
   try {
     // 1. S'assurer que les concepts sont extraits pour toutes les pages
-    console.log(`📝 [INTELLIGENT] Vérification/extraction des concepts...`);
+    logger.log(`📝 [INTELLIGENT] Vérification/extraction des concepts...`);
     await ensureConceptsExtracted(pageIds);
 
     // 2. Clustering thématique des pages
-    console.log(`🎯 [INTELLIGENT] Clustering thématique...`);
+    logger.log(`🎯 [INTELLIGENT] Clustering thématique...`);
     const clusterResult = await ThematicClustererService.clusterPages(pageIds, {
       generateNames: cfg.generateClusterNames,
       minClusterSize: 1,
     });
 
     if (clusterResult.clusters.length === 0) {
-      console.warn(
+      logger.warn(
         `⚠️ [INTELLIGENT] Aucun cluster créé, fallback au mode normal`,
       );
       return null;
     }
 
-    console.log(
+    logger.log(
       `✅ [INTELLIGENT] ${clusterResult.clusters.length} clusters créés`,
     );
 
     // 3. Sélection intelligente du contenu pour chaque cluster
-    console.log(`📦 [INTELLIGENT] Sélection du contenu pertinent...`);
+    logger.log(`📦 [INTELLIGENT] Sélection du contenu pertinent...`);
     const tokensPerCluster = Math.floor(
       cfg.maxTokens / clusterResult.clusters.length,
     );
@@ -157,7 +158,7 @@ export async function prepareIntelligentContext(
     const stats = calculateStats(clusterResult.clusters, selectedContentMap);
 
     const processingTimeMs = Date.now() - startTime;
-    console.log(`⏱️ [INTELLIGENT] Contexte préparé en ${processingTimeMs}ms`);
+    logger.log(`⏱️ [INTELLIGENT] Contexte préparé en ${processingTimeMs}ms`);
 
     return {
       enrichedRagContext,
@@ -173,7 +174,7 @@ export async function prepareIntelligentContext(
       stats,
     };
   } catch (error) {
-    console.error(`❌ [INTELLIGENT] Erreur préparation contexte:`, error);
+    logger.error(`❌ [INTELLIGENT] Erreur préparation contexte:`, error);
     return null;
   }
 }
@@ -219,11 +220,11 @@ async function ensureConceptsExtracted(pageIds: string[]): Promise<void> {
   const missingPageIds = pageIds.filter((id) => !existingPageIds.has(id));
 
   if (missingPageIds.length === 0) {
-    console.log(`✅ [INTELLIGENT] Tous les concepts déjà extraits`);
+    logger.log(`✅ [INTELLIGENT] Tous les concepts déjà extraits`);
     return;
   }
 
-  console.log(
+  logger.log(
     `📝 [INTELLIGENT] Extraction des concepts pour ${missingPageIds.length} pages...`,
   );
 
@@ -234,7 +235,7 @@ async function ensureConceptsExtracted(pageIds: string[]): Promise<void> {
     await Promise.all(
       batch.map((pageId) =>
         ConceptExtractorService.extractAndStore(pageId).catch((err) => {
-          console.warn(
+          logger.warn(
             `⚠️ [INTELLIGENT] Échec extraction page ${pageId}:`,
             err.message,
           );
@@ -296,7 +297,7 @@ function distributeQuestionsByClusters(
     });
   });
 
-  console.log(
+  logger.log(
     `📊 [INTELLIGENT] Distribution: ${distribution
       .map((d) => `${d.clusterName}(${d.questionCount})`)
       .join(", ")}`,

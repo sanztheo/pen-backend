@@ -3,6 +3,7 @@
  * Vérifie que 3 pages avec sujets différents créent plusieurs clusters
  */
 
+import { logger } from "../../../../utils/logger.js";
 import { describe, expect, it } from "@jest/globals";
 import { kMeans } from "../../../../utils/clustering.js";
 
@@ -34,10 +35,10 @@ describe("Clustering Fix - Multiple clusters avec peu de pages", () => {
     const nonEmptyClusters = result.clusters.filter((c) => c.length > 0);
     expect(nonEmptyClusters.length).toBeGreaterThanOrEqual(2);
 
-    console.log(
+    logger.log(
       `✅ K-means créé ${nonEmptyClusters.length} clusters pour 3 pages`,
     );
-    console.log(
+    logger.log(
       `   Cluster 1: ${result.clusters[0].length} pages, Cluster 2: ${result.clusters[1]?.length || 0} pages`,
     );
   });
@@ -70,8 +71,8 @@ describe("Clustering Fix - Multiple clusters avec peu de pages", () => {
     const newK = Math.min(maxClusters, Math.max(2, Math.ceil(pageCount / 2.5)));
     expect(newK).toBe(2); // FIX: 2 clusters minimum
 
-    console.log(`   Ancienne: k=${oldK} ❌`);
-    console.log(`   Nouvelle: k=${newK} ✅`);
+    logger.log(`   Ancienne: k=${oldK} ❌`);
+    logger.log(`   Nouvelle: k=${newK} ✅`);
   });
 
   it("table de vérification: k pour différents nombres de pages", () => {
@@ -86,15 +87,15 @@ describe("Clustering Fix - Multiple clusters avec peu de pages", () => {
       { pages: 13, expectedK: 6 }, // Math.max(2, ceil(13/2.5)) = 6
     ];
 
-    console.log("\n📊 Table k optimal:");
-    console.log("Pages | k ancien | k nouveau");
-    console.log("------|----------|----------");
+    logger.log("\n📊 Table k optimal:");
+    logger.log("Pages | k ancien | k nouveau");
+    logger.log("------|----------|----------");
 
     for (const { pages, expectedK } of testCases) {
       const oldK = Math.min(10, Math.ceil(pages / 4));
       const newK = Math.min(10, Math.max(2, Math.ceil(pages / 2.5)));
 
-      console.log(
+      logger.log(
         `  ${pages.toString().padStart(2)}  |    ${oldK}     |     ${newK}`,
       );
       expect(newK).toBe(expectedK);

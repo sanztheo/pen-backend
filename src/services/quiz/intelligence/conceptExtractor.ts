@@ -3,6 +3,7 @@
  * PEN-15: Extrait automatiquement les concepts clés des pages
  */
 
+import { logger } from "../../../utils/logger.js";
 import OpenAI from "openai";
 import { prisma } from "../../../lib/prisma.js";
 import { extractTextFromBlockNote } from "../../../controllers/assistant/helpers/blocknote.js";
@@ -62,7 +63,7 @@ export class ConceptExtractorService {
       skipAI = false,
     } = options;
 
-    console.log(`🧠 [ConceptExtractor] Extraction pour page ${pageId}...`);
+    logger.log(`🧠 [ConceptExtractor] Extraction pour page ${pageId}...`);
 
     try {
       // 1. Vérifier si l'extraction existe déjà
@@ -71,7 +72,7 @@ export class ConceptExtractorService {
           where: { pageId },
         });
         if (existing) {
-          console.log(
+          logger.log(
             `🧠 [ConceptExtractor] Concepts déjà extraits, skip (use forceRefresh=true)`,
           );
           return {
@@ -135,7 +136,7 @@ export class ConceptExtractorService {
         ? (page.blockNoteContent as unknown[])
         : null;
       if (!blocks || blocks.length === 0) {
-        console.log(`🧠 [ConceptExtractor] Page vide, skip`);
+        logger.log(`🧠 [ConceptExtractor] Page vide, skip`);
         return {
           success: false,
           pageId,
@@ -161,7 +162,7 @@ export class ConceptExtractorService {
 
       // Minimum de contenu requis
       if (wordCount < 50) {
-        console.log(
+        logger.log(
           `🧠 [ConceptExtractor] Contenu trop court (${wordCount} mots), skip`,
         );
         return {
@@ -241,13 +242,13 @@ export class ConceptExtractorService {
       });
 
       const processingTimeMs = Date.now() - startTime;
-      console.log(
+      logger.log(
         `✅ [ConceptExtractor] Extraction terminée en ${processingTimeMs}ms`,
       );
-      console.log(
+      logger.log(
         `   📚 ${concepts.keywords.length} keywords, ${concepts.keyPoints.length} keyPoints`,
       );
-      console.log(
+      logger.log(
         `   🎯 Topic: "${concepts.topic}", Difficulty: ${difficulty}`,
       );
 
@@ -262,7 +263,7 @@ export class ConceptExtractorService {
         processingTimeMs,
       };
     } catch (error) {
-      console.error(`❌ [ConceptExtractor] Erreur:`, error);
+      logger.error(`❌ [ConceptExtractor] Erreur:`, error);
       return {
         success: false,
         pageId,
@@ -288,7 +289,7 @@ export class ConceptExtractorService {
   private static async extractWithAI(
     content: string,
   ): Promise<ExtractedConcepts> {
-    console.log(`🤖 [ConceptExtractor] Extraction AI (${EXTRACTION_MODEL})...`);
+    logger.log(`🤖 [ConceptExtractor] Extraction AI (${EXTRACTION_MODEL})...`);
 
     const openai = getOpenAI();
 
@@ -319,7 +320,7 @@ export class ConceptExtractorService {
       }
       return parsed.data satisfies ExtractedConcepts;
     } catch {
-      console.error(`❌ [ConceptExtractor] Erreur parsing JSON AI:`, result);
+      logger.error(`❌ [ConceptExtractor] Erreur parsing JSON AI:`, result);
       throw new Error("Réponse AI non parseable");
     }
   }
@@ -364,7 +365,7 @@ export class ConceptExtractorService {
    * Génère un embedding avec OpenAI
    */
   private static async generateEmbedding(text: string): Promise<number[]> {
-    console.log(`🔢 [ConceptExtractor] Génération embedding...`);
+    logger.log(`🔢 [ConceptExtractor] Génération embedding...`);
 
     const openai = getOpenAI();
 
@@ -421,7 +422,7 @@ export class ConceptExtractorService {
    * Utilisé après modification du contenu
    */
   static async invalidateAndRefresh(pageId: string): Promise<ExtractionResult> {
-    console.log(
+    logger.log(
       `🔄 [ConceptExtractor] Invalidation et refresh pour page ${pageId}`,
     );
     return this.extractAndStore(pageId, { forceRefresh: true });
@@ -433,7 +434,7 @@ export class ConceptExtractorService {
   static async deleteConcepts(pageId: string): Promise<boolean> {
     try {
       await prisma.pageConcepts.delete({ where: { pageId } });
-      console.log(
+      logger.log(
         `🗑️ [ConceptExtractor] Concepts supprimés pour page ${pageId}`,
       );
       return true;
@@ -464,7 +465,7 @@ export class ConceptExtractorService {
     pageIds: string[],
     options: ExtractionOptions = {},
   ): Promise<Map<string, ExtractionResult>> {
-    console.log(
+    logger.log(
       `🧠 [ConceptExtractor] Extraction batch de ${pageIds.length} pages...`,
     );
 
@@ -482,7 +483,7 @@ export class ConceptExtractorService {
     }
 
     const successCount = [...results.values()].filter((r) => r.success).length;
-    console.log(
+    logger.log(
       `✅ [ConceptExtractor] Batch terminé: ${successCount}/${pageIds.length} succès`,
     );
 

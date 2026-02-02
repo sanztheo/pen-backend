@@ -1,4 +1,5 @@
 import { prisma } from "../../../lib/prisma.js";
+import { logger } from "../../../utils/logger.js";
 
 /**
  * BlockNote content type definitions for type-safe parsing
@@ -83,7 +84,7 @@ export async function indexAndPreparePagesForAI(
             }
           } catch (e) {
             const errorMsg = e instanceof Error ? e.message : String(e);
-            console.log(`⚠️ Erreur extraction contenu page: ${errorMsg}`);
+            logger.log(`⚠️ Erreur extraction contenu page: ${errorMsg}`);
           }
 
           // Indexer la page si pas déjà fait
@@ -105,7 +106,7 @@ export async function indexAndPreparePagesForAI(
         return { id: p.id, title: p.title, type: "WORKSPACE_PAGE" };
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
-        console.log(`⚠️ Erreur traitement page "${p.title}": ${errorMsg}`);
+        logger.log(`⚠️ Erreur traitement page "${p.title}": ${errorMsg}`);
         return { id: p.id, title: p.title, type: "WORKSPACE_PAGE" };
       }
     }),

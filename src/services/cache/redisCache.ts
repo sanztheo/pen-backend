@@ -1,4 +1,5 @@
 import Redis from "ioredis";
+import { logger } from "../../utils/logger.js";
 
 // Configuration Redis (Railway ou local)
 const redisUrl =
@@ -23,19 +24,19 @@ const redis = new Redis(redisUrl, {
 
 // Gestion des erreurs Redis
 redis.on("error", (error) => {
-  console.error("❌ [Redis] Erreur de connexion:", error);
+  logger.error("❌ [Redis] Erreur de connexion:", error);
 });
 
 redis.on("connect", () => {
-  console.log("✅ [Redis] Connexion établie");
+  logger.log("✅ [Redis] Connexion établie");
 });
 
 redis.on("ready", () => {
-  console.log("✅ [Redis] Prêt à accepter les commandes");
+  logger.log("✅ [Redis] Prêt à accepter les commandes");
 });
 
 redis.on("reconnecting", () => {
-  console.warn("🔄 [Redis] Reconnexion en cours...");
+  logger.warn("🔄 [Redis] Reconnexion en cours...");
 });
 
 // Types
@@ -79,15 +80,15 @@ class RedisCacheService {
       const data = await redis.get(cacheKey);
 
       if (!data) {
-        console.log(`🔍 [Redis Cache] MISS: ${cacheKey}`);
+        logger.log(`🔍 [Redis Cache] MISS: ${cacheKey}`);
         return null;
       }
 
-      console.log(`✅ [Redis Cache] HIT: ${cacheKey}`);
+      logger.log(`✅ [Redis Cache] HIT: ${cacheKey}`);
       const parsed = safeJsonParse(data);
       return parse(parsed);
     } catch (error) {
-      console.error(`❌ [Redis Cache] Erreur GET ${key}:`, error);
+      logger.error(`❌ [Redis Cache] Erreur GET ${key}:`, error);
       return null; // Fallback gracieux en cas d'erreur
     }
   }
@@ -106,10 +107,10 @@ class RedisCacheService {
       const serialized = JSON.stringify(value);
 
       await redis.setex(cacheKey, ttl, serialized);
-      console.log(`💾 [Redis Cache] SET: ${cacheKey} (TTL: ${ttl}s)`);
+      logger.log(`💾 [Redis Cache] SET: ${cacheKey} (TTL: ${ttl}s)`);
       return true;
     } catch (error) {
-      console.error(`❌ [Redis Cache] Erreur SET ${key}:`, error);
+      logger.error(`❌ [Redis Cache] Erreur SET ${key}:`, error);
       return false;
     }
   }
@@ -121,10 +122,10 @@ class RedisCacheService {
     try {
       const cacheKey = this.getKey(key, options?.namespace);
       const result = await redis.del(cacheKey);
-      console.log(`🗑️ [Redis Cache] INVALIDATE: ${cacheKey}`);
+      logger.log(`🗑️ [Redis Cache] INVALIDATE: ${cacheKey}`);
       return result > 0;
     } catch (error) {
-      console.error(`❌ [Redis Cache] Erreur INVALIDATE ${key}:`, error);
+      logger.error(`❌ [Redis Cache] Erreur INVALIDATE ${key}:`, error);
       return false;
     }
   }
@@ -142,19 +143,19 @@ class RedisCacheService {
 
       const keys = await redis.keys(fullPattern);
       if (keys.length === 0) {
-        console.log(
+        logger.log(
           `🔍 [Redis Cache] Aucune clé trouvée pour pattern: ${fullPattern}`,
         );
         return 0;
       }
 
       const result = await redis.del(...keys);
-      console.log(
+      logger.log(
         `🗑️ [Redis Cache] INVALIDATE PATTERN: ${fullPattern} (${result} clés supprimées)`,
       );
       return result;
     } catch (error) {
-      console.error(
+      logger.error(
         `❌ [Redis Cache] Erreur INVALIDATE PATTERN ${pattern}:`,
         error,
       );
@@ -171,7 +172,7 @@ class RedisCacheService {
       const result = await redis.exists(cacheKey);
       return result === 1;
     } catch (error) {
-      console.error(`❌ [Redis Cache] Erreur EXISTS ${key}:`, error);
+      logger.error(`❌ [Redis Cache] Erreur EXISTS ${key}:`, error);
       return false;
     }
   }
@@ -193,17 +194,17 @@ class RedisCacheService {
       }
 
       // Si pas en cache, générer la valeur
-      console.log(`🔄 [Redis Cache] Génération pour: ${key}`);
+      logger.log(`🔄 [Redis Cache] Génération pour: ${key}`);
       const value = await factory();
 
       // Stocker en cache (fire and forget)
       this.set(key, value, options).catch((error) => {
-        console.warn(`⚠️ [Redis Cache] Échec stockage ${key}:`, error);
+        logger.warn(`⚠️ [Redis Cache] Échec stockage ${key}:`, error);
       });
 
       return value;
     } catch (error) {
-      console.error(`❌ [Redis Cache] Erreur GET_OR_SET ${key}:`, error);
+      logger.error(`❌ [Redis Cache] Erreur GET_OR_SET ${key}:`, error);
       // En cas d'erreur, appeler directement le factory
       return factory();
     }
@@ -224,7 +225,7 @@ class RedisCacheService {
       await redis.ping();
       return true;
     } catch (error) {
-      console.error("❌ [Redis] Health check failed:", error);
+      logger.error("❌ [Redis] Health check failed:", error);
       return false;
     }
   }
@@ -235,9 +236,9 @@ class RedisCacheService {
   async disconnect(): Promise<void> {
     try {
       await redis.quit();
-      console.log("👋 [Redis] Connexion fermée proprement");
+      logger.log("👋 [Redis] Connexion fermée proprement");
     } catch (error) {
-      console.error("❌ [Redis] Erreur lors de la fermeture:", error);
+      logger.error("❌ [Redis] Erreur lors de la fermeture:", error);
     }
   }
 }

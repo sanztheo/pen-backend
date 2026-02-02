@@ -3,6 +3,7 @@
 import OpenAI from "openai";
 import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 import { AIService } from "../../../ai/base.js";
+import { logger } from "../../../../utils/logger.js";
 import {
   QUIZ_CORRECTION_STANDARD_SCHEMA,
   QUIZ_CORRECTION_COMPLETE_SCHEMA,
@@ -62,7 +63,7 @@ export class ChatCorrection {
   ): Promise<CorrectionResult> {
     try {
       const correctionModel = AIService.getQuizCorrectionModel();
-      console.log(
+      logger.log(
         `🚀 [CORRECTION] Correction standard via Chat Completion + JSON strict (${correctionModel})`,
       );
 
@@ -78,12 +79,12 @@ export class ChatCorrection {
       );
 
       // Debug du prompt utilisateur (tronqué)
-      console.log(
+      logger.log(
         "🐛 [DEBUG] [CORRECTION] Prompt utilisateur (500 premiers caractères):",
         userPrompt.substring(0, 500) + "...",
       );
 
-      console.log(
+      logger.log(
         `📤 [CORRECTION] Envoi à ${correctionModel} avec JSON strict`,
       );
 
@@ -115,7 +116,7 @@ export class ChatCorrection {
         apiConfig.reasoning_effort = "low";
         apiConfig.max_completion_tokens = 4000;
         // GPT-5 n'accepte que temperature=1 (défaut), on ne le spécifie pas
-        console.log(
+        logger.log(
           "🧠 [CORRECTION] GPT-5-mini détecté : reasoning_effort=low, max_completion_tokens=4000, temperature=1 (défaut)",
         );
       } else {
@@ -140,19 +141,19 @@ export class ChatCorrection {
       logCorrectionResult(result);
 
       if (result && result.corrections && Array.isArray(result.corrections)) {
-        console.log(
+        logger.log(
           "✅ [CORRECTION] Correction standard générée avec succès via chat completion",
         );
         return result;
       }
 
-      console.error(
+      logger.error(
         "❌ [CORRECTION] Réponse inattendue du chat completion:",
         result,
       );
       throw new Error("Aucune correction valide générée");
     } catch (error) {
-      console.error("❌ [CORRECTION] Erreur correction standard:", error);
+      logger.error("❌ [CORRECTION] Erreur correction standard:", error);
       throw error;
     }
   }
@@ -167,7 +168,7 @@ export class ChatCorrection {
   ): Promise<CorrectionResult> {
     try {
       const correctionModel = AIService.getQuizCorrectionModel();
-      console.log(
+      logger.log(
         `🚀 [CORRECTION] Correction complète via Chat Completion + JSON strict (${correctionModel})`,
       );
 
@@ -179,7 +180,7 @@ export class ChatCorrection {
         options,
       );
 
-      console.log(
+      logger.log(
         `📤 [CORRECTION] Envoi à ${correctionModel} avec JSON strict (schéma complet)`,
       );
 
@@ -211,7 +212,7 @@ export class ChatCorrection {
         apiConfig.reasoning_effort = "low";
         apiConfig.max_completion_tokens = 6000;
         // GPT-5 n'accepte que temperature=1 (défaut), on ne le spécifie pas
-        console.log(
+        logger.log(
           "🧠 [CORRECTION] GPT-5-mini détecté : reasoning_effort=low, max_completion_tokens=6000, temperature=1 (défaut)",
         );
       } else {
@@ -233,19 +234,19 @@ export class ChatCorrection {
       const result = JSON.parse(responseContent);
 
       if (result && result.corrections && Array.isArray(result.corrections)) {
-        console.log(
+        logger.log(
           "✅ [CORRECTION] Correction complète générée avec succès via chat completion",
         );
         return result;
       }
 
-      console.error(
+      logger.error(
         "❌ [CORRECTION] Réponse inattendue du chat completion:",
         result,
       );
       throw new Error("Aucune correction complète valide générée");
     } catch (error) {
-      console.error("❌ [CORRECTION] Erreur correction complète:", error);
+      logger.error("❌ [CORRECTION] Erreur correction complète:", error);
       throw error;
     }
   }

@@ -1,4 +1,5 @@
 import { AIService } from "../../ai/base.js";
+import { logger } from "../../../utils/logger.js";
 import {
   Question,
   OpenQuestion,
@@ -350,9 +351,9 @@ export class CorrectionGenerator {
       }
 
       fs.writeFileSync(filepath, JSON.stringify(debugData, null, 2));
-      console.log(`🐛 [DEBUG] Données de correction sauvegardées: ${filename}`);
+      logger.log(`🐛 [DEBUG] Données de correction sauvegardées: ${filename}`);
     } catch (error) {
-      console.error("❌ Erreur lors de la sauvegarde debug:", error);
+      logger.error("❌ Erreur lors de la sauvegarde debug:", error);
     }
   }
 
@@ -379,7 +380,7 @@ export class CorrectionGenerator {
         q.type === "MATCHING",
     );
 
-    console.log(
+    logger.log(
       `🤖 [AUTO-CORRECTION] Correction automatique de ${closedQuestions.length} questions fermées`,
     );
 
@@ -493,7 +494,7 @@ export class CorrectionGenerator {
           break;
       }
 
-      console.log(
+      logger.log(
         `✅ [AUTO] Question ${question.id} (${question.type}): ${score}/${maxScore} points - ${isCorrect ? "CORRECT" : "INCORRECT"}`,
       );
 
@@ -529,12 +530,12 @@ export class CorrectionGenerator {
             request.userId,
           );
           if (personalization?.hasPersonalization) {
-            console.log(
+            logger.log(
               `👤 [PERSONALIZATION] Contexte correction chargé: ${personalization.classe || "N/A"}, ${personalization.domaine || "N/A"}`,
             );
           }
         } catch (error) {
-          console.warn(
+          logger.warn(
             "⚠️ [PERSONALIZATION] Impossible de charger la personnalisation:",
             error,
           );
@@ -546,13 +547,13 @@ export class CorrectionGenerator {
         questions,
         userAnswers,
       );
-      console.log(
+      logger.log(
         `⚡ [HYBRID] Correction automatique : ${autoCorrections.length} questions traitées instantanément`,
       );
 
       // 🧠 ÉTAPE 2 : Identifier les questions ouvertes qui nécessitent l'IA
       const openQuestions = questions.filter((q) => q.type === "OPEN_QUESTION");
-      console.log(
+      logger.log(
         `🤖 [HYBRID] Questions ouvertes nécessitant l'IA : ${openQuestions.length}`,
       );
 
@@ -561,14 +562,14 @@ export class CorrectionGenerator {
 
       // Si on a des questions ouvertes, utiliser l'IA seulement pour elles
       if (openQuestions.length > 0) {
-        console.log(
+        logger.log(
           `🧠 [IA] Correction de ${openQuestions.length} questions ouvertes avec IA...`,
         );
 
         // Réduire considérablement les tokens car on a moins de questions à traiter
         const baseTokens = openQuestions.length * 800; // ~800 tokens par question ouverte
         maxTokens = Math.min(Math.max(baseTokens, 2000), 8000); // Entre 2K et 8K tokens
-        console.log(
+        logger.log(
           `⚡ [OPTIMISATION] Tokens réduits pour questions ouvertes : ${maxTokens} (vs 12K habituels)`,
         );
 
@@ -581,7 +582,7 @@ export class CorrectionGenerator {
           request.workspaceContent.length > 0
         ) {
           // Mode correction basée uniquement sur les cours (pour questions ouvertes)
-          console.log(
+          logger.log(
             `📝 [IA-OPEN] Mode coursesOnly pour questions ouvertes avec ${request.workspaceContent.length} workspace(s)`,
           );
 
@@ -615,7 +616,7 @@ CONSIGNES DE CORRECTION STRICTE POUR QUESTIONS OUVERTES :
 - Explications détaillées basées sur le contenu de référence`;
         } else if (request.preset && request.preset !== "NONE") {
           // Mode preset pour questions ouvertes
-          console.log(
+          logger.log(
             `📝 [IA-OPEN] Prompt preset pour questions ouvertes: ${request.preset} - ${request.specificSubject || "matière par défaut"}`,
           );
           const basePrompt = PromptUtils.getPresetPrompt(
@@ -637,7 +638,7 @@ Tu corriges seulement les questions ouvertes avec rigueur académique.
 Les QCM, Vrai/Faux et Matching sont déjà corrigés automatiquement.`;
         } else {
           // Mode générique pour questions ouvertes
-          console.log(
+          logger.log(
             `📝 [IA-OPEN] Prompt générique pour questions ouvertes: ${request.schoolLevel}`,
           );
           const basePrompt = PromptUtils.getGenerationPromptByLevel(
@@ -659,7 +660,7 @@ Les QCM, Vrai/Faux et Matching sont déjà corrigés automatiquement.`;
           request.sourceDocuments &&
           request.sourceDocuments.length > 0
         ) {
-          console.log(
+          logger.log(
             `📚 [IA-OPEN] Intégration de ${request.sourceDocuments.length} document(s) Wikipedia pour questions ouvertes`,
           );
 
@@ -694,7 +695,7 @@ CONSIGNES POUR LES QUESTIONS OUVERTES DOCUMENTAIRES :
           personalization.correctionPromptSection
         ) {
           personalizationSection = `\n${personalization.correctionPromptSection}\n`;
-          console.log(
+          logger.log(
             `👤 [PERSONALIZATION] Section de correction personnalisée ajoutée`,
           );
         }
@@ -755,7 +756,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
           model: AIService.getQuizCorrectionModel(),
         });
 
-        console.log(
+        logger.log(
           `🐛 [DEBUG] Réponse IA pour questions ouvertes (${result.content.length} caractères):`,
           result.content.substring(0, 300) + "...",
         );
@@ -766,7 +767,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         const aiCorrectionParsed =
           AICorrectionResponseSchema.safeParse(aiCorrectionRaw);
         if (!aiCorrectionParsed.success) {
-          console.warn("⚠️ Réponse IA invalide (questions ouvertes)");
+          logger.warn("⚠️ Réponse IA invalide (questions ouvertes)");
         }
         const aiCorrectionData: AICorrectionResponse = aiCorrectionParsed.success
           ? aiCorrectionParsed.data
@@ -778,18 +779,18 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
           openQuestions,
         );
 
-        console.log(
+        logger.log(
           `✅ [IA] ${aiCorrections.length} questions ouvertes corrigées par l'IA`,
         );
       } else {
-        console.log(
+        logger.log(
           `⚡ [HYBRID] Aucune question ouverte - correction 100% automatique !`,
         );
       }
 
       // 🔗 ÉTAPE 3 : Combiner les corrections automatiques + IA
       const allCorrections = [...autoCorrections, ...aiCorrections];
-      console.log(
+      logger.log(
         `🎯 [HYBRID] TOTAL: ${allCorrections.length} questions corrigées (${autoCorrections.length} auto + ${aiCorrections.length} IA)`,
       );
 
@@ -804,7 +805,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
       const { realTotalScore, realMaxScore, realPercentage, realAdaptedGrade } =
         this.recalculateScores(sortedCorrections);
 
-      console.log(`🔢 SCORES FINAUX HYBRIDES :
+      logger.log(`🔢 SCORES FINAUX HYBRIDES :
         - Score total : ${realTotalScore}/${realMaxScore}
         - Pourcentage : ${realPercentage.toFixed(2)}%
         - Note sur 20 : ${realAdaptedGrade.toFixed(2)}/20
@@ -856,7 +857,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
 
       return correctionResult;
     } catch (error) {
-      console.error("Erreur correction quiz hybride:", error);
+      logger.error("Erreur correction quiz hybride:", error);
       throw new Error(
         `Échec de la correction du quiz: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -886,7 +887,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         questions,
         userAnswers,
       );
-      console.log(
+      logger.log(
         `⚡ [HYBRID-STREAMING] Correction automatique : ${autoCorrections.length} questions fermées traitées`,
       );
 
@@ -906,7 +907,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
 
       // 🧠 ÉTAPE 2 : Identifier les questions ouvertes qui nécessitent l'IA
       const openQuestions = questions.filter((q) => q.type === "OPEN_QUESTION");
-      console.log(
+      logger.log(
         `🤖 [HYBRID-STREAMING] Questions ouvertes nécessitant l'IA : ${openQuestions.length}`,
       );
 
@@ -921,7 +922,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
               (ua) => ua.questionId === openQuestion.id,
             );
 
-            console.log(
+            logger.log(
               `🧠 [STREAMING] Correction question ouverte ${i + 1}/${openQuestions.length}`,
             );
 
@@ -943,11 +944,11 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
               correction: singleQuestionCorrection,
             };
 
-            console.log(
+            logger.log(
               `✅ [STREAMING] Question ouverte ${i + 1} corrigée et envoyée`,
             );
           } catch (error) {
-            console.error(
+            logger.error(
               `❌ [STREAMING] Erreur correction question ouverte ${i + 1}:`,
               error,
             );
@@ -955,14 +956,14 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
           }
         }
       } else {
-        console.log(
+        logger.log(
           `⚡ [HYBRID-STREAMING] Aucune question ouverte - correction 100% automatique !`,
         );
       }
 
       // 🔗 ÉTAPE 3 : Combiner les corrections automatiques + IA
       const allCorrections = [...closedWithSuggestions, ...aiCorrections];
-      console.log(
+      logger.log(
         `🎯 [HYBRID-STREAMING] TOTAL: ${allCorrections.length} questions corrigées (${closedWithSuggestions.length} auto + ${aiCorrections.length} IA)`,
       );
 
@@ -977,7 +978,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
       const { realTotalScore, realMaxScore, realPercentage, realAdaptedGrade } =
         this.recalculateScores(sortedCorrections);
 
-      console.log(`🔢 SCORES FINAUX HYBRIDES STREAMING :
+      logger.log(`🔢 SCORES FINAUX HYBRIDES STREAMING :
         - Score total : ${realTotalScore}/${realMaxScore}
         - Pourcentage : ${realPercentage.toFixed(2)}%
         - Note sur 20 : ${realAdaptedGrade.toFixed(2)}/20
@@ -985,7 +986,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         - Correction IA: ${aiCorrections.length} questions`);
 
       // 🧠 ÉTAPE 4 : Générer l'analyse détaillée IA
-      console.log("🧠 [STREAMING] Génération de l'analyse détaillée IA...");
+      logger.log("🧠 [STREAMING] Génération de l'analyse détaillée IA...");
       const detailedAnalysis = await this.generateDetailedAnalysis(
         questions,
         sortedCorrections,
@@ -1036,7 +1037,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         correctionResult,
       );
     } catch (error) {
-      console.error("Erreur correction quiz streaming:", error);
+      logger.error("Erreur correction quiz streaming:", error);
       throw new Error(
         `Échec de la correction du quiz: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -1280,7 +1281,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         let finalScore = hasNoAnswer ? 0 : Math.min(cleanScore, actualMaxScore);
 
         if (hasNoAnswer && cleanScore > 0) {
-          console.log(
+          logger.log(
             `🔧 [FIX-NO-ANSWER] Question ${qr.questionId}: Pas de réponse détectée, score forcé à 0 (IA avait donné ${cleanScore})`,
           );
         }
@@ -1290,7 +1291,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         const aiSaysCorrect = qr.isCorrect === true || qr.isCorrect === "true";
 
         if (!hasNoAnswer && aiSaysCorrect && finalScore < actualMaxScore) {
-          console.log(
+          logger.log(
             `🔧 [SCORING-FIX] Question ${qr.questionId}: L'IA dit correct mais score partiel ${finalScore}/${actualMaxScore} → Correction à ${actualMaxScore}/${actualMaxScore}`,
           );
           finalScore = actualMaxScore;
@@ -1364,10 +1365,10 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
     const startTime = Date.now();
 
     try {
-      console.log(
+      logger.log(
         `🎯 [SUBJECT-CORRECTION] Correction hybride du sujet: ${request.subjectTitle}`,
       );
-      console.log(
+      logger.log(
         `📝 [SUBJECT-CORRECTION] ${exercises.length} exercices à corriger`,
       );
 
@@ -1376,7 +1377,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         exercises,
         userAnswers,
       );
-      console.log(
+      logger.log(
         `⚡ [SUBJECT-HYBRID] Correction automatique : ${autoCorrections.length} exercices traités instantanément`,
       );
 
@@ -1384,7 +1385,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
       const openExercises = exercises.filter(
         (ex) => ex.type === "TEXTE_LIBRE" || ex.type === "CALCUL",
       );
-      console.log(
+      logger.log(
         `🤖 [SUBJECT-HYBRID] Exercices ouverts nécessitant l'IA : ${openExercises.length}`,
       );
 
@@ -1393,14 +1394,14 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
 
       // Si on a des exercices ouverts, utiliser l'IA seulement pour eux
       if (openExercises.length > 0) {
-        console.log(
+        logger.log(
           `🧠 [SUBJECT-IA] Correction de ${openExercises.length} exercices ouverts avec IA...`,
         );
 
         // Réduire les tokens car on a moins d'exercices à traiter
         const baseTokens = openExercises.length * 1000; // ~1000 tokens par exercice ouvert
         maxTokens = Math.min(Math.max(baseTokens, 3000), 10000); // Entre 3K et 10K tokens
-        console.log(
+        logger.log(
           `⚡ [SUBJECT-OPTIMISATION] Tokens réduits pour exercices ouverts : ${maxTokens}`,
         );
 
@@ -1465,7 +1466,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
           model: AIService.getQuizCorrectionModel(),
         });
 
-        console.log(
+        logger.log(
           `🐛 [DEBUG] Réponse IA pour exercices ouverts du sujet (${result.content.length} caractères)`,
         );
 
@@ -1475,7 +1476,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
         const aiCorrectionParsed =
           AICorrectionResponseSchema.safeParse(aiCorrectionRaw);
         if (!aiCorrectionParsed.success) {
-          console.warn("⚠️ Réponse IA invalide (exercices ouverts)");
+          logger.warn("⚠️ Réponse IA invalide (exercices ouverts)");
         }
         const aiCorrectionData: AICorrectionResponse = aiCorrectionParsed.success
           ? aiCorrectionParsed.data
@@ -1487,18 +1488,18 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
           openExercises,
         );
 
-        console.log(
+        logger.log(
           `✅ [SUBJECT-IA] ${aiCorrections.length} exercices ouverts corrigés par l'IA`,
         );
       } else {
-        console.log(
+        logger.log(
           `⚡ [SUBJECT-HYBRID] Aucun exercice ouvert - correction 100% automatique !`,
         );
       }
 
       // 🔗 ÉTAPE 3 : Combiner les corrections automatiques + IA
       const allCorrections = [...autoCorrections, ...aiCorrections];
-      console.log(
+      logger.log(
         `🎯 [SUBJECT-HYBRID] TOTAL: ${allCorrections.length} exercices corrigés (${autoCorrections.length} auto + ${aiCorrections.length} IA)`,
       );
 
@@ -1513,7 +1514,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
       const { realTotalScore, realMaxScore, realPercentage, realAdaptedGrade } =
         this.recalculateSubjectScores(sortedCorrections);
 
-      console.log(`🔢 SCORES FINAUX HYBRIDES SUJET :
+      logger.log(`🔢 SCORES FINAUX HYBRIDES SUJET :
         - Score total : ${realTotalScore}/${realMaxScore}
         - Pourcentage : ${realPercentage.toFixed(2)}%
         - Note sur 20 : ${realAdaptedGrade.toFixed(2)}/20
@@ -1551,7 +1552,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
 
       return correctionResult;
     } catch (error) {
-      console.error("Erreur correction sujet hybride:", error);
+      logger.error("Erreur correction sujet hybride:", error);
       throw new Error(
         `Échec de la correction du sujet: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -1570,7 +1571,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
       (ex) => ex.type === "QCM" || ex.type === "VRAI_FAUX",
     );
 
-    console.log(
+    logger.log(
       `🤖 [SUBJECT-AUTO-CORRECTION] Correction automatique de ${closedExercises.length} exercices fermés`,
     );
 
@@ -1640,7 +1641,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
           break;
       }
 
-      console.log(
+      logger.log(
         `✅ [SUBJECT-AUTO] Exercice ${exercise.id} (${exercise.type}): ${score}/${maxScore} points - ${isCorrect ? "CORRECT" : "INCORRECT"}`,
       );
 
@@ -1797,7 +1798,7 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Con
         let finalScore = hasNoAnswer ? 0 : Math.min(cleanScore, actualMaxScore);
 
         if (hasNoAnswer && cleanScore > 0) {
-          console.log(
+          logger.log(
             `🔧 [FIX-NO-ANSWER] Exercice ${er.exerciseId}: Pas de réponse détectée, score forcé à 0 (IA avait donné ${cleanScore})`,
           );
         }
@@ -1805,7 +1806,7 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Con
         // Fix pour les réponses correctes
         const aiSaysCorrect = er.isCorrect === true || er.isCorrect === "true";
         if (!hasNoAnswer && aiSaysCorrect && finalScore < actualMaxScore) {
-          console.log(
+          logger.log(
             `🔧 [SUBJECT-SCORING-FIX] Exercice ${er.exerciseId}: L'IA dit correct mais score partiel ${finalScore}/${actualMaxScore} → Correction à ${actualMaxScore}/${actualMaxScore}`,
           );
           finalScore = actualMaxScore;
@@ -1877,7 +1878,7 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Con
       return autoCorrections; // Toutes les réponses sont parfaites
     }
 
-    console.log(
+    logger.log(
       `💡 [SUGGESTIONS] Génération suggestions IA pour ${questionsNeedingSuggestions.length} questions fermées incorrectes`,
     );
 
@@ -1924,7 +1925,7 @@ Réponds UNIQUEMENT en JSON array valide.`;
         suggestion: suggestionsMap.get(correction.questionId),
       }));
     } catch (error) {
-      console.error("❌ Erreur génération suggestions:", error);
+      logger.error("❌ Erreur génération suggestions:", error);
       // Retourner sans suggestions si erreur
       return autoCorrections;
     }
@@ -1972,7 +1973,7 @@ Réponds UNIQUEMENT en JSON array valide.`;
     const maxScore = question.points || 1;
 
     if (hasNoAnswer && correctionData.score > 0) {
-      console.log(
+      logger.log(
         `🔧 [FIX-NO-ANSWER] Question ${question.id}: Pas de réponse détectée, score forcé à 0 (IA avait donné ${correctionData.score})`,
       );
     }
@@ -2085,7 +2086,7 @@ Réponds UNIQUEMENT en JSON valide.`;
     personalizedTips: string[];
   }> {
     try {
-      console.log("🧠 [ANALYSIS] Génération analyse IA détaillée...");
+      logger.log("🧠 [ANALYSIS] Génération analyse IA détaillée...");
 
       const correctAnswers = corrections.filter(
         (c) => c.score === c.maxScore,
@@ -2145,7 +2146,7 @@ Format JSON STRICT requis.`;
         model: AIService.getQuizCorrectionModel(),
       });
 
-      console.log("🧠 [ANALYSIS] Réponse IA reçue, parsing...");
+      logger.log("🧠 [ANALYSIS] Réponse IA reçue, parsing...");
       const analysisRaw: unknown = JsonUtils.extractJsonFromText(result.content);
       const analysisParsed = PerformanceAnalysisDataSchema.safeParse(analysisRaw);
       if (!analysisParsed.success) {
@@ -2169,7 +2170,7 @@ Format JSON STRICT requis.`;
           : [],
       };
     } catch (error) {
-      console.error("❌ [ANALYSIS] Erreur génération analyse:", error);
+      logger.error("❌ [ANALYSIS] Erreur génération analyse:", error);
       return {
         summary: "Analyse en cours...",
         strengths: [],

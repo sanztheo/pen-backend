@@ -3,6 +3,7 @@ import { quizPreprocessorAgent } from "../../../services/quiz/preprocessor/QuizP
 import type { PreprocessorPromptParams } from "../../../services/quiz/preprocessor/prompts.js";
 import { prisma } from "../../../lib/prisma.js";
 import { getUserPersonalization } from "../../../services/quiz/utils/personalizationUtils.js";
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Controller pour le preprocessor de quiz
@@ -42,7 +43,7 @@ export class PreprocessorController {
       } = req.body;
 
       // 📊 LOG 1: Paramètres reçus du frontend
-      console.log("[PREPROCESSOR] 📥 Requête reçue:", {
+      logger.log("[PREPROCESSOR] 📥 Requête reçue:", {
         userId,
         usePersonalization,
         bodySchoolLevel,
@@ -65,7 +66,7 @@ export class PreprocessorController {
           schoolLevel =
             personalizationData.classe || bodySchoolLevel || "COLLEGE";
 
-          console.log(
+          logger.log(
             "[PREPROCESSOR] 👤 Personnalisation récupérée depuis DB:",
             {
               classe: personalizationData.classe,
@@ -77,7 +78,7 @@ export class PreprocessorController {
             },
           );
         } else {
-          console.log(
+          logger.log(
             "[PREPROCESSOR] ⚠️ Aucune personnalisation trouvée pour l'utilisateur",
           );
         }
@@ -113,7 +114,7 @@ export class PreprocessorController {
       }
 
       // 📊 LOG 2: Analyse des sources
-      console.log("[PREPROCESSOR] 📄 Analyse des sources:", {
+      logger.log("[PREPROCESSOR] 📄 Analyse des sources:", {
         wordCount: sourceAnalysis.wordCount,
         topicsCount: sourceAnalysis.topics.length,
         topics: sourceAnalysis.topics,
@@ -148,7 +149,7 @@ export class PreprocessorController {
       };
 
       // 📊 LOG 3: Paramètres envoyés à l'IA
-      console.log("[PREPROCESSOR] 🤖 Paramètres envoyés à l'IA:", {
+      logger.log("[PREPROCESSOR] 🤖 Paramètres envoyés à l'IA:", {
         schoolLevel: preprocessorParams.schoolLevel,
         studyLevel: preprocessorParams.studyLevel,
         quizType: preprocessorParams.quizType,
@@ -175,7 +176,7 @@ export class PreprocessorController {
         {} as Record<string, number>,
       );
 
-      console.log("[PREPROCESSOR] ✅ Décision de l'IA:", {
+      logger.log("[PREPROCESSOR] ✅ Décision de l'IA:", {
         recommendedQuestionCount: recommendations.recommendedQuestionCount,
         difficulty: recommendations.difficulty,
         suggestedTimeLimit: recommendations.suggestedTimeLimit,
@@ -198,7 +199,7 @@ export class PreprocessorController {
         },
       });
     } catch (error) {
-      console.error("[PREPROCESSOR] Erreur:", error);
+      logger.error("[PREPROCESSOR] Erreur:", error);
       res.status(500).json({
         error: "Erreur lors de l'analyse des sources",
         details: error instanceof Error ? error.message : "Erreur inconnue",
@@ -286,7 +287,7 @@ export class PreprocessorController {
             }
           }
         } catch (error) {
-          console.warn("[PREPROCESSOR] Erreur parsing BlockNote:", error);
+          logger.warn("[PREPROCESSOR] Erreur parsing BlockNote:", error);
         }
       }
     }
@@ -351,7 +352,7 @@ export class PreprocessorController {
               }
             }
           } catch (error) {
-            console.warn("[PREPROCESSOR] Erreur parsing BlockNote:", error);
+            logger.warn("[PREPROCESSOR] Erreur parsing BlockNote:", error);
           }
         }
       }

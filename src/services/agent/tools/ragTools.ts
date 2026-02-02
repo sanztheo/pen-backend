@@ -3,6 +3,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
 import { ragSystem, type RAGSearchOptions } from "../../rag/index.js";
+import { logger } from "../../../utils/logger.js";
 import type {
   RAGSourceType,
   Prisma,
@@ -85,7 +86,7 @@ et les pages workspace avec leur statut et nombre de chunks.
 Utilise cet outil EN PREMIER pour savoir quelles sources sont disponibles avant de chercher.`,
       inputSchema: listAvailableSourcesSchema,
       execute: async ({ includeGlobal, sourceTypes }) => {
-        console.log(
+        logger.log(
           `🔍 [TOOL:listAvailableSources] userId=${ctx.userId}, workspaceId=${ctx.workspaceId}`,
         );
 
@@ -131,7 +132,7 @@ Utilise cet outil EN PREMIER pour savoir quelles sources sont disponibles avant 
             take: 50,
           });
 
-          console.log(
+          logger.log(
             `✅ [TOOL:listAvailableSources] ${sources.length} sources trouvées`,
           );
 
@@ -147,7 +148,7 @@ Utilise cet outil EN PREMIER pour savoir quelles sources sont disponibles avant 
             })),
           };
         } catch (error) {
-          console.error(`❌ [TOOL:listAvailableSources] Erreur:`, error);
+          logger.error(`❌ [TOOL:listAvailableSources] Erreur:`, error);
           return {
             error: "Erreur lors de la récupération des sources",
             count: 0,
@@ -167,7 +168,7 @@ Retourne les chunks avec leur contenu, source, et score de similarité.
 Idéal pour répondre à des questions factuelles ou trouver des informations précises.`,
       inputSchema: searchRagChunksSchema,
       execute: async ({ query, sourceIds, limit, threshold }) => {
-        console.log(
+        logger.log(
           `🔍 [TOOL:searchRagChunks] query="${query}", sources=${sourceIds?.length || "all"}, limit=${limit}`,
         );
 
@@ -189,7 +190,7 @@ Idéal pour répondre à des questions factuelles ou trouver des informations pr
             searchOptions,
           );
 
-          console.log(
+          logger.log(
             `✅ [TOOL:searchRagChunks] ${results.length} chunks trouvés`,
           );
 
@@ -208,7 +209,7 @@ Idéal pour répondre à des questions factuelles ou trouver des informations pr
             })),
           };
         } catch (error) {
-          console.error(`❌ [TOOL:searchRagChunks] Erreur:`, error);
+          logger.error(`❌ [TOOL:searchRagChunks] Erreur:`, error);
           return {
             error: "Erreur lors de la recherche RAG",
             count: 0,
@@ -227,7 +228,7 @@ Utile pour obtenir une vue complète d'un document ou article.
 Retourne le contenu organisé par sections si disponible.`,
       inputSchema: readRagSourceSchema,
       execute: async ({ sourceId, maxChunks }) => {
-        console.log(
+        logger.log(
           `🔍 [TOOL:readRagSource] sourceId=${sourceId}, maxChunks=${maxChunks}`,
         );
 
@@ -272,7 +273,7 @@ Retourne le contenu organisé par sections si disponible.`,
             take: maxChunks,
           });
 
-          console.log(
+          logger.log(
             `✅ [TOOL:readRagSource] ${chunks.length} chunks récupérés pour "${source.title}"`,
           );
 
@@ -301,7 +302,7 @@ Retourne le contenu organisé par sections si disponible.`,
             chunksRetrieved: chunks.length,
           };
         } catch (error) {
-          console.error(`❌ [TOOL:readRagSource] Erreur:`, error);
+          logger.error(`❌ [TOOL:readRagSource] Erreur:`, error);
           return {
             error: "Erreur lors de la lecture de la source",
             content: null,
@@ -318,7 +319,7 @@ Retourne le contenu organisé par sections si disponible.`,
 Utile pour savoir si un fichier ou article Wikipedia a été traité.`,
       inputSchema: checkSourcesRagStatusSchema,
       execute: async ({ titles }) => {
-        console.log(
+        logger.log(
           `🔍 [TOOL:checkSourcesRagStatus] Vérification de ${titles.length} sources`,
         );
 
@@ -356,7 +357,7 @@ Utile pour savoir si un fichier ou article Wikipedia a été traité.`,
           );
 
           const readyCount = results.filter((r) => r.ready).length;
-          console.log(
+          logger.log(
             `✅ [TOOL:checkSourcesRagStatus] ${readyCount}/${titles.length} sources prêtes`,
           );
 
@@ -366,7 +367,7 @@ Utile pour savoir si un fichier ou article Wikipedia a été traité.`,
             results,
           };
         } catch (error) {
-          console.error(`❌ [TOOL:checkSourcesRagStatus] Erreur:`, error);
+          logger.error(`❌ [TOOL:checkSourcesRagStatus] Erreur:`, error);
           return {
             error: "Erreur lors de la vérification",
             totalChecked: 0,

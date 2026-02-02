@@ -8,6 +8,7 @@
  * - Connection pool database
  */
 
+import { logger } from "../utils/logger.js";
 import { getQueueStats } from "./queues.js";
 
 /**
@@ -148,11 +149,11 @@ let monitoringInterval: NodeJS.Timeout | null = null;
 
 export const startMonitoring = (intervalMinutes: number = 5) => {
   if (monitoringInterval) {
-    console.warn("⚠️ [MONITORING] Monitoring déjà actif");
+    logger.warn("⚠️ [MONITORING] Monitoring déjà actif");
     return;
   }
 
-  console.log(
+  logger.log(
     `📊 [MONITORING] Démarrage monitoring (intervalle: ${intervalMinutes}min)`,
   );
 
@@ -161,35 +162,35 @@ export const startMonitoring = (intervalMinutes: number = 5) => {
       const stats = await getSystemStats();
       const health = checkHealthThresholds();
 
-      console.log(
+      logger.log(
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
       );
-      console.log("📊 [MONITORING] Métriques système");
-      console.log(
+      logger.log("📊 [MONITORING] Métriques système");
+      logger.log(
         `   💾 Heap: ${stats.memory.heapUsed.mb}MB / ${stats.memory.heapTotal.mb}MB (${Math.round((stats.memory.heapUsed.value / stats.memory.heapTotal.value) * 100)}%)`,
       );
-      console.log(`   📦 RSS: ${stats.memory.rss.mb}MB`);
-      console.log(`   ⏱️ Uptime: ${stats.uptime.formatted}`);
-      console.log(`   🎯 Queues:`);
-      console.log(
+      logger.log(`   📦 RSS: ${stats.memory.rss.mb}MB`);
+      logger.log(`   ⏱️ Uptime: ${stats.uptime.formatted}`);
+      logger.log(`   🎯 Queues:`);
+      logger.log(
         `      - AI Generation: ${stats.queues?.aiGeneration?.waiting ?? 0} waiting, ${stats.queues?.aiGeneration?.active ?? 0} active`,
       );
-      console.log(
+      logger.log(
         `      - AI Quiz: ${stats.queues?.aiQuiz?.waiting ?? 0} waiting, ${stats.queues?.aiQuiz?.active ?? 0} active`,
       );
-      console.log(
+      logger.log(
         `      - Futura: ${stats.queues?.futura?.waiting ?? 0} waiting, ${stats.queues?.futura?.active ?? 0} active`,
       );
 
       if (health.warnings.length > 0) {
-        console.log("   ⚠️ Avertissements:");
+        logger.log("   ⚠️ Avertissements:");
         health.warnings.forEach((w) => {
           const icon = w.level === "critical" ? "🚨" : "⚠️";
-          console.log(`      ${icon} ${w.message}`);
+          logger.log(`      ${icon} ${w.message}`);
         });
       }
 
-      console.log(
+      logger.log(
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
       );
     },
@@ -201,7 +202,7 @@ export const stopMonitoring = () => {
   if (monitoringInterval) {
     clearInterval(monitoringInterval);
     monitoringInterval = null;
-    console.log("📊 [MONITORING] Monitoring arrêté");
+    logger.log("📊 [MONITORING] Monitoring arrêté");
   }
 };
 

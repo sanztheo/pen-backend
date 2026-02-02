@@ -8,6 +8,7 @@
  * - admin-user-export: Export CSV des utilisateurs
  */
 
+import { logger } from "../utils/logger.js";
 import { Worker, Job } from "bullmq";
 import { redis } from "../lib/redis.js";
 import { markJobCompleted, markJobFailed } from "../lib/jobResults.js";
@@ -31,10 +32,10 @@ async function processExportJob(
   const { type, userId, adminEmail, filters } = job.data;
   const startTime = Date.now();
 
-  console.log(`[EXPORT-WORKER] Processing ${type} for admin ${adminEmail}`);
+  logger.log(`[EXPORT-WORKER] Processing ${type} for admin ${adminEmail}`);
 
   if (type !== "admin-user-export") {
-    console.error(`[EXPORT-WORKER] Unknown export type: ${type}`);
+    logger.error(`[EXPORT-WORKER] Unknown export type: ${type}`);
     return { success: false, error: `Unknown export type: ${type}` };
   }
 
@@ -48,14 +49,14 @@ async function processExportJob(
     await redis.setex(csvKey, CSV_RESULT_TTL, csv);
 
     const durationMs = Date.now() - startTime;
-    console.log(
+    logger.log(
       `[EXPORT-WORKER] Export completed: ${rowCount} rows in ${durationMs}ms`,
     );
 
     return { success: true, downloadKey: csvKey, rowCount };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    console.error(`[EXPORT-WORKER] Export failed:`, message);
+    logger.error(`[EXPORT-WORKER] Export failed:`, message);
     return { success: false, error: message };
   }
 }
@@ -70,7 +71,7 @@ export const exportWorker = new Worker<
 });
 
 exportWorker.on("completed", async (job, result) => {
-  console.log(`[EXPORT-WORKER] Job ${job.id} completed`);
+  logger.log(`[EXPORT-WORKER] Job ${job.id} completed`);
 
   if (!job.id || !job.data.userId) return;
 
@@ -92,12 +93,12 @@ exportWorker.on("completed", async (job, result) => {
       },
     });
   } catch (logError) {
-    console.error("[EXPORT-WORKER] Failed to create ActivityLog:", logError);
+    logger.error("[EXPORT-WORKER] Failed to create ActivityLog:", logError);
   }
 });
 
 exportWorker.on("failed", async (job, error) => {
-  console.error(`[EXPORT-WORKER] Job ${job?.id} failed:`, error.message);
+  logger.error(`[EXPORT-WORKER] Job ${job?.id} failed:`, error.message);
 
   if (job?.id && job?.data.userId) {
     await markJobFailed(job.id, job.data.userId, error.message);
@@ -105,10 +106,10 @@ exportWorker.on("failed", async (job, error) => {
 });
 
 exportWorker.on("error", (error) => {
-  console.error("[EXPORT-WORKER] Worker error:", error);
+  logger.error("[EXPORT-WORKER] Worker error:", error);
 });
 
-console.log("[EXPORT-WORKER] Worker initialized");
+logger.log("[EXPORT-WORKER] Worker initialized");
 
 export async function getExportCSV(
   userId: string,

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { logger } from "../utils/logger.js";
 
 declare global {
   var __prisma: PrismaClient | undefined;
@@ -77,7 +78,7 @@ export async function ensureConnection(maxRetries = 3): Promise<boolean> {
     try {
       await prisma.$queryRaw`SELECT 1`;
       if (attempt > 1) {
-        console.log(`✅ Reconnexion réussie après ${attempt} tentatives`);
+        logger.log(`✅ Reconnexion réussie après ${attempt} tentatives`);
       }
       return true;
     } catch (error: unknown) {
@@ -96,11 +97,11 @@ export async function ensureConnection(maxRetries = 3): Promise<boolean> {
       if (isConnectionError && attempt < maxRetries) {
         // Backoff exponentiel: 1s, 2s, 4s, etc.
         const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        console.warn(
+        logger.warn(
           `⚠️ [Tentative ${attempt}/${maxRetries}] Erreur connexion DB:`,
           errorMessage,
         );
-        console.log(`🔄 Retry dans ${delayMs}ms...`);
+        logger.log(`🔄 Retry dans ${delayMs}ms...`);
 
         // Déconnecter proprement
         try {
@@ -116,10 +117,10 @@ export async function ensureConnection(maxRetries = 3): Promise<boolean> {
         try {
           await prisma.$connect();
         } catch (connectError) {
-          console.warn(`⚠️ Échec reconnexion (tentative ${attempt})`);
+          logger.warn(`⚠️ Échec reconnexion (tentative ${attempt})`);
         }
       } else {
-        console.error(
+        logger.error(
           `❌ Erreur DB définitive après ${attempt} tentatives:`,
           errorMessage,
         );
@@ -136,7 +137,7 @@ let keepAliveInterval: NodeJS.Timeout | null = null;
 
 export function startKeepAlive() {
   if (keepAliveInterval) {
-    console.log("⚠️ Keep-alive déjà actif");
+    logger.log("⚠️ Keep-alive déjà actif");
     return;
   }
 
@@ -146,21 +147,21 @@ export function startKeepAlive() {
   keepAliveInterval = setInterval(async () => {
     try {
       await prisma.$queryRaw`SELECT 1`;
-      console.log(`💓 DB keep-alive [${isProduction ? "PROD" : "DEV"}]`);
+      logger.log(`💓 DB keep-alive [${isProduction ? "PROD" : "DEV"}]`);
     } catch (error: unknown) {
-      console.error(
+      logger.error(
         "❌ Keep-alive ping failed:",
         error instanceof Error ? error.message : String(error),
       );
       // Tenter une reconnexion automatique
       const reconnected = await ensureConnection(2);
       if (reconnected) {
-        console.log("✅ Keep-alive: reconnexion automatique réussie");
+        logger.log("✅ Keep-alive: reconnexion automatique réussie");
       }
     }
   }, intervalMs);
 
-  console.log(
+  logger.log(
     `✅ DB Keep-alive activé (ping toutes les ${intervalMs / 60000} min)`,
   );
 }
@@ -169,7 +170,7 @@ export function stopKeepAlive() {
   if (keepAliveInterval) {
     clearInterval(keepAliveInterval);
     keepAliveInterval = null;
-    console.log("🛑 DB Keep-alive désactivé");
+    logger.log("🛑 DB Keep-alive désactivé");
   }
 }
 
@@ -178,12 +179,12 @@ let isShuttingDown = false;
 
 const gracefulShutdown = async (signal: string) => {
   if (isShuttingDown) {
-    console.log(`⚠️ ${signal} déjà en cours, forcer l'arrêt...`);
+    logger.log(`⚠️ ${signal} déjà en cours, forcer l'arrêt...`);
     process.exit(1);
   }
 
   isShuttingDown = true;
-  console.log(`🔄 ${signal} reçu, fermeture propre...`);
+  logger.log(`🔄 ${signal} reçu, fermeture propre...`);
 
   try {
     // 1. Arrêter le keep-alive
@@ -194,9 +195,9 @@ const gracefulShutdown = async (signal: string) => {
 
     // 3. Fermer les connexions Prisma
     await prisma.$disconnect();
-    console.log("✅ Connexions DB fermées proprement");
+    logger.log("✅ Connexions DB fermées proprement");
   } catch (error) {
-    console.error("❌ Erreur lors de la fermeture:", error);
+    logger.error("❌ Erreur lors de la fermeture:", error);
   } finally {
     process.exit(0);
   }
@@ -209,16 +210,16 @@ process.on("SIGUSR2", () => gracefulShutdown("SIGUSR2")); // nodemon
 
 process.on("beforeExit", async (code) => {
   if (!isShuttingDown) {
-    console.log(`🔄 beforeExit (code: ${code}), fermeture connexions...`);
+    logger.log(`🔄 beforeExit (code: ${code}), fermeture connexions...`);
     await prisma
       .$disconnect()
-      .catch((err) => console.warn("⚠️ Erreur fermeture beforeExit:", err));
+      .catch((err) => logger.warn("⚠️ Erreur fermeture beforeExit:", err));
   }
 });
 
 // Gérer les erreurs non catchées
 process.on("uncaughtException", async (error) => {
-  console.error("❌ Exception non gérée:", error);
+  logger.error("❌ Exception non gérée:", error);
   if (!isShuttingDown) {
     stopKeepAlive();
     await prisma.$disconnect().catch(() => {});
@@ -227,7 +228,7 @@ process.on("uncaughtException", async (error) => {
 });
 
 process.on("unhandledRejection", async (reason, promise) => {
-  console.error("❌ Promise rejetée non gérée:", reason);
+  logger.error("❌ Promise rejetée non gérée:", reason);
   if (!isShuttingDown) {
     stopKeepAlive();
     await prisma.$disconnect().catch(() => {});
@@ -236,17 +237,17 @@ process.on("unhandledRejection", async (reason, promise) => {
 });
 
 // 📊 Afficher la config au démarrage
-console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-console.log("🗄️  CONFIGURATION DATABASE PRISMA");
-console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-console.log(
+logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+logger.log("🗄️  CONFIGURATION DATABASE PRISMA");
+logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+logger.log(
   `📍 Environnement: ${isProduction ? "🚀 PRODUCTION" : "💻 DEVELOPMENT"}`,
 );
-console.log(
+logger.log(
   `🔗 Connection Pool: ${isProduction ? "50 connexions max" : "30 connexions max"}`,
 );
-console.log(`⏱️  Timeouts: 30s statement, 60s idle transaction`);
-console.log(`🔄 Auto-retry: Activé (3 tentatives max)`);
-console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+logger.log(`⏱️  Timeouts: 30s statement, 60s idle transaction`);
+logger.log(`🔄 Auto-retry: Activé (3 tentatives max)`);
+logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
 // Named export uniquement - voir ligne 46 pour l'export principal

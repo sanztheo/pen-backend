@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { QuizService } from "../../../services/quiz/quizService.js";
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Contrôleur pour le debugging des séquences de quiz
@@ -27,10 +28,10 @@ export class SequenceDebugController {
         return;
       }
 
-      console.log(`🔧 [DEBUG] Force reset pour séquence: ${sequenceId}`);
-      console.log(`👤 Utilisateur: ${userId}`);
-      console.log(`🎯 Action: ${action}`);
-      console.log(`📊 Reset count: ${resetCount}`);
+      logger.log(`🔧 [DEBUG] Force reset pour séquence: ${sequenceId}`);
+      logger.log(`👤 Utilisateur: ${userId}`);
+      logger.log(`🎯 Action: ${action}`);
+      logger.log(`📊 Reset count: ${resetCount}`);
 
       // Importer le tempSequenceStorage ici pour éviter les imports circulaires
       const { tempSequenceStorage } =
@@ -46,7 +47,7 @@ export class SequenceDebugController {
           userId,
         );
         currentConfig = currentConfigFromService;
-        console.log(
+        logger.log(
           "📋 Config récupérée depuis QuizService (pas en cache tempStorage)",
         );
       }
@@ -56,7 +57,7 @@ export class SequenceDebugController {
         return;
       }
 
-      console.log(`📊 Config actuelle avant reset:`, {
+      logger.log(`📊 Config actuelle avant reset:`, {
         currentSubjectIndex: currentConfig.currentSubjectIndex,
         totalSubjects: currentConfig.totalSubjects,
         isCompleted: currentConfig.isCompleted,
@@ -65,7 +66,7 @@ export class SequenceDebugController {
 
       // 2. Appliquer la config modifiée si fournie
       if (config && config.subjectResults) {
-        console.log(`🔄 Application de la config modifiée...`);
+        logger.log(`🔄 Application de la config modifiée...`);
 
         // Réinitialiser les états de génération
         let actualResetCount = 0;
@@ -80,7 +81,7 @@ export class SequenceDebugController {
             index: number,
           ) => {
             if (result.isGenerating || result.isCorrecting) {
-              console.log(
+              logger.log(
                 `🔧 Reset ${result.subject}: isGenerating=${result.isGenerating} → false, isCorrecting=${result.isCorrecting} → false`,
               );
               result.isGenerating = false;
@@ -95,16 +96,16 @@ export class SequenceDebugController {
         const updatedConfig = { ...currentConfig, ...config };
         tempSequenceStorage.update(sequenceId, updatedConfig);
 
-        console.log(
+        logger.log(
           `✅ ${actualResetCount} état(s) réinitialisé(s) dans tempSequenceStorage`,
         );
 
         // 3. Synchroniser avec la base de données
         try {
           await QuizService.syncSequenceToDatabase(sequenceId, updatedConfig);
-          console.log(`✅ Sync BDD réussie`);
+          logger.log(`✅ Sync BDD réussie`);
         } catch (syncError) {
-          console.error(`⚠️ Erreur sync BDD:`, syncError);
+          logger.error(`⚠️ Erreur sync BDD:`, syncError);
         }
 
         res.status(200).json({
@@ -121,7 +122,7 @@ export class SequenceDebugController {
         res.status(400).json({ error: "Config modifiée requise" });
       }
     } catch (error) {
-      console.error("❌ Erreur force reset séquence:", error);
+      logger.error("❌ Erreur force reset séquence:", error);
       res.status(500).json({
         error: "Erreur lors du reset forcé",
         details: error instanceof Error ? error.message : "Erreur inconnue",

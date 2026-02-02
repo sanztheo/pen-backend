@@ -7,6 +7,7 @@
  * l'accès aux résultats d'autres utilisateurs (IDOR protection).
  */
 
+import { logger } from "../utils/logger.js";
 import { Router } from "express";
 import { authenticateToken, requireUser } from "../middlewares/auth.js";
 import { getJobResult, deleteJobResult } from "../lib/jobResults.js";
@@ -56,7 +57,7 @@ router.get("/:jobId", async (req, res) => {
       ...result,
     });
   } catch (error: unknown) {
-    console.error("[JOBS] Erreur récupération résultat:", error);
+    logger.error("[JOBS] Erreur récupération résultat:", error);
     return res.status(500).json({
       error: "Erreur serveur",
     });
@@ -86,7 +87,7 @@ router.delete("/:jobId", async (req, res) => {
       message: "Résultat du job supprimé",
     });
   } catch (error: unknown) {
-    console.error("[JOBS] Erreur suppression résultat:", error);
+    logger.error("[JOBS] Erreur suppression résultat:", error);
     return res.status(500).json({
       error: "Erreur serveur",
     });

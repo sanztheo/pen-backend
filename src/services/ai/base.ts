@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { logger } from "../../utils/logger.js";
 
 const DEFAULT_MODEL =
   process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL;
@@ -19,7 +20,7 @@ function getOpenAIInstance(): OpenAI {
 function getGrokInstance(): OpenAI {
   if (!grok) {
     if (!process.env.GROK_API_KEY) {
-      console.warn("⚠️ GROK_API_KEY manquante, fallback sur OpenAI");
+      logger.warn("⚠️ GROK_API_KEY manquante, fallback sur OpenAI");
       return getOpenAIInstance();
     }
     grok = new OpenAI({
@@ -87,7 +88,7 @@ export class AIService {
   static async testConnection(): Promise<boolean> {
     try {
       if (!this.isConfigured()) {
-        console.error(
+        logger.error(
           "❌ OPENAI_API_KEY ou OPENAI_DASHBOARD_MODEL/OPENAI_MODEL non configurés",
         );
         return false;
@@ -105,14 +106,14 @@ export class AIService {
       const isSuccess =
         response.choices[0]?.message?.content?.toLowerCase().includes("ok") ||
         false;
-      console.log(
+      logger.log(
         isSuccess
           ? "✅ Connexion OpenAI réussie"
           : "⚠️ Réponse inattendue de OpenAI",
       );
       return isSuccess;
     } catch (error) {
-      console.error("❌ Erreur connexion OpenAI:", error);
+      logger.error("❌ Erreur connexion OpenAI:", error);
       return false;
     }
   }
@@ -269,7 +270,7 @@ export class AIService {
       detectedIntent: string;
     };
   }> {
-    console.warn("[DEPRECATED] AutocompleteService a été supprimé");
+    logger.warn("[DEPRECATED] AutocompleteService a été supprimé");
     return {
       suggestions: [],
       context: {
@@ -292,7 +293,7 @@ export class AIService {
     _onStreamChunk?: (result: AutocompleteStreamResult) => void,
     _signal?: AbortSignal,
   ): Promise<AutocompleteStreamResult> {
-    console.warn("[DEPRECATED] AutocompleteService a été supprimé");
+    logger.warn("[DEPRECATED] AutocompleteService a été supprimé");
     return {
       suggestions: [],
       context: {

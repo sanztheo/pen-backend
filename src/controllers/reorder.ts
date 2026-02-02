@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { z } from 'zod';
+import { logger } from "../utils/logger.js";
 
 function getErrorCode(err: unknown): string | undefined {
   if (typeof err !== 'object' || err === null) return undefined;
@@ -31,7 +32,7 @@ export const reorderItems = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: 'Non authentifié', code: 'UNAUTHENTICATED' });
     }
 
-    console.log(`🔄 [REORDER] Début réorganisation : ${items.length} items dans workspace ${workspaceId} par user ${userId}`);
+    logger.log(`🔄 [REORDER] Début réorganisation : ${items.length} items dans workspace ${workspaceId} par user ${userId}`);
 
     // 1. Vérifier les permissions sur le workspace
     const workspace = await prisma.workspace.findUnique({
@@ -84,7 +85,7 @@ export const reorderItems = async (req: Request, res: Response) => {
 
       for (const item of items) {
         if (item.parentId && !validParentIds.has(item.parentId)) {
-          console.error('🚫 [REORDER] Parent project invalide:', {
+          logger.error('🚫 [REORDER] Parent project invalide:', {
             itemId: item.id,
             parentId: item.parentId,
             workspaceId
@@ -123,7 +124,7 @@ export const reorderItems = async (req: Request, res: Response) => {
       for (const item of projectItems) {
         // Vérification 1: Un projet ne peut pas être son propre parent
         if (item.parentId === item.id) {
-          console.error('🚫 [REORDER] Cycle détecté: projet parent de lui-même:', {
+          logger.error('🚫 [REORDER] Cycle détecté: projet parent de lui-même:', {
             projectId: item.id
           });
           return res.status(400).json({
@@ -135,7 +136,7 @@ export const reorderItems = async (req: Request, res: Response) => {
 
         // Vérification 2: Le nouveau parent ne doit pas être un descendant du projet
         if (isDescendant(item.id, item.parentId!)) {
-          console.error('🚫 [REORDER] Cycle détecté: parent est un descendant:', {
+          logger.error('🚫 [REORDER] Cycle détecté: parent est un descendant:', {
             projectId: item.id,
             parentId: item.parentId
           });
@@ -170,7 +171,7 @@ export const reorderItems = async (req: Request, res: Response) => {
       return updates;
     });
 
-    console.log(`✅ [REORDER] Réorganisation réussie : ${result.length} items mis à jour`);
+    logger.log(`✅ [REORDER] Réorganisation réussie : ${result.length} items mis à jour`);
     
     res.status(200).json({ 
       success: true, 
@@ -179,7 +180,7 @@ export const reorderItems = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('❌ [REORDER] Erreur lors de la réorganisation:', error);
+    logger.error('❌ [REORDER] Erreur lors de la réorganisation:', error);
     
     if (error instanceof z.ZodError) {
       return res.status(400).json({ success: false, error: 'Données invalides', code: 'VALIDATION_ERROR', details: error.errors });

@@ -2,6 +2,7 @@
 
 import type { RetryOptions } from "../types/index.js";
 import { validateAssistantResponse } from "./validation.js";
+import { logger } from "../../../../utils/logger.js";
 
 /**
  * Exécute une opération avec retry automatique et validation JSON
@@ -21,7 +22,7 @@ export async function executeWithRetry<T>(
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      console.log(`🔄 ${operationName} - Tentative ${attempt}/${maxRetries}`);
+      logger.log(`🔄 ${operationName} - Tentative ${attempt}/${maxRetries}`);
 
       const result = await operation();
 
@@ -29,19 +30,19 @@ export async function executeWithRetry<T>(
         validateAssistantResponse(result);
       }
 
-      console.log(`✅ ${operationName} - Succès à la tentative ${attempt}`);
+      logger.log(`✅ ${operationName} - Succès à la tentative ${attempt}`);
       return result;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      console.error(
+      logger.error(
         `❌ ${operationName} - Échec tentative ${attempt}:`,
         lastError.message,
       );
 
       if (attempt < maxRetries) {
         const delay = retryDelay * Math.pow(2, attempt - 1); // Backoff exponentiel
-        console.log(`⏳ Attente ${delay}ms avant retry...`);
+        logger.log(`⏳ Attente ${delay}ms avant retry...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }

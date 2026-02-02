@@ -1,4 +1,5 @@
 import cron from "node-cron";
+import { logger } from "../utils/logger.js";
 
 /**
  * 🕐 TÂCHES CRON AUTOMATIQUES
@@ -14,13 +15,13 @@ const DAILY_LIMITS_RESET_SCHEDULE = "0 0 * * *"; // Tous les jours à minuit
 const NODE_ENV = process.env.NODE_ENV || "development";
 
 export function startCronJobs() {
-  console.log("🕐 Démarrage des tâches CRON...");
+  logger.log("🕐 Démarrage des tâches CRON...");
 
   // 🩺 Vérification de santé de la base de données
   const healthCheckTask = cron.schedule(
     HEALTH_CHECK_SCHEDULE,
     async () => {
-      console.log("\n🩺 [CRON] Vérification de santé de la base de données...");
+      logger.log("\n🩺 [CRON] Vérification de santé de la base de données...");
       try {
         const { prisma } = await import("../lib/prisma.js");
 
@@ -31,11 +32,11 @@ export function startCronJobs() {
         const pageCount = await prisma.page.count();
         const workspaceCount = await prisma.workspace.count();
 
-        console.log(
+        logger.log(
           `✅ [CRON] Base de données saine - Pages: ${pageCount}, Workspaces: ${workspaceCount}`,
         );
       } catch (error) {
-        console.error(
+        logger.error(
           "❌ [CRON] Erreur lors de la vérification de santé:",
           error,
         );
@@ -46,7 +47,7 @@ export function startCronJobs() {
     },
   );
 
-  console.log(
+  logger.log(
     `✅ Tâche de vérification de santé programmée: ${HEALTH_CHECK_SCHEDULE} (Europe/Paris)`,
   );
 
@@ -54,7 +55,7 @@ export function startCronJobs() {
   const ragCleanupTask = cron.schedule(
     RAG_CLEANUP_SCHEDULE,
     async () => {
-      console.log("\n🧹 [CRON] Démarrage nettoyage RAG automatique...");
+      logger.log("\n🧹 [CRON] Démarrage nettoyage RAG automatique...");
       try {
         const { cleanupService } = await import("../services/rag/cleanup.js");
 
@@ -66,7 +67,7 @@ export function startCronJobs() {
           batchSize: 100,
         });
 
-        console.log(`✅ [CRON] Nettoyage RAG terminé:`, {
+        logger.log(`✅ [CRON] Nettoyage RAG terminé:`, {
           sourcesDeleted: stats.sourcesDeleted,
           chunksDeleted: stats.chunksDeleted,
           spaceFreedMB: stats.spaceFreedMB.toFixed(2),
@@ -75,18 +76,18 @@ export function startCronJobs() {
 
         // Log des statistiques de stockage après nettoyage
         const storageStats = await cleanupService.getStorageStats();
-        console.log(`📊 [CRON] Statistiques après nettoyage:`, storageStats);
+        logger.log(`📊 [CRON] Statistiques après nettoyage:`, storageStats);
 
         // 🗑️ Nettoyage des fichiers utilisateur non utilisés depuis 7 jours
-        console.log("\n🗑️ [CRON] Nettoyage des fichiers utilisateur...");
+        logger.log("\n🗑️ [CRON] Nettoyage des fichiers utilisateur...");
         const fileStats = await cleanupService.cleanupOldUserFiles(7);
-        console.log(`✅ [CRON] Fichiers utilisateurs nettoyés:`, {
+        logger.log(`✅ [CRON] Fichiers utilisateurs nettoyés:`, {
           filesDeleted: fileStats.count,
           chunksDeleted: fileStats.chunksDeleted,
           spaceFreedMB: fileStats.spaceFreedMB.toFixed(2),
         });
       } catch (error) {
-        console.error("❌ [CRON] Erreur lors du nettoyage RAG:", error);
+        logger.error("❌ [CRON] Erreur lors du nettoyage RAG:", error);
       }
     },
     {
@@ -94,7 +95,7 @@ export function startCronJobs() {
     },
   );
 
-  console.log(
+  logger.log(
     `✅ Tâche de nettoyage RAG programmée: ${RAG_CLEANUP_SCHEDULE} (Europe/Paris)`,
   );
 
@@ -102,7 +103,7 @@ export function startCronJobs() {
   const dailyArticleTask = cron.schedule(
     DAILY_ARTICLE_SCHEDULE,
     async () => {
-      console.log("\n📰 [CRON] Fetch de l'article scientifique du jour...");
+      logger.log("\n📰 [CRON] Fetch de l'article scientifique du jour...");
       try {
         const { FuturaRssService } =
           await import("../services/futuraRss.service.js");
@@ -115,25 +116,25 @@ export function startCronJobs() {
             await FuturaRssService.saveWeeklyArticle(latestArticle);
 
           if (savedArticle) {
-            console.log(
+            logger.log(
               `✅ [CRON] Article de la semaine sauvegardé: "${savedArticle.title.substring(0, 50)}..."`,
             );
 
             // Nettoyer les anciens articles (garder seulement 7 jours)
             const deletedCount = await FuturaRssService.cleanupOldArticles();
-            console.log(
+            logger.log(
               `🗑️ [CRON] ${deletedCount} ancien(s) article(s) supprimé(s)`,
             );
           } else {
-            console.warn("⚠️ [CRON] Article déjà existant pour cette semaine");
+            logger.warn("⚠️ [CRON] Article déjà existant pour cette semaine");
           }
         } else {
-          console.error(
+          logger.error(
             "❌ [CRON] Aucun article récupéré depuis Futura Sciences",
           );
         }
       } catch (error) {
-        console.error(
+        logger.error(
           "❌ [CRON] Erreur lors du fetch de l'article quotidien:",
           error,
         );
@@ -144,7 +145,7 @@ export function startCronJobs() {
     },
   );
 
-  console.log(
+  logger.log(
     `✅ Tâche article quotidien programmée: ${DAILY_ARTICLE_SCHEDULE} (Europe/Paris)`,
   );
 
@@ -152,18 +153,18 @@ export function startCronJobs() {
   const monthlyResetTask = cron.schedule(
     MONTHLY_RESET_SCHEDULE,
     async () => {
-      console.log("\n🔄 [CRON] Démarrage du reset mensuel...");
+      logger.log("\n🔄 [CRON] Démarrage du reset mensuel...");
       try {
         const { processMonthlyResets } = await import("../lib/monthlyReset.js");
 
         const result = await processMonthlyResets();
 
-        console.log(`✅ [CRON] Reset mensuel terminé:`, {
+        logger.log(`✅ [CRON] Reset mensuel terminé:`, {
           usersReset: result.resetCount,
           downgrades: result.downgradeCount,
         });
       } catch (error) {
-        console.error("❌ [CRON] Erreur lors du reset mensuel:", error);
+        logger.error("❌ [CRON] Erreur lors du reset mensuel:", error);
       }
     },
     {
@@ -171,7 +172,7 @@ export function startCronJobs() {
     },
   );
 
-  console.log(
+  logger.log(
     `✅ Tâche de reset mensuel programmée: ${MONTHLY_RESET_SCHEDULE} (Europe/Paris)`,
   );
 
@@ -179,7 +180,7 @@ export function startCronJobs() {
   const dailyLimitsResetTask = cron.schedule(
     DAILY_LIMITS_RESET_SCHEDULE,
     async () => {
-      console.log(
+      logger.log(
         "\n🔄 [CRON] Démarrage du reset quotidien des limites quiz avancés...",
       );
       try {
@@ -208,11 +209,11 @@ export function startCronJobs() {
           },
         });
 
-        console.log(
+        logger.log(
           `✅ [CRON] Reset quotidien terminé: ${result.count} utilisateur(s) réinitialisé(s)`,
         );
       } catch (error) {
-        console.error("❌ [CRON] Erreur lors du reset quotidien:", error);
+        logger.error("❌ [CRON] Erreur lors du reset quotidien:", error);
       }
     },
     {
@@ -220,7 +221,7 @@ export function startCronJobs() {
     },
   );
 
-  console.log(
+  logger.log(
     `✅ Tâche de reset quotidien des limites programmée: ${DAILY_LIMITS_RESET_SCHEDULE} (Europe/Paris)`,
   );
 
@@ -233,13 +234,13 @@ export function startCronJobs() {
       cron.schedule(
         "*/5 * * * *",
         async () => {
-          console.log("🧪 [TEST CRON] Vérification du statut...");
+          logger.log("🧪 [TEST CRON] Vérification du statut...");
           try {
             const { prisma } = await import("../lib/prisma.js");
             const userCount = await prisma.user.count();
-            console.log(`🧪 [TEST] Utilisateurs: ${userCount}`);
+            logger.log(`🧪 [TEST] Utilisateurs: ${userCount}`);
           } catch (error) {
-            console.error("❌ [TEST CRON] Erreur:", error);
+            logger.error("❌ [TEST CRON] Erreur:", error);
           }
         },
         {
@@ -247,7 +248,7 @@ export function startCronJobs() {
         },
       );
 
-      console.log("🧪 Tâche de test activée (toutes les 5 minutes)");
+      logger.log("🧪 Tâche de test activée (toutes les 5 minutes)");
     }
   }
 
@@ -261,9 +262,9 @@ export function startCronJobs() {
 }
 
 export function stopCronJobs() {
-  console.log("🛑 Arrêt des tâches CRON...");
+  logger.log("🛑 Arrêt des tâches CRON...");
   // Note: Les tâches seront arrêtées automatiquement à l'arrêt du processus
-  console.log("✅ Tâches CRON arrêtées");
+  logger.log("✅ Tâches CRON arrêtées");
 }
 
 // Gestion propre des signaux de fermeture

@@ -4,6 +4,7 @@
  * Results cached in Redis for 30 seconds to prevent abuse and support horizontal scaling
  */
 
+import { logger } from "../../utils/logger.js";
 import { createClerkClient } from "@clerk/backend";
 
 import { DatabaseHealthCheck } from "../../lib/dbHealthCheck.js";
@@ -103,7 +104,7 @@ export class HealthCheckService {
    * Called by getOrSet when cache miss
    */
   private static async runHealthChecks(): Promise<HealthCheckResponse> {
-    console.log("[HEALTH_CHECK] Running fresh checks...");
+    logger.log("[HEALTH_CHECK] Running fresh checks...");
     const startTime = Date.now();
 
     const [database, embeddingsDatabase, redis, clerk, openai, paddleHealth] =
@@ -134,7 +135,7 @@ export class HealthCheckService {
       services,
     };
 
-    console.log(
+    logger.log(
       `[HEALTH_CHECK] Completed in ${Date.now() - startTime}ms (status: ${overallStatus})`,
     );
 
@@ -261,7 +262,7 @@ export class HealthCheckService {
       return { ...result, latency };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error(`[HEALTH_CHECK] ${serviceName} check failed:`, message);
+      logger.error(`[HEALTH_CHECK] ${serviceName} check failed:`, message);
       if (customErrorHandler) {
         return customErrorHandler(message);
       }

@@ -10,6 +10,7 @@
  * - futura: Articles scientifiques
  */
 
+import { logger } from "../utils/logger.js";
 import { Queue, QueueOptions } from "bullmq";
 import { redis } from "./redis.js";
 
@@ -77,11 +78,11 @@ export const adminExportQueue = new Queue("admin-export", {
 });
 
 // 📊 Logging de la configuration
-console.log("🎯 [QUEUES] Queues BullMQ initialisées:");
-console.log("   - ai-generation (priorité: 5)");
-console.log("   - ai-quiz (priorité: 5)");
-console.log("   - futura (priorité: 3)");
-console.log("   - admin-export (priorité: 2)");
+logger.log("🎯 [QUEUES] Queues BullMQ initialisées:");
+logger.log("   - ai-generation (priorité: 5)");
+logger.log("   - ai-quiz (priorité: 5)");
+logger.log("   - futura (priorité: 3)");
+logger.log("   - admin-export (priorité: 2)");
 
 // 🔧 Fonctions utilitaires pour monitoring
 export const getQueueStats = async () => {
@@ -104,12 +105,12 @@ export const getQueueStats = async () => {
 
 // 🧹 Cleanup gracieux lors de l'arrêt du serveur
 export const closeQueues = async () => {
-  console.log("🧹 [QUEUES] Fermeture des queues...");
+  logger.log("🧹 [QUEUES] Fermeture des queues...");
   await Promise.all([
     aiGenerationQueue.close(),
     aiQuizQueue.close(),
     futuraQueue.close(),
     adminExportQueue.close(),
   ]);
-  console.log("✅ [QUEUES] Queues fermées");
+  logger.log("✅ [QUEUES] Queues fermées");
 };

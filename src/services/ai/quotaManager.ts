@@ -1,5 +1,6 @@
 import { prisma } from '../../lib/prisma.js';
 import { cacheQuotaUsage, invalidateQuotaUsageCache } from '../../lib/redis.js';
+import { logger } from "../../utils/logger.js";
 
 // Types pour le gestionnaire de quotas
 interface QuotaUsage {
@@ -100,12 +101,12 @@ export class OpenAIQuotaManager {
       };
 
       this.quotaCache.set(key, result);
-      console.log(`📊 [QUOTA] Usage depuis DB: ${result.requests} requêtes, ${result.tokens} tokens, $${result.cost.toFixed(4)}`);
+      logger.log(`📊 [QUOTA] Usage depuis DB: ${result.requests} requêtes, ${result.tokens} tokens, $${result.cost.toFixed(4)}`);
       return result;
 
     } catch (error) {
       // Si la table n'existe pas, utiliser cache en mémoire uniquement
-      console.warn('⚠️ Table openai_usage_log introuvable, utilisation cache mémoire:', error);
+      logger.warn('⚠️ Table openai_usage_log introuvable, utilisation cache mémoire:', error);
 
       const result: QuotaUsage = {
         requests: 0,
@@ -174,7 +175,7 @@ export class OpenAIQuotaManager {
     completionTokens: number,
     quotaKey: string = 'global'
   ): Promise<void> {
-    console.log(`📝 [QUOTA] recordUsage() appelée:`, {
+    logger.log(`📝 [QUOTA] recordUsage() appelée:`, {
       model,
       promptTokens,
       completionTokens,
@@ -193,7 +194,7 @@ export class OpenAIQuotaManager {
 
     // Enregistrer en DB si possible
     try {
-      console.log(`💾 [QUOTA] Tentative d'enregistrement en DB:`, {
+      logger.log(`💾 [QUOTA] Tentative d'enregistrement en DB:`, {
         quotaKey,
         model,
         promptTokens,
@@ -216,15 +217,15 @@ export class OpenAIQuotaManager {
           createdAt: new Date()
         }
       });
-      console.log(`✅ [QUOTA] Usage enregistré en DB: ${model} - ${totalTokens} tokens - $${cost.toFixed(4)}`);
+      logger.log(`✅ [QUOTA] Usage enregistré en DB: ${model} - ${totalTokens} tokens - $${cost.toFixed(4)}`);
 
       // 🗑️ INVALIDER CACHE REDIS après enregistrement
       invalidateQuotaUsageCache(quotaKey).catch(err =>
-        console.error('⚠️ [REDIS] Erreur invalidation cache Quota:', err)
+        logger.error('⚠️ [REDIS] Erreur invalidation cache Quota:', err)
       );
     } catch (error) {
-      console.error('❌ [QUOTA] Erreur enregistrement DB:', error);
-      console.log('💾 Cache mémoire utilisé pour l\'usage OpenAI - Client Prisma doit être régénéré !');
+      logger.error('❌ [QUOTA] Erreur enregistrement DB:', error);
+      logger.log('💾 Cache mémoire utilisé pour l\'usage OpenAI - Client Prisma doit être régénéré !');
     }
   }
 

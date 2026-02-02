@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logger } from "../utils/logger.js";
 import {
   createWorkspace,
   getWorkspaces,
@@ -42,7 +43,7 @@ router.get("/:id/pages", async (req, res) => {
     });
 
     if (!workspace) {
-      console.warn(
+      logger.warn(
         `🚨 [IDOR-BLOCKED] GET /workspaces/:id/pages - userId=${userId}, workspaceId=${id}`,
       );
       return res.status(403).json({
@@ -68,7 +69,7 @@ router.get("/:id/pages", async (req, res) => {
 
     res.json({ pages });
   } catch (error) {
-    console.error("[GET /workspaces/:id/pages] error", error);
+    logger.error("[GET /workspaces/:id/pages] error", error);
     res.status(500).json({ error: "Erreur liste des pages" });
   }
 });

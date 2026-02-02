@@ -10,6 +10,7 @@
  * - correct-quiz: Correction automatique de quiz
  */
 
+import { logger } from "../utils/logger.js";
 import { Worker, Job } from "bullmq";
 import { redis } from "../lib/redis.js";
 import { markJobCompleted, markJobFailed } from "../lib/jobResults.js";
@@ -50,7 +51,7 @@ const processQuizJob = async (
   const { type, userId, request, sequenceOptions, correctionRequest } =
     job.data;
 
-  console.log(`📝 [QUIZ-WORKER] Traitement job ${type} pour user ${userId}`);
+  logger.log(`📝 [QUIZ-WORKER] Traitement job ${type} pour user ${userId}`);
 
   try {
     switch (type) {
@@ -62,14 +63,14 @@ const processQuizJob = async (
           throw new Error("QuizGenerationRequest manquant");
         }
 
-        console.log(
+        logger.log(
           `📝 [QUIZ-WORKER] Génération quiz: ${request.title || "Sans titre"}`,
         );
 
         // Générer le quiz
         const quizId = await QuizService.generateQuiz(request, sequenceOptions);
 
-        console.log(`✅ [QUIZ-WORKER] Quiz généré avec ID: ${quizId}`);
+        logger.log(`✅ [QUIZ-WORKER] Quiz généré avec ID: ${quizId}`);
 
         return {
           success: true,
@@ -85,7 +86,7 @@ const processQuizJob = async (
           throw new Error("QuizGenerationRequest manquant");
         }
 
-        console.log(`📝 [QUIZ-WORKER] Génération quiz avec streaming`);
+        logger.log(`📝 [QUIZ-WORKER] Génération quiz avec streaming`);
 
         // Note: Le streaming complet nécessiterait une modification du QuizService
         // Pour l'instant, on fait une génération standard
@@ -107,7 +108,7 @@ const processQuizJob = async (
           throw new Error("QuizCorrectionRequest manquant");
         }
 
-        console.log(
+        logger.log(
           `📝 [QUIZ-WORKER] Correction quiz ${correctionRequest.quizId}`,
         );
 
@@ -141,7 +142,7 @@ const processQuizJob = async (
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error(`❌ [QUIZ-WORKER] Erreur job ${type}:`, error);
+    logger.error(`❌ [QUIZ-WORKER] Erreur job ${type}:`, error);
 
     return {
       success: false,
@@ -166,8 +167,8 @@ export const quizWorker = new Worker<QuizJobData, QuizJobResult>(
 
 // 📊 Event listeners pour logging et stockage des résultats
 quizWorker.on("completed", async (job, result) => {
-  console.log(`✅ [QUIZ-WORKER] Job ${job.id} complété (${job.data.type})`);
-  console.log(`   Quiz ID: ${result.quizId || "N/A"}`);
+  logger.log(`✅ [QUIZ-WORKER] Job ${job.id} complété (${job.data.type})`);
+  logger.log(`   Quiz ID: ${result.quizId || "N/A"}`);
 
   // 🛡️ Stocker le résultat dans Redis avec userId pour ownership
   if (job.id && job.data.userId) {
@@ -176,7 +177,7 @@ quizWorker.on("completed", async (job, result) => {
 });
 
 quizWorker.on("failed", async (job, error) => {
-  console.error(
+  logger.error(
     `❌ [QUIZ-WORKER] Job ${job?.id} échoué (${job?.data.type}):`,
     error.message,
   );
@@ -188,11 +189,11 @@ quizWorker.on("failed", async (job, error) => {
 });
 
 quizWorker.on("error", (error) => {
-  console.error("❌ [QUIZ-WORKER] Erreur worker:", error);
+  logger.error("❌ [QUIZ-WORKER] Erreur worker:", error);
 });
 
 quizWorker.on("progress", (job, progress) => {
-  console.log(`📊 [QUIZ-WORKER] Job ${job.id} progression: ${progress}%`);
+  logger.log(`📊 [QUIZ-WORKER] Job ${job.id} progression: ${progress}%`);
 });
 
-console.log("🚀 [QUIZ-WORKER] Worker Quiz démarré (concurrency: 3)");
+logger.log("🚀 [QUIZ-WORKER] Worker Quiz démarré (concurrency: 3)");

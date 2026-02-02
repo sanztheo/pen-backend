@@ -1,5 +1,6 @@
 import { createClerkClient, verifyToken } from "@clerk/backend";
 import dotenv from "dotenv";
+import { logger } from "../utils/logger.js";
 
 dotenv.config();
 
@@ -21,7 +22,7 @@ export interface AuthUser {
 
 // Validation et initialisation du client Clerk
 if (!process.env.CLERK_SECRET_KEY) {
-  console.error(
+  logger.error(
     "❌ CRITIQUE: CLERK_SECRET_KEY manquante. Le service ne peut pas démarrer.",
   );
   process.exit(1);
@@ -37,12 +38,12 @@ export class AuthService {
   static async verifyAuth(): Promise<AuthUser | null> {
     try {
       // Cette méthode est désormais utilisée principalement pour les tokens
-      console.warn(
+      logger.warn(
         "verifyAuth() sans token - utiliser verifyToken() à la place",
       );
       return null;
     } catch (error) {
-      console.error("Erreur vérification auth:", error);
+      logger.error("Erreur vérification auth:", error);
       return null;
     }
   }
@@ -64,7 +65,7 @@ export class AuthService {
         !sessionToken ||
         (sessionToken.exp && sessionToken.exp * 1000 < Date.now())
       ) {
-        console.warn(
+        logger.warn(
           "[AuthService] Tentative d'utilisation d'un token expiré.",
         );
         return null;
@@ -100,7 +101,7 @@ export class AuthService {
       const isExpiredError =
         error instanceof Error && error.message.includes("expired");
       if (!isExpiredError) {
-        console.error("Erreur vérification token Clerk:", error);
+        logger.error("Erreur vérification token Clerk:", error);
       }
       return null;
     }
@@ -142,7 +143,7 @@ export class AuthService {
       // Pour l'instant, nous indiquons que cela doit être fait via l'interface
       throw new Error("Utilisez l'API Backend de Clerk pour les métadonnées");
     } catch (error) {
-      console.error("Erreur mise à jour métadonnées:", error);
+      logger.error("Erreur mise à jour métadonnées:", error);
       throw error;
     }
   }

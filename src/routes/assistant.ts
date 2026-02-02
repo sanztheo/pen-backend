@@ -12,6 +12,7 @@
  * qui utilise Vercel AI SDK v5 avec streaming SSE.
  */
 
+import { logger } from "../utils/logger.js";
 import { Router, Request, Response } from "express";
 import multer from "multer";
 import { prisma } from "../lib/prisma.js";
@@ -168,7 +169,7 @@ router.post(
             articles,
           );
         } catch (error) {
-          console.warn("Erreur sauvegarde articles RAG:", error);
+          logger.warn("Erreur sauvegarde articles RAG:", error);
         }
       }
 
@@ -179,7 +180,7 @@ router.post(
         processedForRAG: !!workspaceId,
       });
     } catch (error) {
-      console.error("Erreur Wikipedia RAG:", error);
+      logger.error("Erreur Wikipedia RAG:", error);
       res.status(500).json({
         error: "Erreur interne du serveur",
         details: "Une erreur est survenue",
@@ -230,7 +231,7 @@ router.post(
             );
           }
         } catch (error) {
-          console.error("Erreur vérification session:", error);
+          logger.error("Erreur vérification session:", error);
         }
       }
 
@@ -425,7 +426,7 @@ router.post(
         searchResultsCount: searchResults.length,
       });
     } catch (error) {
-      console.error("Erreur RAG context:", error);
+      logger.error("Erreur RAG context:", error);
       res.status(500).json({
         error: "Erreur interne du serveur",
         details: "Une erreur est survenue",
@@ -499,7 +500,7 @@ router.post(
         });
       }
     } catch (error) {
-      console.error("Erreur User Pages Check:", error);
+      logger.error("Erreur User Pages Check:", error);
       res.status(500).json({ error: "Erreur interne du serveur" });
     }
   },
@@ -578,7 +579,7 @@ router.post(
             }
           }
         } catch (error) {
-          console.error(
+          logger.error(
             `Erreur extraction contenu page "${page.title}":`,
             error,
           );
@@ -610,7 +611,7 @@ router.post(
         totalPages: selectedPages.length,
       });
     } catch (error) {
-      console.error("Erreur User Pages RAG:", error);
+      logger.error("Erreur User Pages RAG:", error);
       res.status(500).json({ error: "Erreur interne du serveur" });
     }
   },
@@ -674,7 +675,7 @@ router.post(
             text = data?.text || "";
           } catch (pdfError) {
             // 🛡️ SÉCURITÉ: Log l'échec du parsing PDF pour monitoring
-            console.warn(
+            logger.warn(
               `⚠️ [ASSISTANT] PDF parsing failed for "${f.originalname}" (${f.size} bytes):`,
               pdfError instanceof Error ? pdfError.message : "Unknown error",
             );
@@ -693,7 +694,7 @@ router.post(
 
       res.json({ files: results });
     } catch (e) {
-      console.error("upload error", e);
+      logger.error("upload error", e);
       res.status(500).json({ error: "Erreur upload fichiers" });
     }
   },
@@ -762,7 +763,7 @@ router.post(
         ],
       });
     } catch (error) {
-      console.error("Erreur upload-rag:", error);
+      logger.error("Erreur upload-rag:", error);
       res.status(500).json({ error: "Erreur traitement fichier RAG" });
     }
   },
@@ -786,7 +787,7 @@ router.post("/markdown-to-blocknote", async (req, res) => {
 
     res.json({ success: true, blockNote, blocksCount: blockNote.length });
   } catch (error) {
-    console.error("Erreur conversion markdown->blocknote:", error);
+    logger.error("Erreur conversion markdown->blocknote:", error);
     res.status(500).json({ error: "Erreur lors de la conversion" });
   }
 });

@@ -3,6 +3,7 @@
  * Gère la création et récupération automatique du workspace par défaut pour chaque utilisateur
  */
 
+import { logger } from "../utils/logger.js";
 import { prisma } from '../lib/prisma.js';
 import { AuthUser } from './auth.js';
 
@@ -37,7 +38,7 @@ export class DefaultWorkspaceService {
 
       // 3. Si le membre n'existe pas, c'est une nouvelle création
       if (!member) {
-        console.log(`🏠 [DEFAULT-WS] Nouveau workspace détecté pour utilisateur ${userId}`);
+        logger.log(`🏠 [DEFAULT-WS] Nouveau workspace détecté pour utilisateur ${userId}`);
         // Utiliser une transaction pour garantir l'intégrité
         try {
           await prisma.$transaction(async (tx) => {
@@ -66,7 +67,7 @@ export class DefaultWorkspaceService {
             });
           });
         } catch (e) {
-          console.error('❌ [DEFAULT-WS] Erreur transactionnelle lors de la création du membre/limite:', e);
+          logger.error('❌ [DEFAULT-WS] Erreur transactionnelle lors de la création du membre/limite:', e);
           // Si la transaction échoue, il faut une stratégie de rollback ou de compensation.
           // Pour l'instant, on log l'erreur. Le workspace existe mais sans membre.
           throw e; // Propage l'erreur pour que l'appelant sache que l'opération a échoué.
@@ -107,7 +108,7 @@ export class DefaultWorkspaceService {
       });
 
     } catch (error) {
-      console.error('❌ [DEFAULT-WS] Erreur lors de la récupération/création du workspace par défaut:', error);
+      logger.error('❌ [DEFAULT-WS] Erreur lors de la récupération/création du workspace par défaut:', error);
       throw error;
     }
   }
@@ -141,7 +142,7 @@ export class DefaultWorkspaceService {
    * Initialise le workspace par défaut pour les utilisateurs existants (migration)
    */
   static async initializeForExistingUsers() {
-    console.log('🔄 [DEFAULT-WS] Initialisation des workspaces par défaut pour utilisateurs existants...');
+    logger.log('🔄 [DEFAULT-WS] Initialisation des workspaces par défaut pour utilisateurs existants...');
     
     try {
       // Récupérer tous les utilisateurs sans workspace "Mon Espace"
@@ -162,20 +163,20 @@ export class DefaultWorkspaceService {
         }
       });
 
-      console.log(`🔄 [DEFAULT-WS] ${usersWithoutDefault.length} utilisateurs à traiter`);
+      logger.log(`🔄 [DEFAULT-WS] ${usersWithoutDefault.length} utilisateurs à traiter`);
 
       for (const user of usersWithoutDefault) {
         try {
           await this.getOrCreateDefaultWorkspace(user.id);
-          console.log(`✅ [DEFAULT-WS] Workspace créé pour ${user.firstName} ${user.lastName}`);
+          logger.log(`✅ [DEFAULT-WS] Workspace créé pour ${user.firstName} ${user.lastName}`);
         } catch (error) {
-          console.error(`❌ [DEFAULT-WS] Erreur pour utilisateur ${user.id}:`, error);
+          logger.error(`❌ [DEFAULT-WS] Erreur pour utilisateur ${user.id}:`, error);
         }
       }
 
-      console.log('✅ [DEFAULT-WS] Initialisation terminée');
+      logger.log('✅ [DEFAULT-WS] Initialisation terminée');
     } catch (error) {
-      console.error('❌ [DEFAULT-WS] Erreur lors de l\'initialisation:', error);
+      logger.error('❌ [DEFAULT-WS] Erreur lors de l\'initialisation:', error);
       throw error;
     }
   }

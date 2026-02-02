@@ -1,4 +1,5 @@
 import { WebSocketServer, WebSocket } from "ws";
+import { logger } from "../utils/logger.js";
 
 /**
  * Service de gestion de la progression des quiz en temps réel via WebSocket
@@ -30,7 +31,7 @@ export class ProgressService {
   }
 
   registerConnection(processId: string, ws: WebSocket): void {
-    console.log(
+    logger.log(
       `[ProgressService] ✅ Connexion enregistrée pour processus: ${processId}`,
     );
     this.connections.set(processId, ws);
@@ -38,13 +39,13 @@ export class ProgressService {
     ws.on("close", () => {
       this.connections.delete(processId);
       this.processOwners.delete(processId);
-      console.log(
+      logger.log(
         `[ProgressService] 🔌 Connexion fermée pour processus: ${processId}`,
       );
     });
 
     ws.on("error", (error) => {
-      console.error(
+      logger.error(
         `[ProgressService] ❌ Erreur WebSocket pour ${processId}:`,
         error,
       );
@@ -68,7 +69,7 @@ export class ProgressService {
     const ws = this.connections.get(processId);
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.warn(
+      logger.warn(
         `[ProgressService] ⚠️ Connexion fermée ou indisponible pour: ${processId}`,
       );
       this.connections.delete(processId);
@@ -83,13 +84,13 @@ export class ProgressService {
         ...data,
       };
 
-      console.log(
+      logger.log(
         `[ProgressService] 📊 Progression envoyée pour ${processId}:`,
         progressUpdate,
       );
       ws.send(JSON.stringify(progressUpdate));
     } catch (error) {
-      console.error(
+      logger.error(
         `[ProgressService] ❌ Erreur envoi progression pour ${processId}:`,
         error,
       );
@@ -104,7 +105,7 @@ export class ProgressService {
     const ws = this.connections.get(processId);
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.warn(
+      logger.warn(
         `[ProgressService] ⚠️ Connexion fermée pour succès: ${processId}`,
       );
       this.connections.delete(processId);
@@ -120,7 +121,7 @@ export class ProgressService {
         result,
       };
 
-      console.log(`[ProgressService] ✅ Succès envoyé pour ${processId}`);
+      logger.log(`[ProgressService] ✅ Succès envoyé pour ${processId}`);
       ws.send(JSON.stringify(successUpdate));
 
       // Fermer la connexion après un délai
@@ -131,7 +132,7 @@ export class ProgressService {
         }
       }, 2000);
     } catch (error) {
-      console.error(
+      logger.error(
         `[ProgressService] ❌ Erreur envoi succès pour ${processId}:`,
         error,
       );
@@ -146,7 +147,7 @@ export class ProgressService {
     const ws = this.connections.get(processId);
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      console.warn(
+      logger.warn(
         `[ProgressService] ⚠️ Connexion fermée pour erreur: ${processId}`,
       );
       this.connections.delete(processId);
@@ -162,7 +163,7 @@ export class ProgressService {
         error,
       };
 
-      console.log(
+      logger.log(
         `[ProgressService] ❌ Erreur envoyée pour ${processId}:`,
         error,
       );
@@ -176,7 +177,7 @@ export class ProgressService {
         }
       }, 2000);
     } catch (error) {
-      console.error(
+      logger.error(
         `[ProgressService] ❌ Erreur envoi erreur pour ${processId}:`,
         error,
       );
@@ -196,7 +197,7 @@ export class ProgressService {
    * Ferme toutes les connexions actives
    */
   closeAllConnections(): void {
-    console.log(
+    logger.log(
       `[ProgressService] 🔌 Fermeture de ${this.connections.size} connexions...`,
     );
 
@@ -206,7 +207,7 @@ export class ProgressService {
           ws.close();
         }
       } catch (error) {
-        console.error(
+        logger.error(
           `[ProgressService] ❌ Erreur fermeture connexion ${processId}:`,
           error,
         );

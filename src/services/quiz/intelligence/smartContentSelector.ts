@@ -3,6 +3,7 @@
  * PEN-17: Sélectionne le contenu pertinent pour la génération de questions
  */
 
+import { logger } from "../../../utils/logger.js";
 import { prisma } from "../../../lib/prisma.js";
 import { extractTextFromBlockNote } from "../../../controllers/assistant/helpers/blocknote.js";
 import {
@@ -47,13 +48,13 @@ export class SmartContentSelectorService {
       balanceTypes = true,
     } = options;
 
-    console.log(
+    logger.log(
       `📋 [SmartSelector] Sélection pour cluster "${cluster.name}" (${cluster.pages.length} pages)...`,
     );
 
     // 1. Extraire tous les chunks de contenu des pages
     const allChunks = await this.extractChunksFromPages(cluster.pages);
-    console.log(`   📦 ${allChunks.length} chunks extraits`);
+    logger.log(`   📦 ${allChunks.length} chunks extraits`);
 
     if (allChunks.length === 0) {
       return {
@@ -91,13 +92,13 @@ export class SmartContentSelectorService {
     const typeDistribution = this.calculateTypeDistribution(selectedChunks);
 
     const processingTimeMs = Date.now() - startTime;
-    console.log(
+    logger.log(
       `✅ [SmartSelector] ${selectedChunks.length} chunks sélectionnés (${selectedTokens} tokens, ${(coverage * 100).toFixed(1)}% coverage)`,
     );
 
     // Avertir si couverture insuffisante
     if (coverage < minCoverage) {
-      console.warn(
+      logger.warn(
         `⚠️ [SmartSelector] Couverture faible (${(coverage * 100).toFixed(1)}% < ${minCoverage * 100}%)`,
       );
     }
@@ -375,7 +376,7 @@ export class SmartContentSelectorService {
     clusters: ThematicCluster[],
     options: SelectionOptions = {},
   ): Promise<Map<string, SelectedContent>> {
-    console.log(
+    logger.log(
       `📋 [SmartSelector] Sélection pour ${clusters.length} clusters...`,
     );
 

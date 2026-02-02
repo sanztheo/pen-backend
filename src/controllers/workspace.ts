@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
+import { logger } from "../utils/logger.js";
 
 // Type for Prisma interactive transaction client
 type PrismaTransactionClient = Omit<
@@ -154,7 +155,7 @@ export const createWorkspace = async (req: Request, res: Response) => {
       });
     }
 
-    console.error("Erreur création workspace:", error);
+    logger.error("Erreur création workspace:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -236,7 +237,7 @@ export const getUserWorkspaces = async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    console.error("Erreur récupération workspaces:", error);
+    logger.error("Erreur récupération workspaces:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -319,7 +320,7 @@ export const getWorkspaces = async (req: Request, res: Response) => {
 
     res.status(200).json({ workspaces });
   } catch (error) {
-    console.error("Erreur chargement workspaces:", error);
+    logger.error("Erreur chargement workspaces:", error);
     res.status(500).json({ error: "Erreur serveur" });
   }
 };
@@ -411,7 +412,7 @@ export const getWorkspaceById = async (req: Request, res: Response) => {
 
     res.json({ workspace });
   } catch (error) {
-    console.error("Erreur récupération workspace:", error);
+    logger.error("Erreur récupération workspace:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -503,7 +504,7 @@ export const updateWorkspace = async (req: Request, res: Response) => {
       });
     }
 
-    console.error("Erreur mise à jour workspace:", error);
+    logger.error("Erreur mise à jour workspace:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -569,7 +570,7 @@ export const deleteWorkspace = async (req: Request, res: Response) => {
 
     res.json({ message: "Workspace supprimé avec succès" });
   } catch (error) {
-    console.error("Erreur suppression workspace:", error);
+    logger.error("Erreur suppression workspace:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };

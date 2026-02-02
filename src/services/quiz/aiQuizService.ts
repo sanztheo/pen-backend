@@ -1,3 +1,4 @@
+import { logger } from "../../utils/logger.js";
 import {
   SchoolLevel,
   CollegeGrade,
@@ -100,7 +101,7 @@ export class AIQuizService {
     request: QuizGenerationRequest,
     processId?: string,
   ): Promise<GeneratedQuiz> {
-    console.log("🎯 AIQuizService.generateQuiz()");
+    logger.log("🎯 AIQuizService.generateQuiz()");
 
     // Initialisation de la progression
     if (processId && progressService.hasActiveConnection(processId)) {
@@ -122,7 +123,7 @@ export class AIQuizService {
       }
 
       // Utilisation du générateur standard (le streaming est maintenant utilisé via generateSingleQuestion)
-      console.log("📦 Utilisation du générateur de quiz standard");
+      logger.log("📦 Utilisation du générateur de quiz standard");
 
       // Progression : Génération
       if (processId && progressService.hasActiveConnection(processId)) {
@@ -135,7 +136,7 @@ export class AIQuizService {
 
       return QuizGenerator.generateQuiz(request);
     } catch (error) {
-      console.error("❌ Erreur génération quiz:", error);
+      logger.error("❌ Erreur génération quiz:", error);
 
       // Progression : Erreur
       if (processId && progressService.hasActiveConnection(processId)) {
@@ -174,7 +175,7 @@ export class AIQuizService {
     request: QuizCorrectionRequest,
     processId?: string,
   ): Promise<QuizCorrectionResult> {
-    console.log("🎯 AIQuizService.correctQuiz() - Migration vers Assistant");
+    logger.log("🎯 AIQuizService.correctQuiz() - Migration vers Assistant");
 
     // Progression : Initialisation correction
     if (processId && progressService.hasActiveConnection(processId)) {
@@ -201,7 +202,7 @@ export class AIQuizService {
         request.workspaceContent &&
         request.workspaceContent.length > 0
       ) {
-        console.log(
+        logger.log(
           "📚 Mode coursesOnly détecté - Utilisation du CorrectionGenerator pour correction stricte",
         );
 
@@ -222,7 +223,7 @@ export class AIQuizService {
       // Détection automatique du type de correction nécessaire (pour les autres cas)
       const correctionCapabilities =
         this.detectCorrectionCapabilities(questions);
-      console.log(
+      logger.log(
         "🔍 Correction - Capacités détectées:",
         correctionCapabilities,
       );
@@ -253,7 +254,7 @@ export class AIQuizService {
           });
         }
 
-        console.log(
+        logger.log(
           "🚀 Correction complète: graphiques + documents via Chat Completion",
         );
         assistantResult = await assistantService.correctWithRetry(
@@ -289,7 +290,7 @@ export class AIQuizService {
             });
           }
 
-          console.log(
+          logger.log(
             "🚀 Correction documents avec File Upload via Chat Completion",
           );
           assistantResult = await assistantService.correctWithRetry(
@@ -324,7 +325,7 @@ export class AIQuizService {
             });
           }
 
-          console.log("🚀 Correction documents standard via Chat Completion");
+          logger.log("🚀 Correction documents standard via Chat Completion");
           assistantResult = await assistantService.correctWithRetry(
             () =>
               assistantService.correctCompleteQuizChatCompletion(
@@ -358,7 +359,7 @@ export class AIQuizService {
           });
         }
 
-        console.log("🚀 Correction graphiques via Chat Completion");
+        logger.log("🚀 Correction graphiques via Chat Completion");
         assistantResult = await assistantService.correctWithRetry(
           () =>
             assistantService.correctCompleteQuizChatCompletion(
@@ -390,7 +391,7 @@ export class AIQuizService {
           });
         }
 
-        console.log("🚀 Correction standard via Chat Completion + JSON strict");
+        logger.log("🚀 Correction standard via Chat Completion + JSON strict");
         assistantResult = await assistantService.correctWithRetry(
           () =>
             assistantService.correctStandardQuizChatCompletion(
@@ -444,7 +445,7 @@ export class AIQuizService {
 
       return result;
     } catch (error) {
-      console.error(
+      logger.error(
         "❌ Erreur correction Assistant, fallback vers ancien système:",
         error,
       );
@@ -576,7 +577,7 @@ export class AIQuizService {
     userAnswers: UserAnswer[],
     quizId?: string,
   ): QuizCorrectionResult {
-    console.log("🔄 Transformation résultat Assistant:", assistantResult);
+    logger.log("🔄 Transformation résultat Assistant:", assistantResult);
 
     // Transformation des corrections par question vers le format frontend
     const questionResults: TransformedQuestionResult[] = (
@@ -590,7 +591,7 @@ export class AIQuizService {
       // 🔧 FIX CRITIQUE: Si l'Assistant indique que la réponse est correcte (isCorrect: true),
       // forcer le score à être égal au maxScore pour éviter les points partiels sur des bonnes réponses
       if (isCorrect && score < actualMaxScore) {
-        console.log(
+        logger.log(
           `🔧 [ASSISTANT-FIX] Question ${correction.questionId || questions[index]?.id}: Assistant dit correct mais score partiel ${score}/${actualMaxScore} → Correction à ${actualMaxScore}/${actualMaxScore}`,
         );
         score = actualMaxScore;

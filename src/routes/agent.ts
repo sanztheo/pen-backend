@@ -7,6 +7,7 @@
  * @see https://ai-sdk.dev/docs/ai-sdk-ui/stream-protocol
  */
 
+import { logger } from "../utils/logger.js";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { authenticateToken } from "../middlewares/auth.js";
@@ -183,7 +184,7 @@ router.post(
         });
       }
 
-      console.log(`🤖 [AGENT-CHAT] Requête reçue:`, {
+      logger.log(`🤖 [AGENT-CHAT] Requête reçue:`, {
         userId,
         workspaceId,
         mode,
@@ -213,7 +214,7 @@ router.post(
       );
 
       if (!quotaCheck.allowed) {
-        console.warn(`⚠️ [QUOTA] Requête bloquée: ${quotaCheck.reason}`);
+        logger.warn(`⚠️ [QUOTA] Requête bloquée: ${quotaCheck.reason}`);
         return res.status(429).json({
           error: "QUOTA_EXCEEDED",
           message: quotaCheck.reason,
@@ -240,20 +241,20 @@ router.post(
         {
           // Callbacks optionnels pour le logging
           onStepFinish: ({ stepNumber, toolCalls, text }) => {
-            console.log(`📍 [AGENT-CHAT] Step ${stepNumber}:`, {
+            logger.log(`📍 [AGENT-CHAT] Step ${stepNumber}:`, {
               toolCalls: toolCalls.length,
               hasText: !!text,
             });
           },
           onToolCall: (toolName, args) => {
-            console.log(`🔧 [AGENT-CHAT] Tool call: ${toolName}`);
+            logger.log(`🔧 [AGENT-CHAT] Tool call: ${toolName}`);
           },
         },
       );
 
       // Log de la consommation
       const cost = req.aiCredits?.cost ?? calculateDynamicCost(req);
-      console.log(
+      logger.log(
         `✅ [AUDIT] Agent chat: userId=${userId}, mode=${mode}, cost=${cost}`,
       );
 
@@ -264,7 +265,7 @@ router.post(
         sendReasoning: true,
         // 💾 Sauvegarder la conversation après la fin du stream
         onFinish: async ({ messages: allMessages }) => {
-          console.log(
+          logger.log(
             `💾 [AGENT-CHAT] onFinish - Sauvegarde de ${allMessages.length} messages`,
           );
           if (conversationId) {
@@ -289,11 +290,11 @@ router.post(
               outputTokens,
               userId, // Quota par utilisateur
             );
-            console.log(
+            logger.log(
               `📊 [QUOTA] Usage enregistré pour ${userId}: ~${estimatedTokens + outputTokens} tokens`,
             );
           } catch (quotaError) {
-            console.error(
+            logger.error(
               "⚠️ [QUOTA] Erreur enregistrement usage:",
               quotaError,
             );
@@ -309,7 +310,7 @@ router.post(
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error("❌ [AGENT-CHAT] Erreur:", error);
+      logger.error("❌ [AGENT-CHAT] Erreur:", error);
 
       const creditsCost = req.aiCredits?.cost;
       const refundUserId = req.user?.id;
@@ -319,7 +320,7 @@ router.post(
           creditsCost,
           "agent_chat_error",
         ).catch((err: unknown) =>
-          console.error("[REFUND] Erreur refund agent/chat:", err),
+          logger.error("[REFUND] Erreur refund agent/chat:", err),
         );
       }
 
@@ -376,7 +377,7 @@ router.post(
         });
       }
 
-      console.log(`🤖 [AGENT-SIMPLE] Requête:`, {
+      logger.log(`🤖 [AGENT-SIMPLE] Requête:`, {
         userId,
         workspaceId,
         mode,
@@ -410,7 +411,7 @@ router.post(
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error("❌ [AGENT-SIMPLE] Erreur:", error);
+      logger.error("❌ [AGENT-SIMPLE] Erreur:", error);
 
       const creditsCost = req.aiCredits?.cost;
       const refundUserId = req.user?.id;
@@ -420,7 +421,7 @@ router.post(
           creditsCost,
           "agent_simple_error",
         ).catch((err: unknown) =>
-          console.error("[REFUND] Erreur refund agent/simple:", err),
+          logger.error("[REFUND] Erreur refund agent/simple:", err),
         );
       }
 
@@ -481,7 +482,7 @@ router.post(
         });
       }
 
-      console.log(`🚀 [WORKFLOW] Démarrage:`, {
+      logger.log(`🚀 [WORKFLOW] Démarrage:`, {
         userId,
         workspaceId,
         mode,
@@ -613,7 +614,7 @@ router.post(
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error("❌ [WORKFLOW] Erreur:", error);
+      logger.error("❌ [WORKFLOW] Erreur:", error);
 
       const creditsCost = req.aiCredits?.cost;
       const refundUserId = req.user?.id;
@@ -623,7 +624,7 @@ router.post(
           creditsCost,
           "workflow_error",
         ).catch((err: unknown) =>
-          console.error("[REFUND] Erreur refund workflow:", err),
+          logger.error("[REFUND] Erreur refund workflow:", err),
         );
       }
 
@@ -702,7 +703,7 @@ router.get("/conversations", async (req: Request, res: Response) => {
     res.json({ success: true, conversations });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("❌ [CONVERSATIONS] Erreur liste:", error);
+    logger.error("❌ [CONVERSATIONS] Erreur liste:", error);
     const safeMessage =
       process.env.NODE_ENV === "production"
         ? "Erreur lors de la récupération des conversations"
@@ -734,7 +735,7 @@ router.get("/conversations/:id", async (req: Request, res: Response) => {
     res.json({ success: true, messages });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("❌ [CONVERSATIONS] Erreur chargement:", error);
+    logger.error("❌ [CONVERSATIONS] Erreur chargement:", error);
     const safeMessage =
       process.env.NODE_ENV === "production"
         ? "Erreur lors du chargement de la conversation"
@@ -766,7 +767,7 @@ router.delete("/conversations/:id", async (req: Request, res: Response) => {
     res.json({ success: true });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error("❌ [CONVERSATIONS] Erreur suppression:", error);
+    logger.error("❌ [CONVERSATIONS] Erreur suppression:", error);
     const safeMessage =
       process.env.NODE_ENV === "production"
         ? "Erreur lors de la suppression de la conversation"

@@ -1,6 +1,7 @@
 import Parser from "rss-parser";
 import { prisma } from "../lib/prisma.js";
 import OpenAI from "openai";
+import { logger } from "../utils/logger.js";
 
 // Types pour les articles RSS
 interface FuturaArticle {
@@ -70,7 +71,7 @@ export class FuturaRssService {
           .replace(/<\/?div[^>]*>/gi, "")
           .replace(/<\/?span[^>]*>/gi, "")
           .trim();
-        console.log("📝 Synopsis extracted");
+        logger.log("📝 Synopsis extracted");
       }
 
       // 2. Extraire le contenu principal de l'article
@@ -79,7 +80,7 @@ export class FuturaRssService {
         /<div[^>]*id="article-anchor-article-main-content"[^>]*>/i,
       );
       if (!startMatch) {
-        console.warn("⚠️ Could not find main article content div");
+        logger.warn("⚠️ Could not find main article content div");
         return synopsis || null;
       }
 
@@ -105,7 +106,7 @@ export class FuturaRssService {
       }
 
       if (divCount !== 0) {
-        console.warn("⚠️ Could not find matching closing div");
+        logger.warn("⚠️ Could not find matching closing div");
         return synopsis || null;
       }
 
@@ -279,12 +280,12 @@ export class FuturaRssService {
         ? `${synopsis}\n\n${cleanContent}`
         : cleanContent;
 
-      console.log(
+      logger.log(
         `📄 Extracted ${fullContent.length} characters from article (synopsis + main content)`,
       );
       return fullContent;
     } catch (error) {
-      console.error("❌ Error fetching full article content:", error);
+      logger.error("❌ Error fetching full article content:", error);
       return null;
     }
   }
@@ -303,7 +304,7 @@ export class FuturaRssService {
       if (cacheKey) {
         const cached = aiValidationCache.get(cacheKey);
         if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-          console.log(
+          logger.log(
             `📦 Cache hit pour validation éducative: ${cacheKey.substring(0, 50)}...`,
           );
           return {
@@ -324,7 +325,7 @@ export class FuturaRssService {
 
       // Vérifier la clé API
       if (!process.env.OPENAI_API_KEY) {
-        console.warn(
+        logger.warn(
           "⚠️ OPENAI_API_KEY non configurée, acceptation par défaut avec score faible",
         );
         return { isValid: true, score: 0.5, reason: "no_api_key" };
@@ -399,13 +400,13 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
 
       // Log uniquement les articles validés (réduire le bruit)
       if (isValid) {
-        console.log(
+        logger.log(
           `🎓 Article validé: "${title.substring(0, 50)}..." (score: ${result.score}/10)`,
         );
       }
       return { isValid, score, reason };
     } catch (error) {
-      console.error("❌ Erreur validation éducative AI:", error);
+      logger.error("❌ Erreur validation éducative AI:", error);
       // En cas d'erreur, on rejette l'article par sécurité
       return { isValid: false, score: 0, reason: "error_api" };
     }
@@ -418,11 +419,11 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
    */
   static async fetchLatestArticle(): Promise<FuturaArticle | null> {
     try {
-      console.log("📡 Fetching Futura Sciences RSS feed...");
+      logger.log("📡 Fetching Futura Sciences RSS feed...");
       const feed = await this.parser.parseURL(this.RSS_URL);
 
       if (!feed.items || feed.items.length === 0) {
-        console.error("❌ No articles found in RSS feed");
+        logger.error("❌ No articles found in RSS feed");
         return null;
       }
 
@@ -434,7 +435,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         reason: string;
       }[] = [];
 
-      console.log(`🔍 Validation AI de ${first30Articles.length} articles...`);
+      logger.log(`🔍 Validation AI de ${first30Articles.length} articles...`);
 
       for (const item of first30Articles) {
         const validation = await this.validateEducationalRelevanceAI(item);
@@ -447,18 +448,18 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         }
       }
 
-      console.log(
+      logger.log(
         `✅ ${validatedArticles.length} articles éducatifs validés par l'AI sur ${first30Articles.length}`,
       );
 
       // Sélectionner un article au hasard parmi les validés (prioriser les meilleurs scores)
       let selectedArticle: RssItem;
       if (validatedArticles.length === 0) {
-        console.warn(
+        logger.warn(
           "⚠️ Aucun article validé par l'AI, utilisation du premier article disponible",
         );
         selectedArticle = feed.items[0];
-        console.log(
+        logger.log(
           `🎲 Article de secours: "${selectedArticle.title?.substring(0, 80)}..."`,
         );
       } else {
@@ -470,7 +471,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         );
         const randomIndex = Math.floor(Math.random() * topArticles.length);
         selectedArticle = topArticles[randomIndex].item;
-        console.log(
+        logger.log(
           `🎲 Article sélectionné: "${selectedArticle.title?.substring(0, 80)}..." (score: ${topArticles[randomIndex].score.toFixed(2)}, raison: ${topArticles[randomIndex].reason})`,
         );
       }
@@ -492,7 +493,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
       // Le scraping web de Futura Sciences ne fonctionne plus car ils changent trop souvent leur structure HTML
       // Le RSS contient une description correcte et fiable (même si courte)
 
-      console.log("📝 Using RSS description (reliable source)");
+      logger.log("📝 Using RSS description (reliable source)");
       let cleanContent =
         latestItem.description || latestItem.contentSnippet || "";
 
@@ -517,7 +518,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         .replace(/\s+/g, " ")
         .trim();
 
-      console.log(
+      logger.log(
         `📊 RSS description length: ${cleanContent.length} characters`,
       );
 
@@ -532,11 +533,11 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         enclosure: imageUrl ? { url: imageUrl, type: "image/jpeg" } : undefined,
       };
 
-      console.log("✅ Latest article fetched:", article.title);
-      console.log(`📊 Content length: ${cleanContent.length} characters`);
+      logger.log("✅ Latest article fetched:", article.title);
+      logger.log(`📊 Content length: ${cleanContent.length} characters`);
       return article;
     } catch (error) {
-      console.error("❌ Error fetching Futura RSS feed:", error);
+      logger.error("❌ Error fetching Futura RSS feed:", error);
       return null;
     }
   }
@@ -570,9 +571,9 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         await prisma.dailyArticle.delete({
           where: { id: existingArticle.id },
         });
-        console.log("🗑️ Ancien article supprimé pour en créer un nouveau");
+        logger.log("🗑️ Ancien article supprimé pour en créer un nouveau");
       } else if (existingArticle) {
-        console.log("ℹ️ Weekly article already exists for this week");
+        logger.log("ℹ️ Weekly article already exists for this week");
         return existingArticle;
       }
 
@@ -588,14 +589,14 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         },
       });
 
-      console.log("✅ Weekly article saved to database:", savedArticle.id);
+      logger.log("✅ Weekly article saved to database:", savedArticle.id);
 
       // Nettoyer les anciens articles après avoir sauvegardé le nouveau
       await this.cleanupOldArticles();
 
       return savedArticle;
     } catch (error) {
-      console.error("❌ Error saving weekly article:", error);
+      logger.error("❌ Error saving weekly article:", error);
       return null;
     }
   }
@@ -625,7 +626,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
 
       // Si aucun article pour cette semaine, en fetch un nouveau
       if (!article) {
-        console.log("📰 No article for this week, fetching new one...");
+        logger.log("📰 No article for this week, fetching new one...");
         const latestArticle = await this.fetchLatestArticle();
 
         if (latestArticle) {
@@ -635,7 +636,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
 
       return article;
     } catch (error) {
-      console.error("❌ Error getting weekly article:", error);
+      logger.error("❌ Error getting weekly article:", error);
       return null;
     }
   }
@@ -663,7 +664,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
 
       return article;
     } catch (error) {
-      console.error("❌ Error getting latest available article:", error);
+      logger.error("❌ Error getting latest available article:", error);
       return null;
     }
   }
@@ -684,10 +685,10 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         },
       });
 
-      console.log(`🗑️ Cleaned up ${deleted.count} old articles`);
+      logger.log(`🗑️ Cleaned up ${deleted.count} old articles`);
       return deleted.count;
     } catch (error) {
-      console.error("❌ Error cleaning up old articles:", error);
+      logger.error("❌ Error cleaning up old articles:", error);
       return 0;
     }
   }

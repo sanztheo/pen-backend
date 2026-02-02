@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { OpenAIQuotaManager } from '../../services/ai/quotaManager.js';
+import { logger } from "../../utils/logger.js";
 
 /**
  * GET /api/ai/quota - Obtenir les statistiques d'usage des quotas OpenAI
@@ -36,7 +37,7 @@ export const getQuotaStats = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Erreur récupération quota:', error);
+    logger.error('Erreur récupération quota:', error);
     res.status(500).json({ 
       error: 'Erreur lors de la récupération des quotas',
       details: error instanceof Error ? error.message : 'Erreur inconnue'
@@ -66,7 +67,7 @@ export const resetQuota = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Erreur reset quota:', error);
+    logger.error('Erreur reset quota:', error);
     res.status(500).json({ 
       error: 'Erreur lors de la réinitialisation des quotas',
       details: error instanceof Error ? error.message : 'Erreur inconnue'

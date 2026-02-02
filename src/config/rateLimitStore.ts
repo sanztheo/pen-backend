@@ -3,6 +3,7 @@
  * Utilise Redis pour stocker les compteurs de rate limiting de manière distribuée
  */
 
+import { logger } from "../utils/logger.js";
 import { RedisStore } from 'rate-limit-redis';
 import { redis } from '../lib/redis.js';
 
@@ -27,7 +28,7 @@ export const getRateLimitStoreWithFallback = (prefix: string = 'rl:') => {
   try {
     return createRateLimitStore(prefix);
   } catch (error) {
-    console.warn(`⚠️ [RATE-LIMIT] Redis indisponible pour ${prefix}, utilisation du store en mémoire`);
+    logger.warn(`⚠️ [RATE-LIMIT] Redis indisponible pour ${prefix}, utilisation du store en mémoire`);
     // Retourner undefined pour utiliser le store en mémoire par défaut
     return undefined;
   }

@@ -4,6 +4,7 @@
  * Implements RGPD-compliant field selection and 10k row limit
  */
 
+import { logger } from "../../utils/logger.js";
 import Papa from "papaparse";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
@@ -43,7 +44,7 @@ export class AdminExportService {
     filters: UserListFilters,
     adminEmail: string,
   ): Promise<{ csv: string; rowCount: number }> {
-    console.log(
+    logger.log(
       "[ADMIN_EXPORT] Starting CSV generation with filters:",
       filters,
     );
@@ -52,7 +53,7 @@ export class AdminExportService {
     const totalCount = await prisma.user.count({ where });
     const rowsToExport = Math.min(totalCount, MAX_EXPORT_ROWS);
 
-    console.log(
+    logger.log(
       `[ADMIN_EXPORT] Found ${totalCount} users, exporting ${rowsToExport}`,
     );
 
@@ -66,7 +67,7 @@ export class AdminExportService {
         rows.push(this.formatUserRow(user));
       }
 
-      console.log(
+      logger.log(
         `[ADMIN_EXPORT] Processed ${offset + users.length}/${rowsToExport} users`,
       );
     }
@@ -78,7 +79,7 @@ export class AdminExportService {
     });
     const fullCSV = disclaimer + csvData;
 
-    console.log(
+    logger.log(
       `[ADMIN_EXPORT] CSV generated: ${rowsToExport} rows, ${fullCSV.length} bytes`,
     );
 

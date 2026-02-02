@@ -1,5 +1,6 @@
 // 🧠 RAG Session Memory - Mémoire persistante entre sessions
 import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
+import { logger } from "../../utils/logger.js";
 import {
   cacheActiveRAGSession,
   invalidateRAGSessionCache,
@@ -86,7 +87,7 @@ export class SessionMemorySystem {
         },
         include: { sourcesUsed: true },
       });
-      console.log(
+      logger.log(
         `✅ [SESSION-FIX] Nouvelle session ${session.id} créée avec lastQueryAt: ${session.lastQueryAt}`,
       );
     }
@@ -160,10 +161,10 @@ export class SessionMemorySystem {
         updatedSession.userId,
         updatedSession.workspaceId || "",
       ).catch((err) =>
-        console.error("⚠️ [REDIS] Erreur invalidation cache RAG:", err),
+        logger.error("⚠️ [REDIS] Erreur invalidation cache RAG:", err),
       );
     } catch (error) {
-      console.error("Erreur sauvegarde interaction:", error);
+      logger.error("Erreur sauvegarde interaction:", error);
       throw error;
     }
   }
@@ -203,7 +204,7 @@ export class SessionMemorySystem {
 
       return memoryText;
     } catch (error) {
-      console.error("Erreur récupération mémoire récente:", error);
+      logger.error("Erreur récupération mémoire récente:", error);
       return "";
     }
   }
@@ -532,11 +533,11 @@ export class SessionMemorySystem {
     workspaceId: string,
   ): Promise<Awaited<ReturnType<typeof cacheActiveRAGSession>>> {
     try {
-      console.log(
+      logger.log(
         `🔍 [SESSION-DEBUG] Recherche session active - userId: ${userId}, workspaceId: ${workspaceId}`,
       );
       const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      console.log(
+      logger.log(
         `🔍 [SESSION-DEBUG] Seuil de temps (dernières 24h): ${cutoffTime.toISOString()}`,
       );
 
@@ -552,18 +553,18 @@ export class SessionMemorySystem {
               ? new Date(session.lastQueryAt).toISOString()
               : "null";
 
-        console.log(
+        logger.log(
           `✅ [SESSION-DEBUG] Session active trouvée: ${session.id}, sources: ${session.sourcesUsed?.length || 0}, lastQueryAt: ${lastQueryAtStr}`,
         );
       } else {
-        console.log(
+        logger.log(
           `❌ [SESSION-DEBUG] Aucune session active trouvée dans les dernières 24h`,
         );
       }
 
       return session;
     } catch (error) {
-      console.error("Erreur récupération session active:", error);
+      logger.error("Erreur récupération session active:", error);
       return null;
     }
   }
@@ -596,7 +597,7 @@ export class SessionMemorySystem {
         type: source.sourceType || "unknown",
       }));
     } catch (error) {
-      console.error("Erreur récupération sources session:", error);
+      logger.error("Erreur récupération sources session:", error);
       return null;
     }
   }
@@ -607,10 +608,10 @@ export class SessionMemorySystem {
     sources: Array<{ id: string; title: string; type: string }>,
   ): Promise<boolean> {
     try {
-      console.log(
+      logger.log(
         `🔍 [SESSION-DEBUG] Début sauvegarde - sessionId: ${sessionId}, sources count: ${sources.length}`,
       );
-      console.log(
+      logger.log(
         `🔍 [SESSION-DEBUG] Sources détails:`,
         sources.map((s) => `${s.title} (${s.id}, ${s.type})`),
       );
@@ -622,13 +623,13 @@ export class SessionMemorySystem {
       });
 
       if (!existingSession) {
-        console.error(
+        logger.error(
           `🔍 [SESSION-DEBUG] ❌ Session ${sessionId} n'existe pas!`,
         );
         return false;
       }
 
-      console.log(
+      logger.log(
         `🔍 [SESSION-DEBUG] Session trouvée: ${existingSession.title}, sources actuelles: ${existingSession.sourcesUsed.length}`,
       );
 
@@ -638,18 +639,18 @@ export class SessionMemorySystem {
           where: { id: source.id },
         });
         if (!existingSource) {
-          console.warn(
+          logger.warn(
             `🔍 [SESSION-DEBUG] ⚠️ Source ${source.id} (${source.title}) n'existe pas dans la base RAG`,
           );
         } else {
-          console.log(
+          logger.log(
             `🔍 [SESSION-DEBUG] ✅ Source ${source.id} (${source.title}) trouvée dans la base`,
           );
         }
       }
 
       // D'abord, supprimer les sources existantes pour cette session
-      console.log(`🔍 [SESSION-DEBUG] Suppression des sources existantes...`);
+      logger.log(`🔍 [SESSION-DEBUG] Suppression des sources existantes...`);
       await prisma.rAGSession.update({
         where: { id: sessionId },
         data: {
@@ -661,7 +662,7 @@ export class SessionMemorySystem {
 
       // Ensuite, ajouter les nouvelles sources
       const sourceConnections = sources.map((source) => ({ id: source.id }));
-      console.log(
+      logger.log(
         `🔍 [SESSION-DEBUG] Connexion des nouvelles sources:`,
         sourceConnections,
       );
@@ -675,7 +676,7 @@ export class SessionMemorySystem {
           lastQueryAt: new Date(), // 🔧 FIX: Marquer la session comme récente quand on sauvegarde les sources
         },
       });
-      console.log(
+      logger.log(
         `✅ [SESSION-FIX] Session ${sessionId}: lastQueryAt mise à jour lors de la sauvegarde des sources`,
       );
 
@@ -684,7 +685,7 @@ export class SessionMemorySystem {
         savedSession.userId,
         savedSession.workspaceId || "",
       ).catch((err) =>
-        console.error("⚠️ [REDIS] Erreur invalidation cache RAG:", err),
+        logger.error("⚠️ [REDIS] Erreur invalidation cache RAG:", err),
       );
 
       // Vérifier le résultat
@@ -693,12 +694,12 @@ export class SessionMemorySystem {
         include: { sourcesUsed: true },
       });
 
-      console.log(
+      logger.log(
         `✅ [SESSION-DEBUG] Session ${sessionId}: ${sources.length} sources sauvegardées, ${updatedSession?.sourcesUsed.length} sources connectées`,
       );
       return true;
     } catch (error) {
-      console.error(
+      logger.error(
         "🔍 [SESSION-DEBUG] ❌ Erreur sauvegarde sources session:",
         error,
       );

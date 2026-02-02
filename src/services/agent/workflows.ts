@@ -9,6 +9,7 @@
  * @see https://ai-sdk.dev/docs/agents/workflows
  */
 
+import { logger } from "../../utils/logger.js";
 import { generateText, stepCountIs } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createRagTools } from "./tools/ragTools.js";
@@ -114,7 +115,7 @@ async function parallelSearch(
   const ragTools = createRagTools(toolContext);
   const workspaceTools = createWorkspaceTools(toolContext);
 
-  console.log(`🔍 [Workflow] Starting parallel search for: "${query}"`);
+  logger.log(`🔍 [Workflow] Starting parallel search for: "${query}"`);
 
   // Define search tasks
   const searchTasks: Promise<SearchResult | null>[] = [];
@@ -146,7 +147,7 @@ async function parallelSearch(
         }
         return null;
       } catch (e) {
-        console.error("Web search failed:", e);
+        logger.error("Web search failed:", e);
         return null;
       }
     })(),
@@ -185,7 +186,7 @@ async function parallelSearch(
         }
         return null;
       } catch (e) {
-        console.error("Wikipedia search failed:", e);
+        logger.error("Wikipedia search failed:", e);
         return null;
       }
     })(),
@@ -222,7 +223,7 @@ async function parallelSearch(
           }
           return null;
         } catch (e) {
-          console.error("RAG search failed:", e);
+          logger.error("RAG search failed:", e);
           return null;
         }
       })(),
@@ -274,7 +275,7 @@ async function parallelSearch(
         }
         return null;
       } catch (e) {
-        console.error("Workspace search failed:", e);
+        logger.error("Workspace search failed:", e);
         return null;
       }
     })(),
@@ -288,7 +289,7 @@ async function parallelSearch(
     .filter((r): r is SearchResult => r !== null)
     .sort((a, b) => b.relevance - a.relevance);
 
-  console.log(
+  logger.log(
     `✅ [Workflow] Parallel search complete: ${validResults.length} results from ${validResults.map((r) => r.source).join(", ")}`,
   );
 
@@ -306,7 +307,7 @@ async function synthesizeResearch(
   query: string,
   searchResults: SearchResult[],
 ): Promise<ResearchResults> {
-  console.log(
+  logger.log(
     `📝 [Workflow] Synthesizing ${searchResults.length} search results`,
   );
 
@@ -366,7 +367,7 @@ async function evaluateContent(
     targetAudience?: string;
   },
 ): Promise<EvaluationResult> {
-  console.log(`🔍 [Workflow] Evaluating content quality`);
+  logger.log(`🔍 [Workflow] Evaluating content quality`);
 
   const result = await generateText({
     model: MODELS.fast,
@@ -410,7 +411,7 @@ Score threshold to pass: 70/100`,
       };
     }
   } catch (e) {
-    console.error("Failed to parse evaluation:", e);
+    logger.error("Failed to parse evaluation:", e);
   }
 
   // Fallback
@@ -429,7 +430,7 @@ async function improveContent(
   draft: ContentDraft,
   evaluation: EvaluationResult,
 ): Promise<ContentDraft> {
-  console.log(
+  logger.log(
     `🔧 [Workflow] Improving content (iteration ${draft.iteration + 1})`,
   );
 
@@ -496,9 +497,9 @@ export async function runDeepResearchWorkflow(
   iterations: number;
   pageId?: string | null;
 }> {
-  console.log(`🚀 [Workflow] Starting Deep Research Workflow`);
-  console.log(`📋 Query: "${query}"`);
-  console.log(`📄 Create page: ${options?.createPage ? "YES" : "NO"}`);
+  logger.log(`🚀 [Workflow] Starting Deep Research Workflow`);
+  logger.log(`📋 Query: "${query}"`);
+  logger.log(`📄 Create page: ${options?.createPage ? "YES" : "NO"}`);
 
   // Step 1: Parallel search
   const searchResults = await parallelSearch(query, ctx);
@@ -518,7 +519,7 @@ export async function runDeepResearchWorkflow(
   const research = await synthesizeResearch(query, searchResults);
 
   // Step 3: Content planning
-  console.log(`📋 [Workflow] Phase 3: Planning`);
+  logger.log(`📋 [Workflow] Phase 3: Planning`);
   const planResult = await generateText({
     model: MODELS.fast,
     maxOutputTokens: 1024,
@@ -544,7 +545,7 @@ Format as a structured outline.`,
   const title = titleMatch?.[1]?.trim() || query.slice(0, 100);
 
   // Step 4: Content generation
-  console.log(`✍️ [Workflow] Phase 4: Content Generation`);
+  logger.log(`✍️ [Workflow] Phase 4: Content Generation`);
   const initialContent = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 32000,
@@ -587,7 +588,7 @@ Create a complete, detailed document covering all aspects of the research.`,
   };
 
   // Step 5: Evaluation loop (max 3 iterations)
-  console.log(`🔄 [Workflow] Phase 5: Evaluation Loop`);
+  logger.log(`🔄 [Workflow] Phase 5: Evaluation Loop`);
   const maxIterations = 3;
   const minLength = 2000;
 
@@ -598,12 +599,12 @@ Create a complete, detailed document covering all aspects of the research.`,
       targetAudience: ctx.personalization?.classe || "General",
     });
 
-    console.log(
+    logger.log(
       `📊 [Workflow] Evaluation ${i + 1}: Score ${evaluation.score}/100`,
     );
 
     if (evaluation.passesThreshold) {
-      console.log(`✅ [Workflow] Content passed evaluation`);
+      logger.log(`✅ [Workflow] Content passed evaluation`);
       break;
     }
 
@@ -616,7 +617,7 @@ Create a complete, detailed document covering all aspects of the research.`,
   let pageId: string | null = null;
 
   if (options?.createPage) {
-    console.log(`📄 [Workflow] Phase 6: Creating Page (user requested)`);
+    logger.log(`📄 [Workflow] Phase 6: Creating Page (user requested)`);
     const toolContext = { userId: ctx.userId, workspaceId: ctx.workspaceId };
     const pageTools = createPageTools(toolContext);
 
@@ -638,14 +639,14 @@ Create a complete, detailed document covering all aspects of the research.`,
         pageResult.pageId
       ) {
         pageId = pageResult.pageId;
-        console.log(`✅ [Workflow] Page created: ${pageId}`);
+        logger.log(`✅ [Workflow] Page created: ${pageId}`);
       }
     } catch (e) {
-      console.error("Failed to create page:", e);
+      logger.error("Failed to create page:", e);
     }
   }
 
-  console.log(`✅ [Workflow] Deep Research complete`);
+  logger.log(`✅ [Workflow] Deep Research complete`);
 
   return {
     searches: searchResults,
@@ -684,14 +685,14 @@ export async function runDeepContentWorkflow(
     personalization: request.personalization as UserPersonalization,
   };
 
-  console.log(`🚀 [Workflow] Starting Deep Content Creation Workflow`);
+  logger.log(`🚀 [Workflow] Starting Deep Content Creation Workflow`);
 
   // Step 1: Research phase
-  console.log(`📚 [Workflow] Phase 1: Research`);
+  logger.log(`📚 [Workflow] Phase 1: Research`);
   const research = await runDeepResearchWorkflow(userPrompt, ctx);
 
   // Step 2: Content planning
-  console.log(`📋 [Workflow] Phase 2: Planning`);
+  logger.log(`📋 [Workflow] Phase 2: Planning`);
   const planResult = await generateText({
     model: MODELS.fast,
     maxOutputTokens: 1024,
@@ -717,7 +718,7 @@ Format as a structured outline.`,
   const title = titleMatch?.[1]?.trim() || userPrompt.slice(0, 100);
 
   // Step 3: Initial content generation
-  console.log(`✍️ [Workflow] Phase 3: Content Generation`);
+  logger.log(`✍️ [Workflow] Phase 3: Content Generation`);
   const initialContent = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 32000,
@@ -758,7 +759,7 @@ IMPORTANT:
   };
 
   // Step 4: Evaluation loop (max 3 iterations)
-  console.log(`🔄 [Workflow] Phase 4: Evaluation Loop`);
+  logger.log(`🔄 [Workflow] Phase 4: Evaluation Loop`);
   const maxIterations = 3;
   const minLength = 2000;
 
@@ -769,12 +770,12 @@ IMPORTANT:
       targetAudience: ctx.personalization?.classe || "General",
     });
 
-    console.log(
+    logger.log(
       `📊 [Workflow] Evaluation ${i + 1}: Score ${evaluation.score}/100`,
     );
 
     if (evaluation.passesThreshold) {
-      console.log(`✅ [Workflow] Content passed evaluation`);
+      logger.log(`✅ [Workflow] Content passed evaluation`);
       break;
     }
 
@@ -784,7 +785,7 @@ IMPORTANT:
   }
 
   // Step 5: Create page
-  console.log(`📄 [Workflow] Phase 5: Creating Page`);
+  logger.log(`📄 [Workflow] Phase 5: Creating Page`);
   const toolContext = { userId: ctx.userId, workspaceId: ctx.workspaceId };
   const pageTools = createPageTools(toolContext);
 
@@ -808,10 +809,10 @@ IMPORTANT:
       pageResult.pageId
     ) {
       pageId = pageResult.pageId;
-      console.log(`✅ [Workflow] Page created: ${pageId}`);
+      logger.log(`✅ [Workflow] Page created: ${pageId}`);
     }
   } catch (e) {
-    console.error("Failed to create page:", e);
+    logger.error("Failed to create page:", e);
   }
 
   return {
@@ -843,7 +844,7 @@ export async function runQuickContentWorkflow(
     personalization: request.personalization as UserPersonalization,
   };
 
-  console.log(`🚀 [Workflow] Starting Quick Content Creation Workflow`);
+  logger.log(`🚀 [Workflow] Starting Quick Content Creation Workflow`);
 
   // Quick research (only if sources provided)
   let researchContext = "";
@@ -868,7 +869,7 @@ export async function runQuickContentWorkflow(
         researchContext = chunks.map((c) => c.content).join("\n\n");
       }
     } catch (e) {
-      console.error("Quick research failed:", e);
+      logger.error("Quick research failed:", e);
     }
   }
 
@@ -925,7 +926,7 @@ IMPORTANT:
       pageId = pageResult.pageId;
     }
   } catch (e) {
-    console.error("Failed to create page:", e);
+    logger.error("Failed to create page:", e);
   }
 
   return {

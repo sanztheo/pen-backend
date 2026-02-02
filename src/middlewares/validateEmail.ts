@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { isDisposableEmailDomain } from "disposable-email-domains-js";
+import { logger } from "../utils/logger.js";
 
 /**
  * Middleware to block disposable/temporary email addresses
@@ -31,7 +32,7 @@ export const validateEmail = (
     const isDisposable = isDisposableEmailDomain(domain);
 
     if (isDisposable) {
-      console.warn(`[EMAIL] Blocked disposable email: ${email}`);
+      logger.warn(`[EMAIL] Blocked disposable email: ${email}`);
       return res.status(400).json({
         error: "DISPOSABLE_EMAIL",
         message:
@@ -40,7 +41,7 @@ export const validateEmail = (
     }
   } catch (error) {
     // If validation fails, allow the request to continue
-    console.error("[EMAIL] Validation error:", error);
+    logger.error("[EMAIL] Validation error:", error);
   }
 
   next();

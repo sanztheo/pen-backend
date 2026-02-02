@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { QuizService } from '../../../services/quiz/quizService.js';
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Contrôleur pour la gestion des préférences utilisateur
@@ -26,7 +27,7 @@ export class PreferencesController {
       });
 
     } catch (error) {
-      console.error('Erreur récupération préférences:', error);
+      logger.error('Erreur récupération préférences:', error);
       res.status(500).json({
         error: 'Erreur lors de la récupération des préférences',
         details: error instanceof Error ? error.message : 'Erreur inconnue'
@@ -62,7 +63,7 @@ export class PreferencesController {
       });
 
     } catch (error) {
-      console.error('Erreur mise à jour préférences:', error);
+      logger.error('Erreur mise à jour préférences:', error);
       res.status(500).json({
         error: 'Erreur lors de la mise à jour des préférences',
         details: error instanceof Error ? error.message : 'Erreur inconnue'

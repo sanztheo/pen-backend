@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma.js";
 import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Types pour le parsing de blockNoteContent
@@ -61,7 +62,7 @@ export class RAGController {
         return;
       }
 
-      console.log(
+      logger.log(
         `🧠 [QUIZ-RAG] Construction contexte pour ${pageProjectIds.length} éléments, mode: ${scopeMode}`,
       );
 
@@ -117,12 +118,12 @@ export class RAGController {
           });
 
           if (!existingSource || existingSource.status === "FAILED") {
-            console.log(
+            logger.log(
               `🔄 [QUIZ-RAG] Reprocessing page ${page.title} (${page.id})`,
             );
             try {
               if (page.blockNoteContent) {
-                console.log(
+                logger.log(
                   `🔍 [QUIZ-RAG] Page "${page.title}" - blockNoteContent type: ${typeof page.blockNoteContent}, length: ${JSON.stringify(page.blockNoteContent).length}`,
                 );
 
@@ -158,19 +159,19 @@ export class RAGController {
                     }
                   }
                 } catch (error) {
-                  console.warn(
+                  logger.warn(
                     `🧠 [QUIZ-RAG] Erreur extraction contenu page "${page.title}":`,
                     error,
                   );
                 }
 
-                console.log(
+                logger.log(
                   `📦 [QUIZ-RAG] Contenu extrait pour "${page.title}": ${textContent.length} caractères`,
                 );
 
                 // ⚡ Vérification de contenu minimum (même logique que userPages.ts)
                 if (textContent.length < 50) {
-                  console.log(
+                  logger.log(
                     `⚠️ [QUIZ-RAG] Contenu trop court pour "${page.title}" (${textContent.length} chars) → Skip embedding`,
                   );
                   continue;
@@ -188,7 +189,7 @@ export class RAGController {
                 });
 
                 if (sourceId) {
-                  console.log(
+                  logger.log(
                     `✅ [QUIZ-RAG] Page ${page.title} reprocessed successfully → sourceId: ${sourceId}`,
                   );
 
@@ -196,19 +197,19 @@ export class RAGController {
                   const chunkCount = await prismaEmbeddings.rAGChunk.count({
                     where: { sourceId },
                   });
-                  console.log(`📊 [QUIZ-RAG] Chunks créés: ${chunkCount}`);
+                  logger.log(`📊 [QUIZ-RAG] Chunks créés: ${chunkCount}`);
                 } else {
-                  console.warn(
+                  logger.warn(
                     `⚠️ [QUIZ-RAG] Échec reprocessing pour page "${page.title}"`,
                   );
                 }
               } else {
-                console.warn(
+                logger.warn(
                   `⚠️ [QUIZ-RAG] Page "${page.title}" sans contenu blockNoteContent`,
                 );
               }
             } catch (error) {
-              console.error(
+              logger.error(
                 `❌ [QUIZ-RAG] Failed to reprocess page ${page.title}:`,
                 error,
               );
@@ -234,7 +235,7 @@ export class RAGController {
         });
 
         const specificSourceIds = completedRagSources.map((s) => s.id);
-        console.log(
+        logger.log(
           `🔍 [QUIZ-RAG] Sources RAG trouvées: ${specificSourceIds.length} (${completedRagSources.map((s) => s.title).join(", ")})`,
         );
 
@@ -247,7 +248,7 @@ export class RAGController {
           specificSourceIds: specificSourceIds, // 🆕 Passer les IDs des sources RAG
         });
 
-        console.log(
+        logger.log(
           `🧠 [QUIZ-RAG] ${searchResults.length} sources RAG trouvées`,
         );
 
@@ -267,10 +268,10 @@ export class RAGController {
                 )
               : searchResults;
 
-          console.log(
+          logger.log(
             `🔍 [QUIZ-RAG] Résultats avant filtrage: ${searchResults.length}, après: ${filteredResults.length}`,
           );
-          console.log(
+          logger.log(
             `🔍 [QUIZ-RAG] Types de sources: ${searchResults.map((r) => r.source.type || r.source.sourceType).join(", ")}`,
           );
 
@@ -284,11 +285,11 @@ export class RAGController {
               type: r.source.type,
               similarity: r.similarity,
             }));
-            console.log(
+            logger.log(
               `✅ [QUIZ-RAG] Contexte construit: ${ragContext.length} caractères`,
             );
           } else {
-            console.log(
+            logger.log(
               `⚠️ [QUIZ-RAG] Aucun résultat après filtrage pour mode: ${scopeMode}`,
             );
           }
@@ -306,7 +307,7 @@ export class RAGController {
           },
         });
       } catch (ragError) {
-        console.warn(
+        logger.warn(
           "⚠️ [QUIZ-RAG] Erreur récupération contexte RAG:",
           ragError,
         );
@@ -318,7 +319,7 @@ export class RAGController {
         });
       }
     } catch (error) {
-      console.error("Erreur construction contexte RAG quiz:", error);
+      logger.error("Erreur construction contexte RAG quiz:", error);
       res.status(500).json({
         error: "Erreur lors de la construction du contexte RAG",
         details: error instanceof Error ? error.message : "Erreur inconnue",
@@ -351,7 +352,7 @@ export class RAGController {
         return;
       }
 
-      console.log(
+      logger.log(
         `🚀 [FAST-CORRECTION] Sauvegarde correction rapide pour quiz: ${quizId}`,
       );
 
@@ -427,7 +428,7 @@ export class RAGController {
         },
       );
 
-      console.log(
+      logger.log(
         `✅ [FAST-CORRECTION] Résultat sauvegardé et quiz marqué comme terminé: ${savedResult.id}`,
       );
 
@@ -435,7 +436,7 @@ export class RAGController {
       const { invalidateQuizHistoryCache } =
         await import("../../../lib/redis.js");
       invalidateQuizHistoryCache(userId).catch((err) =>
-        console.warn("⚠️ [FAST-CORRECTION] Échec invalidation cache:", err),
+        logger.warn("⚠️ [FAST-CORRECTION] Échec invalidation cache:", err),
       );
 
       res.status(200).json({
@@ -443,7 +444,7 @@ export class RAGController {
         data: quizResult,
       });
     } catch (error) {
-      console.error("❌ [FAST-CORRECTION] Erreur sauvegarde:", error);
+      logger.error("❌ [FAST-CORRECTION] Erreur sauvegarde:", error);
       res.status(500).json({
         error: "Erreur lors de la sauvegarde de la correction rapide",
         details: error instanceof Error ? error.message : "Erreur inconnue",

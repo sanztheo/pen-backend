@@ -1,6 +1,7 @@
 /**
  * Utilitaires pour la détection de code et le parsing markdown
  */
+import { logger } from "../../utils/logger.js";
 export class CodeDetectionService {
   
   /**
@@ -21,7 +22,7 @@ export class CodeDetectionService {
       // Nettoyer le code (supprimer les lignes vides au début/fin)
       code = code.replace(/^\n+/, '').replace(/\n+$/, '');
       
-      console.log(`🔍 Parsing markdown détecté:`, {
+      logger.log(`🔍 Parsing markdown détecté:`, {
         originalLength: content.length,
         language: language,
         codeLength: code.length,
@@ -42,7 +43,7 @@ export class CodeDetectionService {
       let code = multilineMatch[2];
       code = code.replace(/^\n+/, '').replace(/\n+$/, '');
       
-      console.log(`⚠️ Code markdown trouvé avec texte supplémentaire:`, {
+      logger.log(`⚠️ Code markdown trouvé avec texte supplémentaire:`, {
         language: language,
         extractedCodeLength: code.length
       });
@@ -54,7 +55,7 @@ export class CodeDetectionService {
       };
     }
     
-    console.log(`❌ Pas de markdown détecté, fallback sur détection classique`);
+    logger.log(`❌ Pas de markdown détecté, fallback sur détection classique`);
     
     // Si pas de markdown, utiliser l'ancienne détection
     return {
@@ -105,7 +106,7 @@ export class CodeDetectionService {
     // JavaScript/TypeScript
     if (codeLines.includes('function ') || codeLines.includes('const ') || 
         codeLines.includes('let ') || codeLines.includes('var ') ||
-        codeLines.includes('console.log') || codeLines.includes('=>') ||
+        codeLines.includes('logger.log') || codeLines.includes('=>') ||
         codeLines.includes('import {') || codeLines.includes('export ')) {
       return 'javascript';
     }

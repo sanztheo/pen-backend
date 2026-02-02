@@ -1,6 +1,7 @@
 // assistant/utils/logging.ts - Utilitaires de logging pour l'assistant
 
 // Interfaces pour le typage des données de logging
+import { logger } from "../../../../utils/logger.js";
 interface LogAnswer {
   questionId: string;
   answer: unknown;
@@ -40,15 +41,15 @@ export function logOperation(
 ): void {
   const timestamp = new Date().toISOString();
 
-  console.log(`🤖 [${timestamp}] Assistant Operation: ${operation}`);
-  console.log(`📥 Params:`, JSON.stringify(params, null, 2));
+  logger.log(`🤖 [${timestamp}] Assistant Operation: ${operation}`);
+  logger.log(`📥 Params:`, JSON.stringify(params, null, 2));
 
   if (error) {
-    console.error(`❌ Error:`, error.message);
-    console.error(`📚 Stack:`, error.stack);
+    logger.error(`❌ Error:`, error.message);
+    logger.error(`📚 Stack:`, error.stack);
   } else if (result) {
-    console.log(`✅ Success`);
-    console.log(`📤 Result:`, JSON.stringify(result, null, 2));
+    logger.log(`✅ Success`);
+    logger.log(`📤 Result:`, JSON.stringify(result, null, 2));
   }
 }
 
@@ -64,10 +65,10 @@ export function logGeneration(
   const timestamp = new Date().toISOString();
   const status = success ? "✅" : "❌";
 
-  console.log(`${status} [${timestamp}] Génération ${type}`);
-  console.log(`   Options:`, JSON.stringify(options, null, 2));
+  logger.log(`${status} [${timestamp}] Génération ${type}`);
+  logger.log(`   Options:`, JSON.stringify(options, null, 2));
   if (details) {
-    console.log(`   Détails: ${details}`);
+    logger.log(`   Détails: ${details}`);
   }
 }
 
@@ -83,10 +84,10 @@ export function logCorrection(
   const timestamp = new Date().toISOString();
   const status = success ? "✅" : "❌";
 
-  console.log(`${status} [${timestamp}] Correction Quiz ${quizId}`);
-  console.log(`   Réponses: ${answersCount}`);
+  logger.log(`${status} [${timestamp}] Correction Quiz ${quizId}`);
+  logger.log(`   Réponses: ${answersCount}`);
   if (details) {
-    console.log(`   Détails: ${details}`);
+    logger.log(`   Détails: ${details}`);
   }
 }
 
@@ -98,7 +99,7 @@ export function logCorrectionDebug(
   answers: LogAnswer[],
   questions: LogQuestion[],
 ): void {
-  console.log("🐛 [DEBUG] [CORRECTION] Données reçues:", {
+  logger.log("🐛 [DEBUG] [CORRECTION] Données reçues:", {
     quizId,
     answersCount: answers.length,
     answers: answers.map((a) => ({
@@ -119,7 +120,7 @@ export function logCorrectionDebug(
  * Log pour les résultats de correction
  */
 export function logCorrectionResult(result: LogCorrectionResult): void {
-  console.log("🐛 [DEBUG] [CORRECTION] Résultat IA:", {
+  logger.log("🐛 [DEBUG] [CORRECTION] Résultat IA:", {
     correctionsCount: result?.corrections?.length || 0,
     corrections:
       result?.corrections?.map((corr) => ({

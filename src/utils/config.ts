@@ -3,6 +3,7 @@
  * Gestion intelligente des URLs selon l'environnement (dev/prod)
  */
 
+import { logger } from "./logger.js";
 export interface BackendConfig {
   port: number;
   nodeEnv: string;
@@ -30,20 +31,20 @@ function createBackendConfig(): BackendConfig {
   // Priorité à la variable d'environnement CLIENT_URL si définie
   if (process.env.CLIENT_URL) {
     clientUrl = process.env.CLIENT_URL;
-    console.log(
+    logger.log(
       `🔧 [BACKEND-CONFIG] CLIENT_URL détecté depuis env - Port: ${port}`,
     );
   } else if (isDevelopment) {
     // Environnement de développement - UNIQUEMENT localhost (pas d'URLs prod)
     clientUrl =
       "http://localhost:5173,http://localhost:3000,http://localhost:4173";
-    console.log(
+    logger.log(
       `🔧 [BACKEND-CONFIG] Mode développement détecté - Port: ${port}`,
     );
   } else {
     // Environnement de production - domaines de prod autorisés uniquement
     clientUrl = "https://pen-frontend-ashy.vercel.app,https://app.pennote.fr";
-    console.log(`🚀 [BACKEND-CONFIG] Mode production détecté - Port: ${port}`);
+    logger.log(`🚀 [BACKEND-CONFIG] Mode production détecté - Port: ${port}`);
   }
 
   return {
@@ -66,7 +67,7 @@ export const IS_DEVELOPMENT = backendConfig.isDevelopment;
 export const IS_PRODUCTION = backendConfig.isProduction;
 
 // Log de la configuration au démarrage
-console.log(`
+logger.log(`
 🔧 Configuration Backend:
    - Environment: ${NODE_ENV}
    - Port: ${PORT}

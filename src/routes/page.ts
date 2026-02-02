@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { Prisma } from "@prisma/client";
+import { logger } from "../utils/logger.js";
 import {
   createPage,
   getPage,
@@ -184,7 +185,7 @@ router.get("/search", async (req, res) => {
     });
     res.json({ pages });
   } catch (error: unknown) {
-    console.error(
+    logger.error(
       "[PAGES] Erreur /pages/search:",
       error instanceof Error ? error.message : String(error),
     );
@@ -284,7 +285,7 @@ router.get("/search-content", async (req, res) => {
 
     res.json({ results });
   } catch (error: unknown) {
-    console.error(
+    logger.error(
       "Erreur /pages/search-content",
       error instanceof Error ? error.message : String(error),
     );
@@ -313,7 +314,7 @@ router.post(
         return res.status(400).json({ error: "HTML requis" });
       }
 
-      console.log("📄 [API] Import HTML vers BlockNote:", {
+      logger.log("📄 [API] Import HTML vers BlockNote:", {
         pageId,
         htmlLength: html.length,
         htmlPreview: html.substring(0, 200),
@@ -323,9 +324,9 @@ router.post(
       let blocks: BlockNoteBlock[];
       try {
         blocks = htmlToBlockNoteBlocks(html);
-        console.log("📄 [API] Blocs générés:", blocks.length, "blocs");
+        logger.log("📄 [API] Blocs générés:", blocks.length, "blocs");
       } catch (conversionError) {
-        console.error("❌ [API] Erreur conversion HTML:", conversionError);
+        logger.error("❌ [API] Erreur conversion HTML:", conversionError);
         return res.status(500).json({
           error: "Erreur conversion HTML",
           details: String(conversionError),
@@ -333,7 +334,7 @@ router.post(
       }
 
       // Sauvegarder dans la page
-      console.log("📄 [API] Sauvegarde dans la page:", pageId);
+      logger.log("📄 [API] Sauvegarde dans la page:", pageId);
       await prisma.page.update({
         where: { id: pageId },
         data: {
@@ -344,10 +345,10 @@ router.post(
 
       // Invalider cache Redis
       invalidateBlockNoteCache(pageId).catch((err) =>
-        console.error("⚠️ [REDIS] Erreur invalidation cache:", err),
+        logger.error("⚠️ [REDIS] Erreur invalidation cache:", err),
       );
 
-      console.log("✅ [API] HTML importé avec succès:", {
+      logger.log("✅ [API] HTML importé avec succès:", {
         pageId,
         blocksCount: blocks.length,
       });
@@ -361,7 +362,7 @@ router.post(
       if (isPrismaError(error) && error.code === "P2025") {
         return res.status(404).json({ error: "Page non trouvée" });
       }
-      console.error(
+      logger.error(
         "❌ [API] Erreur import HTML:",
         error instanceof Error ? error.message : String(error),
       );
@@ -422,7 +423,7 @@ async function saveBlockNoteContent(
       return false;
     });
 
-    console.log(logMessage, {
+    logger.log(logMessage, {
       pageId,
       hasNestedBlocks,
       strategy: saveStrategy,
@@ -441,13 +442,13 @@ async function saveBlockNoteContent(
 
     // 🗑️ INVALIDER CACHE REDIS après sauvegarde
     invalidateBlockNoteCache(pageId).catch((err: unknown) =>
-      console.error(
+      logger.error(
         "⚠️ [REDIS] Erreur invalidation cache:",
         err instanceof Error ? err.message : String(err),
       ),
     );
 
-    console.log("✅ [API] Contenu BlockNote sauvegardé:", {
+    logger.log("✅ [API] Contenu BlockNote sauvegardé:", {
       pageId,
       blocksCount: content.length,
       strategy: saveStrategy,
@@ -463,7 +464,7 @@ async function saveBlockNoteContent(
   } catch (error: unknown) {
     // 🔧 Gestion spécifique de l'erreur P2025 (page supprimée)
     if (isPrismaError(error) && error.code === "P2025") {
-      console.log(
+      logger.log(
         `⚠️ [API] Page ${req.params.pageId} n'existe plus (supprimée). Sauvegarde ignorée.`,
       );
       res.status(404).json({
@@ -474,7 +475,7 @@ async function saveBlockNoteContent(
       return;
     }
 
-    console.error(
+    logger.error(
       "❌ [API] Erreur sauvegarde BlockNote:",
       error instanceof Error ? error.message : String(error),
     );
@@ -552,7 +553,7 @@ router.get(
         hasNestedBlocks,
       });
     } catch (error: unknown) {
-      console.error(
+      logger.error(
         "[PAGE_ROUTES] Erreur chargement BlockNote:",
         error instanceof Error ? error.message : String(error),
       );
@@ -567,7 +568,7 @@ router.patch("/:id/icon", async (req, res) => {
     const { id } = req.params;
     const { icon, iconColor } = req.body;
 
-    console.log("🎨 [API] Mise à jour icône page:", {
+    logger.log("🎨 [API] Mise à jour icône page:", {
       pageId: id,
       icon,
       iconColor,
@@ -620,7 +621,7 @@ router.patch("/:id/icon", async (req, res) => {
       },
     });
 
-    console.log("✅ [API] Icône page mise à jour:", {
+    logger.log("✅ [API] Icône page mise à jour:", {
       pageId: id,
       icon: updatedPage.icon,
       iconColor: updatedPage.iconColor,
@@ -632,7 +633,7 @@ router.patch("/:id/icon", async (req, res) => {
     });
   } catch (error: unknown) {
     if (isPrismaError(error) && error.code === "P2025") {
-      console.log(
+      logger.log(
         `⚠️ [API] Page ${req.params.id} n'existe plus lors de la mise à jour de l'icône`,
       );
       return res.status(404).json({
@@ -642,7 +643,7 @@ router.patch("/:id/icon", async (req, res) => {
       });
     }
 
-    console.error(
+    logger.error(
       "❌ [API] Erreur mise à jour icône page:",
       error instanceof Error ? error.message : String(error),
     );

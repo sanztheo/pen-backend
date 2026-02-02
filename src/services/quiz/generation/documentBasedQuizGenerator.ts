@@ -4,6 +4,7 @@
  * Permet de créer des examens basés sur des documents authentiques
  */
 
+import { logger } from "../../../utils/logger.js";
 import {
   QuizGenerationRequest,
   GeneratedQuiz,
@@ -173,7 +174,7 @@ export class DocumentBasedQuizGenerator {
       }
     }
 
-    console.log(
+    logger.log(
       `🗡️ Déduplication: ${chunks.length} chunks → ${docMap.size} documents uniques`,
     );
     return Array.from(docMap.values());
@@ -295,8 +296,8 @@ export class DocumentBasedQuizGenerator {
       topics?: string[];
     },
   ): Promise<DocumentBasedQuizResult> {
-    console.log(`📚 Génération quiz documentaire pour: ${subjectName}`);
-    console.log(`🔧 Config:`, documentConfig);
+    logger.log(`📚 Génération quiz documentaire pour: ${subjectName}`);
+    logger.log(`🔧 Config:`, documentConfig);
 
     // Si les documents ne sont pas activés, retourner un quiz classique
     if (!documentConfig.enableDocuments) {
@@ -312,7 +313,7 @@ export class DocumentBasedQuizGenerator {
     );
     const searchTime = Date.now() - startTime;
 
-    console.log(
+    logger.log(
       `📊 Documents trouvés: ${documents.chunks.length} en ${searchTime}ms`,
     );
 
@@ -362,7 +363,7 @@ export class DocumentBasedQuizGenerator {
 
     const searchTopics = config.topics || [...mappedTopics];
 
-    console.log(
+    logger.log(
       `🔍 Recherche documentaire pour "${subjectName}" avec topics:`,
       searchTopics,
     );
@@ -377,7 +378,7 @@ export class DocumentBasedQuizGenerator {
     let attemptNumber = 1;
 
     for (const strategy of searchStrategies) {
-      console.log(
+      logger.log(
         `🎯 Tentative ${attemptNumber}/${searchStrategies.length}: "${strategy.query}" (seuil: ${strategy.threshold})`,
       );
 
@@ -396,7 +397,7 @@ export class DocumentBasedQuizGenerator {
         (chunk) => chunk.content.length >= config.minDocumentLength,
       );
 
-      console.log(
+      logger.log(
         `📊 Résultats tentative ${attemptNumber}: ${filteredChunks.length} documents valides`,
       );
 
@@ -407,7 +408,7 @@ export class DocumentBasedQuizGenerator {
           .sort((a, b) => b.similarity - a.similarity) // Trier par similarité décroissante
           .slice(0, config.maxDocuments);
 
-        console.log(
+        logger.log(
           `✅ Documents sélectionnés: ${selectedChunks.length} uniques sur ${filteredChunks.length} chunks (stratégie: ${strategy.name})`,
         );
 
@@ -423,7 +424,7 @@ export class DocumentBasedQuizGenerator {
 
     // Si aucune stratégie n'a fonctionné, utiliser le dernier résultat même vide
     if (!finalResult) {
-      console.log(
+      logger.log(
         `⚠️ Aucun document pertinent trouvé après ${searchStrategies.length} tentatives`,
       );
       finalResult = {
@@ -450,7 +451,7 @@ export class DocumentBasedQuizGenerator {
     const documentQuestions = Math.ceil(totalQuestions * documentRatio);
     const knowledgeQuestions = totalQuestions - documentQuestions;
 
-    console.log(
+    logger.log(
       `📝 Génération: ${documentQuestions} questions docs + ${knowledgeQuestions} questions connaissances`,
     );
 
@@ -464,7 +465,7 @@ export class DocumentBasedQuizGenerator {
       knowledgeQuestions,
     );
 
-    console.log(
+    logger.log(
       `🤖 Génération du quiz avec ${documents.length} documents intégrés`,
     );
 
@@ -522,7 +523,7 @@ export class DocumentBasedQuizGenerator {
       };
 
       // DEBUG: Logging pour déboguer
-      console.log("🐛 DEBUG DocumentBasedQuizGenerator:", {
+      logger.log("🐛 DEBUG DocumentBasedQuizGenerator:", {
         documentsCount: documents.length,
         questionsCount: questions.length,
         subjectQuestionsCount: subject.questions.length,
@@ -533,9 +534,9 @@ export class DocumentBasedQuizGenerator {
 
       return finalQuiz;
     } catch (error) {
-      console.error("❌ Erreur génération quiz documentaire:", error);
+      logger.error("❌ Erreur génération quiz documentaire:", error);
       // Fallback vers génération classique
-      console.log("🔄 Fallback vers génération classique");
+      logger.log("🔄 Fallback vers génération classique");
       return this.generateClassicQuizFallback(request, subjectName);
     }
   }
@@ -713,8 +714,8 @@ Format de réponse attendu (JSON uniquement) :
         metadata: parsed.metadata || {},
       };
     } catch (error) {
-      console.error("❌ Erreur parsing réponse IA:", error);
-      console.error("📄 Contenu brut:", content.substring(0, 500));
+      logger.error("❌ Erreur parsing réponse IA:", error);
+      logger.error("📄 Contenu brut:", content.substring(0, 500));
       throw new Error("Impossible de parser la réponse de l'IA");
     }
   }
@@ -930,7 +931,7 @@ Format de réponse attendu (JSON uniquement) :
         },
       };
     } catch (error) {
-      console.error("❌ Erreur génération quiz classique:", error);
+      logger.error("❌ Erreur génération quiz classique:", error);
       throw new Error("Impossible de générer le quiz");
     }
   }

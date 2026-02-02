@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { QuizService } from "../../../services/quiz/quizService.js";
+import { logger } from "../../../utils/logger.js";
 import {
   SchoolLevel,
   QuestionType,
@@ -82,7 +83,7 @@ export class QuizController {
         if (personalizationData) {
           schoolLevel =
             personalizationData.classe || bodySchoolLevel || "COLLEGE";
-          console.log(
+          logger.log(
             "[QUIZ-GENERATE] 👤 Personnalisation récupérée depuis DB:",
             {
               classe: personalizationData.classe,
@@ -92,7 +93,7 @@ export class QuizController {
             },
           );
         } else {
-          console.log(
+          logger.log(
             "[QUIZ-GENERATE] ⚠️ Aucune personnalisation trouvée, utilisation du bodySchoolLevel",
           );
         }
@@ -107,7 +108,7 @@ export class QuizController {
           const { runPreprocessorForGeneration } =
             await import("../../../services/quiz/preprocessor/integrationHelper.js");
 
-          console.log(
+          logger.log(
             "🤖 [PREPROCESSOR] Mode 'Laisser l'IA choisir' activé, analyse des sources...",
           );
 
@@ -124,14 +125,14 @@ export class QuizController {
           finalQuestionTypes = preprocessorResult.questionTypes;
           finalQuestionCount = preprocessorResult.questionCount;
 
-          console.log("✅ [PREPROCESSOR] Paramètres optimisés:", {
+          logger.log("✅ [PREPROCESSOR] Paramètres optimisés:", {
             questionCount: finalQuestionCount,
             typesCount: finalQuestionTypes.length,
             difficulty: preprocessorResult.difficulty,
             reasoning: preprocessorResult.reasoning,
           });
         } catch (error) {
-          console.error(
+          logger.error(
             "❌ [PREPROCESSOR] Erreur, fallback sur params manuels:",
             error,
           );
@@ -203,7 +204,7 @@ export class QuizController {
       let quizId: string;
 
       if (pageProjectIds && pageProjectIds.length > 0) {
-        console.log(
+        logger.log(
           "📄 Génération quiz basée sur pages/projets avec RAG:",
           pageProjectIds,
           "coursesOnly:",
@@ -232,13 +233,13 @@ export class QuizController {
             },
           });
 
-          console.log(
+          logger.log(
             `🔍 [QUIZ-RAG] Pages trouvées: ${pages.length}/${pageProjectIds.length}`,
           );
 
           // Système d'embedding automatique pour chaque page
           if (pages.length > 0) {
-            console.log(
+            logger.log(
               `🚀 [QUIZ-RAG] Démarrage embedding automatique pour ${pages.length} page(s)`,
             );
 
@@ -251,14 +252,14 @@ export class QuizController {
 
             for (const page of pages) {
               if (!page.title || !page.blockNoteContent) {
-                console.warn(
+                logger.warn(
                   `⚠️ [QUIZ-RAG] Page "${page.title || page.id}" ignorée (titre ou contenu manquant)`,
                 );
                 continue;
               }
 
               try {
-                console.log(
+                logger.log(
                   `🔥 [QUIZ-RAG] Vérification et traitement page: "${page.title}"`,
                 );
 
@@ -276,7 +277,7 @@ export class QuizController {
                   new Date(existingSource.updatedAt) < new Date(page.updatedAt);
 
                 if (!needsEmbedding) {
-                  console.log(
+                  logger.log(
                     `✅ [QUIZ-RAG] Page "${page.title}" déjà embedée et à jour → Skip`,
                   );
                   alreadyEmbedded++;
@@ -284,15 +285,15 @@ export class QuizController {
                 }
 
                 if (existingSource && existingSource.status === "FAILED") {
-                  console.log(
+                  logger.log(
                     `🔄 [QUIZ-RAG] Page "${page.title}" précédemment échouée → Re-traitement`,
                   );
                 } else if (existingSource) {
-                  console.log(
+                  logger.log(
                     `🔄 [QUIZ-RAG] Page "${page.title}" obsolète → Mise à jour`,
                   );
                 } else {
-                  console.log(
+                  logger.log(
                     `🆕 [QUIZ-RAG] Nouvelle page "${page.title}" → Premier embedding`,
                   );
                 }
@@ -328,7 +329,7 @@ export class QuizController {
                     }
                   }
                 } catch (error) {
-                  console.warn(
+                  logger.warn(
                     `🧠 [QUIZ-RAG] Erreur extraction contenu page "${page.title}":`,
                     error,
                   );
@@ -336,14 +337,14 @@ export class QuizController {
 
                 // ⚡ 4. Vérification de contenu minimum (comme AssistantInput)
                 if (textContent.length < 50) {
-                  console.log(
+                  logger.log(
                     `⚠️ [QUIZ-RAG] Contenu trop court pour "${page.title}" (${textContent.length} chars) → Skip embedding`,
                   );
                   continue;
                 }
 
                 // 🧠 5. Embedding immédiat et synchrone (comme AssistantInput.tsx)
-                console.log(
+                logger.log(
                   `🧠 [QUIZ-RAG] Embedding immédiat: "${page.title}" (${textContent.length} chars)`,
                 );
 
@@ -357,7 +358,7 @@ export class QuizController {
                 });
 
                 if (sourceId) {
-                  console.log(
+                  logger.log(
                     `✅ [QUIZ-RAG] Page "${page.title}" → RAG sourceId: ${sourceId}`,
                   );
                   newlyProcessed++;
@@ -366,17 +367,17 @@ export class QuizController {
                   const chunkCount = await prismaEmbeddings.rAGChunk.count({
                     where: { sourceId },
                   });
-                  console.log(
+                  logger.log(
                     `📊 [QUIZ-RAG] Chunks générés pour "${page.title}": ${chunkCount}`,
                   );
                 } else {
-                  console.warn(
+                  logger.warn(
                     `⚠️ [QUIZ-RAG] Échec embedding pour page "${page.title}"`,
                   );
                   embeddingErrors++;
                 }
               } catch (error) {
-                console.error(
+                logger.error(
                   `❌ [QUIZ-RAG] Erreur embedding page "${page.title}":`,
                   error,
                 );
@@ -384,21 +385,21 @@ export class QuizController {
               }
             }
 
-            console.log(`📊 [QUIZ-RAG] Résumé embedding automatique:`);
-            console.log(`   • ${newlyProcessed} pages nouvellement embedées`);
-            console.log(`   • ${alreadyEmbedded} pages déjà à jour`);
-            console.log(`   • ${embeddingErrors} erreurs d'embedding`);
+            logger.log(`📊 [QUIZ-RAG] Résumé embedding automatique:`);
+            logger.log(`   • ${newlyProcessed} pages nouvellement embedées`);
+            logger.log(`   • ${alreadyEmbedded} pages déjà à jour`);
+            logger.log(`   • ${embeddingErrors} erreurs d'embedding`);
 
             // 🎯 Attendre un court délai pour que les embeddings soient disponibles
             if (newlyProcessed > 0) {
-              console.log(
+              logger.log(
                 `⏱️ [QUIZ-RAG] Attente 2s pour stabilisation des embeddings...`,
               );
               await new Promise((resolve) => setTimeout(resolve, 2000));
             }
           }
         } catch (error) {
-          console.warn(
+          logger.warn(
             "⚠️ [QUIZ-RAG] Erreur système embedding automatique, génération continue sans RAG:",
             error,
           );
@@ -409,7 +410,7 @@ export class QuizController {
           generationRequest as PageProjectGenerationRequest,
         );
       } else if (workspaceIds && workspaceIds.length > 0) {
-        console.log(
+        logger.log(
           "🏢 Génération quiz basée sur workspaces:",
           workspaceIds,
           "coursesOnly:",
@@ -420,7 +421,7 @@ export class QuizController {
           generationRequest as WorkspaceGenerationRequest,
         );
       } else {
-        console.log("📚 Génération quiz générique sans contenu");
+        logger.log("📚 Génération quiz générique sans contenu");
         // Génération générique
         quizId = await QuizService.generateQuiz(generationRequest);
       }
@@ -431,7 +432,7 @@ export class QuizController {
         data: { quizId },
       });
     } catch (error) {
-      console.error("Erreur génération quiz:", error);
+      logger.error("Erreur génération quiz:", error);
       res.status(500).json({
         error: "Erreur lors de la génération du quiz",
         details: error instanceof Error ? error.message : "Erreur inconnue",
@@ -464,7 +465,7 @@ export class QuizController {
         data: quiz,
       });
     } catch (error) {
-      console.error("Erreur récupération quiz:", error);
+      logger.error("Erreur récupération quiz:", error);
       if (error instanceof Error && error.message.includes("not found")) {
         res.status(404).json({ error: "Quiz non trouvé" });
       } else {
@@ -513,7 +514,7 @@ export class QuizController {
       }
 
       // ✅ Utiliser le streaming pour la correction (similaire à submitAndCorrectStream)
-      console.log(
+      logger.log(
         "📝 [SUBMIT-QUIZ] Requête de correction via submitQuiz (redirection vers streaming)",
       );
       res.setHeader("Content-Type", "text/event-stream");
@@ -565,7 +566,7 @@ export class QuizController {
 
         // Quand la correction est terminée, marquer le quiz comme complété
         if (event.type === "completion" && event.finalResult) {
-          console.log(
+          logger.log(
             "✅ [SUBMIT-QUIZ] Correction complétée, marquage du quiz comme isCompleted",
           );
           await prisma.quiz.update({
@@ -580,7 +581,7 @@ export class QuizController {
 
       res.end();
     } catch (error) {
-      console.error("Erreur soumission quiz:", error);
+      logger.error("Erreur soumission quiz:", error);
       if (error instanceof Error && error.message.includes("not found")) {
         res.status(404).json({ error: "Quiz non trouvé" });
       } else if (
@@ -633,7 +634,7 @@ export class QuizController {
       );
 
       if (cachedHistory) {
-        console.log("✅ [QUIZ-HISTORY] Retour depuis cache Redis");
+        logger.log("✅ [QUIZ-HISTORY] Retour depuis cache Redis");
         res.status(200).json({
           success: true,
           data: {
@@ -648,7 +649,7 @@ export class QuizController {
       }
 
       // ❌ Pas de cache : récupérer depuis la DB
-      console.log("❌ [QUIZ-HISTORY] Cache MISS - récupération DB");
+      logger.log("❌ [QUIZ-HISTORY] Cache MISS - récupération DB");
       const history = await QuizService.getQuizHistory(
         userId,
         parsedLimit,
@@ -657,7 +658,7 @@ export class QuizController {
 
       // 💾 Sauvegarder dans le cache pour les prochaines requêtes
       saveQuizHistoryCache(userId, parsedLimit, parsedOffset, history).catch(
-        (err) => console.warn("⚠️ [QUIZ-HISTORY] Échec sauvegarde cache:", err),
+        (err) => logger.warn("⚠️ [QUIZ-HISTORY] Échec sauvegarde cache:", err),
       );
 
       res.status(200).json({
@@ -671,7 +672,7 @@ export class QuizController {
         },
       });
     } catch (error) {
-      console.error("Erreur récupération historique:", error);
+      logger.error("Erreur récupération historique:", error);
       res.status(500).json({
         error: "Erreur lors de la récupération de l'historique",
         details: error instanceof Error ? error.message : "Erreur inconnue",

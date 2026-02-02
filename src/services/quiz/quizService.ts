@@ -2,6 +2,7 @@ import { PrismaClient, Prisma } from "@prisma/client";
 import type { QuizPreset as PrismaQuizPreset } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { AIQuizService } from "./aiQuizService.js";
+import { logger } from "../../utils/logger.js";
 import {
   SchoolLevel,
   CollegeGrade,
@@ -240,7 +241,7 @@ export class QuizService {
     },
   ): Promise<string> {
     try {
-      console.log("🎯 Génération quiz pour utilisateur:", request.userId);
+      logger.log("🎯 Génération quiz pour utilisateur:", request.userId);
 
       // Validation des paramètres
       if (
@@ -254,7 +255,7 @@ export class QuizService {
       // Génération du processId unique pour cette génération
       const processId = `quiz_gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       progressService.registerProcessOwner(processId, request.userId);
-      console.log(`🎯 Génération quiz avec processId: ${processId}`);
+      logger.log(`🎯 Génération quiz avec processId: ${processId}`);
 
       // Génération du quiz via IA
       const generatedQuiz = await AIQuizService.generateQuiz(
@@ -281,7 +282,7 @@ export class QuizService {
 
       // **NOUVEAU**: Support des sujets thématiques
       if (generatedQuiz.subjectBased && generatedQuiz.subjects) {
-        console.log(
+        logger.log(
           `💾 Sauvegarde quiz avec ${generatedQuiz.subjects.length} sujets thématiques`,
         );
 
@@ -289,7 +290,7 @@ export class QuizService {
         generatedQuiz.subjects.forEach((subject, subjectIndex) => {
           subject.questions.forEach((question, questionIndex) => {
             if (question.hasGraphic) {
-              console.log(
+              logger.log(
                 `🔍 [SAVE-DEBUG] Sujet ${subjectIndex}, Question ${questionIndex}:`,
                 {
                   hasGraphic: question.hasGraphic,
@@ -320,7 +321,7 @@ export class QuizService {
 
       // **FIX DOCUMENTS**: Sauvegarde des documents Wikipedia
       if (generatedQuiz.sourceDocuments) {
-        console.log(
+        logger.log(
           `📚 [SAVE] Sauvegarde quiz avec ${generatedQuiz.sourceDocuments.length} documents Wikipedia`,
         );
         quizData.sourceDocuments =
@@ -335,7 +336,7 @@ export class QuizService {
         data: quizData,
       });
 
-      console.log(
+      logger.log(
         "✅ Quiz généré et sauvegardé:",
         savedQuiz.id,
         sequenceOptions ? "(séquentiel)" : "(normal)",
@@ -344,12 +345,12 @@ export class QuizService {
       // 🗑️ Invalider le cache de l'historique après création du quiz
       const { invalidateQuizHistoryCache } = await import("../../lib/redis.js");
       invalidateQuizHistoryCache(request.userId).catch((err) =>
-        console.warn("⚠️ [QUIZ-SERVICE] Échec invalidation cache:", err),
+        logger.warn("⚠️ [QUIZ-SERVICE] Échec invalidation cache:", err),
       );
 
       return savedQuiz.id;
     } catch (error) {
-      console.error("❌ Erreur génération quiz:", error);
+      logger.error("❌ Erreur génération quiz:", error);
       throw new Error(
         `Échec de la génération du quiz: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -363,11 +364,11 @@ export class QuizService {
     request: QuizGenerationRequest & { pageProjectIds: string[] },
   ): Promise<string> {
     try {
-      console.log(
+      logger.log(
         "📄 Génération quiz depuis pages/projets:",
         request.pageProjectIds,
       );
-      console.log("📚 Mode coursesOnly activé:", request.coursesOnly);
+      logger.log("📚 Mode coursesOnly activé:", request.coursesOnly);
 
       // Analyse du contenu des pages/projets sélectionnés
       const contentAnalysis = await this.analyzePageProjectContent({
@@ -378,14 +379,14 @@ export class QuizService {
         schoolLevel: request.schoolLevel, // Passer le niveau scolaire de la requête
       });
 
-      console.log(
+      logger.log(
         "🔍 Résultats de l'analyse:",
         contentAnalysis.length,
         "éléments analysés",
       );
 
       if (!contentAnalysis.length) {
-        console.warn(
+        logger.warn(
           "⚠️ Aucun contenu analysable trouvé dans les pages/projets fournis",
         );
         throw new Error(
@@ -403,7 +404,7 @@ export class QuizService {
           .flatMap((w) => w.extractedContent)
           .map((c) => c.title)
           .join(" + ");
-        console.log(
+        logger.log(
           `🧠 [QUIZ-RAG] Recherche contexte RAG pour: "${pagesQuery}"`,
         );
 
@@ -418,7 +419,7 @@ export class QuizService {
           includeUserSources: true, // Inclure les pages utilisateur traitées
         });
 
-        console.log(
+        logger.log(
           `🧠 [QUIZ-RAG] ${searchResults.length} sources RAG trouvées`,
         );
 
@@ -434,12 +435,12 @@ export class QuizService {
             similarity: r.similarity,
           }));
 
-          console.log(
+          logger.log(
             `✅ [QUIZ-RAG] Contexte construit: ${ragContext.length} caractères, ${ragSources.length} sources`,
           );
         }
       } catch (error) {
-        console.warn(
+        logger.warn(
           "⚠️ [QUIZ-RAG] Erreur récupération contexte RAG, génération continue sans RAG:",
           error,
         );
@@ -453,7 +454,7 @@ export class QuizService {
       );
 
       // Debug : vérifier le quiz généré
-      console.log("🔍 [DEBUG] Quiz généré par l'IA:", {
+      logger.log("🔍 [DEBUG] Quiz généré par l'IA:", {
         title: generatedQuiz.title,
         hasQuestions: !!generatedQuiz.questions,
         questionsCount: Array.isArray(generatedQuiz.questions)
@@ -507,10 +508,10 @@ export class QuizService {
         },
       });
 
-      console.log("✅ Quiz généré depuis pages/projets:", savedQuiz.id);
+      logger.log("✅ Quiz généré depuis pages/projets:", savedQuiz.id);
       return savedQuiz.id;
     } catch (error) {
-      console.error("❌ Erreur génération quiz pages/projets:", error);
+      logger.error("❌ Erreur génération quiz pages/projets:", error);
       throw new Error(
         `Échec de la génération du quiz depuis pages/projets: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -524,11 +525,11 @@ export class QuizService {
     request: QuizGenerationRequest & { workspaceIds: string[] },
   ): Promise<string> {
     try {
-      console.log(
+      logger.log(
         "🏢 Génération quiz depuis workspaces:",
         request.workspaceIds,
       );
-      console.log("📚 Mode coursesOnly activé:", request.coursesOnly);
+      logger.log("📚 Mode coursesOnly activé:", request.coursesOnly);
 
       // Analyse du contenu des workspaces
       const workspaceAnalysis = await this.analyzeWorkspaceContent({
@@ -539,14 +540,14 @@ export class QuizService {
         schoolLevel: request.schoolLevel, // Passer le niveau scolaire de la requête
       });
 
-      console.log(
+      logger.log(
         "🔍 Résultats de l'analyse:",
         workspaceAnalysis.length,
         "workspaces analysés",
       );
 
       if (!workspaceAnalysis.length) {
-        console.warn(
+        logger.warn(
           "⚠️ Aucun contenu analysable trouvé dans les workspaces fournis",
         );
         throw new Error(
@@ -599,10 +600,10 @@ export class QuizService {
         },
       });
 
-      console.log("✅ Quiz généré depuis workspaces:", savedQuiz.id);
+      logger.log("✅ Quiz généré depuis workspaces:", savedQuiz.id);
       return savedQuiz.id;
     } catch (error) {
-      console.error("❌ Erreur génération quiz workspace:", error);
+      logger.error("❌ Erreur génération quiz workspace:", error);
       throw new Error(
         `Échec de la génération du quiz depuis workspace: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -640,7 +641,7 @@ export class QuizService {
       }
 
       // Debug : vérifier le contenu des questions
-      console.log("🔍 [DEBUG] Quiz récupéré:", {
+      logger.log("🔍 [DEBUG] Quiz récupéré:", {
         id: quiz.id,
         title: quiz.title,
         hasQuestions: !!quiz.questions,
@@ -655,7 +656,7 @@ export class QuizService {
 
       return quiz as unknown as QuizWithRelations;
     } catch (error) {
-      console.error("❌ Erreur récupération quiz:", error);
+      logger.error("❌ Erreur récupération quiz:", error);
       throw new Error(
         `Impossible de récupérer le quiz: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -678,9 +679,9 @@ export class QuizService {
         },
       });
 
-      console.log("▶️ Quiz démarré:", quizId);
+      logger.log("▶️ Quiz démarré:", quizId);
     } catch (error) {
-      console.error("❌ Erreur démarrage quiz:", error);
+      logger.error("❌ Erreur démarrage quiz:", error);
       throw new Error("Impossible de démarrer le quiz");
     }
   }
@@ -704,9 +705,9 @@ export class QuizService {
         },
       });
 
-      console.log("💾 Réponses sauvegardées pour quiz:", quizId);
+      logger.log("💾 Réponses sauvegardées pour quiz:", quizId);
     } catch (error) {
-      console.error("❌ Erreur sauvegarde réponses:", error);
+      logger.error("❌ Erreur sauvegarde réponses:", error);
       throw new Error("Impossible de sauvegarder les réponses");
     }
   }
@@ -723,7 +724,7 @@ export class QuizService {
     processId?: string,
   ): Promise<SavedQuizResult> {
     try {
-      console.log("📝 Soumission quiz pour correction:", quizId);
+      logger.log("📝 Soumission quiz pour correction:", quizId);
 
       // Récupération du quiz
       const quiz = await this.getQuiz(quizId, userId);
@@ -742,7 +743,7 @@ export class QuizService {
           // Utiliser le nom réel de la matière depuis subjectResults (ex: "Microéconomie")
           if (currentSubjectResult && currentSubjectResult.subjectName) {
             specificSubject = currentSubjectResult.subjectName;
-            console.log(
+            logger.log(
               "🔍 Matière récupérée depuis séquence:",
               currentSubjectResult.subjectName,
             );
@@ -750,13 +751,13 @@ export class QuizService {
             // Fallback vers l'ancien système
             const currentSubject = config.subjects[quiz.sequenceOrder || 0];
             specificSubject = currentSubject;
-            console.log(
+            logger.log(
               "🔍 Matière récupérée depuis séquence (fallback):",
               currentSubject,
             );
           }
         } catch (error) {
-          console.warn(
+          logger.warn(
             "⚠️ Impossible de récupérer la configuration de séquence:",
             error,
           );
@@ -775,7 +776,7 @@ export class QuizService {
         workspaceContent =
           params.workspaceAnalysis || params.pageProjectAnalysis || [];
 
-        console.log("📄 Contenu récupéré pour correction:", {
+        logger.log("📄 Contenu récupéré pour correction:", {
           hasWorkspaceAnalysis: !!(
             params.workspaceAnalysis && params.workspaceAnalysis.length
           ),
@@ -787,7 +788,7 @@ export class QuizService {
         });
       }
 
-      console.log("🔍 Quiz récupéré pour correction:", {
+      logger.log("🔍 Quiz récupéré pour correction:", {
         id: quiz.id,
         preset: quiz.preset,
         examSubject: quiz.examSubject,
@@ -814,7 +815,7 @@ export class QuizService {
         submittedAt: new Date(),
       };
 
-      console.log("🔍 Requête de correction:", {
+      logger.log("🔍 Requête de correction:", {
         preset: correctionRequest.preset,
         specificSubject: correctionRequest.specificSubject,
         coursesOnly: correctionRequest.coursesOnly,
@@ -827,7 +828,7 @@ export class QuizService {
 
       if (quiz.subjectBased && quiz.subjects && Array.isArray(quiz.subjects)) {
         // Nouveau système: extraire toutes les questions des sujets
-        console.log(
+        logger.log(
           `📚 [CORRECTION] Quiz basé sur des sujets - extraction des questions depuis ${quiz.subjects.length} sujets`,
         );
 
@@ -839,12 +840,12 @@ export class QuizService {
         questionsForCorrection =
           this.reconstructGraphicProperties(rawQuestions);
 
-        console.log(
+        logger.log(
           `📝 [CORRECTION] ${questionsForCorrection.length} questions extraites des sujets`,
         );
       } else {
         // Ancien système: utiliser les questions directes
-        console.log(
+        logger.log(
           `📝 [CORRECTION] Quiz classique - utilisation des questions directes`,
         );
         questionsForCorrection = quiz.questions as unknown as Question[];
@@ -854,10 +855,10 @@ export class QuizService {
         throw new Error("Aucune question trouvée pour la correction");
       }
 
-      console.log(
+      logger.log(
         `🔍 [CORRECTION] Questions trouvées: ${questionsForCorrection.map((q) => q.id).join(", ")}`,
       );
-      console.log(
+      logger.log(
         `🔍 [CORRECTION] Réponses utilisateur: ${userAnswers.map((ua) => ua.questionId).join(", ")}`,
       );
 
@@ -877,17 +878,17 @@ export class QuizService {
         );
       });
 
-      console.log(
+      logger.log(
         `✅ [CORRECTION] Réponses complétées: ${completeUserAnswers.length} réponses pour ${questionsForCorrection.length} questions`,
       );
-      console.log(
+      logger.log(
         `📊 [CORRECTION] Réponses fournies: ${userAnswers.length}, Réponses vides générées: ${completeUserAnswers.length - userAnswers.length}`,
       );
 
       // Génération du processId unique pour cette correction
       const processId = `quiz_correct_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       progressService.registerProcessOwner(processId, userId);
-      console.log(`🎯 Correction quiz avec processId: ${processId}`);
+      logger.log(`🎯 Correction quiz avec processId: ${processId}`);
 
       // Correction via IA
       const correctionResult = await AIQuizService.correctQuiz(
@@ -898,7 +899,7 @@ export class QuizService {
       );
 
       // Debug : Afficher le résultat de correction avant sauvegarde
-      console.log(
+      logger.log(
         "🔍 Résultat correction avant sauvegarde:",
         JSON.stringify(correctionResult, null, 2),
       );
@@ -944,7 +945,7 @@ export class QuizService {
         },
       );
 
-      console.log("✅ Quiz corrigé et résultat sauvegardé");
+      logger.log("✅ Quiz corrigé et résultat sauvegardé");
 
       // Retourner les résultats complets au lieu de seulement l'ID
       return {
@@ -961,7 +962,7 @@ export class QuizService {
         createdAt: savedResult.createdAt,
       };
     } catch (error) {
-      console.error("❌ Erreur soumission quiz:", error);
+      logger.error("❌ Erreur soumission quiz:", error);
       throw new Error(
         `Échec de la soumission du quiz: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -1123,7 +1124,7 @@ export class QuizService {
       // Appliquer la pagination sur le résultat combiné
       return allItems.slice(offset, offset + limit);
     } catch (error) {
-      console.error("❌ Erreur récupération historique:", error);
+      logger.error("❌ Erreur récupération historique:", error);
       throw new Error("Impossible de récupérer l'historique des quiz");
     }
   }
@@ -1161,9 +1162,9 @@ export class QuizService {
         },
       });
 
-      console.log("💾 Préférences utilisateur sauvegardées");
+      logger.log("💾 Préférences utilisateur sauvegardées");
     } catch (error) {
-      console.error("❌ Erreur sauvegarde préférences:", error);
+      logger.error("❌ Erreur sauvegarde préférences:", error);
       throw new Error("Impossible de sauvegarder les préférences");
     }
   }
@@ -1181,7 +1182,7 @@ export class QuizService {
 
       return preferences as UserQuizPreferences | null;
     } catch (error) {
-      console.error("❌ Erreur récupération préférences:", error);
+      logger.error("❌ Erreur récupération préférences:", error);
       throw new Error("Impossible de récupérer les préférences");
     }
   }
@@ -1222,7 +1223,7 @@ export class QuizService {
           [];
         let totalWords = 0;
 
-        console.log(
+        logger.log(
           "🔍 Analyse du workspace:",
           workspace.name,
           "avec",
@@ -1232,7 +1233,7 @@ export class QuizService {
 
         // 🚀 Pour chaque projet, récupérer TOUTES les pages (incluant sous-projets)
         for (const project of workspace.projects) {
-          console.log(
+          logger.log(
             "📁 Analyse du projet:",
             project.name || "Sans nom",
             "avec",
@@ -1242,7 +1243,7 @@ export class QuizService {
 
           // Récupération récursive de toutes les pages
           const allProjectPages = await this.getAllPagesRecursively(project.id);
-          console.log(
+          logger.log(
             `📊 Total pages pour "${project.name}" (incluant sous-projets): ${allProjectPages.length}`,
           );
 
@@ -1268,7 +1269,7 @@ export class QuizService {
                     .filter((content) => content.trim().length > 0)
                     .join("\n");
 
-                  console.log(
+                  logger.log(
                     "📄 Page:",
                     page.title,
                     "- Contenu extrait:",
@@ -1287,14 +1288,14 @@ export class QuizService {
                   }
                 }
               } catch (error) {
-                console.warn(
+                logger.warn(
                   "⚠️ Erreur lors de l'extraction du contenu de la page:",
                   page.title,
                   error,
                 );
               }
             } else {
-              console.log(
+              logger.log(
                 "📄 Page:",
                 page.title,
                 "- Pas de contenu blockNoteContent",
@@ -1337,7 +1338,7 @@ export class QuizService {
 
       return results;
     } catch (error) {
-      console.error("❌ Erreur analyse workspace:", error);
+      logger.error("❌ Erreur analyse workspace:", error);
       return [];
     }
   }
@@ -1352,7 +1353,7 @@ export class QuizService {
       const results: WorkspaceAnalysisResult[] = [];
 
       for (const itemId of options.pageProjectIds) {
-        console.log("📄 Analyse de l'item:", itemId);
+        logger.log("📄 Analyse de l'item:", itemId);
 
         // D'abord, déterminer si c'est une page ou un projet
         const page = await prisma.page.findUnique({
@@ -1399,7 +1400,7 @@ export class QuizService {
 
       return results;
     } catch (error) {
-      console.error("❌ Erreur analyse pages/projets:", error);
+      logger.error("❌ Erreur analyse pages/projets:", error);
       return [];
     }
   }
@@ -1486,7 +1487,7 @@ export class QuizService {
     const extractedContent: WorkspaceAnalysisResult["extractedContent"] = [];
     let totalWords = 0;
 
-    console.log(
+    logger.log(
       "📁 Analyse du projet:",
       project.name,
       "avec",
@@ -1496,7 +1497,7 @@ export class QuizService {
 
     // 🚀 Récupération RÉCURSIVE de toutes les pages (projet + sous-projets)
     const allPages = await this.getAllPagesRecursively(project.id);
-    console.log(
+    logger.log(
       `📊 Total pages récupérées (incluant sous-projets): ${allPages.length}`,
     );
 
@@ -1754,7 +1755,7 @@ export class QuizService {
 
       return stats;
     } catch (error) {
-      console.error("❌ Erreur calcul statistiques:", error);
+      logger.error("❌ Erreur calcul statistiques:", error);
       throw new Error("Impossible de calculer les statistiques de progression");
     }
   }
@@ -1772,7 +1773,7 @@ export class QuizService {
     firstQuizId?: string;
   }> {
     try {
-      console.log("🎯 Création séquence preset:", options.preset);
+      logger.log("🎯 Création séquence preset:", options.preset);
 
       // Création de la configuration séquentielle
       const config = await SequenceManager.createSequentialConfig(options);
@@ -1802,8 +1803,8 @@ export class QuizService {
       // Sauvegarde AUSSI en stockage temporaire pour la compatibilité avec l'existant
       tempSequenceStorage.save(config);
 
-      console.log("✅ Séquence créée et sauvegardée en base:", config.id);
-      console.log("📋 Séquence prête pour génération manuelle");
+      logger.log("✅ Séquence créée et sauvegardée en base:", config.id);
+      logger.log("📋 Séquence prête pour génération manuelle");
 
       return {
         sequenceId: config.id,
@@ -1811,7 +1812,7 @@ export class QuizService {
         firstQuizId: undefined, // Pas de quiz généré automatiquement
       };
     } catch (error) {
-      console.error("❌ Erreur création séquence:", error);
+      logger.error("❌ Erreur création séquence:", error);
       throw new Error(
         `Impossible de créer la séquence: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -1831,7 +1832,7 @@ export class QuizService {
 
       // 2. Si pas trouvé, récupérer depuis la base de données
       if (!config) {
-        console.log(
+        logger.log(
           "🔄 Séquence non trouvée en cache, récupération depuis BDD:",
           sequenceId,
         );
@@ -1870,7 +1871,7 @@ export class QuizService {
 
         // Remettre en cache pour les prochains accès
         tempSequenceStorage.set(sequenceId, config);
-        console.log("✅ Séquence rechargée en cache depuis BDD");
+        logger.log("✅ Séquence rechargée en cache depuis BDD");
       }
 
       // Vérification de propriété pour les configs en cache
@@ -1884,7 +1885,7 @@ export class QuizService {
 
       return config;
     } catch (error) {
-      console.error("❌ Erreur récupération séquence:", error);
+      logger.error("❌ Erreur récupération séquence:", error);
       throw new Error(
         `Impossible de récupérer la séquence: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -1919,12 +1920,12 @@ export class QuizService {
         },
       });
 
-      console.log(
+      logger.log(
         "✅ Séquence synchronisée avec la base de données:",
         sequenceId,
       );
     } catch (error) {
-      console.error("❌ Erreur synchronisation séquence avec la base:", error);
+      logger.error("❌ Erreur synchronisation séquence avec la base:", error);
       // Ne pas faire échouer l'opération principale, juste logguer l'erreur
     }
   }
@@ -1942,7 +1943,7 @@ export class QuizService {
     quiz?: QuizWithRelations;
   }> {
     try {
-      console.log(
+      logger.log(
         "⚡ Génération quiz suivant pour séquence (service parallèle):",
         sequenceId,
       );
@@ -1957,7 +1958,7 @@ export class QuizService {
       // Vérifier si le quiz actuel est déjà généré
       const currentResult = config.subjectResults[config.currentSubjectIndex];
       if (currentResult?.quizId) {
-        console.log("✅ Quiz déjà généré pour ce sujet:", currentResult.quizId);
+        logger.log("✅ Quiz déjà généré pour ce sujet:", currentResult.quizId);
         const fullQuiz = await this.getQuiz(currentResult.quizId, userId);
         const currentSubject = config.subjects[config.currentSubjectIndex];
         const isLastQuiz =
@@ -1981,25 +1982,25 @@ export class QuizService {
 
       try {
         // 🚀 APPROCHE SIMPLIFIÉE: Utiliser l'assistant standard avec les nouvelles fonctions Wikipedia
-        console.log(
+        logger.log(
           "⚡ Utilisation de l'assistant standard avec API Wikipedia...",
         );
 
         // Générer uniquement le quiz actuel (pas de pré-génération pour éviter complexité)
         const currentSubject = config.subjects[config.currentSubjectIndex];
-        console.log(`📚 Génération du quiz pour: ${currentSubject}`);
+        logger.log(`📚 Génération du quiz pour: ${currentSubject}`);
 
         // Déterminer si le sujet doit inclure des documents Wikipedia
         const shouldIncludeDocuments =
           this.shouldSubjectIncludeDocuments(currentSubject);
-        console.log(
+        logger.log(
           `📋 Sujet "${currentSubject}": includeDocuments = ${shouldIncludeDocuments}`,
         );
 
         // Génération du processId pour cette génération spécifique
         const processId = `quiz_generation_${sequenceId}_${config.currentSubjectIndex}`;
         progressService.registerProcessOwner(processId, userId);
-        console.log(
+        logger.log(
           `🎯 Génération quiz séquentiel avec processId: ${processId}`,
         );
 
@@ -2066,11 +2067,11 @@ export class QuizService {
               tempSequenceStorage.update(sequenceId, updatedConfig);
               await this.syncSequenceToDatabase(sequenceId, updatedConfig);
 
-              console.log(
+              logger.log(
                 `✅ Quiz sauvé via service parallèle: ${quizId} pour ${subject} (${result.generatedBy}, ${result.generationTime}ms)`,
               );
             } catch (saveError) {
-              console.error(
+              logger.error(
                 `❌ Erreur sauvegarde quiz parallèle pour ${subject}:`,
                 saveError,
               );
@@ -2079,7 +2080,7 @@ export class QuizService {
               }
             }
           } else {
-            console.error(
+            logger.error(
               `❌ Échec génération parallèle pour ${subject}:`,
               result.error,
             );
@@ -2108,7 +2109,7 @@ export class QuizService {
         const sourceDocsArray = fullQuiz.sourceDocuments as unknown as
           | DocumentChunk[]
           | null;
-        console.log("🔍 DEBUG: Quiz récupéré pour transmission:", {
+        logger.log("🔍 DEBUG: Quiz récupéré pour transmission:", {
           hasSourceDocuments: !!sourceDocsArray,
           sourceDocumentsLength: sourceDocsArray?.length,
           quizId: fullQuiz.id,
@@ -2120,10 +2121,10 @@ export class QuizService {
           config.currentSubjectIndex >= config.totalSubjects - 1;
 
         const successCount = parallelResults.filter((r) => !r.error).length;
-        console.log(
+        logger.log(
           `⚡ Génération parallèle terminée: ${successCount}/${parallelResults.length} quiz générés`,
         );
-        console.log(
+        logger.log(
           `✅ Quiz principal retourné: ${currentQuizId} pour matière: ${parallelResults[0]?.subject}`,
         );
 
@@ -2146,13 +2147,13 @@ export class QuizService {
         try {
           await this.syncSequenceToDatabase(sequenceId, errorConfig);
         } catch (syncError) {
-          console.error(
+          logger.error(
             "❌ Erreur synchronisation après échec génération:",
             syncError,
           );
         }
 
-        console.error(
+        logger.error(
           "❌ Échec service parallèle, tentative de fallback vers génération classique...",
         );
 
@@ -2179,7 +2180,7 @@ export class QuizService {
           const isLastQuiz =
             config.currentSubjectIndex >= config.totalSubjects - 1;
 
-          console.log(
+          logger.log(
             "✅ Fallback réussi - Quiz généré via méthode classique:",
             quizId,
           );
@@ -2190,14 +2191,14 @@ export class QuizService {
             quiz: fullQuiz,
           };
         } catch (fallbackError) {
-          console.error("❌ Échec du fallback également:", fallbackError);
+          logger.error("❌ Échec du fallback également:", fallbackError);
           throw new Error(
             `Échec génération (parallèle et fallback): ${generationError instanceof Error ? generationError.message : "Erreur inconnue"}`,
           );
         }
       }
     } catch (error) {
-      console.error(
+      logger.error(
         "❌ Erreur génération quiz séquentiel (service parallèle):",
         error,
       );
@@ -2224,7 +2225,7 @@ export class QuizService {
     nextQuizId?: string;
   }> {
     try {
-      console.log("📝 Soumission quiz séquentiel:", quizId);
+      logger.log("📝 Soumission quiz séquentiel:", quizId);
 
       // Récupération de la configuration
       const config = await this.getSequenceConfig(sequenceId, userId);
@@ -2273,7 +2274,7 @@ export class QuizService {
         correctionProcessId,
       );
 
-      console.log("✅ Quiz séquentiel soumis, correction en arrière-plan");
+      logger.log("✅ Quiz séquentiel soumis, correction en arrière-plan");
       return {
         result: tempResult,
         nextQuizGenerated: false,
@@ -2281,7 +2282,7 @@ export class QuizService {
         nextQuizId: undefined,
       };
     } catch (error) {
-      console.error("❌ Erreur soumission quiz séquentiel:", error);
+      logger.error("❌ Erreur soumission quiz séquentiel:", error);
       throw new Error(
         `Impossible de soumettre le quiz séquentiel: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -2301,7 +2302,7 @@ export class QuizService {
     processId?: string,
   ): Promise<void> {
     try {
-      console.log("🔄 Début correction en arrière-plan pour quiz:", quizId);
+      logger.log("🔄 Début correction en arrière-plan pour quiz:", quizId);
 
       // Soumission et correction du quiz avec processId
       const result = await this.submitQuiz(
@@ -2328,9 +2329,9 @@ export class QuizService {
       // 🔧 FIX: Synchroniser avec la base de données
       await this.syncSequenceToDatabase(sequenceId, updatedConfig);
 
-      console.log("✅ Correction en arrière-plan terminée pour quiz:", quizId);
+      logger.log("✅ Correction en arrière-plan terminée pour quiz:", quizId);
     } catch (error) {
-      console.error("❌ Erreur correction en arrière-plan:", error);
+      logger.error("❌ Erreur correction en arrière-plan:", error);
 
       // En cas d'erreur, marquer comme non en cours de correction
       try {
@@ -2345,13 +2346,13 @@ export class QuizService {
         try {
           await this.syncSequenceToDatabase(sequenceId, config);
         } catch (syncError) {
-          console.error(
+          logger.error(
             "❌ Erreur synchronisation après échec correction:",
             syncError,
           );
         }
       } catch (updateError) {
-        console.error(
+        logger.error(
           "❌ Erreur mise à jour config après échec correction:",
           updateError,
         );
@@ -2417,7 +2418,7 @@ export class QuizService {
         },
       };
     } catch (error) {
-      console.error("❌ Erreur récupération résultats séquence:", error);
+      logger.error("❌ Erreur récupération résultats séquence:", error);
       throw new Error(
         `Impossible de récupérer les résultats: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -2464,7 +2465,7 @@ export class QuizService {
       },
     });
 
-    console.log(
+    logger.log(
       `💾 Quiz sauvegardé: ${quiz.id} pour séquence ${options.sequenceId}`,
     );
     return quiz.id;
@@ -2487,7 +2488,7 @@ export class QuizService {
           !question.graphicDescription ||
           !question.graphicDataValues?.length
         ) {
-          console.log(
+          logger.log(
             `🔧 [RECONSTRUCT] Question ${question.id} - propriétés graphiques manquantes, tentative de récupération...`,
           );
 

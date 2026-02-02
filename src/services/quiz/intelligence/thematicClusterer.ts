@@ -3,6 +3,7 @@
  * PEN-16: Regroupe les pages par thème similaire pour une génération organisée
  */
 
+import { logger } from "../../../utils/logger.js";
 import OpenAI from "openai";
 import { prisma } from "../../../lib/prisma.js";
 import {
@@ -121,7 +122,7 @@ export class ThematicClustererService {
       generateNames = true,
     } = options;
 
-    console.log(
+    logger.log(
       `🎯 [ThematicClusterer] Clustering de ${pageIds.length} pages...`,
     );
 
@@ -129,7 +130,7 @@ export class ThematicClustererService {
     const pagesWithConcepts = await this.getPagesWithConcepts(pageIds);
 
     if (pagesWithConcepts.length === 0) {
-      console.log(`⚠️ [ThematicClusterer] Aucune page avec concepts trouvée`);
+      logger.log(`⚠️ [ThematicClusterer] Aucune page avec concepts trouvée`);
       return {
         clusters: [],
         totalPages: 0,
@@ -145,7 +146,7 @@ export class ThematicClustererService {
 
     if (validEmbeddings.length < 2) {
       // Pas assez de pages pour clusterer
-      console.log(
+      logger.log(
         `⚠️ [ThematicClusterer] Pas assez de pages avec embeddings (${validEmbeddings.length})`,
       );
       const singleCluster = await this.createSingleCluster(pagesWithConcepts);
@@ -163,7 +164,7 @@ export class ThematicClustererService {
       pagesWithConcepts.length,
       algorithm,
     );
-    console.log(`🔧 [ThematicClusterer] Algorithme: ${selectedAlgorithm}`);
+    logger.log(`🔧 [ThematicClusterer] Algorithme: ${selectedAlgorithm}`);
 
     // 4. Exécuter le clustering
     let clusterIndices: number[][];
@@ -244,10 +245,10 @@ export class ThematicClustererService {
         : 0;
 
     const processingTimeMs = Date.now() - startTime;
-    console.log(
+    logger.log(
       `✅ [ThematicClusterer] ${clusters.length} clusters créés en ${processingTimeMs}ms`,
     );
-    console.log(`   📊 Silhouette score: ${silhouette.toFixed(3)}`);
+    logger.log(`   📊 Silhouette score: ${silhouette.toFixed(3)}`);
 
     return {
       clusters,
@@ -274,7 +275,7 @@ export class ThematicClustererService {
     // Extraire les concepts des pages manquantes
     const missingIds = pageIds.filter((id) => !existingIds.has(id));
     if (missingIds.length > 0) {
-      console.log(
+      logger.log(
         `🧠 [ThematicClusterer] Extraction des concepts pour ${missingIds.length} pages...`,
       );
       await ConceptExtractorService.extractBatch(missingIds);
@@ -399,7 +400,7 @@ export class ThematicClustererService {
   private static async generateClusterNames(
     clusters: ThematicCluster[],
   ): Promise<ThematicCluster[]> {
-    console.log(
+    logger.log(
       `🏷️ [ThematicClusterer] Génération des noms pour ${clusters.length} clusters...`,
     );
 
@@ -434,7 +435,7 @@ Page titles: ${cluster.pages
           cluster.description = parsed.description || cluster.description;
         }
       } catch (error) {
-        console.warn(
+        logger.warn(
           `⚠️ [ThematicClusterer] Erreur naming cluster ${cluster.id}:`,
           error,
         );
@@ -531,7 +532,7 @@ Page titles: ${cluster.pages
     workspaceId: string,
     options: ClusterOptions = {},
   ): Promise<ClusterResult> {
-    console.log(
+    logger.log(
       `🎯 [ThematicClusterer] Clustering du workspace ${workspaceId}...`,
     );
 
@@ -546,7 +547,7 @@ Page titles: ${cluster.pages
     });
 
     const pageIds = pages.map((p) => p.id);
-    console.log(`📄 [ThematicClusterer] ${pageIds.length} pages trouvées`);
+    logger.log(`📄 [ThematicClusterer] ${pageIds.length} pages trouvées`);
 
     return this.clusterPages(pageIds, options);
   }

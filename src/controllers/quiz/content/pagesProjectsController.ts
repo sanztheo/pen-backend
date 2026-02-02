@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../../../lib/prisma.js';
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Contrôleur pour la gestion des pages et projets
@@ -120,7 +121,7 @@ export class PagesProjectsController {
       });
 
     } catch (error) {
-      console.error('Erreur récupération pages/projets:', error);
+      logger.error('Erreur récupération pages/projets:', error);
       res.status(500).json({
         error: 'Erreur lors de la récupération des pages et projets',
         details: error instanceof Error ? error.message : 'Erreur inconnue'
@@ -226,7 +227,7 @@ export class PagesProjectsController {
       });
 
     } catch (error) {
-      console.error('Erreur analyse pages/projets:', error);
+      logger.error('Erreur analyse pages/projets:', error);
       res.status(500).json({
         error: 'Erreur lors de l\'analyse des pages et projets',
         details: error instanceof Error ? error.message : 'Erreur inconnue'

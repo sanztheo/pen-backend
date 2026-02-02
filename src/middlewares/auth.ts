@@ -3,6 +3,7 @@ import { AuthService, AuthUser } from "../services/auth.js";
 import { UserSyncService } from "../services/userSync.js";
 import { createClerkClient } from "@clerk/backend";
 import { SecureLogger } from "./secureLogging.js";
+import { logger } from "../utils/logger.js";
 
 // Cache en mémoire pour la synchronisation utilisateur (userId -> timestamp)
 const userSyncCache = new Map<string, number>();
@@ -109,7 +110,7 @@ async function loadTestUser(clerkUserId: string): Promise<AuthUser | null> {
       },
     };
   } catch (error) {
-    console.error("[TEST AUTH] Erreur chargement utilisateur Clerk:", error);
+    logger.error("[TEST AUTH] Erreur chargement utilisateur Clerk:", error);
     return null;
   }
 }
@@ -195,14 +196,14 @@ export const authenticateToken = async (
       req.user = { ...user, id: syncedUser.id } as AuthUser;
       next();
     } catch (error) {
-      console.error("❌ [AUTH] ÉCHEC CRITIQUE sync utilisateur:", error);
+      logger.error("❌ [AUTH] ÉCHEC CRITIQUE sync utilisateur:", error);
       return res.status(500).json({
         error: "Erreur de synchronisation utilisateur. Veuillez réessayer.",
         code: "USER_SYNC_FAILED",
       });
     }
   } catch (error) {
-    console.error("Erreur middleware auth:", error);
+    logger.error("Erreur middleware auth:", error);
     return res
       .status(500)
       .json({ error: "Erreur interne du serveur", code: "AUTH_ERROR" });
@@ -228,7 +229,7 @@ export const optionalAuth = async (
 
     next();
   } catch (error) {
-    console.error("Erreur middleware auth optionnel:", error);
+    logger.error("Erreur middleware auth optionnel:", error);
     next(); // Continue même en cas d'erreur
   }
 };

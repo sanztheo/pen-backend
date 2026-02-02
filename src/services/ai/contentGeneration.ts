@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { z } from "zod";
+import { logger } from "../../utils/logger.js";
 import type {
   ChatCompletionChunk,
   ChatCompletionCreateParamsStreaming,
@@ -127,7 +128,7 @@ export class ContentGenerationService {
       throw new Error("Requête annulée");
     }
 
-    console.log("🤖 [OpenAI] Génération de contenu...", {
+    logger.log("🤖 [OpenAI] Génération de contenu...", {
       prompt: options.prompt.substring(0, 100) + "...",
       maxTokens: options.maxTokens,
       temperature: options.temperature,
@@ -149,11 +150,11 @@ export class ContentGenerationService {
       );
 
       if (!quotaCheck.allowed) {
-        console.error("🚨 [QUOTA] Limite OpenAI atteinte:", quotaCheck.reason);
+        logger.error("🚨 [QUOTA] Limite OpenAI atteinte:", quotaCheck.reason);
         throw new Error(`Quota OpenAI dépassé: ${quotaCheck.reason}`);
       }
 
-      console.log("✅ [QUOTA] Requête autorisée -", {
+      logger.log("✅ [QUOTA] Requête autorisée -", {
         usage: `${quotaCheck.usage?.requests}/${quotaCheck.limits?.maxRequests} requêtes`,
         tokens: `${quotaCheck.usage?.tokens}/${quotaCheck.limits?.maxTokens} tokens`,
         cost: `$${quotaCheck.usage?.cost.toFixed(4)}/$${quotaCheck.limits?.maxCost}`,
@@ -177,7 +178,7 @@ export class ContentGenerationService {
         typeof model === "string" && model.toLowerCase().includes("grok");
 
       if (isGrok) {
-        console.log("🧠 [PROVIDER] Utilisation de xAI (Grok)");
+        logger.log("🧠 [PROVIDER] Utilisation de xAI (Grok)");
         client = AIService.getGrok();
       } else {
         client = AIService.getOpenAI();
@@ -244,7 +245,7 @@ export class ContentGenerationService {
           for await (const chunk of stream) {
             // 🚫 Vérifier annulation pendant le streaming
             if (options.signal?.aborted || controller.signal.aborted) {
-              console.log(
+              logger.log(
                 "🚫 [STREAMING] Annulation détectée, arrêt du streaming",
               );
               throw new Error("Requête annulée");
@@ -303,14 +304,14 @@ export class ContentGenerationService {
               error.message.includes("aborted") ||
               error.message.includes("annulée"))
           ) {
-            console.log("🚫 [STREAMING] Requête OpenAI annulée avec succès");
+            logger.log("🚫 [STREAMING] Requête OpenAI annulée avec succès");
             throw new Error("Requête annulée");
           }
           throw error;
         }
 
         const responseTime = Date.now() - startTime;
-        console.log(`✅ [OpenAI/Grok] Streaming terminé en ${responseTime}ms`, {
+        logger.log(`✅ [OpenAI/Grok] Streaming terminé en ${responseTime}ms`, {
           contentLength: fullContent.length,
           reasoningLength: accumulatedReasoning.length,
           finishReason,
@@ -318,7 +319,7 @@ export class ContentGenerationService {
 
         // 🧠 Log complet du thinking si existant (DEMANDE UTILISATEUR)
         if (accumulatedReasoning.length > 0) {
-          console.log(
+          logger.log(
             "\n🧠 [COMPLETE THINKING]:\n" +
               accumulatedReasoning +
               "\n-------------------\n",
@@ -368,7 +369,7 @@ export class ContentGenerationService {
               }
             }
           } catch (e) {
-            console.warn("⚠️ Continuation stream échouée:", e);
+            logger.warn("⚠️ Continuation stream échouée:", e);
           }
         }
 
@@ -382,7 +383,7 @@ export class ContentGenerationService {
             estimatedCompletionTokens,
           );
         } catch (err) {
-          console.warn("⚠️ Erreur enregistrement quota (stream):", err);
+          logger.warn("⚠️ Erreur enregistrement quota (stream):", err);
         }
 
         return {
@@ -400,7 +401,7 @@ export class ContentGenerationService {
       // Si le signal externe est annulé, annuler notre controller
       if (combinedSignal) {
         combinedSignal.addEventListener("abort", () => {
-          console.log(
+          logger.log(
             "🚫 [CLASSIC] Signal externe annulé, annulation de la requête OpenAI",
           );
           controller.abort();
@@ -445,20 +446,20 @@ export class ContentGenerationService {
             error.message.includes("aborted") ||
             controller.signal.aborted)
         ) {
-          console.log("🚫 [CLASSIC] Requête fetch annulée avec succès");
+          logger.log("🚫 [CLASSIC] Requête fetch annulée avec succès");
           throw new Error("Requête annulée");
         }
         throw error;
       }
 
       if (options.signal?.aborted || controller.signal.aborted) {
-        console.log("🚫 [CLASSIC] Annulation détectée après réponse");
+        logger.log("🚫 [CLASSIC] Annulation détectée après réponse");
         throw new Error("Requête annulée");
       }
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("❌ [OpenAI] Réponse non OK:", {
+        logger.error("❌ [OpenAI] Réponse non OK:", {
           status: response.status,
           body: errorText,
         });
@@ -471,7 +472,7 @@ export class ContentGenerationService {
 
       const responseTime = Date.now() - startTime;
       const finishReason = data.choices?.[0]?.finish_reason || "unknown";
-      console.log(`✅ [OpenAI] Génération terminée en ${responseTime}ms`, {
+      logger.log(`✅ [OpenAI] Génération terminée en ${responseTime}ms`, {
         tokens: data.usage?.total_tokens,
         finishReason,
       });
@@ -482,7 +483,7 @@ export class ContentGenerationService {
           data.model,
           data.usage.prompt_tokens,
           data.usage.completion_tokens,
-        ).catch((err) => console.warn("⚠️ Erreur enregistrement quota:", err));
+        ).catch((err) => logger.warn("⚠️ Erreur enregistrement quota:", err));
       }
 
       let finalContent = content;
@@ -490,7 +491,7 @@ export class ContentGenerationService {
 
       // 🔄 RETRY AUTOMATIQUE si tronqué (finishReason === 'length')
       if (finishReason === "length" && (options.maxTokens || 0) > 0) {
-        console.log(
+        logger.log(
           "⚠️ [RETRY] Réponse tronquée détectée, continuation automatique...",
         );
         try {
@@ -542,7 +543,7 @@ export class ContentGenerationService {
               continuationData.choices?.[0]?.message?.content || "";
             finalContent += continuationContent;
 
-            console.log("✅ [RETRY] Continuation réussie", {
+            logger.log("✅ [RETRY] Continuation réussie", {
               additionalTokens: continuationData.usage?.total_tokens,
               newFinishReason: continuationData.choices?.[0]?.finish_reason,
             });
@@ -567,7 +568,7 @@ export class ContentGenerationService {
                 continuationData.usage.prompt_tokens,
                 continuationData.usage.completion_tokens,
               ).catch((err) =>
-                console.warn(
+                logger.warn(
                   "⚠️ Erreur enregistrement quota continuation:",
                   err,
                 ),
@@ -575,7 +576,7 @@ export class ContentGenerationService {
             }
           }
         } catch (retryError) {
-          console.warn(
+          logger.warn(
             "⚠️ [RETRY] Continuation échouée, utilisation de la réponse partielle:",
             retryError,
           );
@@ -602,11 +603,11 @@ export class ContentGenerationService {
         error instanceof Error &&
         (error.name === "AbortError" || error.message.includes("annulée"))
       ) {
-        console.log(`🚫 [OpenAI] Requête annulée après ${responseTime}ms`);
+        logger.log(`🚫 [OpenAI] Requête annulée après ${responseTime}ms`);
         throw new Error("Requête annulée");
       }
 
-      console.error(`❌ [OpenAI] Erreur après ${responseTime}ms:`, error);
+      logger.error(`❌ [OpenAI] Erreur après ${responseTime}ms:`, error);
       throw error;
     }
   }
@@ -665,11 +666,11 @@ print("Bonjour, monde!")
 
     // Parser le code markdown si c'est du code
     if (type === "code" && result.content) {
-      console.log(`📥 Contenu brut de l'IA:`, result.content);
+      logger.log(`📥 Contenu brut de l'IA:`, result.content);
 
       const parsed = CodeDetectionService.parseMarkdownCode(result.content);
 
-      console.log(`🔄 Résultat du parsing:`, {
+      logger.log(`🔄 Résultat du parsing:`, {
         originalContent: result.content.substring(0, 200),
         parsedCode: parsed.code.substring(0, 200),
         detectedLanguage: parsed.language,
