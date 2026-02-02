@@ -1,4 +1,6 @@
 import { prisma } from "../lib/prisma.js";
+import { logger } from "../utils/logger.js";
+import { Prisma } from "@prisma/client";
 
 // Interface pour les éléments de layout du dashboard
 export interface DashboardLayoutItem {
@@ -81,12 +83,19 @@ export const DashboardLayoutService = {
    * Réinitialise la disposition aux valeurs par défaut
    */
   async resetUserLayout(userId: string): Promise<void> {
-    await prisma.userDashboardLayout
-      .delete({
+    try {
+      await prisma.userDashboardLayout.delete({
         where: { userId },
-      })
-      .catch(() => {
-        // Si le layout n'existe pas, on ignore l'erreur
       });
+    } catch (error: unknown) {
+      // Si le layout n'existe pas, on ignore l'erreur.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2025"
+      ) {
+        return;
+      }
+      logger.warn("⚠️ [DashboardLayout] resetUserLayout failed:", error);
+    }
   },
 };
