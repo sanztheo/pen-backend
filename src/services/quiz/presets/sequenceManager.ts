@@ -1,3 +1,4 @@
+import { logger } from "../../../utils/logger.js";
 import {
   QuizGenerationRequest,
   SequentialQuizConfig,
@@ -99,7 +100,7 @@ export class SequenceManager {
     const parts = config.id.split("_");
     const userId = parts.slice(1, -1).join("_"); // Récupérer tout entre le preset et le timestamp
 
-    console.log("🔍 Extraction userId depuis ID séquence:", {
+    logger.log("🔍 Extraction userId depuis ID séquence:", {
       sequenceId: config.id,
       extractedUserId: userId,
       parts,

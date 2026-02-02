@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import sharp from "sharp";
+import { logger } from "../../utils/logger.js";
 
 // Configuration Cloudinary depuis CLOUDINARY_URL
 if (!process.env.CLOUDINARY_URL) {
@@ -124,7 +125,7 @@ async function compressImage(
 
     return await compressed.toBuffer();
   } catch (error: unknown) {
-    console.error("❌ Erreur compression Sharp:", error);
+    logger.error("❌ Erreur compression Sharp:", error);
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Échec compression: ${errorMessage}`);
   }
@@ -145,14 +146,14 @@ export async function uploadToCloudinary(
 
   try {
     // 2. Compression
-    console.log("🗜️ Compression image...", {
+    logger.log("🗜️ Compression image...", {
       originalSize: buffer.length,
       filename,
     });
 
     const compressedBuffer = await compressImage(buffer, mimetype);
 
-    console.log("✅ Compression réussie", {
+    logger.log("✅ Compression réussie", {
       originalSize: buffer.length,
       compressedSize: compressedBuffer.length,
       reduction: `${((1 - compressedBuffer.length / buffer.length) * 100).toFixed(1)}%`,
@@ -180,7 +181,7 @@ export async function uploadToCloudinary(
         },
         (error, result) => {
           if (error) {
-            console.error("❌ Erreur upload Cloudinary:", error);
+            logger.error("❌ Erreur upload Cloudinary:", error);
             reject(new Error(`Upload échoué: ${error.message}`));
             return;
           }
@@ -190,7 +191,7 @@ export async function uploadToCloudinary(
             return;
           }
 
-          console.log("✅ Upload Cloudinary réussi:", {
+          logger.log("✅ Upload Cloudinary réussi:", {
             publicId: result.public_id,
             url: result.secure_url,
             bytes: result.bytes,
@@ -210,14 +211,14 @@ export async function uploadToCloudinary(
       uploadStream.end(compressedBuffer);
     });
   } catch (error: unknown) {
-    console.error("❌ Erreur uploadToCloudinary:", error);
+    logger.error("❌ Erreur uploadToCloudinary:", error);
     throw error;
   }
 }
 
 // 🗑️ Suppression d'image (optionnel, pour nettoyage)
 export async function deleteFromCloudinary(publicId: string): Promise<void> {
-  console.log("🗑️ [Cloudinary Service] Début suppression:", {
+  logger.log("🗑️ [Cloudinary Service] Début suppression:", {
     publicId,
     timestamp: new Date().toISOString(),
   });
@@ -225,7 +226,7 @@ export async function deleteFromCloudinary(publicId: string): Promise<void> {
   try {
     const result = await cloudinary.uploader.destroy(publicId);
 
-    console.log("✅ [Cloudinary Service] Réponse Cloudinary:", {
+    logger.log("✅ [Cloudinary Service] Réponse Cloudinary:", {
       publicId,
       result: result.result, // "ok" si réussi, "not found" si introuvable
       rawResult: result,
@@ -234,15 +235,15 @@ export async function deleteFromCloudinary(publicId: string): Promise<void> {
 
     // Vérifier si la suppression a vraiment réussi
     if (result.result === "ok") {
-      console.log(
+      logger.log(
         "✅ [Cloudinary Service] Image SUPPRIMÉE avec succès de Cloudinary",
       );
     } else if (result.result === "not found") {
-      console.warn(
+      logger.warn(
         "⚠️ [Cloudinary Service] Image déjà supprimée ou introuvable sur Cloudinary",
       );
     } else {
-      console.warn(
+      logger.warn(
         "⚠️ [Cloudinary Service] Statut suppression inattendu:",
         result.result,
       );
@@ -250,7 +251,7 @@ export async function deleteFromCloudinary(publicId: string): Promise<void> {
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : undefined;
-    console.error("❌ [Cloudinary Service] ÉCHEC suppression Cloudinary:", {
+    logger.error("❌ [Cloudinary Service] ÉCHEC suppression Cloudinary:", {
       publicId,
       error: errorMessage,
       stack: errorStack,

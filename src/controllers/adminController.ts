@@ -3,6 +3,7 @@
  * Handles HTTP requests for admin dashboard endpoints
  */
 
+import { logger } from "../utils/logger.js";
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
 import { adminExportQueue } from "../lib/queues.js";
@@ -32,7 +33,7 @@ export class AdminController {
         .status(200)
         .json({ success: true, data: { isAdmin: user?.isAdmin ?? false } });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] checkAdminStatus error:", error);
+      logger.error("[ADMIN_CONTROLLER] checkAdminStatus error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la vérification admin",
@@ -49,7 +50,7 @@ export class AdminController {
       const healthData = await HealthCheckService.getHealthStatus();
       res.status(200).json({ success: true, data: healthData });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] getHealthStatus error:", error);
+      logger.error("[ADMIN_CONTROLLER] getHealthStatus error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la vérification de santé",
@@ -66,7 +67,7 @@ export class AdminController {
       const metrics = await AdminStatsService.getDashboardMetrics();
       res.status(200).json({ success: true, data: metrics });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] getDashboard error:", error);
+      logger.error("[ADMIN_CONTROLLER] getDashboard error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la récupération du dashboard",
@@ -82,7 +83,7 @@ export class AdminController {
       const metrics = await AdminStatsService.getUserMetrics();
       res.status(200).json({ success: true, data: metrics });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] getUserMetrics error:", error);
+      logger.error("[ADMIN_CONTROLLER] getUserMetrics error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la récupération des métriques utilisateurs",
@@ -98,7 +99,7 @@ export class AdminController {
       const metrics = await AdminStatsService.getRevenueMetrics();
       res.status(200).json({ success: true, data: metrics });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] getRevenueMetrics error:", error);
+      logger.error("[ADMIN_CONTROLLER] getRevenueMetrics error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la récupération des métriques de revenus",
@@ -114,7 +115,7 @@ export class AdminController {
       const metrics = await AdminStatsService.getUsageMetrics();
       res.status(200).json({ success: true, data: metrics });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] getUsageMetrics error:", error);
+      logger.error("[ADMIN_CONTROLLER] getUsageMetrics error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la récupération des métriques d'utilisation",
@@ -169,7 +170,7 @@ export class AdminController {
       const logs = await AdminStatsService.getModerationLogs(filters);
       res.status(200).json({ success: true, data: logs });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] getModerationLogs error:", error);
+      logger.error("[ADMIN_CONTROLLER] getModerationLogs error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la récupération des logs de modération",
@@ -230,7 +231,7 @@ export class AdminController {
         message: `Utilisateur ${isActive ? "activé" : "désactivé"} avec succès`,
       });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] toggleUserStatus error:", error);
+      logger.error("[ADMIN_CONTROLLER] toggleUserStatus error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la modification du statut utilisateur",
@@ -274,7 +275,7 @@ export class AdminController {
       const result = await AdminStatsService.getUserList(filters);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] getUserList error:", error);
+      logger.error("[ADMIN_CONTROLLER] getUserList error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la récupération des utilisateurs",
@@ -312,7 +313,7 @@ export class AdminController {
       const result = await AdminStatsService.getUserPages(userId, page, limit);
       res.status(200).json({ success: true, data: result });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] getUserPages error:", error);
+      logger.error("[ADMIN_CONTROLLER] getUserPages error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la récupération des pages utilisateur",
@@ -381,14 +382,14 @@ export class AdminController {
         },
       });
 
-      console.log(`[ADMIN_CONTROLLER] Export job created: ${job.id}`);
+      logger.log(`[ADMIN_CONTROLLER] Export job created: ${job.id}`);
 
       res.status(202).json({
         success: true,
         data: { jobId: job.id, message: "Export en cours de génération" },
       });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] initiateUserExport error:", error);
+      logger.error("[ADMIN_CONTROLLER] initiateUserExport error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors du lancement de l'export",
@@ -439,7 +440,7 @@ export class AdminController {
         },
       });
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] getExportStatus error:", error);
+      logger.error("[ADMIN_CONTROLLER] getExportStatus error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors de la vérification du statut",
@@ -506,7 +507,7 @@ export class AdminController {
 
       res.status(200).send(csv);
     } catch (error) {
-      console.error("[ADMIN_CONTROLLER] downloadExport error:", error);
+      logger.error("[ADMIN_CONTROLLER] downloadExport error:", error);
       res.status(500).json({
         success: false,
         error: "Erreur lors du téléchargement",

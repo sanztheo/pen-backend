@@ -1,8 +1,9 @@
 import { prisma } from "../lib/prisma.js";
+import { logger } from "../utils/logger.js";
 
 async function checkOnboarding() {
   try {
-    console.log("\n🔍 Vérification du statut onboarding...\n");
+    logger.log("\n🔍 Vérification du statut onboarding...\n");
 
     const users = await prisma.user.findMany({
       select: {
@@ -15,36 +16,36 @@ async function checkOnboarding() {
     });
 
     if (users.length === 0) {
-      console.log("❌ Aucun utilisateur trouvé");
+      logger.log("❌ Aucun utilisateur trouvé");
       return;
     }
 
-    console.log(`📊 ${users.length} utilisateur(s) trouvé(s):\n`);
+    logger.log(`📊 ${users.length} utilisateur(s) trouvé(s):\n`);
 
     users.forEach((user, index) => {
-      console.log(`${index + 1}. ${user.firstName} ${user.lastName}`);
-      console.log(`   Email: ${user.email}`);
-      console.log(`   ID: ${user.id}`);
-      console.log(`   onboardingCompleted: ${user.onboardingCompleted}`);
-      console.log(`   Type: ${typeof user.onboardingCompleted}`);
+      logger.log(`${index + 1}. ${user.firstName} ${user.lastName}`);
+      logger.log(`   Email: ${user.email}`);
+      logger.log(`   ID: ${user.id}`);
+      logger.log(`   onboardingCompleted: ${user.onboardingCompleted}`);
+      logger.log(`   Type: ${typeof user.onboardingCompleted}`);
 
       if (user.onboardingCompleted === false) {
-        console.log(
+        logger.log(
           "   ⚠️  ONBOARDING NON COMPLÉTÉ - Cet utilisateur verra la page onboarding",
         );
       } else if (user.onboardingCompleted === true) {
-        console.log(
+        logger.log(
           "   ✅ ONBOARDING COMPLÉTÉ - Cet utilisateur ne devrait PAS voir la page onboarding",
         );
       } else {
-        console.log(`   ⚠️  VALEUR INATTENDUE: ${user.onboardingCompleted}`);
+        logger.log(`   ⚠️  VALEUR INATTENDUE: ${user.onboardingCompleted}`);
       }
-      console.log("");
+      logger.log("");
     });
 
     await prisma.$disconnect();
   } catch (error) {
-    console.error("❌ Erreur:", error);
+    logger.error("❌ Erreur:", error);
     await prisma.$disconnect();
     process.exit(1);
   }

@@ -3,6 +3,7 @@
 /**
  * Génère un ID unique pour les opérations
  */
+import { logger } from "../../../../utils/logger.js";
 export function generateOperationId(): string {
   return `op_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
@@ -27,9 +28,9 @@ export function generateQuizId(): string {
 export async function cleanupThread(threadId: string): Promise<void> {
   try {
     // Ici on pourrait ajouter une méthode de nettoyage si nécessaire
-    console.log(`🧹 Thread ${threadId} marqué pour nettoyage`);
+    logger.log(`🧹 Thread ${threadId} marqué pour nettoyage`);
   } catch (error) {
-    console.warn(`⚠️ Échec nettoyage thread ${threadId}:`, error);
+    logger.warn(`⚠️ Échec nettoyage thread ${threadId}:`, error);
   }
 }
 

@@ -2,6 +2,7 @@ import { AuthUser } from "./auth.js";
 import { prisma } from "../lib/prisma.js";
 import { DefaultWorkspaceService } from "./defaultWorkspace.js";
 import { withRetry } from "../lib/retry.js";
+import { logger } from "../utils/logger.js";
 
 export class UserSyncService {
   // Synchroniser un utilisateur Clerk avec PostgreSQL
@@ -21,7 +22,7 @@ export class UserSyncService {
             // Si un utilisateur avec cet email existe déjà
             if (existingUserByEmail.id !== clerkUser.id) {
               // 🚨 CONFLIT DÉTECTÉ : Même email avec ID différent
-              console.error(`🚨 [USER-SYNC] CONFLIT CRITIQUE détecté:
+              logger.error(`🚨 [USER-SYNC] CONFLIT CRITIQUE détecté:
               Email: ${clerkUser.email}
               ID existant DB: ${existingUserByEmail.id}
               ID Clerk entrant: ${clerkUser.id}
@@ -88,11 +89,11 @@ export class UserSyncService {
               await DefaultWorkspaceService.getOrCreateDefaultWorkspace(
                 user.id,
               );
-              console.log(
+              logger.log(
                 `🏠 [USER-SYNC] Workspace par défaut créé pour le nouvel utilisateur ${user.firstName} ${user.lastName}`,
               );
             } catch (error) {
-              console.error(
+              logger.error(
                 "❌ [USER-SYNC] Erreur création workspace par défaut:",
                 error,
               );
@@ -101,7 +102,7 @@ export class UserSyncService {
 
           return user;
         } catch (error: unknown) {
-          console.error(
+          logger.error(
             `❌ [USER-SYNC] Erreur lors de la synchronisation de l'utilisateur ${clerkUser.email}:`,
             error,
           );
@@ -152,7 +153,7 @@ export class UserSyncService {
         await prisma.user.delete({
           where: { id: userId },
         });
-        console.log(`🗑️ [USER-SYNC] Utilisateur supprimé: ${userId}`);
+        logger.log(`🗑️ [USER-SYNC] Utilisateur supprimé: ${userId}`);
         return true;
       },
       2,

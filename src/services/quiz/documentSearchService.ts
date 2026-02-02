@@ -4,6 +4,7 @@
  * Utilise EMBEDDING_DATABASE_URL pour la connexion à la base d'embeddings
  */
 
+import { logger } from "../../utils/logger.js";
 import { Pool } from "pg";
 import { AIService } from "../ai/base.js";
 
@@ -224,7 +225,7 @@ export class DocumentSearchService {
       }
     }
 
-    console.log(
+    logger.log(
       `🔄 Topics normalisés: ${aiTopics.join(", ")} → ${normalizedTopics.join(", ")}`,
     );
     return normalizedTopics;
@@ -237,7 +238,7 @@ export class DocumentSearchService {
     try {
       // Vérifier si l'IA est configurée
       if (!AIService.isConfigured()) {
-        console.warn(
+        logger.warn(
           "⚠️ OpenAI non configuré, utilisation de l'analyse basique",
         );
         return this.fallbackTopicAnalysis(query);
@@ -290,7 +291,7 @@ Format exact attendu:
   "reasoning": "Explication courte"
 }`;
 
-      console.log(`🤖 Analyse GPT pour: "${query}"`);
+      logger.log(`🤖 Analyse GPT pour: "${query}"`);
 
       const aiResult = await AIService.generateContent({
         prompt,
@@ -310,7 +311,7 @@ Format exact attendu:
           cleanContent = jsonMatch[0];
         }
 
-        console.log(
+        logger.log(
           "🔍 Contenu GPT à parser:",
           cleanContent.substring(0, 200) +
             (cleanContent.length > 200 ? "..." : ""),
@@ -318,16 +319,16 @@ Format exact attendu:
 
         response = JSON.parse(cleanContent);
       } catch (parseError) {
-        console.error("❌ Erreur parsing JSON GPT:", parseError);
-        console.error("📄 Contenu brut GPT:", aiResult.content);
-        console.warn("🔄 Fallback vers analyse basique...");
+        logger.error("❌ Erreur parsing JSON GPT:", parseError);
+        logger.error("📄 Contenu brut GPT:", aiResult.content);
+        logger.warn("🔄 Fallback vers analyse basique...");
         return this.fallbackTopicAnalysis(query);
       }
 
       // Valider la réponse avec type guard
       if (!isValidAITopicResponse(response)) {
-        console.warn("⚠️ Réponse GPT invalide, fallback vers analyse basique");
-        console.warn("📋 Réponse reçue:", JSON.stringify(response, null, 2));
+        logger.warn("⚠️ Réponse GPT invalide, fallback vers analyse basique");
+        logger.warn("📋 Réponse reçue:", JSON.stringify(response, null, 2));
         return this.fallbackTopicAnalysis(query);
       }
 
@@ -350,7 +351,7 @@ Format exact attendu:
         confidenceScores[normalizedTopic] = originalConfidence;
       });
 
-      console.log(
+      logger.log(
         `✅ GPT détecte: ${detectedTopics.join(", ")} (stratégie: ${response.strategy})`,
       );
 
@@ -361,8 +362,8 @@ Format exact attendu:
         reasoning: `GPT-4.1: ${response.reasoning}`,
       };
     } catch (error) {
-      console.error("❌ Erreur analyse GPT:", error);
-      console.log("🔄 Fallback vers analyse basique...");
+      logger.error("❌ Erreur analyse GPT:", error);
+      logger.log("🔄 Fallback vers analyse basique...");
       return this.fallbackTopicAnalysis(query);
     }
   }
@@ -665,7 +666,7 @@ Format exact attendu:
     try {
       this.validateOpenAIConfig();
 
-      console.log(
+      logger.log(
         `🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${query.slice(0, 50)}..."`,
       );
       const startTime = Date.now();
@@ -685,7 +686,7 @@ Format exact attendu:
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(
+        logger.error(
           `❌ OpenAI API erreur (${response.status}): ${errorText}`,
         );
         return null;
@@ -695,17 +696,17 @@ Format exact attendu:
       const embedding = extractOpenAIEmbeddingResponse(raw);
 
       if (!embedding) {
-        console.error("❌ Format de réponse OpenAI invalide");
+        logger.error("❌ Format de réponse OpenAI invalide");
         return null;
       }
 
       const duration = Date.now() - startTime;
-      console.log(
+      logger.log(
         `✅ [EMBEDDING-FAST] Embedding généré en ${duration}ms: ${embedding.length} dimensions`,
       );
       return embedding;
     } catch (error) {
-      console.error("❌ Erreur génération embedding OpenAI:", error);
+      logger.error("❌ Erreur génération embedding OpenAI:", error);
       return null;
     }
   }
@@ -723,7 +724,7 @@ Format exact attendu:
       // Génère l'embedding réel de la requête
       const queryEmbedding = await this.generateQueryEmbedding(query);
       if (!queryEmbedding) {
-        console.error("Impossible de générer l'embedding pour la requête");
+        logger.error("Impossible de générer l'embedding pour la requête");
         return [];
       }
 
@@ -775,7 +776,7 @@ Format exact attendu:
         scraped_at: row.scraped_at,
       }));
     } catch (error) {
-      console.error("Erreur recherche par topics:", error);
+      logger.error("Erreur recherche par topics:", error);
       return [];
     }
   }
@@ -792,7 +793,7 @@ Format exact attendu:
       // Génère l'embedding réel de la requête
       const queryEmbedding = await this.generateQueryEmbedding(query);
       if (!queryEmbedding) {
-        console.error("Impossible de générer l'embedding pour la requête");
+        logger.error("Impossible de générer l'embedding pour la requête");
         return [];
       }
 
@@ -842,7 +843,7 @@ Format exact attendu:
         scraped_at: row.scraped_at,
       }));
     } catch (error) {
-      console.error("Erreur recherche sémantique:", error);
+      logger.error("Erreur recherche sémantique:", error);
       return [];
     }
   }
@@ -899,7 +900,7 @@ Format exact attendu:
       // Recherche forcée par topics avec normalisation
       searchStrategy = "topic_based";
       detectedTopics = this.normalizeAITopics(topics);
-      console.log(
+      logger.log(
         `🔄 Topics forcés normalisés: ${topics.join(", ")} → ${detectedTopics.join(", ")}`,
       );
       chunks = await this.searchByTopics(
@@ -914,7 +915,7 @@ Format exact attendu:
       searchStrategy = analysis.search_strategy;
       detectedTopics = analysis.detected_topics;
 
-      console.log(`🧠 Analyse IA: "${query}" → ${analysis.reasoning}`);
+      logger.log(`🧠 Analyse IA: "${query}" → ${analysis.reasoning}`);
 
       switch (searchStrategy) {
         case "topic_based":
@@ -926,7 +927,7 @@ Format exact attendu:
             similarity_threshold || 0.7,
           );
           if (chunks.length === 0) {
-            console.log("🔄 Aucun résultat avec seuil 0.7, essai avec 0.5...");
+            logger.log("🔄 Aucun résultat avec seuil 0.7, essai avec 0.5...");
             chunks = await this.searchByTopics(
               query,
               detectedTopics,
@@ -935,7 +936,7 @@ Format exact attendu:
             );
           }
           if (chunks.length === 0) {
-            console.log("🔄 Aucun résultat avec seuil 0.5, essai avec 0.3...");
+            logger.log("🔄 Aucun résultat avec seuil 0.5, essai avec 0.3...");
             chunks = await this.searchByTopics(
               query,
               detectedTopics,
@@ -1005,7 +1006,7 @@ Format exact attendu:
         topics_available: topicsResult.rows.map((row) => row.topic),
       };
     } catch (error) {
-      console.error("Erreur récupération statistiques:", error);
+      logger.error("Erreur récupération statistiques:", error);
       return {
         total_documents: 0,
         total_chunks: 0,
@@ -1023,7 +1024,7 @@ Format exact attendu:
       const result = await embeddingPool.query("SELECT 1 as test");
       return result.rows.length > 0;
     } catch (error) {
-      console.error("Erreur connexion base embeddings:", error);
+      logger.error("Erreur connexion base embeddings:", error);
       return false;
     }
   }

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
+import { logger } from "../utils/logger.js";
 
 // Schémas de validation
 const createProjectSchema = z.object({
@@ -26,7 +27,7 @@ export const createProject = async (req: Request, res: Response) => {
 
     const validatedData = createProjectSchema.parse(req.body);
     const userId = req.user.id;
-    console.log(`⏱️  [PERF] Validation projet: ${Date.now() - startTime}ms`);
+    logger.log(`⏱️  [PERF] Validation projet: ${Date.now() - startTime}ms`);
 
     const beforeValidations = Date.now();
     // 🚀 PHASE 1 OPTIMIZATION: Paralléliser validations (160-200ms → 100-120ms)
@@ -53,7 +54,7 @@ export const createProject = async (req: Request, res: Response) => {
         },
       }),
     ]);
-    console.log(
+    logger.log(
       `⏱️  [PERF] Queries parallèles projet: ${Date.now() - beforeValidations}ms`,
     );
 
@@ -116,7 +117,7 @@ export const createProject = async (req: Request, res: Response) => {
         },
       },
     });
-    console.log(
+    logger.log(
       `⏱️  [PERF] Création projet DB: ${Date.now() - beforeCreate}ms`,
     );
 
@@ -133,7 +134,7 @@ export const createProject = async (req: Request, res: Response) => {
         data: { lastActivityAt: new Date() },
       }),
     ]).catch((error) => {
-      console.error("⚠️ [ASYNC] Erreur updates non-bloquants:", error);
+      logger.error("⚠️ [ASYNC] Erreur updates non-bloquants:", error);
       // Ne pas bloquer la réponse, juste logger
     });
 
@@ -152,7 +153,7 @@ export const createProject = async (req: Request, res: Response) => {
     //   }
     // });
 
-    console.log(`⏱️  [PERF] TOTAL createProject: ${Date.now() - startTime}ms`);
+    logger.log(`⏱️  [PERF] TOTAL createProject: ${Date.now() - startTime}ms`);
     res.status(201).json({
       message: "Projet créé avec succès",
       project,
@@ -165,7 +166,7 @@ export const createProject = async (req: Request, res: Response) => {
       });
     }
 
-    console.error("Erreur création projet:", error);
+    logger.error("Erreur création projet:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -240,7 +241,7 @@ export const getWorkspaceProjects = async (req: Request, res: Response) => {
 
     res.json({ projects, pagination: { page, limit } });
   } catch (error) {
-    console.error("Erreur récupération projets:", error);
+    logger.error("Erreur récupération projets:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -248,14 +249,14 @@ export const getWorkspaceProjects = async (req: Request, res: Response) => {
 // Récupérer un projet spécifique
 export const getProject = async (req: Request, res: Response) => {
   try {
-    console.log("🚀 [PROJECT-CTRL] Tentative de récupération de projet...");
+    logger.log("🚀 [PROJECT-CTRL] Tentative de récupération de projet...");
     if (!req.user) {
-      console.error("❌ [PROJECT-CTRL] Échec: Utilisateur non authentifié.");
+      logger.error("❌ [PROJECT-CTRL] Échec: Utilisateur non authentifié.");
       return res.status(401).json({ error: "Utilisateur non authentifié" });
     }
 
     const { id } = req.params;
-    console.log(
+    logger.log(
       `🔍 [PROJECT-CTRL] Recherche du projet avec ID: ${id} pour l'utilisateur: ${req.user.id}`,
     );
 
@@ -284,7 +285,7 @@ export const getProject = async (req: Request, res: Response) => {
     });
 
     if (!project) {
-      console.warn(
+      logger.warn(
         `⚠️ [PROJECT-CTRL] Projet non trouvé ou accès refusé pour ID: ${id}`,
       );
       return res
@@ -292,11 +293,11 @@ export const getProject = async (req: Request, res: Response) => {
         .json({ error: "Projet non trouvé ou accès refusé" });
     }
 
-    console.log(`✅ [PROJECT-CTRL] Projet trouvé: "${project.name}"`);
+    logger.log(`✅ [PROJECT-CTRL] Projet trouvé: "${project.name}"`);
     res.json({ project });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      console.error(
+      logger.error(
         "❌ [PROJECT-CTRL] Erreur de validation Zod:",
         error.errors,
       );
@@ -305,7 +306,7 @@ export const getProject = async (req: Request, res: Response) => {
         details: error.errors,
       });
     }
-    console.error(
+    logger.error(
       "❌ [PROJECT-CTRL] Erreur interne lors de la récupération du projet:",
       error,
     );
@@ -407,7 +408,7 @@ export const updateProject = async (req: Request, res: Response) => {
       });
     }
 
-    console.error("Erreur mise à jour projet:", error);
+    logger.error("Erreur mise à jour projet:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -485,7 +486,7 @@ export const deleteProject = async (req: Request, res: Response) => {
 
     res.json({ message: "Projet supprimé avec succès" });
   } catch (error) {
-    console.error("Erreur suppression projet:", error);
+    logger.error("Erreur suppression projet:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -536,7 +537,7 @@ export const toggleProjectPin = async (req: Request, res: Response) => {
       project: updatedProject,
     });
   } catch (error) {
-    console.error("Erreur toggle pin projet:", error);
+    logger.error("Erreur toggle pin projet:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };

@@ -11,6 +11,7 @@
  * sans appel IA supplémentaire - recherche vectorielle uniquement.
  */
 
+import { logger } from "../../../utils/logger.js";
 import { ragSystem, type RAGSearchResult } from "../../rag/index.js";
 import type { Question, QuestionResult } from "../types.js";
 
@@ -119,7 +120,7 @@ export class CorrectionEnricherService {
     const cfg = { ...DEFAULT_CONFIG, ...config };
 
     try {
-      console.log(
+      logger.log(
         `📚 [ENRICHER] Enrichissement question: "${question.question.slice(0, 50)}..."`,
       );
 
@@ -155,12 +156,12 @@ export class CorrectionEnricherService {
         isEnriched: sourceReferences.length > 0,
       };
 
-      console.log(
+      logger.log(
         `✅ [ENRICHER] Enrichi avec ${sourceReferences.length} références`,
       );
       return enriched;
     } catch (error) {
-      console.error(`⚠️ [ENRICHER] Erreur enrichissement:`, error);
+      logger.error(`⚠️ [ENRICHER] Erreur enrichissement:`, error);
       // En cas d'erreur, retourner la correction non enrichie
       return {
         ...correction,
@@ -178,7 +179,7 @@ export class CorrectionEnricherService {
     corrections: QuestionResult[],
     config: EnrichmentConfig,
   ): Promise<EnrichedQuestionResult[]> {
-    console.log(
+    logger.log(
       `📚 [ENRICHER] Enrichissement batch: ${corrections.length} corrections`,
     );
 
@@ -205,7 +206,7 @@ export class CorrectionEnricherService {
     }
 
     const enrichedCount = enrichedResults.filter((r) => r.isEnriched).length;
-    console.log(
+    logger.log(
       `✅ [ENRICHER] Batch terminé: ${enrichedCount}/${corrections.length} enrichis`,
     );
 
@@ -247,7 +248,7 @@ export class CorrectionEnricherService {
 
       return references;
     } catch (error) {
-      console.error(`⚠️ [ENRICHER] Erreur recherche RAG:`, error);
+      logger.error(`⚠️ [ENRICHER] Erreur recherche RAG:`, error);
       return [];
     }
   }

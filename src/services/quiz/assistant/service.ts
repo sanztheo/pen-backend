@@ -2,6 +2,7 @@
 
 import { QuestionGenerator } from "./generation/questionGenerator.js";
 import { ChatCorrection } from "./correction/chatCorrection.js";
+import { logger } from "../../../utils/logger.js";
 import type {
   SingleQuestionGenerationRequest,
   SingleQuestionGenerationResult,
@@ -93,13 +94,13 @@ export class OpenAIAssistantService {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔄 [${operationName}] Tentative ${attempt}/${maxRetries}`);
+        logger.log(`🔄 [${operationName}] Tentative ${attempt}/${maxRetries}`);
         const result = await generatorFn();
-        console.log(`✅ [${operationName}] Succès`);
+        logger.log(`✅ [${operationName}] Succès`);
         return result;
       } catch (error) {
         lastError = error as Error;
-        console.error(
+        logger.error(
           `❌ [${operationName}] Erreur tentative ${attempt}:`,
           error,
         );

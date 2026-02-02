@@ -3,6 +3,7 @@
  */
 
 // Patterns de données sensibles à masquer
+import { logger } from "../utils/logger.js";
 const SENSITIVE_PATTERNS = [
   // Tokens et clés
   /(?:token|key|password|secret|credential)[\"':\s]*([a-zA-Z0-9+/=]{10,})/gi,
@@ -83,9 +84,9 @@ export const secureError = (message: string, error?: unknown): void => {
       if ("status" in errObj) errorInfo.status = errObj.status;
     }
 
-    console.error(sanitizedMessage, errorInfo);
+    logger.error(sanitizedMessage, errorInfo);
   } else {
-    console.error(sanitizedMessage);
+    logger.error(sanitizedMessage);
   }
 };
 
@@ -97,9 +98,9 @@ export const secureLog = (message: string, data?: unknown): void => {
 
   if (data) {
     const sanitizedData = sanitizeLogMessage(data);
-    console.log(sanitizedMessage, sanitizedData);
+    logger.log(sanitizedMessage, sanitizedData);
   } else {
-    console.log(sanitizedMessage);
+    logger.log(sanitizedMessage);
   }
 };
 
@@ -111,9 +112,9 @@ export const secureWarn = (message: string, data?: unknown): void => {
 
   if (data) {
     const sanitizedData = sanitizeLogMessage(data);
-    console.warn(sanitizedMessage, sanitizedData);
+    logger.warn(sanitizedMessage, sanitizedData);
   } else {
-    console.warn(sanitizedMessage);
+    logger.warn(sanitizedMessage);
   }
 };
 

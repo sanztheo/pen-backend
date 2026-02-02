@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { StatsService } from '../services/quiz/statsService.js';
 import { DashboardLayoutService } from '../services/quiz/dashboardLayoutService.js';
+import { logger } from "../utils/logger.js";
 
 /**
  * Contrôleur pour les statistiques de quiz
@@ -29,7 +30,7 @@ export class QuizStatsController {
         data: stats
       });
     } catch (error) {
-      console.error('❌ [QuizStatsController] Erreur récupération stats avancées:', error);
+      logger.error('❌ [QuizStatsController] Erreur récupération stats avancées:', error);
       res.status(500).json({
         success: false,
         error: 'Erreur lors de la récupération des statistiques',
@@ -74,7 +75,7 @@ export class QuizStatsController {
         }
       });
     } catch (error) {
-      console.error('❌ [QuizStatsController] Erreur récupération progression:', error);
+      logger.error('❌ [QuizStatsController] Erreur récupération progression:', error);
       res.status(500).json({
         success: false,
         error: 'Erreur lors de la récupération de la progression',
@@ -106,7 +107,7 @@ export class QuizStatsController {
         data: subjects
       });
     } catch (error) {
-      console.error('❌ [QuizStatsController] Erreur récupération matières:', error);
+      logger.error('❌ [QuizStatsController] Erreur récupération matières:', error);
       res.status(500).json({
         success: false,
         error: 'Erreur lors de la récupération des matières',
@@ -138,7 +139,7 @@ export class QuizStatsController {
         data: analysis
       });
     } catch (error) {
-      console.error('❌ [QuizStatsController] Erreur analyse difficulté:', error);
+      logger.error('❌ [QuizStatsController] Erreur analyse difficulté:', error);
       res.status(500).json({
         success: false,
         error: 'Erreur lors de l\'analyse de difficulté',
@@ -170,7 +171,7 @@ export class QuizStatsController {
         data: timeAnalytics
       });
     } catch (error) {
-      console.error('❌ [QuizStatsController] Erreur analyse temps:', error);
+      logger.error('❌ [QuizStatsController] Erreur analyse temps:', error);
       res.status(500).json({
         success: false,
         error: 'Erreur lors de l\'analyse du temps',
@@ -202,7 +203,7 @@ export class QuizStatsController {
         data: sources
       });
     } catch (error) {
-      console.error('❌ [QuizStatsController] Erreur récupération sources:', error);
+      logger.error('❌ [QuizStatsController] Erreur récupération sources:', error);
       res.status(500).json({
         success: false,
         error: 'Erreur lors de la récupération des sources',
@@ -234,7 +235,7 @@ export class QuizStatsController {
         data: questionTypes
       });
     } catch (error) {
-      console.error('❌ [QuizStatsController] Erreur récupération types questions:', error);
+      logger.error('❌ [QuizStatsController] Erreur récupération types questions:', error);
       res.status(500).json({
         success: false,
         error: 'Erreur lors de la récupération des types de questions',
@@ -266,7 +267,7 @@ export class QuizStatsController {
         data: layout
       });
     } catch (error) {
-      console.error('❌ [QuizStatsController] Erreur récupération layout:', error);
+      logger.error('❌ [QuizStatsController] Erreur récupération layout:', error);
       res.status(500).json({
         success: false,
         error: 'Erreur lors de la récupération du layout',
@@ -313,7 +314,7 @@ export class QuizStatsController {
         message: 'Layout sauvegardé avec succès'
       });
     } catch (error) {
-      console.error('❌ [QuizStatsController] Erreur sauvegarde layout:', error);
+      logger.error('❌ [QuizStatsController] Erreur sauvegarde layout:', error);
       res.status(500).json({
         success: false,
         error: 'Erreur lors de la sauvegarde du layout',
@@ -346,7 +347,7 @@ export class QuizStatsController {
         message: 'Layout réinitialisé au défaut'
       });
     } catch (error) {
-      console.error('❌ [QuizStatsController] Erreur réinitialisation layout:', error);
+      logger.error('❌ [QuizStatsController] Erreur réinitialisation layout:', error);
       res.status(500).json({
         success: false,
         error: 'Erreur lors de la réinitialisation du layout',
@@ -408,7 +409,7 @@ export class QuizStatsController {
         }
       });
     } catch (error) {
-      console.error('❌ [QuizStatsController] Erreur récupération stats complètes:', error);
+      logger.error('❌ [QuizStatsController] Erreur récupération stats complètes:', error);
       res.status(500).json({
         success: false,
         error: 'Erreur lors de la récupération des statistiques',

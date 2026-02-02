@@ -1,4 +1,5 @@
 import { prisma } from "./prisma.js";
+import { logger } from "../utils/logger.js";
 
 export class DatabaseHealthCheck {
   // 🩺 Diagnostic complet de la connexion
@@ -38,7 +39,7 @@ export class DatabaseHealthCheck {
 
     try {
       // Test de connexion simple
-      console.log("🩺 [DB-HEALTH] Test de connexion...");
+      logger.log("🩺 [DB-HEALTH] Test de connexion...");
       await prisma.$queryRaw`SELECT 1 as test`;
       result.details.connection = true;
       result.details.latency = Date.now() - startTime;
@@ -51,7 +52,7 @@ export class DatabaseHealthCheck {
       } catch (error: unknown) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
-        console.warn(
+        logger.warn(
           "⚠️ Impossible de récupérer les infos serveur:",
           errorMessage,
         );
@@ -72,13 +73,13 @@ export class DatabaseHealthCheck {
         );
       }
 
-      console.log(
+      logger.log(
         `✅ [DB-HEALTH] Connexion OK - Latence: ${result.details.latency}ms`,
       );
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      console.error("❌ [DB-HEALTH] Connexion échouée:", errorMessage);
+      logger.error("❌ [DB-HEALTH] Connexion échouée:", errorMessage);
       result.status = "error";
       result.details.connection = false;
 
@@ -114,11 +115,11 @@ export class DatabaseHealthCheck {
   ): Promise<boolean> {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔄 [DB-HEALTH] Tentative ${attempt}/${maxRetries}...`);
+        logger.log(`🔄 [DB-HEALTH] Tentative ${attempt}/${maxRetries}...`);
         const diagnostic = await this.runDiagnostic();
 
         if (diagnostic.status !== "error") {
-          console.log(
+          logger.log(
             `✅ [DB-HEALTH] Connexion établie en ${attempt} tentative(s)`,
           );
           return true;
@@ -126,31 +127,31 @@ export class DatabaseHealthCheck {
 
         if (attempt < maxRetries) {
           const delay = 2000 * attempt; // 2s, 4s, 6s...
-          console.log(`⏳ [DB-HEALTH] Attente ${delay}ms avant retry...`);
+          logger.log(`⏳ [DB-HEALTH] Attente ${delay}ms avant retry...`);
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
       } catch (error: unknown) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);
-        console.error(
+        logger.error(
           `❌ [DB-HEALTH] Tentative ${attempt} échouée:`,
           errorMessage,
         );
       }
     }
 
-    console.error(`❌ [DB-HEALTH] Toutes les tentatives ont échoué`);
+    logger.error(`❌ [DB-HEALTH] Toutes les tentatives ont échoué`);
     return false;
   }
 
   // 📊 Affichage formaté du diagnostic
   static async displayDiagnostic(): Promise<void> {
-    console.log("\n🩺 ===== DIAGNOSTIC BASE DE DONNÉES =====");
+    logger.log("\n🩺 ===== DIAGNOSTIC BASE DE DONNÉES =====");
 
     const diagnostic = await this.runDiagnostic();
 
-    console.log(`📋 Statut: ${diagnostic.status.toUpperCase()}`);
-    console.log(
+    logger.log(`📋 Statut: ${diagnostic.status.toUpperCase()}`);
+    logger.log(
       `🔗 Connexion: ${diagnostic.details.connection ? "✅ OK" : "❌ Échec"}`,
     );
 
@@ -161,22 +162,22 @@ export class DatabaseHealthCheck {
           : diagnostic.details.latency < 5000
             ? "🟡"
             : "🔴";
-      console.log(
+      logger.log(
         `⏱️  Latence: ${latencyIcon} ${diagnostic.details.latency}ms`,
       );
     }
 
     if (diagnostic.details.serverInfo) {
-      console.log(
+      logger.log(
         `🖥️  Serveur: ${JSON.stringify(diagnostic.details.serverInfo)}`,
       );
     }
 
     if (diagnostic.recommendations && diagnostic.recommendations.length > 0) {
-      console.log("\n💡 Recommandations:");
-      diagnostic.recommendations.forEach((rec) => console.log(`   - ${rec}`));
+      logger.log("\n💡 Recommandations:");
+      diagnostic.recommendations.forEach((rec) => logger.log(`   - ${rec}`));
     }
 
-    console.log("==========================================\n");
+    logger.log("==========================================\n");
   }
 }

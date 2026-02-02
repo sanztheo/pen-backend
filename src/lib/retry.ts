@@ -1,4 +1,5 @@
 import { ensureConnection } from "./prisma.js";
+import { logger } from "../utils/logger.js";
 
 // 🔄 Fonction helper pour retry avec backoff
 export async function withRetry<T>(
@@ -33,7 +34,7 @@ export async function withRetry<T>(
         errorCode === "P1017"; // Neon cold start
 
       if (attempt === maxRetries || !isConnectionError) {
-        console.error(
+        logger.error(
           `❌ Échec final après ${attempt} tentatives:`,
           errorMessage,
         );
@@ -41,7 +42,7 @@ export async function withRetry<T>(
       }
 
       const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
-      console.warn(
+      logger.warn(
         `⚠️ Tentative ${attempt}/${maxRetries} échouée, retry dans ${delay}ms:`,
         errorMessage,
       );

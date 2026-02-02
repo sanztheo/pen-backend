@@ -1,3 +1,4 @@
+import { logger } from "../../../../utils/logger.js";
 import {
   QuizGenerationRequest,
   SequentialQuizConfig,
@@ -249,7 +250,7 @@ Filière à traiter: ${higherEdField}
 `;
 
   try {
-    console.log(
+    logger.log(
       `🎯 Génération de matières IA avec config documentaire pour: ${higherEdField}`,
     );
 
@@ -302,15 +303,15 @@ Filière à traiter: ${higherEdField}
       };
     }
 
-    console.log(`✅ Matières générées pour ${higherEdField}:`, parsed.subjects);
-    console.log(`📄 Configuration complète:`, subjectsConfig);
+    logger.log(`✅ Matières générées pour ${higherEdField}:`, parsed.subjects);
+    logger.log(`📄 Configuration complète:`, subjectsConfig);
 
     return {
       subjects: parsed.subjects,
       subjectsConfig,
     };
   } catch (error) {
-    console.warn(
+    logger.warn(
       `⚠️ Erreur génération matières IA pour ${higherEdField}:`,
       error,
     );
@@ -374,7 +375,7 @@ export async function createPartielsSequentialConfig(
 
   if (filiereConfig) {
     // Filière prédéfinie : utiliser la configuration existante
-    console.log(
+    logger.log(
       `📚 Utilisation de la configuration prédéfinie pour: ${higherEdField}`,
     );
     config = filiereConfig;
@@ -410,7 +411,7 @@ export async function createPartielsSequentialConfig(
     });
   } else {
     // Filière personnalisée : générer les matières via IA avec configuration documentaire
-    console.log(
+    logger.log(
       `🤖 Génération IA des matières avec config documentaire pour: ${higherEdField}`,
     );
     const aiGenerated = await generateSubjectsForField(higherEdField);
@@ -506,11 +507,11 @@ export function generatePartielsSubjectRequest(
     graphicTypes: [],
   };
 
-  console.log(
+  logger.log(
     `📄 [DOCUMENTS] Configuration pour ${currentSubjectName}:`,
     documentConfig,
   );
-  console.log(
+  logger.log(
     `📊 [GRAPHICS] Configuration pour ${currentSubjectName}:`,
     graphicConfig,
   );

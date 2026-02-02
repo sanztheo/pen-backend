@@ -1,6 +1,7 @@
 // assistant/functions.ts - Implémentation des 7 fonctions OpenAI Assistant
 import { documentSearchService } from "../documentSearchService.js";
 import { z } from "zod";
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Type pour les appels de fonction OpenAI
@@ -208,7 +209,7 @@ export async function executeFunctionCall(
     );
   }
 
-  console.log(`🔧 Exécution ${functionName} avec args:`, args);
+  logger.log(`🔧 Exécution ${functionName} avec args:`, args);
 
   switch (functionName) {
     case "generate_graphic":
@@ -245,7 +246,7 @@ export async function executeFunctionCall(
 async function generateGraphic(
   args: GenerateGraphicArgs,
 ): Promise<GraphicResult> {
-  console.log("📊 Génération graphique avec:", args);
+  logger.log("📊 Génération graphique avec:", args);
 
   // Valider les paramètres requis
   const { config, type, library, description, dataValues, htmlContainer } =
@@ -258,7 +259,7 @@ async function generateGraphic(
   // Si config est vide, générer une configuration par défaut
   let finalConfig: GraphicConfig = config || {};
   if (!config || Object.keys(config).length === 0) {
-    console.log("⚠️ Config vide reçue, génération automatique...");
+    logger.log("⚠️ Config vide reçue, génération automatique...");
     finalConfig = await generateDefaultConfig(
       library,
       type,
@@ -289,7 +290,7 @@ async function generateDefaultConfig(
   description: string,
   dataValues: number[],
 ): Promise<GraphicConfig> {
-  console.log("🤖 Appel IA pour génération intelligente du graphique...");
+  logger.log("🤖 Appel IA pour génération intelligente du graphique...");
 
   try {
     // Extraire les informations de la description pour créer un contexte intelligent
@@ -297,7 +298,7 @@ async function generateDefaultConfig(
     const topic = extractTopicFromDescription(description);
     const level = "BAC"; // Niveau par défaut, pourrait être dynamique
 
-    console.log(`📊 Génération IA: ${subject} | ${topic} | ${library}`);
+    logger.log(`📊 Génération IA: ${subject} | ${topic} | ${library}`);
 
     // Appeler le service de génération graphique IA (même logique que testAIGraphicGeneration)
     const aiGraphicResult = await generateAIGraphicConfig({
@@ -309,33 +310,33 @@ async function generateDefaultConfig(
     });
 
     if (aiGraphicResult && aiGraphicResult.config) {
-      console.log("✅ Configuration IA générée avec succès");
+      logger.log("✅ Configuration IA générée avec succès");
 
       // 🔧 VALIDATION ET CORRECTION POST-GÉNÉRATION
       const correctedConfig = validateAndCorrectGraphicConfig(
         aiGraphicResult.config,
         description,
       );
-      console.log("🔍 Configuration après validation locale:", correctedConfig);
+      logger.log("🔍 Configuration après validation locale:", correctedConfig);
 
       // 🤖 VALIDATION IA AVANCÉE - Vérification scientifique par IA
       const aiValidatedConfig = await validateWithAI(
         correctedConfig,
         description,
       );
-      console.log("🧠 Configuration après validation IA:", aiValidatedConfig);
+      logger.log("🧠 Configuration après validation IA:", aiValidatedConfig);
 
       return aiValidatedConfig;
     }
   } catch (error) {
-    console.log(
+    logger.log(
       "⚠️ Erreur génération IA, fallback vers configuration prédéfinie:",
       error,
     );
   }
 
   // Fallback vers la logique prédéfinie si l'IA échoue
-  console.log("🔧 Utilisation configuration prédéfinie comme fallback");
+  logger.log("🔧 Utilisation configuration prédéfinie comme fallback");
   const fallbackConfig = generateFallbackConfig(
     library,
     type,
@@ -348,7 +349,7 @@ async function generateDefaultConfig(
     fallbackConfig,
     description,
   );
-  console.log("🔍 Fallback après validation scientifique:", validatedFallback);
+  logger.log("🔍 Fallback après validation scientifique:", validatedFallback);
 
   return validatedFallback;
 }
@@ -363,7 +364,7 @@ function validateAndCorrectGraphicConfig(
   // Créer une copie profonde pour éviter les mutations
   const correctedConfig = JSON.parse(JSON.stringify(config));
 
-  console.log(
+  logger.log(
     "🔍 Validation scientifique pour:",
     desc.substring(0, 50) + "...",
   );
@@ -375,7 +376,7 @@ function validateAndCorrectGraphicConfig(
     desc.includes("x²") ||
     desc.includes("x^2")
   ) {
-    console.log("📐 Détection parabole → Application curve: straight");
+    logger.log("📐 Détection parabole → Application curve: straight");
     if (correctedConfig.stroke) {
       correctedConfig.stroke.curve = "straight";
       correctedConfig.stroke.width = 2;
@@ -413,7 +414,7 @@ function validateAndCorrectGraphicConfig(
     desc.includes("linéaire") ||
     desc.includes("proportionnel")
   ) {
-    console.log("📏 Détection relation linéaire → Application curve: straight");
+    logger.log("📏 Détection relation linéaire → Application curve: straight");
     if (correctedConfig.stroke) {
       correctedConfig.stroke.curve = "straight";
       correctedConfig.stroke.width = 2;
@@ -439,7 +440,7 @@ function validateAndCorrectGraphicConfig(
 
   // ✅ CORRECTION 3: Tangentes et dérivées
   if (desc.includes("tangente") || desc.includes("dérivée")) {
-    console.log(
+    logger.log(
       "📐 Détection tangente → Application curve: smooth pour fonction + straight pour tangente",
     );
 
@@ -488,7 +489,7 @@ function validateAndCorrectGraphicConfig(
     desc.includes("sinusoïd") ||
     desc.includes("sin(")
   ) {
-    console.log(
+    logger.log(
       "🌊 Détection oscillation → Conservation curve: smooth pour sin()",
     );
     // Pour les oscillations, on garde smooth car sin() doit être lisse
@@ -518,7 +519,7 @@ function validateAndCorrectGraphicConfig(
       correctedConfig.series[0].data
     ) {
       const data = correctedConfig.series[0].data;
-      console.log("🔍 Vérification symétrie parabole, points:", data.length);
+      logger.log("🔍 Vérification symétrie parabole, points:", data.length);
 
       // Vérifier que les points sont symétriques
       let isSymmetric = true;
@@ -527,14 +528,14 @@ function validateAndCorrectGraphicConfig(
         if (Math.abs(y - x * x) > 0.01) {
           // Tolérance de 0.01
           isSymmetric = false;
-          console.log(
+          logger.log(
             `⚠️ Point non conforme à y=x²: (${x}, ${y}) devrait être (${x}, ${x * x})`,
           );
         }
       }
 
       if (!isSymmetric) {
-        console.log("🔧 Correction des points pour respecter y=x²");
+        logger.log("🔧 Correction des points pour respecter y=x²");
         correctedConfig.series[0].data = [
           [-3, 9],
           [-2, 4],
@@ -548,7 +549,7 @@ function validateAndCorrectGraphicConfig(
     }
   }
 
-  console.log("✅ Validation scientifique terminée");
+  logger.log("✅ Validation scientifique terminée");
   return correctedConfig;
 }
 
@@ -794,7 +795,7 @@ async function generateAIGraphicConfig(
 
     return { config: result.config };
   } catch (error) {
-    console.error("❌ Erreur lors de l'appel au service IA graphique:", error);
+    logger.error("❌ Erreur lors de l'appel au service IA graphique:", error);
     throw error;
   }
 }
@@ -811,7 +812,7 @@ interface GenerateQuestionsResult {
 async function generateQuestionsArray(
   args: GenerateQuestionsArrayArgs,
 ): Promise<GenerateQuestionsResult> {
-  console.log("❓ Génération questions avec:", args);
+  logger.log("❓ Génération questions avec:", args);
 
   const { questions } = args;
 
@@ -864,7 +865,7 @@ interface GenerateSubjectResult {
 async function generateSubjectWithDocuments(
   args: GenerateSubjectWithDocumentsArgs,
 ): Promise<GenerateSubjectResult> {
-  console.log(
+  logger.log(
     "📚 Génération sujet avec documents (API Wikipedia directe):",
     args,
   );
@@ -890,7 +891,7 @@ async function generateSubjectWithDocuments(
   let searchResults: SearchDocument[] = [];
 
   if (useFileUpload && uploadedFileIds && uploadedFileIds.length > 0) {
-    console.log(
+    logger.log(
       `📤 Mode File Upload: utilisation de ${uploadedFileIds.length} fichiers uploadés`,
     );
     // Garder la logique existante pour les fichiers uploadés
@@ -904,15 +905,15 @@ async function generateSubjectWithDocuments(
       fileId: fileId,
     }));
   } else {
-    console.log("🚀 SYSTÈME IA UNIFIÉ: Recherche Wikipedia Intelligente");
+    logger.log("🚀 SYSTÈME IA UNIFIÉ: Recherche Wikipedia Intelligente");
 
     try {
       // TON SYSTÈME SIMPLE ET PUISSANT 🎯
       const subjectName = extractSubjectFromTitle(title);
-      console.log(
+      logger.log(
         `🤖 Recherche IA pour "${subjectName}" niveau ${targetLevel}`,
       );
-      console.log(`📝 Topics: ${documentTopics.join(", ")}`);
+      logger.log(`📝 Topics: ${documentTopics.join(", ")}`);
 
       const bestDocument = await searchWikipediaWithAI(
         subjectName,
@@ -943,13 +944,13 @@ async function generateSubjectWithDocuments(
       };
 
       searchResults = [finalDocument];
-      console.log(
+      logger.log(
         `✅ Document IA final créé: ${finalDocument.title} (${finalDocument.optimizedLength} chars)`,
       );
     } catch (error) {
-      console.error("❌ Erreur système IA Wikipedia:", error);
+      logger.error("❌ Erreur système IA Wikipedia:", error);
       // Fallback vers recherche simple si nécessaire
-      console.log("🔄 Fallback vers recherche documentaire classique...");
+      logger.log("🔄 Fallback vers recherche documentaire classique...");
       searchResults = [];
     }
   }
@@ -1068,7 +1069,7 @@ async function searchWikipediaAPI(
     const data = parsed.data;
     return data.query?.search || [];
   } catch (error) {
-    console.error("❌ Erreur recherche Wikipedia API:", error);
+    logger.error("❌ Erreur recherche Wikipedia API:", error);
     return [];
   }
 }
@@ -1145,7 +1146,7 @@ async function getWikipediaArticleContent(
     const fetch = (await import("node-fetch")).default;
 
     // 🔄 Nouvelle approche : utiliser l'API parse pour récupérer le contenu complet
-    console.log(`🔍 Récupération contenu complet pour pageId: ${pageId}...`);
+    logger.log(`🔍 Récupération contenu complet pour pageId: ${pageId}...`);
 
     // Première requête : récupérer les infos de base et le titre
     const infoUrl =
@@ -1234,7 +1235,7 @@ async function getWikipediaArticleContent(
 
     // Si le contenu est toujours trop court, essayer l'ancienne méthode en fallback
     if (cleanText.length < 5000) {
-      console.log(
+      logger.log(
         `⚠️ Contenu parse trop court (${cleanText.length} chars), fallback vers extracts...`,
       );
 
@@ -1270,7 +1271,7 @@ async function getWikipediaArticleContent(
         const extractText = extractData.query?.pages?.[pageId]?.extract || "";
         if (extractText.length > cleanText.length) {
           cleanText = extractText;
-          console.log(
+          logger.log(
             `✅ Fallback extracts utilisé: ${cleanText.length} caractères`,
           );
         }
@@ -1279,7 +1280,7 @@ async function getWikipediaArticleContent(
 
     // Limiter la longueur finale pour éviter les problèmes de mémoire
     if (cleanText.length > 200000) {
-      console.log(
+      logger.log(
         `⚠️ Article très long (${cleanText.length} chars), troncature à 200K`,
       );
       cleanText =
@@ -1287,7 +1288,7 @@ async function getWikipediaArticleContent(
         "\n\n[Article tronqué pour optimisation]";
     }
 
-    console.log(
+    logger.log(
       `📄 Article "${pageInfo.title}" récupéré: ${cleanText.length} caractères`,
     );
 
@@ -1300,7 +1301,7 @@ async function getWikipediaArticleContent(
         `https://fr.wikipedia.org/wiki/${encodeURIComponent(pageInfo.title || "")}`,
     };
   } catch (error) {
-    console.error(`❌ Erreur récupération article ${pageId}:`, error);
+    logger.error(`❌ Erreur récupération article ${pageId}:`, error);
     return null;
   }
 }
@@ -1375,7 +1376,7 @@ async function searchWikipediaWithAI(
   documentTopics: string[],
   originalTitle: string,
 ): Promise<WikipediaAIResult> {
-  console.log(`🎯 IA recherche pour ${subject} niveau ${level}`);
+  logger.log(`🎯 IA recherche pour ${subject} niveau ${level}`);
 
   // 1. System Prompt avec TON référentiel complet
   const getSystemPrompt = () => {
@@ -1453,7 +1454,7 @@ MISSION: Trouve le MEILLEUR article Wikipedia pour un quiz ${subject} niveau ${l
     });
 
     // 2. IA génère les meilleurs termes de recherche
-    console.log(`🔍 IA génère des termes de recherche...`);
+    logger.log(`🔍 IA génère des termes de recherche...`);
 
     const searchResponse = await openaiInstance.chat.completions.create({
       model: "gpt-4o-mini",
@@ -1498,18 +1499,18 @@ MISSION: Trouve le MEILLEUR article Wikipedia pour un quiz ${subject} niveau ${l
 
     const searchTerms =
       searchResponse.choices[0].message.content?.split(", ") || [];
-    console.log(`🎯 IA génère: ${searchTerms.join(", ")}`);
+    logger.log(`🎯 IA génère: ${searchTerms.join(", ")}`);
 
     // 3. Recherches Wikipedia parallèles
     const searchResults: WikipediaSearchResult[] = [];
 
     for (const term of searchTerms.slice(0, 6)) {
       try {
-        console.log(`📡 Recherche: "${term}"`);
+        logger.log(`📡 Recherche: "${term}"`);
         const results = await searchWikipediaAPI(term, 2);
         searchResults.push(...results.map((r) => ({ ...r, searchTerm: term })));
       } catch (error) {
-        console.error(`Erreur recherche "${term}":`, error);
+        logger.error(`Erreur recherche "${term}":`, error);
       }
     }
 
@@ -1517,10 +1518,10 @@ MISSION: Trouve le MEILLEUR article Wikipedia pour un quiz ${subject} niveau ${l
       throw new Error("Aucun résultat Wikipedia trouvé");
     }
 
-    console.log(`📊 ${searchResults.length} articles trouvés`);
+    logger.log(`📊 ${searchResults.length} articles trouvés`);
 
     // 4. IA analyse titres + scoring intelligent
-    console.log(`🧠 IA analyse les titres...`);
+    logger.log(`🧠 IA analyse les titres...`);
 
     const scoringResponse = await openaiInstance.chat.completions.create({
       model: "gpt-4o-mini",
@@ -1566,10 +1567,10 @@ Réponds: {numéro}|{justification courte et précise}`,
     }
 
     const bestArticle = searchResults[bestIndex];
-    console.log(`🏆 IA choisit: "${bestArticle.title}" - ${justification}`);
+    logger.log(`🏆 IA choisit: "${bestArticle.title}" - ${justification}`);
 
     // 5. Récupération contenu complet + extraction 6500 chars avec IA
-    console.log(`📖 Lecture complète de "${bestArticle.title}"...`);
+    logger.log(`📖 Lecture complète de "${bestArticle.title}"...`);
 
     let fullContent = await getWikipediaArticleContent(
       bestArticle.pageid,
@@ -1577,13 +1578,13 @@ Réponds: {numéro}|{justification courte et précise}`,
     ); // Page complète
 
     if (!fullContent?.extract || fullContent.extract.length < 1000) {
-      console.log(
+      logger.log(
         `⚠️ Article "${bestArticle.title}" trop court (${fullContent?.extract?.length || 0} chars), recherche d'un autre...`,
       );
 
       // Fallback : essayer avec le 2ème meilleur article
       if (searchResults.length > 1) {
-        console.log(`🔄 Essai avec le 2ème article...`);
+        logger.log(`🔄 Essai avec le 2ème article...`);
         const secondBest = searchResults[1];
         const secondContent = await getWikipediaArticleContent(
           secondBest.pageid,
@@ -1591,7 +1592,7 @@ Réponds: {numéro}|{justification courte et précise}`,
         );
 
         if (secondContent?.extract && secondContent.extract.length >= 1000) {
-          console.log(
+          logger.log(
             `✅ 2ème article utilisé: "${secondBest.title}" (${secondContent.extract.length} chars)`,
           );
           // Remplacer les variables pour continuer
@@ -1613,10 +1614,10 @@ Réponds: {numéro}|{justification courte et précise}`,
     // At this point fullContent is guaranteed to be non-null with valid extract
     const validContent = fullContent as WikipediaArticleContent;
 
-    console.log(
+    logger.log(
       `📄 Contenu récupéré: ${validContent.extract.length} caractères`,
     );
-    console.log(`🤖 IA extrait 6500 meilleurs caractères...`);
+    logger.log(`🤖 IA extrait 6500 meilleurs caractères...`);
 
     // 6. Extraction intelligente 6500 caractères par l'IA
     const extractionResponse = await openaiInstance.chat.completions.create({
@@ -1661,7 +1662,7 @@ Extrais les 6500 meilleurs caractères pour un quiz ${subject} niveau ${level}:`
       extractionResponse.choices[0].message.content?.trim();
 
     if (!extractedContent || extractedContent.length < 2000) {
-      console.log(
+      logger.log(
         `⚠️ Extraction IA courte (${extractedContent?.length || 0} chars), utilisation du contenu original complet`,
       );
       // Fallback : utiliser tout le contenu disponible si l'extraction IA échoue
@@ -1676,7 +1677,7 @@ Extrais les 6500 meilleurs caractères pour un quiz ${subject} niveau ${level}:`
       };
     }
 
-    console.log(`✅ Extraction réussie: ${extractedContent.length} caractères`);
+    logger.log(`✅ Extraction réussie: ${extractedContent.length} caractères`);
 
     return {
       title: bestArticle.title,
@@ -1688,7 +1689,7 @@ Extrais les 6500 meilleurs caractères pour un quiz ${subject} niveau ${level}:`
       searchTerm: bestArticle.searchTerm,
     };
   } catch (error) {
-    console.error("❌ Erreur système IA Wikipedia:", error);
+    logger.error("❌ Erreur système IA Wikipedia:", error);
     throw error;
   }
 }
@@ -1701,7 +1702,7 @@ Extrais les 6500 meilleurs caractères pour un quiz ${subject} niveau ${level}:`
 async function correctQuizStandard(
   args: CorrectQuizArgs,
 ): Promise<CorrectionResult> {
-  console.log("🎯 correctQuizStandard appelée avec:", args);
+  logger.log("🎯 correctQuizStandard appelée avec:", args);
 
   try {
     // L'Assistant OpenAI fournit les corrections directement dans le format attendu
@@ -1712,7 +1713,7 @@ async function correctQuizStandard(
       throw new Error("Paramètres manquants: corrections requis");
     }
 
-    console.log(
+    logger.log(
       `📝 Correction standard avec ${corrections.length} corrections`,
     );
 
@@ -1724,14 +1725,14 @@ async function correctQuizStandard(
       timestamp: new Date().toISOString(),
     };
 
-    console.log("✅ Correction terminée avec succès:", {
+    logger.log("✅ Correction terminée avec succès:", {
       correctionsCount: corrections.length,
       globalScore: result.globalScore,
     });
 
     return result;
   } catch (error) {
-    console.error("❌ Erreur dans correctQuizStandard:", error);
+    logger.error("❌ Erreur dans correctQuizStandard:", error);
     throw new Error(`Erreur correction standard: ${error}`);
   }
 }

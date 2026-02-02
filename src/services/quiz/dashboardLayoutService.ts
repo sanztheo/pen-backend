@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { logger } from "../../utils/logger.js";
 
 export interface DashboardLayout {
   layout: LayoutItem[];
@@ -63,7 +64,7 @@ export class DashboardLayoutService {
         visibleCharts: userLayout.visibleCharts as unknown as string[],
       };
     } catch (error) {
-      console.error(
+      logger.error(
         "❌ [DashboardLayoutService] Erreur récupération layout:",
         error,
       );
@@ -94,7 +95,7 @@ export class DashboardLayoutService {
         },
       });
 
-      console.log(
+      logger.log(
         `✅ [DashboardLayoutService] Layout sauvegardé pour user ${userId}`,
       );
 
@@ -103,7 +104,7 @@ export class DashboardLayoutService {
         visibleCharts: userLayout.visibleCharts as unknown as string[],
       };
     } catch (error) {
-      console.error(
+      logger.error(
         "❌ [DashboardLayoutService] Erreur sauvegarde layout:",
         error,
       );
@@ -131,13 +132,13 @@ export class DashboardLayoutService {
         },
       });
 
-      console.log(
+      logger.log(
         `✅ [DashboardLayoutService] Layout réinitialisé pour user ${userId}`,
       );
 
       return DEFAULT_LAYOUT;
     } catch (error) {
-      console.error(
+      logger.error(
         "❌ [DashboardLayoutService] Erreur réinitialisation layout:",
         error,
       );
@@ -185,7 +186,7 @@ export class DashboardLayoutService {
         updatedVisibleCharts,
       );
     } catch (error) {
-      console.error(
+      logger.error(
         "❌ [DashboardLayoutService] Erreur ajout graphique:",
         error,
       );
@@ -216,7 +217,7 @@ export class DashboardLayoutService {
         updatedVisibleCharts,
       );
     } catch (error) {
-      console.error(
+      logger.error(
         "❌ [DashboardLayoutService] Erreur suppression graphique:",
         error,
       );

@@ -3,6 +3,7 @@
  * PEN-15: Permet l'extraction asynchrone des concepts de pages
  */
 
+import { logger } from "../utils/logger.js";
 import { Queue, Worker, Job } from "bullmq";
 import { ConceptExtractorService } from "../services/quiz/intelligence/index.js";
 
@@ -52,7 +53,7 @@ export function getConceptExtractionQueue(): Queue<ExtractConceptsJobData> {
         removeOnFail: 50, // Garder les 50 derniers échecs
       },
     });
-    console.log(`📋 [ConceptQueue] Queue "${QUEUE_NAME}" initialisée`);
+    logger.log(`📋 [ConceptQueue] Queue "${QUEUE_NAME}" initialisée`);
   }
   return queue;
 }
@@ -82,7 +83,7 @@ export async function enqueueConceptExtraction(
     { priority },
   );
 
-  console.log(`📋 [ConceptQueue] Job ajouté: ${job.id} pour page ${pageId}`);
+  logger.log(`📋 [ConceptQueue] Job ajouté: ${job.id} pour page ${pageId}`);
   return job;
 }
 
@@ -110,7 +111,7 @@ export async function enqueueConceptExtractionBatch(
     ),
   );
 
-  console.log(
+  logger.log(
     `📋 [ConceptQueue] Batch de ${jobs.length} jobs ajoutés pour ${pageIds.length} pages`,
   );
   return jobs;
@@ -123,14 +124,14 @@ let worker: Worker | null = null;
 
 export function startConceptExtractionWorker(): Worker {
   if (worker) {
-    console.log(`⚠️ [ConceptWorker] Worker déjà démarré`);
+    logger.log(`⚠️ [ConceptWorker] Worker déjà démarré`);
     return worker;
   }
 
   worker = new Worker<ExtractConceptsJobData>(
     QUEUE_NAME,
     async (job: Job<ExtractConceptsJobData>) => {
-      console.log(`🔄 [ConceptWorker] Traitement job ${job.id}: ${job.name}`);
+      logger.log(`🔄 [ConceptWorker] Traitement job ${job.id}: ${job.name}`);
 
       const { pageId, forceRefresh } = job.data;
       const result = await ConceptExtractorService.extractAndStore(pageId, {
@@ -154,14 +155,14 @@ export function startConceptExtractionWorker(): Worker {
   );
 
   worker.on("completed", (job) => {
-    console.log(`✅ [ConceptWorker] Job ${job.id} terminé`);
+    logger.log(`✅ [ConceptWorker] Job ${job.id} terminé`);
   });
 
   worker.on("failed", (job, err) => {
-    console.error(`❌ [ConceptWorker] Job ${job?.id} échoué:`, err.message);
+    logger.error(`❌ [ConceptWorker] Job ${job?.id} échoué:`, err.message);
   });
 
-  console.log(`🚀 [ConceptWorker] Worker démarré (concurrency: 2)`);
+  logger.log(`🚀 [ConceptWorker] Worker démarré (concurrency: 2)`);
   return worker;
 }
 
@@ -172,7 +173,7 @@ export async function stopConceptExtractionWorker(): Promise<void> {
   if (worker) {
     await worker.close();
     worker = null;
-    console.log(`🛑 [ConceptWorker] Worker arrêté`);
+    logger.log(`🛑 [ConceptWorker] Worker arrêté`);
   }
 }
 
@@ -183,6 +184,6 @@ export async function closeConceptExtractionQueue(): Promise<void> {
   if (queue) {
     await queue.close();
     queue = null;
-    console.log(`🛑 [ConceptQueue] Queue fermée`);
+    logger.log(`🛑 [ConceptQueue] Queue fermée`);
   }
 }

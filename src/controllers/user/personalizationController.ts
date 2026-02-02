@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
+import { logger } from "../../utils/logger.js";
 
 type NiveauScolaire = "college" | "lycee" | "etudes_superieures" | "autre";
 type ClasseCollege = "6eme" | "5eme" | "4eme" | "3eme";
@@ -103,12 +104,12 @@ export const getPersonalization = async (req: Request, res: Response) => {
     });
 
     // 🐛 DEBUG: Log pour voir la valeur réelle
-    console.log("🔍 [DEBUG] User ID:", req.user.id);
-    console.log(
+    logger.log("🔍 [DEBUG] User ID:", req.user.id);
+    logger.log(
       "🔍 [DEBUG] user?.onboardingCompleted:",
       user?.onboardingCompleted,
     );
-    console.log("🔍 [DEBUG] Type:", typeof user?.onboardingCompleted);
+    logger.log("🔍 [DEBUG] Type:", typeof user?.onboardingCompleted);
 
     const settings = user?.settings as Record<string, unknown> | null;
     const personalization =
@@ -120,14 +121,14 @@ export const getPersonalization = async (req: Request, res: Response) => {
       onboardingCompleted: user?.onboardingCompleted ?? false,
     };
 
-    console.log(
+    logger.log(
       "🔍 [DEBUG] Result onboardingCompleted:",
       result.onboardingCompleted,
     );
 
     return res.json({ success: true, data: result });
   } catch (error) {
-    console.error("❌ [USER] getPersonalization error:", error);
+    logger.error("❌ [USER] getPersonalization error:", error);
     return res
       .status(500)
       .json({ success: false, error: "Erreur interne du serveur" });
@@ -196,7 +197,7 @@ export const updatePersonalization = async (req: Request, res: Response) => {
       data: responseData,
     });
   } catch (error) {
-    console.error("❌ [USER] updatePersonalization error:", error);
+    logger.error("❌ [USER] updatePersonalization error:", error);
     return res
       .status(500)
       .json({ success: false, error: "Erreur interne du serveur" });

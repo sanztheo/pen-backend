@@ -3,6 +3,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma.js";
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Context utilisateur injecté via closure
@@ -98,7 +99,7 @@ Retourne les titres, IDs, et métadonnées des pages.
 Utile pour savoir quelles pages peuvent être référencées ou lues.`,
       inputSchema: listWorkspacePagesSchema,
       execute: async ({ projectId, limit, search, includeArchived }) => {
-        console.log(
+        logger.log(
           `🔍 [TOOL:listWorkspacePages] workspaceId=${ctx.workspaceId}, projectId=${projectId || "all"}`,
         );
 
@@ -136,7 +137,7 @@ Utile pour savoir quelles pages peuvent être référencées ou lues.`,
             take: limit,
           });
 
-          console.log(
+          logger.log(
             `✅ [TOOL:listWorkspacePages] ${pages.length} pages trouvées`,
           );
 
@@ -152,7 +153,7 @@ Utile pour savoir quelles pages peuvent être référencées ou lues.`,
             })),
           };
         } catch (error) {
-          console.error(`❌ [TOOL:listWorkspacePages] Erreur:`, error);
+          logger.error(`❌ [TOOL:listWorkspacePages] Erreur:`, error);
           return {
             error: "Erreur lors de la récupération des pages",
             count: 0,
@@ -171,7 +172,7 @@ Retourne le titre, le contenu en texte brut, et les métadonnées.
 Le contenu BlockNote est converti en texte lisible.`,
       inputSchema: readWorkspacePageSchema,
       execute: async ({ pageId }) => {
-        console.log(`🔍 [TOOL:readWorkspacePage] pageId=${pageId}`);
+        logger.log(`🔍 [TOOL:readWorkspacePage] pageId=${pageId}`);
 
         try {
           const page = await prisma.page.findFirst({
@@ -216,13 +217,13 @@ Le contenu BlockNote est converti en texte lisible.`,
               }
             }
           } catch (e) {
-            console.warn(
+            logger.warn(
               `⚠️ [TOOL:readWorkspacePage] Erreur extraction BlockNote:`,
               e,
             );
           }
 
-          console.log(
+          logger.log(
             `✅ [TOOL:readWorkspacePage] Page "${page.title}" lue (${textContent.length} chars)`,
           );
 
@@ -237,7 +238,7 @@ Le contenu BlockNote est converti en texte lisible.`,
             updatedAt: page.updatedAt.toISOString(),
           };
         } catch (error) {
-          console.error(`❌ [TOOL:readWorkspacePage] Erreur:`, error);
+          logger.error(`❌ [TOOL:readWorkspacePage] Erreur:`, error);
           return {
             error: "Erreur lors de la lecture de la page",
             content: null,
@@ -254,7 +255,7 @@ Le contenu BlockNote est converti en texte lisible.`,
 Retourne les noms, IDs, et nombre de pages par projet.`,
       inputSchema: listWorkspaceProjectsSchema,
       execute: async ({ limit }) => {
-        console.log(
+        logger.log(
           `🔍 [TOOL:listWorkspaceProjects] workspaceId=${ctx.workspaceId}`,
         );
 
@@ -275,7 +276,7 @@ Retourne les noms, IDs, et nombre de pages par projet.`,
             take: limit,
           });
 
-          console.log(
+          logger.log(
             `✅ [TOOL:listWorkspaceProjects] ${projects.length} projets trouvés`,
           );
 
@@ -288,7 +289,7 @@ Retourne les noms, IDs, et nombre de pages par projet.`,
             })),
           };
         } catch (error) {
-          console.error(`❌ [TOOL:listWorkspaceProjects] Erreur:`, error);
+          logger.error(`❌ [TOOL:listWorkspaceProjects] Erreur:`, error);
           return {
             error: "Erreur lors de la récupération des projets",
             count: 0,

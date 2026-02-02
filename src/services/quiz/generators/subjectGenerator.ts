@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { AIService } from "../../ai/base.js";
 import { z } from "zod";
+import { logger } from "../../../utils/logger.js";
 import {
   QuizSubject,
   SubjectDocument,
@@ -115,7 +116,7 @@ export class SubjectGenerator {
     const subjectCount = this.getSubjectCount(preset, schoolLevel);
     const questionsPerSubject = Math.ceil(questionCount / subjectCount);
 
-    console.log(
+    logger.log(
       `📚 Génération optimisée de ${subjectCount} sujets avec ${questionsPerSubject} questions chacun`,
     );
 
@@ -136,7 +137,7 @@ export class SubjectGenerator {
     questionsPerSubject: number,
   ): Promise<QuizSubject[]> {
     const subjectName = this.getSubjectName(request);
-    console.log(`🎯 Génération optimisée pour: ${subjectName}`);
+    logger.log(`🎯 Génération optimisée pour: ${subjectName}`);
 
     const prompt = `
 Tu es un expert en conception d'examens pour ${subjectName} niveau ${request.schoolLevel}.
@@ -279,7 +280,7 @@ IMPORTANT:
         }),
       );
     } catch (error) {
-      console.warn(
+      logger.warn(
         "⚠️ Erreur génération optimisée, fallback vers méthode individuelle:",
         error,
       );
@@ -386,7 +387,7 @@ Niveau: ${request.schoolLevel}
       const theme = JSON.parse(response.content.trim());
       return theme;
     } catch (error) {
-      console.warn("⚠️ Erreur génération thème:", error);
+      logger.warn("⚠️ Erreur génération thème:", error);
 
       // Fallback
       return {
@@ -412,7 +413,7 @@ Niveau: ${request.schoolLevel}
       return undefined;
     }
 
-    console.log(`📄 Génération de document pour: ${theme.title}`);
+    logger.log(`📄 Génération de document pour: ${theme.title}`);
 
     // Pour l'instant, on utilise la génération IA
     // Plus tard, on ajoutera le scraping et les APIs
@@ -469,7 +470,7 @@ Format JSON:
         },
       ];
     } catch (error) {
-      console.warn("⚠️ Erreur génération document:", error);
+      logger.warn("⚠️ Erreur génération document:", error);
       return [];
     }
   }
@@ -572,7 +573,7 @@ CONSIGNES:
           config.subjectResults[config.currentSubjectIndex];
 
         if (currentSubjectResult && currentSubjectResult.subjectName) {
-          console.log(
+          logger.log(
             `🎯 Matière Partiel détectée: ${currentSubjectResult.subjectName} (matière spécifique de ${request.higherEdField})`,
           );
           return currentSubjectResult.subjectName;
@@ -585,14 +586,14 @@ CONSIGNES:
       const parts = request.title.split(" - ");
       if (parts.length >= 2) {
         const subjectName = parts[parts.length - 1].trim();
-        console.log(`🎯 Matière détectée depuis le titre: ${subjectName}`);
+        logger.log(`🎯 Matière détectée depuis le titre: ${subjectName}`);
         return subjectName;
       }
     }
 
     // **PRIORITÉ 3**: Filière d'études supérieures (Partiels - fallback)
     if (request.higherEdField) {
-      console.log(
+      logger.log(
         `🎯 Matière détectée: ${request.higherEdField} (filière d'études supérieures)`,
       );
       return request.higherEdField;
@@ -619,12 +620,12 @@ CONSIGNES:
 
       const subjectName =
         subjectNames[request.specificSubject] || request.specificSubject;
-      console.log(`🎯 Matière détectée: ${subjectName} (matière spécifique)`);
+      logger.log(`🎯 Matière détectée: ${subjectName} (matière spécifique)`);
       return subjectName;
     }
 
     // **FALLBACK**: Matière générale
-    console.log(`🎯 Matière détectée: Matière générale (fallback)`);
+    logger.log(`🎯 Matière détectée: Matière générale (fallback)`);
     return "Matière générale";
   }
 

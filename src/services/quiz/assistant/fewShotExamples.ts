@@ -8,6 +8,7 @@
  * Résultat : Questions cohérentes MÊME SANS RAG (documents)
  */
 
+import { logger } from "../../../utils/logger.js";
 export interface FewShotExample {
   niveau: string;
   sujet: string;
@@ -548,37 +549,37 @@ export function getFewShotExamplesByLevel(
   level: string,
   collegeGrade?: string
 ): FewShotExample[] {
-  console.log(`📚 [FEW-SHOT] Récupération exemples pour niveau: ${level}, classe: ${collegeGrade}`);
+  logger.log(`📚 [FEW-SHOT] Récupération exemples pour niveau: ${level}, classe: ${collegeGrade}`);
 
   // Collège
   if (level === 'COLLEGE') {
     if (collegeGrade === 'SIXIEME' || collegeGrade === 'CINQUIEME') {
-      console.log(`📚 [FEW-SHOT] Exemples sélectionnés: COLLEGE_6EME_5EME (${COLLEGE_6EME_5EME_EXAMPLES.length} exemples)`);
+      logger.log(`📚 [FEW-SHOT] Exemples sélectionnés: COLLEGE_6EME_5EME (${COLLEGE_6EME_5EME_EXAMPLES.length} exemples)`);
       return COLLEGE_6EME_5EME_EXAMPLES;
     }
     if (collegeGrade === 'QUATRIEME' || collegeGrade === 'TROISIEME') {
-      console.log(`📚 [FEW-SHOT] Exemples sélectionnés: COLLEGE_4EME_3EME (${COLLEGE_4EME_3EME_EXAMPLES.length} exemples)`);
+      logger.log(`📚 [FEW-SHOT] Exemples sélectionnés: COLLEGE_4EME_3EME (${COLLEGE_4EME_3EME_EXAMPLES.length} exemples)`);
       return COLLEGE_4EME_3EME_EXAMPLES;
     }
     // Défaut collège : mix des deux
-    console.log(`📚 [FEW-SHOT] Exemples sélectionnés: COLLEGE_MIX (tous niveaux)`);
+    logger.log(`📚 [FEW-SHOT] Exemples sélectionnés: COLLEGE_MIX (tous niveaux)`);
     return [...COLLEGE_6EME_5EME_EXAMPLES, ...COLLEGE_4EME_3EME_EXAMPLES];
   }
 
   // Lycée
   if (level.startsWith('LYCEE')) {
-    console.log(`📚 [FEW-SHOT] Exemples sélectionnés: LYCEE (${LYCEE_EXAMPLES.length} exemples)`);
+    logger.log(`📚 [FEW-SHOT] Exemples sélectionnés: LYCEE (${LYCEE_EXAMPLES.length} exemples)`);
     return LYCEE_EXAMPLES;
   }
 
   // Études supérieures
   if (level === 'ETUDES_SUPERIEURES') {
-    console.log(`📚 [FEW-SHOT] Exemples sélectionnés: SUPERIEUR (${SUPERIEUR_EXAMPLES.length} exemples)`);
+    logger.log(`📚 [FEW-SHOT] Exemples sélectionnés: SUPERIEUR (${SUPERIEUR_EXAMPLES.length} exemples)`);
     return SUPERIEUR_EXAMPLES;
   }
 
   // Défaut : lycée (niveau intermédiaire)
-  console.log(`📚 [FEW-SHOT] Niveau inconnu, défaut: LYCEE`);
+  logger.log(`📚 [FEW-SHOT] Niveau inconnu, défaut: LYCEE`);
   return LYCEE_EXAMPLES;
 }
 
@@ -586,7 +587,7 @@ export function getFewShotExamplesByLevel(
  * 🎯 FONCTION : Formater les exemples en prompt Few-Shot pour OpenAI
  */
 export function formatFewShotPrompt(examples: FewShotExample[]): string {
-  console.log(`🎨 [FEW-SHOT] Formatage de ${examples.length} exemples en prompt`);
+  logger.log(`🎨 [FEW-SHOT] Formatage de ${examples.length} exemples en prompt`);
 
   let prompt = `\n\n=== EXEMPLES DE RÉFÉRENCE - QUALITÉ ATTENDUE ===\n\n`;
   prompt += `Les exemples ci-dessous montrent EXACTEMENT le niveau de qualité et de complexité attendu pour ce niveau scolaire.\n`;
@@ -632,7 +633,7 @@ export function formatFewShotPrompt(examples: FewShotExample[]): string {
   prompt += `- Fournis des critères d'évaluation pour les questions ouvertes\n`;
   prompt += `- Les distracteurs doivent être plausibles mais clairement différenciables\n\n`;
 
-  console.log(`🎨 [FEW-SHOT] Prompt formaté: ${prompt.length} caractères`);
+  logger.log(`🎨 [FEW-SHOT] Prompt formaté: ${prompt.length} caractères`);
   return prompt;
 }
 

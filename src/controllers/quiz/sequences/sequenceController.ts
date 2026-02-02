@@ -4,6 +4,7 @@ import { prisma } from "../../../lib/prisma.js";
 import { validateSourceDocuments } from "../utils/validators.js";
 import { z } from "zod";
 import { LyceeSpecialty, QuizPreset } from "../../../services/quiz/types.js";
+import { logger } from "../../../utils/logger.js";
 
 const StartPresetSequenceBodySchema = z.object({
   preset: z.nativeEnum(QuizPreset),
@@ -90,11 +91,11 @@ export class SequenceController {
           },
         });
 
-        console.log(
+        logger.log(
           `✅ [PRESET-COUNTER] Compteur presetSequencesUsed incrémenté pour utilisateur: ${userId}`,
         );
       } catch (error) {
-        console.error(
+        logger.error(
           `❌ [PRESET-COUNTER] Erreur incrémentation compteur pour utilisateur ${userId}:`,
           error,
         );
@@ -114,7 +115,7 @@ export class SequenceController {
         },
       });
     } catch (error) {
-      console.error("Erreur création séquence preset:", error);
+      logger.error("Erreur création séquence preset:", error);
       res.status(500).json({
         error: "Erreur lors de la création de la séquence",
         details: error instanceof Error ? error.message : "Erreur inconnue",
@@ -148,7 +149,7 @@ export class SequenceController {
         data: { config },
       });
     } catch (error) {
-      console.error("Erreur récupération séquence:", error);
+      logger.error("Erreur récupération séquence:", error);
       res.status(500).json({
         error: "Erreur lors de la récupération de la séquence",
         details: error instanceof Error ? error.message : "Erreur inconnue",
@@ -191,7 +192,7 @@ export class SequenceController {
         },
       });
     } catch (error) {
-      console.error("Erreur génération quiz suivant:", error);
+      logger.error("Erreur génération quiz suivant:", error);
       res.status(500).json({
         error: "Erreur lors de la génération du quiz suivant",
         details: error instanceof Error ? error.message : "Erreur inconnue",
@@ -225,7 +226,7 @@ export class SequenceController {
         data: { results },
       });
     } catch (error) {
-      console.error("Erreur récupération résultats séquence:", error);
+      logger.error("Erreur récupération résultats séquence:", error);
       res.status(500).json({
         error: "Erreur lors de la récupération des résultats",
         details: error instanceof Error ? error.message : "Erreur inconnue",
@@ -291,7 +292,7 @@ export class SequenceController {
         result: result.result,
       });
     } catch (error) {
-      console.error("Erreur soumission quiz séquentiel:", error);
+      logger.error("Erreur soumission quiz séquentiel:", error);
       res.status(500).json({
         error: "Erreur lors de la soumission du quiz séquentiel",
         details: error instanceof Error ? error.message : "Erreur inconnue",
@@ -334,7 +335,7 @@ export class SequenceController {
         },
       });
     } catch (error) {
-      console.error("Erreur récupération correction:", error);
+      logger.error("Erreur récupération correction:", error);
       res.status(500).json({
         error: "Erreur lors de la récupération de la correction",
         details: error instanceof Error ? error.message : "Erreur inconnue",

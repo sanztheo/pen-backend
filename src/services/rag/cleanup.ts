@@ -1,6 +1,7 @@
 // 🧹 RAG Cleanup Service - Nettoyage automatique des embeddings non utilisés
 import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
 import { Prisma } from "../../../node_modules/.prisma/client-embeddings/index.js";
+import { logger } from "../../utils/logger.js";
 
 // Type pour les sources avec count de chunks
 type RAGSourceWithCount = Prisma.RAGSourceGetPayload<{
@@ -36,7 +37,7 @@ export class RAGCleanupService {
       batchSize = 100,
     } = options;
 
-    console.log(
+    logger.log(
       `🧹 [CLEANUP] Démarrage nettoyage - Age max: ${maxAge} jours, DryRun: ${dryRun}`,
     );
 
@@ -51,7 +52,7 @@ export class RAGCleanupService {
     );
 
     if (candidateSources.length === 0) {
-      console.log(`🧹 [CLEANUP] Aucune source à nettoyer`);
+      logger.log(`🧹 [CLEANUP] Aucune source à nettoyer`);
       return {
         sourcesDeleted: 0,
         chunksDeleted: 0,
@@ -60,7 +61,7 @@ export class RAGCleanupService {
       };
     }
 
-    console.log(
+    logger.log(
       `🧹 [CLEANUP] ${candidateSources.length} sources candidates au nettoyage`,
     );
 
@@ -77,14 +78,14 @@ export class RAGCleanupService {
       totalChunksDeleted += batchStats.chunksDeleted;
       totalSpaceFreed += batchStats.spaceFreedMB;
 
-      console.log(
+      logger.log(
         `🧹 [CLEANUP] Lot ${Math.floor(i / batchSize) + 1}/${Math.ceil(candidateSources.length / batchSize)} traité: ${batchStats.sourcesDeleted} sources, ${batchStats.chunksDeleted} chunks`,
       );
     }
 
     const duration = Date.now() - startTime;
 
-    console.log(
+    logger.log(
       `🧹 [CLEANUP] Terminé en ${duration}ms - Sources: ${totalSourcesDeleted}, Chunks: ${totalChunksDeleted}, Espace: ${totalSpaceFreed.toFixed(2)}MB`,
     );
 
@@ -168,7 +169,7 @@ export class RAGCleanupService {
         });
       }
 
-      console.log(
+      logger.log(
         `${dryRun ? "🔍 [DRY-RUN]" : "🗑️ [DELETE]"} Source: "${source.title}" (${chunkCount} chunks, ${estimatedSizeKB}KB)`,
       );
     }
@@ -192,7 +193,7 @@ export class RAGCleanupService {
         data: { lastUsedAt: new Date() },
       });
     } catch (error) {
-      console.error(
+      logger.error(
         `🚨 [CLEANUP] Erreur mise à jour lastUsedAt pour ${sourceId}:`,
         error,
       );
@@ -211,11 +212,11 @@ export class RAGCleanupService {
         where: { id: { in: sourceIds } },
         data: { lastUsedAt: new Date() },
       });
-      console.log(
+      logger.log(
         `📊 [CLEANUP] LastUsedAt mis à jour pour ${sourceIds.length} sources`,
       );
     } catch (error) {
-      console.error(`🚨 [CLEANUP] Erreur mise à jour batch lastUsedAt:`, error);
+      logger.error(`🚨 [CLEANUP] Erreur mise à jour batch lastUsedAt:`, error);
     }
   }
 
@@ -291,7 +292,7 @@ export class RAGCleanupService {
     maxAgeDays: number = 7,
   ): Promise<{ count: number; chunksDeleted: number; spaceFreedMB: number }> {
     const startTime = Date.now();
-    console.log(
+    logger.log(
       `🧹 [CLEANUP-FILE] Démarrage nettoyage fichiers utilisateur (age: ${maxAgeDays} jours)`,
     );
 
@@ -324,11 +325,11 @@ export class RAGCleanupService {
     });
 
     if (oldFiles.length === 0) {
-      console.log(`🧹 [CLEANUP-FILE] Aucun fichier à nettoyer`);
+      logger.log(`🧹 [CLEANUP-FILE] Aucun fichier à nettoyer`);
       return { count: 0, chunksDeleted: 0, spaceFreedMB: 0 };
     }
 
-    console.log(`🧹 [CLEANUP-FILE] ${oldFiles.length} fichiers à nettoyer`);
+    logger.log(`🧹 [CLEANUP-FILE] ${oldFiles.length} fichiers à nettoyer`);
 
     let totalChunksDeleted = 0;
     let totalSpaceFreed = 0;
@@ -351,11 +352,11 @@ export class RAGCleanupService {
         totalChunksDeleted += chunksCount;
         totalSpaceFreed += chunksCount / 1024; // 1KB par chunk approximatif
 
-        console.log(
+        logger.log(
           `🗑️ [CLEANUP-FILE] Supprimé: "${file.title}" (${chunksCount} chunks)`,
         );
       } catch (error) {
-        console.error(
+        logger.error(
           `❌ [CLEANUP-FILE] Erreur suppression "${file.title}":`,
           error,
         );
@@ -363,7 +364,7 @@ export class RAGCleanupService {
     }
 
     const duration = Date.now() - startTime;
-    console.log(
+    logger.log(
       `✅ [CLEANUP-FILE] Terminé en ${duration}ms - Fichiers: ${oldFiles.length}, Chunks: ${totalChunksDeleted}, Espace: ${totalSpaceFreed.toFixed(2)}MB`,
     );
 

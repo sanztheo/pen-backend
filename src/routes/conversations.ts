@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { authenticateToken, requireUser } from "../middlewares/auth.js";
+import { logger } from "../utils/logger.js";
 import {
   verifyWorkspaceAccess,
   verifyConversationAccess,
@@ -54,7 +55,7 @@ router.get("/", verifyWorkspaceAccess, async (req, res) => {
 
     res.json({ conversations });
   } catch (error) {
-    console.error("[GET /conversations] error", error);
+    logger.error("[GET /conversations] error", error);
     res
       .status(500)
       .json({ error: "Erreur lors de la récupération des conversations" });
@@ -86,7 +87,7 @@ router.get("/:id", verifyConversationAccess, async (req, res) => {
 
     res.json({ conversation });
   } catch (error) {
-    console.error("[GET /conversations/:id] error", error);
+    logger.error("[GET /conversations/:id] error", error);
     res
       .status(500)
       .json({ error: "Erreur lors de la récupération de la conversation" });
@@ -165,7 +166,7 @@ router.post("/", verifyWorkspaceAccess, async (req, res) => {
 
       conversation.title = generatedTitle;
     } catch (titleError) {
-      console.warn(
+      logger.warn(
         "[POST /conversations] Erreur génération titre:",
         titleError,
       );
@@ -174,7 +175,7 @@ router.post("/", verifyWorkspaceAccess, async (req, res) => {
 
     res.status(201).json({ conversation });
   } catch (error) {
-    console.error("[POST /conversations] error", error);
+    logger.error("[POST /conversations] error", error);
     res
       .status(500)
       .json({ error: "Erreur lors de la création de la conversation" });
@@ -209,7 +210,7 @@ router.put("/:id", verifyConversationAccess, async (req, res) => {
 
     res.json({ conversation });
   } catch (error) {
-    console.error("[PUT /conversations/:id] error", error);
+    logger.error("[PUT /conversations/:id] error", error);
     res
       .status(500)
       .json({ error: "Erreur lors de la mise à jour de la conversation" });
@@ -238,7 +239,7 @@ router.delete("/:id", verifyConversationAccess, async (req, res) => {
 
     res.status(204).send();
   } catch (error) {
-    console.error("[DELETE /conversations/:id] error", error);
+    logger.error("[DELETE /conversations/:id] error", error);
     res
       .status(500)
       .json({ error: "Erreur lors de la suppression de la conversation" });
@@ -276,7 +277,7 @@ router.get("/:id/messages", verifyConversationAccess, async (req, res) => {
 
     res.json({ messages });
   } catch (error) {
-    console.error("[GET /conversations/:id/messages] error", error);
+    logger.error("[GET /conversations/:id/messages] error", error);
     res
       .status(500)
       .json({ error: "Erreur lors de la récupération des messages" });
@@ -311,7 +312,7 @@ router.post("/:id/messages", verifyConversationAccess, async (req, res) => {
     } = req.body;
     const userId = req.user!.id;
 
-    console.log("[DEBUG_MODAL] 📥 Backend - Ajout message:", {
+    logger.log("[DEBUG_MODAL] 📥 Backend - Ajout message:", {
       conversationId: id,
       role,
       pageId,
@@ -332,7 +333,7 @@ router.post("/:id/messages", verifyConversationAccess, async (req, res) => {
     // 🛡️ SÉCURITÉ: Validation de la taille du message pour prévenir les attaques DoS
     const MAX_MESSAGE_LENGTH = 50000; // ~50KB, environ 10-15 pages de texte
     if (typeof content === "string" && content.length > MAX_MESSAGE_LENGTH) {
-      console.warn(
+      logger.warn(
         `⚠️ [CONVERSATIONS] Message trop long rejeté: ${content.length} chars (max: ${MAX_MESSAGE_LENGTH}) - userId: ${userId}`,
       );
       return res.status(400).json({
@@ -394,7 +395,7 @@ router.post("/:id/messages", verifyConversationAccess, async (req, res) => {
       },
     });
 
-    console.log("[DEBUG_MODAL] ✅ Message créé dans la DB:", {
+    logger.log("[DEBUG_MODAL] ✅ Message créé dans la DB:", {
       messageId: message.id,
       role: message.role,
       pageId: message.pageId,
@@ -415,7 +416,7 @@ router.post("/:id/messages", verifyConversationAccess, async (req, res) => {
 
     res.status(201).json({ message });
   } catch (error) {
-    console.error("[POST /conversations/:id/messages] error", error);
+    logger.error("[POST /conversations/:id/messages] error", error);
     res.status(500).json({ error: "Erreur lors de l'ajout du message" });
   }
 });
@@ -431,7 +432,7 @@ router.patch(
         req.body;
       const userId = req.user!.id;
 
-      console.log("[DEBUG_MODAL] 📥 Backend - Requête reçue:", {
+      logger.log("[DEBUG_MODAL] 📥 Backend - Requête reçue:", {
         conversationId,
         oldPageId,
         pageTitle,
@@ -450,11 +451,11 @@ router.patch(
       });
 
       if (!conversation) {
-        console.log("[DEBUG_MODAL] ❌ Conversation non trouvée");
+        logger.log("[DEBUG_MODAL] ❌ Conversation non trouvée");
         return res.status(404).json({ error: "Conversation non trouvée" });
       }
 
-      console.log("[DEBUG_MODAL] ✅ Conversation trouvée:", conversation.id);
+      logger.log("[DEBUG_MODAL] ✅ Conversation trouvée:", conversation.id);
 
       // Chercher le message par pageTitle OU oldPageId OU pageCreationData
       const whereConditions = [];
@@ -481,11 +482,11 @@ router.patch(
       }
 
       if (whereConditions.length === 0) {
-        console.log("[DEBUG_MODAL] ❌ Aucun critère de recherche fourni");
+        logger.log("[DEBUG_MODAL] ❌ Aucun critère de recherche fourni");
         return res.status(400).json({ error: "oldPageId ou pageTitle requis" });
       }
 
-      console.log(
+      logger.log(
         "[DEBUG_MODAL] 🔍 Recherche du message avec:",
         whereConditions,
       );
@@ -498,11 +499,11 @@ router.patch(
       });
 
       if (!message) {
-        console.log("[DEBUG_MODAL] ❌ Message non trouvé dans la conversation");
+        logger.log("[DEBUG_MODAL] ❌ Message non trouvé dans la conversation");
         return res.status(404).json({ error: "Message non trouvé" });
       }
 
-      console.log("[DEBUG_MODAL] ✅ Message trouvé:", {
+      logger.log("[DEBUG_MODAL] ✅ Message trouvé:", {
         messageId: message.id,
         currentPageId: message.pageId,
         currentIsPageDeleted: message.isPageDeleted,
@@ -526,7 +527,7 @@ router.patch(
             status: "deleted",
             deletedAt: new Date().toISOString(),
           };
-          console.log(
+          logger.log(
             "[DEBUG_MODAL] 🗑️ Page supprimée - pageCreationData mis à jour",
           );
         }
@@ -540,13 +541,13 @@ router.patch(
             deletedAt: null,
             recreatedAt: new Date().toISOString(),
           };
-          console.log(
+          logger.log(
             "[DEBUG_MODAL] ✨ Page recréée - pageCreationData mis à jour avec nouveau ID",
           );
         }
       }
 
-      console.log("[DEBUG_MODAL] 💾 Données à mettre à jour:", updateData);
+      logger.log("[DEBUG_MODAL] 💾 Données à mettre à jour:", updateData);
 
       const updatedMessage = await prisma.aIMessage.update({
         where: { id: message.id },
@@ -555,7 +556,7 @@ router.patch(
         >[0]["data"],
       });
 
-      console.log("[DEBUG_MODAL] ✅ Message mis à jour avec succès:", {
+      logger.log("[DEBUG_MODAL] ✅ Message mis à jour avec succès:", {
         messageId: message.id,
         isPageDeleted: updatedMessage.isPageDeleted,
         pageId: updatedMessage.pageId,
@@ -564,7 +565,7 @@ router.patch(
 
       res.json({ success: true, message: updatedMessage });
     } catch (error) {
-      console.error("[DEBUG_MODAL] ❌ Erreur backend:", error);
+      logger.error("[DEBUG_MODAL] ❌ Erreur backend:", error);
       res
         .status(500)
         .json({ error: "Erreur lors de la mise à jour du message" });
@@ -665,11 +666,11 @@ router.get(
 
       const needsCompression = totalTokens > 4000;
 
-      console.log(`📊 [TOKEN-COUNTER] Conversation ${conversation.id}:`);
-      console.log(`   Total tokens: ${totalTokens}`);
-      console.log(`   User messages: ${userMessageTokens} tokens`);
-      console.log(`   AI messages: ${aiMessageTokens} tokens`);
-      console.log(`   Messages count: ${conversation.messages.length}`);
+      logger.log(`📊 [TOKEN-COUNTER] Conversation ${conversation.id}:`);
+      logger.log(`   Total tokens: ${totalTokens}`);
+      logger.log(`   User messages: ${userMessageTokens} tokens`);
+      logger.log(`   AI messages: ${aiMessageTokens} tokens`);
+      logger.log(`   Messages count: ${conversation.messages.length}`);
 
       res.json({
         totalTokens,
@@ -679,7 +680,7 @@ router.get(
         needsCompression,
       });
     } catch (error) {
-      console.error("[GET /conversations/tokens/:workspaceId] error", error);
+      logger.error("[GET /conversations/tokens/:workspaceId] error", error);
       res
         .status(500)
         .json({ error: "Erreur lors de la récupération du nombre de tokens" });
@@ -696,7 +697,7 @@ router.get(
       const { conversationId } = req.params;
       const userId = req.user!.id;
 
-      console.log(
+      logger.log(
         `📊 [GET /conversations/tokens/conversation/${conversationId}] user: ${userId}`,
       );
 
@@ -780,11 +781,11 @@ router.get(
 
       const needsCompression = totalTokens > 4000;
 
-      console.log(`📊 [TOKEN-COUNTER] Conversation ${conversation.id}:`);
-      console.log(`   Total tokens: ${totalTokens}`);
-      console.log(`   User messages: ${userMessageTokens} tokens`);
-      console.log(`   AI messages: ${aiMessageTokens} tokens`);
-      console.log(`   Messages count: ${conversation.messages.length}`);
+      logger.log(`📊 [TOKEN-COUNTER] Conversation ${conversation.id}:`);
+      logger.log(`   Total tokens: ${totalTokens}`);
+      logger.log(`   User messages: ${userMessageTokens} tokens`);
+      logger.log(`   AI messages: ${aiMessageTokens} tokens`);
+      logger.log(`   Messages count: ${conversation.messages.length}`);
 
       res.json({
         totalTokens,
@@ -794,7 +795,7 @@ router.get(
         needsCompression,
       });
     } catch (error) {
-      console.error(
+      logger.error(
         "[GET /conversations/tokens/conversation/:conversationId] error",
         error,
       );
@@ -864,7 +865,7 @@ router.post(
 
       res.json({ title: generatedTitle });
     } catch (error) {
-      console.error("[POST /conversations/:id/generate-title] error", error);
+      logger.error("[POST /conversations/:id/generate-title] error", error);
       res.status(500).json({ error: "Erreur lors de la génération du titre" });
     }
   },

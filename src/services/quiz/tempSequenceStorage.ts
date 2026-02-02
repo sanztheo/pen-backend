@@ -1,4 +1,5 @@
 import { SequentialQuizConfig } from "./types.js";
+import { logger } from "../../utils/logger.js";
 
 /**
  * Stockage temporaire en mémoire pour les séquences de quiz
@@ -20,7 +21,7 @@ class TempSequenceStorage {
     if (config) {
       return { ...config };
     }
-    console.log("❌ [TempStorage] Séquence non trouvée:", sequenceId);
+    logger.log("❌ [TempStorage] Séquence non trouvée:", sequenceId);
     return null;
   }
 
@@ -41,7 +42,7 @@ class TempSequenceStorage {
   delete(sequenceId: string): boolean {
     const deleted = this.sequences.delete(sequenceId);
     if (deleted) {
-      console.log("🗑️ [TempStorage] Séquence supprimée:", sequenceId);
+      logger.log("🗑️ [TempStorage] Séquence supprimée:", sequenceId);
     }
     return deleted;
   }

@@ -1,6 +1,7 @@
 import { Redis } from "ioredis";
 import { prisma } from "./prisma.js";
 import { prismaEmbeddings } from "./prismaEmbeddings.js";
+import { logger } from "../utils/logger.js";
 
 // 🚀 Configuration Redis avec fallback gracieux
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
@@ -14,22 +15,22 @@ export const redis = new Redis(REDIS_URL, {
     return delay;
   },
   reconnectOnError(err) {
-    console.error("❌ [REDIS] Erreur connexion:", err.message);
+    logger.error("❌ [REDIS] Erreur connexion:", err.message);
     return true; // Toujours tenter de reconnecter
   },
 });
 
 // Events logging
 redis.on("connect", () => {
-  console.log("✅ [REDIS] Connexion établie");
+  logger.log("✅ [REDIS] Connexion établie");
 });
 
 redis.on("error", (err) => {
-  console.error("❌ [REDIS] Erreur:", err.message);
+  logger.error("❌ [REDIS] Erreur:", err.message);
 });
 
 redis.on("ready", () => {
-  console.log("🚀 [REDIS] Prêt à recevoir des commandes");
+  logger.log("🚀 [REDIS] Prêt à recevoir des commandes");
 });
 
 // ============================================
@@ -46,11 +47,11 @@ export const cacheUserLimits = async (userId: string) => {
     const cached = await redis.get(cacheKey);
 
     if (cached) {
-      console.log(`✅ [REDIS-CACHE] UserLimits HIT: ${userId}`);
+      logger.log(`✅ [REDIS-CACHE] UserLimits HIT: ${userId}`);
       return JSON.parse(cached);
     }
 
-    console.log(`❌ [REDIS-CACHE] UserLimits MISS: ${userId}`);
+    logger.log(`❌ [REDIS-CACHE] UserLimits MISS: ${userId}`);
     const limits = await prisma.userLimits.findUnique({ where: { userId } });
 
     if (limits) {
@@ -59,7 +60,7 @@ export const cacheUserLimits = async (userId: string) => {
 
     return limits;
   } catch (error) {
-    console.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
+    logger.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
     return await prisma.userLimits.findUnique({ where: { userId } });
   }
 };
@@ -70,9 +71,9 @@ export const cacheUserLimits = async (userId: string) => {
 export const invalidateUserLimitsCache = async (userId: string) => {
   try {
     await redis.del(`limits:${userId}`);
-    console.log(`🗑️ [REDIS-CACHE] UserLimits invalidated: ${userId}`);
+    logger.log(`🗑️ [REDIS-CACHE] UserLimits invalidated: ${userId}`);
   } catch (error) {
-    console.error("⚠️ [REDIS] Erreur invalidation cache:", error);
+    logger.error("⚠️ [REDIS] Erreur invalidation cache:", error);
   }
 };
 
@@ -86,11 +87,11 @@ export const cacheWorkspace = async (workspaceId: string) => {
     const cached = await redis.get(cacheKey);
 
     if (cached) {
-      console.log(`✅ [REDIS-CACHE] Workspace HIT: ${workspaceId}`);
+      logger.log(`✅ [REDIS-CACHE] Workspace HIT: ${workspaceId}`);
       return JSON.parse(cached);
     }
 
-    console.log(`❌ [REDIS-CACHE] Workspace MISS: ${workspaceId}`);
+    logger.log(`❌ [REDIS-CACHE] Workspace MISS: ${workspaceId}`);
     const workspace = await prisma.workspace.findFirst({
       where: { id: workspaceId },
     });
@@ -101,7 +102,7 @@ export const cacheWorkspace = async (workspaceId: string) => {
 
     return workspace;
   } catch (error) {
-    console.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
+    logger.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
     return await prisma.workspace.findFirst({ where: { id: workspaceId } });
   }
 };
@@ -116,11 +117,11 @@ export const cacheProject = async (projectId: string, userId: string) => {
     const cached = await redis.get(cacheKey);
 
     if (cached) {
-      console.log(`✅ [REDIS-CACHE] Project HIT: ${projectId}`);
+      logger.log(`✅ [REDIS-CACHE] Project HIT: ${projectId}`);
       return JSON.parse(cached);
     }
 
-    console.log(`❌ [REDIS-CACHE] Project MISS: ${projectId}`);
+    logger.log(`❌ [REDIS-CACHE] Project MISS: ${projectId}`);
     const project = await prisma.project.findFirst({
       where: { id: projectId, createdBy: userId },
       select: { id: true, workspaceId: true, name: true },
@@ -132,7 +133,7 @@ export const cacheProject = async (projectId: string, userId: string) => {
 
     return project;
   } catch (error) {
-    console.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
+    logger.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
     return await prisma.project.findFirst({
       where: { id: projectId, createdBy: userId },
       select: { id: true, workspaceId: true, name: true },
@@ -151,11 +152,11 @@ export const cacheDefaultWorkspaceId = async (
     const cached = await redis.get(cacheKey);
 
     if (cached) {
-      console.log(`✅ [REDIS-CACHE] DefaultWorkspace HIT: ${userId}`);
+      logger.log(`✅ [REDIS-CACHE] DefaultWorkspace HIT: ${userId}`);
       return cached;
     }
 
-    console.log(`❌ [REDIS-CACHE] DefaultWorkspace MISS: ${userId}`);
+    logger.log(`❌ [REDIS-CACHE] DefaultWorkspace MISS: ${userId}`);
     const workspace = await prisma.workspace.findFirst({
       where: {
         OR: [
@@ -173,7 +174,7 @@ export const cacheDefaultWorkspaceId = async (
 
     return null;
   } catch (error) {
-    console.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
+    logger.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
     const workspace = await prisma.workspace.findFirst({
       where: {
         OR: [
@@ -195,12 +196,12 @@ export const clearUserCache = async (userId: string) => {
     const keys = await redis.keys(`*:${userId}*`);
     if (keys.length > 0) {
       await redis.del(...keys);
-      console.log(
+      logger.log(
         `🗑️ [REDIS-CACHE] Cleared ${keys.length} keys for user ${userId}`,
       );
     }
   } catch (error) {
-    console.error("⚠️ [REDIS] Erreur nettoyage cache:", error);
+    logger.error("⚠️ [REDIS] Erreur nettoyage cache:", error);
   }
 };
 
@@ -232,12 +233,12 @@ export const cacheBlockNoteContent = async (
     const cached = await redis.get(cacheKey);
 
     if (cached) {
-      console.log(`✅ [REDIS-CACHE] BlockNote HIT: ${pageId}`);
+      logger.log(`✅ [REDIS-CACHE] BlockNote HIT: ${pageId}`);
       const parsed: unknown = JSON.parse(cached);
       if (isCachedBlockNotePage(parsed)) return parsed;
     }
 
-    console.log(`❌ [REDIS-CACHE] BlockNote MISS: ${pageId}`);
+    logger.log(`❌ [REDIS-CACHE] BlockNote MISS: ${pageId}`);
     const page = await prisma.page.findUnique({
       where: { id: pageId },
       select: {
@@ -254,7 +255,7 @@ export const cacheBlockNoteContent = async (
 
     return page;
   } catch (error) {
-    console.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
+    logger.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
     return await prisma.page.findUnique({
       where: { id: pageId },
       select: {
@@ -272,9 +273,9 @@ export const cacheBlockNoteContent = async (
 export const invalidateBlockNoteCache = async (pageId: string) => {
   try {
     await redis.del(`blocknote:${pageId}`);
-    console.log(`🗑️ [REDIS-CACHE] BlockNote invalidated: ${pageId}`);
+    logger.log(`🗑️ [REDIS-CACHE] BlockNote invalidated: ${pageId}`);
   } catch (error) {
-    console.error("⚠️ [REDIS] Erreur invalidation cache BlockNote:", error);
+    logger.error("⚠️ [REDIS] Erreur invalidation cache BlockNote:", error);
   }
 };
 
@@ -325,12 +326,12 @@ export const cacheActiveRAGSession = async (
     const cached = await redis.get(cacheKey);
 
     if (cached) {
-      console.log(`✅ [REDIS-CACHE] RAG Session HIT: ${userId}/${workspaceId}`);
+      logger.log(`✅ [REDIS-CACHE] RAG Session HIT: ${userId}/${workspaceId}`);
       const parsedSession = JSON.parse(cached);
       return deserializeRAGSession(parsedSession); // 🔧 FIX: Reconvertir les dates
     }
 
-    console.log(`❌ [REDIS-CACHE] RAG Session MISS: ${userId}/${workspaceId}`);
+    logger.log(`❌ [REDIS-CACHE] RAG Session MISS: ${userId}/${workspaceId}`);
     const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     const session = await prismaEmbeddings.rAGSession.findFirst({
@@ -349,7 +350,7 @@ export const cacheActiveRAGSession = async (
 
     return session;
   } catch (error) {
-    console.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
+    logger.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
     const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
     return await prismaEmbeddings.rAGSession.findFirst({
       where: {
@@ -372,11 +373,11 @@ export const invalidateRAGSessionCache = async (
 ) => {
   try {
     await redis.del(`rag-session:${userId}:${workspaceId}`);
-    console.log(
+    logger.log(
       `🗑️ [REDIS-CACHE] RAG Session invalidated: ${userId}/${workspaceId}`,
     );
   } catch (error) {
-    console.error("⚠️ [REDIS] Erreur invalidation cache RAG Session:", error);
+    logger.error("⚠️ [REDIS] Erreur invalidation cache RAG Session:", error);
   }
 };
 
@@ -390,11 +391,11 @@ export const cacheQuotaUsage = async (quotaKey: string = "global") => {
     const cached = await redis.get(cacheKey);
 
     if (cached) {
-      console.log(`✅ [REDIS-CACHE] Quota Usage HIT: ${quotaKey}`);
+      logger.log(`✅ [REDIS-CACHE] Quota Usage HIT: ${quotaKey}`);
       return JSON.parse(cached);
     }
 
-    console.log(`❌ [REDIS-CACHE] Quota Usage MISS: ${quotaKey}`);
+    logger.log(`❌ [REDIS-CACHE] Quota Usage MISS: ${quotaKey}`);
     const now = new Date();
     const windowStart = new Date(now.getTime() - 3600000); // 1h window
 
@@ -426,7 +427,7 @@ export const cacheQuotaUsage = async (quotaKey: string = "global") => {
 
     return result;
   } catch (error) {
-    console.error("⚠️ [REDIS] Fallback to memory (cache error):", error);
+    logger.error("⚠️ [REDIS] Fallback to memory (cache error):", error);
     return null; // Fallback to in-memory cache in quotaManager
   }
 };
@@ -439,9 +440,9 @@ export const invalidateQuotaUsageCache = async (
 ) => {
   try {
     await redis.del(`quota-usage:${quotaKey}`);
-    console.log(`🗑️ [REDIS-CACHE] Quota Usage invalidated: ${quotaKey}`);
+    logger.log(`🗑️ [REDIS-CACHE] Quota Usage invalidated: ${quotaKey}`);
   } catch (error) {
-    console.error("⚠️ [REDIS] Erreur invalidation cache Quota:", error);
+    logger.error("⚠️ [REDIS] Erreur invalidation cache Quota:", error);
   }
 };
 
@@ -455,14 +456,14 @@ export const cacheSidebarContent = async (userId: string) => {
     const cached = await redis.get(cacheKey);
 
     if (cached) {
-      console.log(`✅ [REDIS-CACHE] Sidebar HIT: ${userId}`);
+      logger.log(`✅ [REDIS-CACHE] Sidebar HIT: ${userId}`);
       return JSON.parse(cached);
     }
 
-    console.log(`❌ [REDIS-CACHE] Sidebar MISS: ${userId}`);
+    logger.log(`❌ [REDIS-CACHE] Sidebar MISS: ${userId}`);
     return null; // Retourner null si pas en cache
   } catch (error) {
-    console.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
+    logger.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
     return null;
   }
 };
@@ -474,9 +475,9 @@ export const saveSidebarContent = async (userId: string, content: unknown) => {
   try {
     const cacheKey = `sidebar:${userId}`;
     await redis.setex(cacheKey, 300, JSON.stringify(content)); // 5min TTL
-    console.log(`💾 [REDIS-CACHE] Sidebar sauvegardé: ${userId}`);
+    logger.log(`💾 [REDIS-CACHE] Sidebar sauvegardé: ${userId}`);
   } catch (error) {
-    console.error("⚠️ [REDIS] Erreur sauvegarde sidebar:", error);
+    logger.error("⚠️ [REDIS] Erreur sauvegarde sidebar:", error);
   }
 };
 
@@ -486,9 +487,9 @@ export const saveSidebarContent = async (userId: string, content: unknown) => {
 export const invalidateSidebarCache = async (userId: string) => {
   try {
     await redis.del(`sidebar:${userId}`);
-    console.log(`🗑️ [REDIS-CACHE] Sidebar invalidated: ${userId}`);
+    logger.log(`🗑️ [REDIS-CACHE] Sidebar invalidated: ${userId}`);
   } catch (error) {
-    console.error("⚠️ [REDIS] Erreur invalidation cache Sidebar:", error);
+    logger.error("⚠️ [REDIS] Erreur invalidation cache Sidebar:", error);
   }
 };
 
@@ -506,18 +507,18 @@ export const cacheQuizHistory = async (
     const cached = await redis.get(cacheKey);
 
     if (cached) {
-      console.log(
+      logger.log(
         `✅ [REDIS-CACHE] Quiz History HIT: ${userId} (limit:${limit}, offset:${offset})`,
       );
       return JSON.parse(cached);
     }
 
-    console.log(
+    logger.log(
       `❌ [REDIS-CACHE] Quiz History MISS: ${userId} (limit:${limit}, offset:${offset})`,
     );
     return null;
   } catch (error) {
-    console.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
+    logger.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
     return null;
   }
 };
@@ -534,11 +535,11 @@ export const saveQuizHistoryCache = async (
   try {
     const cacheKey = `quiz-history:${userId}:${limit}:${offset}`;
     await redis.setex(cacheKey, 120, JSON.stringify(history)); // 2min TTL
-    console.log(
+    logger.log(
       `💾 [REDIS-CACHE] Quiz History sauvegardé: ${userId} (limit:${limit}, offset:${offset})`,
     );
   } catch (error) {
-    console.error("⚠️ [REDIS] Erreur sauvegarde quiz history:", error);
+    logger.error("⚠️ [REDIS] Erreur sauvegarde quiz history:", error);
   }
 };
 
@@ -551,12 +552,12 @@ export const invalidateQuizHistoryCache = async (userId: string) => {
     const keys = await redis.keys(`quiz-history:${userId}:*`);
     if (keys.length > 0) {
       await redis.del(...keys);
-      console.log(
+      logger.log(
         `🗑️ [REDIS-CACHE] Quiz History invalidated: ${userId} (${keys.length} clés supprimées)`,
       );
     }
   } catch (error) {
-    console.error("⚠️ [REDIS] Erreur invalidation cache Quiz History:", error);
+    logger.error("⚠️ [REDIS] Erreur invalidation cache Quiz History:", error);
   }
 };
 
@@ -568,7 +569,7 @@ export const redisHealthCheck = async (): Promise<boolean> => {
     const pong = await redis.ping();
     return pong === "PONG";
   } catch (error) {
-    console.error("❌ [REDIS] Health check failed:", error);
+    logger.error("❌ [REDIS] Health check failed:", error);
     return false;
   }
 };

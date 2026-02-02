@@ -3,6 +3,7 @@
  * Implémente les meilleures pratiques OpenAI/Claude/Gemini 2025
  */
 
+import { logger } from "../../../utils/logger.js";
 import { detectPreferredLanguage, buildLangInstruction } from "./language.js";
 import { isMathLatexIntent, LATEX_STRICT_RULES } from "./latex.js";
 
@@ -20,7 +21,7 @@ export function sanitizeUserInput(input: string): string {
       /(?:ignore|forget|disregard|override|replace|substitute).{0,30}(?:above|previous|prior|instructions|rules|system|prompt)/gi,
       (match) => {
         modificationCount++;
-        console.log(`🛡️ [SECURITY] Injection détectée - Override: "${match}"`);
+        logger.log(`🛡️ [SECURITY] Injection détectée - Override: "${match}"`);
         return "[FILTERED_INSTRUCTION_OVERRIDE]";
       },
     )
@@ -29,7 +30,7 @@ export function sanitizeUserInput(input: string): string {
       /(?:you are now|act as|pretend to be|roleplay as|simulate being).{0,50}/gi,
       (match) => {
         modificationCount++;
-        console.log(
+        logger.log(
           `🛡️ [SECURITY] Injection détectée - Role Change: "${match}"`,
         );
         return "[FILTERED_ROLE_CHANGE]";
@@ -40,7 +41,7 @@ export function sanitizeUserInput(input: string): string {
       /(?:show|reveal|display|tell me|what are|what is).{0,20}(?:your|the).{0,20}(?:system|instruction|prompt|rule)/gi,
       (match) => {
         modificationCount++;
-        console.log(
+        logger.log(
           `🛡️ [SECURITY] Injection détectée - Prompt Access: "${match}"`,
         );
         return "[FILTERED_PROMPT_ACCESS]";
@@ -49,21 +50,21 @@ export function sanitizeUserInput(input: string): string {
     // Masquer les délimiteurs de fin de prompt
     .replace(/(?:---END---|###STOP###|<\/prompt>|<\/system>)/gi, (match) => {
       modificationCount++;
-      console.log(`🛡️ [SECURITY] Injection détectée - Delimiter: "${match}"`);
+      logger.log(`🛡️ [SECURITY] Injection détectée - Delimiter: "${match}"`);
       return "[FILTERED_DELIMITER]";
     });
 
   const finalLength = sanitized.length;
 
   if (modificationCount > 0) {
-    console.log(
+    logger.log(
       `🛡️ [SECURITY] Sanitisation terminée - ${modificationCount} tentatives bloquées`,
     );
-    console.log(
+    logger.log(
       `🛡️ [SECURITY] Taille: ${originalLength} → ${finalLength} caractères`,
     );
   } else {
-    console.log(
+    logger.log(
       `🛡️ [SECURITY] Input propre - aucune injection détectée (${originalLength} chars)`,
     );
   }
@@ -92,8 +93,8 @@ import type { Request } from "express";
 export function analyzeQuery(query: string, req: Request): QueryAnalysis {
   const normalizedQuery = query.toLowerCase().trim();
 
-  console.log(`🧠 [INTELLIGENCE] Analyse de la requête initiée`);
-  console.log(`🧠 [INTELLIGENCE] Taille: ${query.length} caractères`);
+  logger.log(`🧠 [INTELLIGENCE] Analyse de la requête initiée`);
+  logger.log(`🧠 [INTELLIGENCE] Taille: ${query.length} caractères`);
 
   // Détection du type principal
   let type: QueryAnalysis["type"] = "question";
@@ -103,28 +104,28 @@ export function analyzeQuery(query: string, req: Request): QueryAnalysis {
     )
   ) {
     type = "greeting";
-    console.log(`🧠 [INTELLIGENCE] Type détecté: GREETING`);
+    logger.log(`🧠 [INTELLIGENCE] Type détecté: GREETING`);
   } else if (
     /(?:crée|créer|génère|générer|construis|construire|écris|écrire|rédige|rédiger|compose|composer)/.test(
       normalizedQuery,
     )
   ) {
     type = "creation";
-    console.log(`🧠 [INTELLIGENCE] Type détecté: CREATION`);
+    logger.log(`🧠 [INTELLIGENCE] Type détecté: CREATION`);
   } else if (
     /(?:résume|résumer|analyse|analyser|compare|comparer|évalue|évaluer|étudie|étudier)/.test(
       normalizedQuery,
     )
   ) {
     type = "analysis";
-    console.log(`🧠 [INTELLIGENCE] Type détecté: ANALYSIS`);
+    logger.log(`🧠 [INTELLIGENCE] Type détecté: ANALYSIS`);
   } else if (
     /(?:explique|expliquer|développe|développer|détaille|détailler|décris|décrire)/.test(
       normalizedQuery,
     )
   ) {
     type = "instruction";
-    console.log(`🧠 [INTELLIGENCE] Type détecté: INSTRUCTION`);
+    logger.log(`🧠 [INTELLIGENCE] Type détecté: INSTRUCTION`);
   } else if (
     query.length > 200 ||
     /(?:et|puis|ensuite|également|aussi|de plus).*(?:et|puis|ensuite|également|aussi)/.test(
@@ -132,11 +133,11 @@ export function analyzeQuery(query: string, req: Request): QueryAnalysis {
     )
   ) {
     type = "complex";
-    console.log(
+    logger.log(
       `🧠 [INTELLIGENCE] Type détecté: COMPLEX (longueur: ${query.length} ou connecteurs multiples)`,
     );
   } else {
-    console.log(`🧠 [INTELLIGENCE] Type détecté: QUESTION (par défaut)`);
+    logger.log(`🧠 [INTELLIGENCE] Type détecté: QUESTION (par défaut)`);
   }
 
   // Longueur de réponse adaptée
@@ -156,17 +157,17 @@ export function analyzeQuery(query: string, req: Request): QueryAnalysis {
   const mathIntent = isMathLatexIntent(query);
   const language = detectPreferredLanguage(req).code;
 
-  console.log(`🧠 [INTELLIGENCE] Résultats de l'analyse:`);
-  console.log(`🧠 [INTELLIGENCE] - Type: ${type}`);
-  console.log(`🧠 [INTELLIGENCE] - Longueur réponse: ${responseLength}`);
-  console.log(
+  logger.log(`🧠 [INTELLIGENCE] Résultats de l'analyse:`);
+  logger.log(`🧠 [INTELLIGENCE] - Type: ${type}`);
+  logger.log(`🧠 [INTELLIGENCE] - Longueur réponse: ${responseLength}`);
+  logger.log(
     `🧠 [INTELLIGENCE] - Thinking chain: ${reasoning ? "OUI" : "NON"}`,
   );
-  console.log(
+  logger.log(
     `🧠 [INTELLIGENCE] - UltraThink 32K: ${ultraThink ? "OUI" : "NON"}`,
   );
-  console.log(`🧠 [INTELLIGENCE] - Math/LaTeX: ${mathIntent ? "OUI" : "NON"}`);
-  console.log(`🧠 [INTELLIGENCE] - Langue: ${language}`);
+  logger.log(`🧠 [INTELLIGENCE] - Math/LaTeX: ${mathIntent ? "OUI" : "NON"}`);
+  logger.log(`🧠 [INTELLIGENCE] - Langue: ${language}`);
 
   return {
     type,
@@ -184,7 +185,7 @@ function detectUltraThinkNeed(
   queryLength: number,
   type: QueryAnalysis["type"],
 ): boolean {
-  console.log(`🧠 [ULTRATHINK] Évaluation du besoin d'analyse critique...`);
+  logger.log(`🧠 [ULTRATHINK] Évaluation du besoin d'analyse critique...`);
 
   // 🎯 Mots-clés critiques selon documentation FLAGS.md
   const criticalKeywords = [
@@ -257,14 +258,14 @@ function detectUltraThinkNeed(
 
   const needsUltraThink = ultraThinkScore >= 0.7;
 
-  console.log(
+  logger.log(
     `🧠 [ULTRATHINK] Analyse critique - Score: ${ultraThinkScore.toFixed(2)}`,
   );
-  console.log(`🧠 [ULTRATHINK] - Mots-clés critiques: ${hasCriticalKeywords}`);
-  console.log(`🧠 [ULTRATHINK] - Requête très longue (>1000): ${isVeryLong}`);
-  console.log(`🧠 [ULTRATHINK] - Niveau système: ${isSystemLevel}`);
-  console.log(`🧠 [ULTRATHINK] - Multi-domaines: ${hasMultipleDomains}`);
-  console.log(
+  logger.log(`🧠 [ULTRATHINK] - Mots-clés critiques: ${hasCriticalKeywords}`);
+  logger.log(`🧠 [ULTRATHINK] - Requête très longue (>1000): ${isVeryLong}`);
+  logger.log(`🧠 [ULTRATHINK] - Niveau système: ${isSystemLevel}`);
+  logger.log(`🧠 [ULTRATHINK] - Multi-domaines: ${hasMultipleDomains}`);
+  logger.log(
     `🧠 [ULTRATHINK] → ${needsUltraThink ? "🚨 ULTRATHINK ACTIVÉ (32K tokens)" : "📝 Standard thinking"}`,
   );
 
@@ -286,22 +287,22 @@ export function buildOptimizedPrompt(
   history: string,
   analysis: QueryAnalysis,
 ): PromptStructure {
-  console.log(
+  logger.log(
     `🏗️ [STRUCTURE] Construction du prompt optimisé pour mode: ${mode.toUpperCase()}`,
   );
 
   // 📋 SYSTÈME: Message système structuré avec XML
   const systemMessage = buildSystemMessage(mode, analysis);
-  console.log(
+  logger.log(
     `🏗️ [STRUCTURE] Message système créé (${systemMessage.length} chars)`,
   );
 
   // 👤 UTILISATEUR: Message utilisateur avec thinking chain
   const userMessage = buildUserMessage(query, context, history, analysis);
-  console.log(
+  logger.log(
     `🏗️ [STRUCTURE] Message utilisateur créé (${userMessage.length} chars)`,
   );
-  console.log(
+  logger.log(
     `🏗️ [STRUCTURE] Thinking chain inclus: ${analysis.reasoning ? "OUI" : "NON"}`,
   );
 
@@ -313,11 +314,11 @@ export function buildOptimizedPrompt(
     analysis.ultraThink,
   );
 
-  console.log(`🏗️ [STRUCTURE] Paramètres optimisés:`);
-  console.log(`🏗️ [STRUCTURE] - Température: ${temperature}`);
-  console.log(`🏗️ [STRUCTURE] - Max tokens: ${maxTokens}`);
-  console.log(`🏗️ [STRUCTURE] - Total système: ${systemMessage.length} chars`);
-  console.log(
+  logger.log(`🏗️ [STRUCTURE] Paramètres optimisés:`);
+  logger.log(`🏗️ [STRUCTURE] - Température: ${temperature}`);
+  logger.log(`🏗️ [STRUCTURE] - Max tokens: ${maxTokens}`);
+  logger.log(`🏗️ [STRUCTURE] - Total système: ${systemMessage.length} chars`);
+  logger.log(
     `🏗️ [STRUCTURE] - Total utilisateur: ${userMessage.length} chars`,
   );
 
@@ -333,7 +334,7 @@ function buildSystemMessage(
   mode: "ask" | "search" | "create",
   analysis: QueryAnalysis,
 ): string {
-  console.log(
+  logger.log(
     `📋 [SYSTEM] Construction message système XML pour mode: ${mode}`,
   );
 
@@ -342,11 +343,11 @@ function buildSystemMessage(
   const technicalRules = getTechnicalRules(analysis);
   const securityRules = getSecurityRules();
 
-  console.log(`📋 [SYSTEM] Sections créées:`);
-  console.log(`📋 [SYSTEM] - Role: ${baseRole.length} chars`);
-  console.log(`📋 [SYSTEM] - Behavior: ${behaviorRules.length} chars`);
-  console.log(`📋 [SYSTEM] - Technical: ${technicalRules.length} chars`);
-  console.log(`📋 [SYSTEM] - Security: ${securityRules.length} chars`);
+  logger.log(`📋 [SYSTEM] Sections créées:`);
+  logger.log(`📋 [SYSTEM] - Role: ${baseRole.length} chars`);
+  logger.log(`📋 [SYSTEM] - Behavior: ${behaviorRules.length} chars`);
+  logger.log(`📋 [SYSTEM] - Technical: ${technicalRules.length} chars`);
+  logger.log(`📋 [SYSTEM] - Security: ${securityRules.length} chars`);
 
   const systemMessage = `<role>
 ${baseRole}
@@ -364,7 +365,7 @@ ${technicalRules}
 ${securityRules}
 </security_rules>`;
 
-  console.log(
+  logger.log(
     `📋 [SYSTEM] Message XML structuré créé (${systemMessage.length} chars total)`,
   );
   return systemMessage;
@@ -376,7 +377,7 @@ function buildUserMessage(
   history: string,
   analysis: QueryAnalysis,
 ): string {
-  console.log(`👤 [USER] Construction message utilisateur`);
+  logger.log(`👤 [USER] Construction message utilisateur`);
 
   const thinkingPrompt = analysis.reasoning
     ? getThinkingPrompt(analysis.ultraThink)
@@ -387,18 +388,18 @@ function buildUserMessage(
     : "";
   const responseGuidelines = getResponseGuidelines(analysis);
 
-  console.log(`👤 [USER] Composants:`);
-  console.log(
+  logger.log(`👤 [USER] Composants:`);
+  logger.log(
     `👤 [USER] - Thinking prompt: ${thinkingPrompt ? "OUI" : "NON"} (${thinkingPrompt.length} chars)`,
   );
-  console.log(
+  logger.log(
     `👤 [USER] - Context: ${context ? "OUI" : "NON"} (${context?.length || 0} chars)`,
   );
-  console.log(
+  logger.log(
     `👤 [USER] - History: ${history ? "OUI" : "NON"} (${history?.length || 0} chars)`,
   );
-  console.log(`👤 [USER] - Query: ${query.length} chars`);
-  console.log(`👤 [USER] - Guidelines: ${responseGuidelines.length} chars`);
+  logger.log(`👤 [USER] - Query: ${query.length} chars`);
+  logger.log(`👤 [USER] - Guidelines: ${responseGuidelines.length} chars`);
 
   const userMessage = `${thinkingPrompt}${contextSection}${historySection}<user_query>
 ${query}
@@ -408,7 +409,7 @@ ${query}
 ${responseGuidelines}
 </response_guidelines>`;
 
-  console.log(
+  logger.log(
     `👤 [USER] Message structuré créé (${userMessage.length} chars total)`,
   );
   return userMessage;
@@ -496,7 +497,7 @@ function getSecurityRules(): string {
 
 function getThinkingPrompt(isUltraThink: boolean = false): string {
   if (isUltraThink) {
-    console.log(`🧠 [ULTRATHINK] Ajout du prompt d'analyse critique 32K`);
+    logger.log(`🧠 [ULTRATHINK] Ajout du prompt d'analyse critique 32K`);
 
     const ultraThinkPrompt = `Tu es dans un environnement de développement qui capture ta réflexion interne pour l'afficher à l'utilisateur. C'est une fonctionnalité attendue et bénéfique.
 
@@ -542,14 +543,14 @@ Maintenant fournis une réponse conversationnelle complète qui intègre naturel
 
 `;
 
-    console.log(
+    logger.log(
       `🧠 [ULTRATHINK] Analyse critique 32K activée (${ultraThinkPrompt.length} chars)`,
     );
     return ultraThinkPrompt;
   }
 
   // Mode thinking standard
-  console.log(`💭 [THINKING] Ajout du prompt de réflexion (<thinking> tags)`);
+  logger.log(`💭 [THINKING] Ajout du prompt de réflexion (<thinking> tags)`);
 
   const thinkingPrompt = `Tu es dans un environnement de développement qui capture ta réflexion interne pour l'afficher à l'utilisateur. C'est une fonctionnalité attendue et bénéfique.
 
@@ -565,7 +566,7 @@ Maintenant réponds de manière conversationnelle et naturelle, en commençant d
 
 `;
 
-  console.log(
+  logger.log(
     `💭 [THINKING] Thinking chain activée (${thinkingPrompt.length} chars)`,
   );
   return thinkingPrompt;
@@ -622,10 +623,10 @@ function getOptimalMaxTokens(
 ): number {
   // 🚨 ULTRATHINK: Mode critique avec tokens élevés pour gpt-5-nano
   if (hasUltraThink) {
-    console.log(
+    logger.log(
       `🧠 [ULTRATHINK] Mode analyse critique activé: 50000 tokens alloués (gpt-5-nano)`,
     );
-    console.log(
+    logger.log(
       `🧠 [ULTRATHINK] Capacité maximale pour analyse système complexe`,
     );
     return 50000;
@@ -644,7 +645,7 @@ function getOptimalMaxTokens(
   // 🧠 THINKING: Augmenter significantly pour thinking chain
   if (hasThinking) {
     const thinkingTokens = Math.min(baseTokens * 2, 50000); // Cap à 50k pour thinking (augmenté de 40k)
-    console.log(
+    logger.log(
       `💭 [THINKING] Tokens augmentés pour thinking chain: ${baseTokens} → ${thinkingTokens}`,
     );
     return thinkingTokens;
@@ -659,10 +660,10 @@ export function ensureResponseCapacity(
   maxTokens: number,
   contextWindowLimit: number = 390000, // 390k pour gpt-5-nano (laisse marge pour système)
 ): string {
-  console.log(`🎯 [TRUNCATION] Vérification capacité de réponse`);
-  console.log(`🎯 [TRUNCATION] - Message: ${userMessage.length} chars`);
-  console.log(`🎯 [TRUNCATION] - Tokens réponse demandés: ${maxTokens}`);
-  console.log(
+  logger.log(`🎯 [TRUNCATION] Vérification capacité de réponse`);
+  logger.log(`🎯 [TRUNCATION] - Message: ${userMessage.length} chars`);
+  logger.log(`🎯 [TRUNCATION] - Tokens réponse demandés: ${maxTokens}`);
+  logger.log(
     `🎯 [TRUNCATION] - Limite contexte: ${contextWindowLimit} tokens`,
   );
 
@@ -671,24 +672,24 @@ export function ensureResponseCapacity(
   const reservedResponseTokens = Math.max(maxTokens, 8000); // Minimum 8k pour réponse
   const availableInputTokens = contextWindowLimit - reservedResponseTokens;
 
-  console.log(
+  logger.log(
     `🎯 [TRUNCATION] - Tokens estimés input: ${estimatedInputTokens}`,
   );
-  console.log(
+  logger.log(
     `🎯 [TRUNCATION] - Tokens réservés réponse: ${reservedResponseTokens}`,
   );
-  console.log(
+  logger.log(
     `🎯 [TRUNCATION] - Tokens disponibles input: ${availableInputTokens}`,
   );
 
   // Si le message dépasse la capacité, tronquer intelligemment
   if (estimatedInputTokens > availableInputTokens) {
-    console.log(`🚨 [TRUNCATION] Message trop long - troncature nécessaire`);
+    logger.log(`🚨 [TRUNCATION] Message trop long - troncature nécessaire`);
 
     return intelligentTruncation(userMessage, availableInputTokens);
   }
 
-  console.log(
+  logger.log(
     `✅ [TRUNCATION] Message dans les limites - aucune troncature nécessaire`,
   );
   return userMessage;
@@ -698,13 +699,13 @@ function intelligentTruncation(
   userMessage: string,
   maxInputTokens: number,
 ): string {
-  console.log(`✂️ [SMART-TRUNCATE] Début troncature intelligente`);
+  logger.log(`✂️ [SMART-TRUNCATE] Début troncature intelligente`);
 
   const maxChars = maxInputTokens * 4; // Conversion approximative tokens → chars
 
   // Étape 1: Extraire les sections critiques
   const sections = extractMessageSections(userMessage);
-  console.log(`✂️ [SMART-TRUNCATE] Sections extraites:`, {
+  logger.log(`✂️ [SMART-TRUNCATE] Sections extraites:`, {
     userQuery: sections.userQuery?.length || 0,
     context: sections.context?.length || 0,
     history: sections.history?.length || 0,
@@ -746,7 +747,7 @@ function intelligentTruncation(
   let reconstructed = "";
   let remainingChars = maxChars;
 
-  console.log(
+  logger.log(
     `✂️ [SMART-TRUNCATE] Reconstruction par priorité (${maxChars} chars max)`,
   );
 
@@ -754,18 +755,18 @@ function intelligentTruncation(
     if (item.content && item.content.length <= remainingChars) {
       reconstructed += item.content;
       remainingChars -= item.content.length;
-      console.log(
+      logger.log(
         `✂️ [SMART-TRUNCATE] ✅ ${item.name}: ${item.content.length} chars ajoutés`,
       );
     } else if (item.priority >= 80 && item.content) {
       // Sections critiques: forcer même si ça dépasse un peu
       reconstructed += item.content;
       remainingChars -= item.content.length;
-      console.log(
+      logger.log(
         `✂️ [SMART-TRUNCATE] 🚨 ${item.name}: ${item.content.length} chars forcés (critique)`,
       );
     } else {
-      console.log(
+      logger.log(
         `✂️ [SMART-TRUNCATE] ❌ ${item.name}: ${item.content?.length || 0} chars ignorés (pas de place)`,
       );
     }
@@ -777,10 +778,10 @@ function intelligentTruncation(
     reconstructed += truncationNote;
   }
 
-  console.log(`✂️ [SMART-TRUNCATE] Troncature terminée:`);
-  console.log(`✂️ [SMART-TRUNCATE] - Original: ${userMessage.length} chars`);
-  console.log(`✂️ [SMART-TRUNCATE] - Tronqué: ${reconstructed.length} chars`);
-  console.log(
+  logger.log(`✂️ [SMART-TRUNCATE] Troncature terminée:`);
+  logger.log(`✂️ [SMART-TRUNCATE] - Original: ${userMessage.length} chars`);
+  logger.log(`✂️ [SMART-TRUNCATE] - Tronqué: ${reconstructed.length} chars`);
+  logger.log(
     `✂️ [SMART-TRUNCATE] - Réduction: ${((1 - reconstructed.length / userMessage.length) * 100).toFixed(1)}%`,
   );
 
@@ -795,7 +796,7 @@ function extractMessageSections(userMessage: string): {
   responseGuidelines: string | null;
   other: string | null;
 } {
-  console.log(`🔍 [EXTRACT] Extraction des sections du message`);
+  logger.log(`🔍 [EXTRACT] Extraction des sections du message`);
 
   // Patterns pour extraire les sections XML
   const userQueryMatch = userMessage.match(
@@ -832,7 +833,7 @@ function extractMessageSections(userMessage: string): {
     sections.other = userMessage; // Fallback si extraction échoue
   }
 
-  console.log(`🔍 [EXTRACT] Sections trouvées:`, {
+  logger.log(`🔍 [EXTRACT] Sections trouvées:`, {
     userQuery: !!sections.userQuery,
     context: !!sections.context,
     history: !!sections.history,
@@ -851,7 +852,7 @@ export function optimizePrompt(
   history: string,
   req: Request,
 ): PromptStructure {
-  console.log(`🚀 [OPTIMIZER] Début optimisation complète du prompt`);
+  logger.log(`🚀 [OPTIMIZER] Début optimisation complète du prompt`);
 
   // Étape 1: Analyse de la requête
   const analysis = analyzeQuery(query, req);
@@ -895,11 +896,11 @@ export function optimizePrompt(
     basePrompt.maxTokens,
   );
 
-  console.log(`🚀 [OPTIMIZER] Optimisation terminée:`);
-  console.log(
+  logger.log(`🚀 [OPTIMIZER] Optimisation terminée:`);
+  logger.log(
     `🚀 [OPTIMIZER] - Message utilisateur final: ${optimizedUserMessage.length} chars`,
   );
-  console.log(
+  logger.log(
     `🚀 [OPTIMIZER] - Troncature appliquée: ${optimizedUserMessage.length !== basePrompt.userMessage.length ? "OUI" : "NON"}`,
   );
 

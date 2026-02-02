@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticateToken } from '../middlewares/auth.js';
 import { prisma } from '../lib/prisma.js';
+import { logger } from "../utils/logger.js";
 
 const router = express.Router();
 
@@ -69,7 +70,7 @@ router.get('/', authenticateToken, async (req, res) => {
       nextResetDate: subscription?.currentPeriodEnd || null
     });
   } catch (error) {
-    console.error('Erreur lors de la récupération des limitations:', error);
+    logger.error('Erreur lors de la récupération des limitations:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
@@ -125,7 +126,7 @@ router.put('/sync', authenticateToken, async (req, res) => {
 
     res.json({ success: true, limits: userLimits });
   } catch (error) {
-    console.error('Erreur lors de la synchronisation des limitations:', error);
+    logger.error('Erreur lors de la synchronisation des limitations:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
@@ -133,7 +134,7 @@ router.put('/sync', authenticateToken, async (req, res) => {
 // POST /api/limits/increment - 🚨 SÉCURITÉ: Endpoint désactivé
 // Permet aux utilisateurs de manipuler leurs compteurs d'usage
 router.post('/increment', authenticateToken, async (req, res) => {
-  console.error(`🚨 [SÉCURITÉ] Tentative d'increment non autorisée par: ${req.user?.id}`);
+  logger.error(`🚨 [SÉCURITÉ] Tentative d'increment non autorisée par: ${req.user?.id}`);
   return res.status(403).json({ 
     success: false,
     error: 'Endpoint désactivé pour des raisons de sécurité',
@@ -144,7 +145,7 @@ router.post('/increment', authenticateToken, async (req, res) => {
 // POST /api/limits/decrement - 🚨 SÉCURITÉ: Endpoint désactivé
 // Permet aux utilisateurs de réinitialiser leurs compteurs d'usage (bypass total des quotas)
 router.post('/decrement', authenticateToken, async (req, res) => {
-  console.error(`🚨 [SÉCURITÉ] Tentative de decrement non autorisée par: ${req.user?.id}`);
+  logger.error(`🚨 [SÉCURITÉ] Tentative de decrement non autorisée par: ${req.user?.id}`);
   return res.status(403).json({ 
     success: false,
     error: 'Endpoint désactivé pour des raisons de sécurité',
@@ -201,7 +202,7 @@ router.get('/can-create/:type', authenticateToken, async (req, res) => {
 
     res.json({ success: true, canCreate, limits });
   } catch (error) {
-    console.error('Erreur lors de la vérification des limites:', error);
+    logger.error('Erreur lors de la vérification des limites:', error);
     res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });

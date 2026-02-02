@@ -2,6 +2,7 @@
 import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
 import { Prisma } from "../../../node_modules/.prisma/client-embeddings/index.js";
 import type { RAGSourceType } from "../../../node_modules/.prisma/client-embeddings/index.js";
+import { logger } from "../../utils/logger.js";
 
 type RAGSourceWithChunkCount = Prisma.RAGSourceGetPayload<{
   include: { _count: { select: { chunks: true } } };
@@ -54,7 +55,7 @@ export class RAGDeduplicationService {
     });
 
     if (globalSource && globalSource._count.chunks > 0) {
-      console.log(
+      logger.log(
         `🌍 [DEDUP-GLOBAL] Source Wikipedia globale trouvée: "${title}" (${globalSource._count.chunks} chunks)`,
       );
       return {
@@ -341,7 +342,7 @@ export class RAGDeduplicationService {
 
       return true;
     } catch (error) {
-      console.error("🚨 Erreur lors de la mise à jour forcée:", error);
+      logger.error("🚨 Erreur lors de la mise à jour forcée:", error);
       return false;
     }
   }

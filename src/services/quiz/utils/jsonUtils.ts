@@ -1,6 +1,7 @@
 /**
  * Utilitaires pour le traitement JSON dans le contexte des quiz IA
  */
+import { logger } from "../../../utils/logger.js";
 export class JsonUtils {
   /**
    * Nettoie le contenu JSON pour gérer les équations LaTeX qui peuvent casser le parsing
@@ -22,7 +23,7 @@ export class JsonUtils {
 
     // 2. Gérer les JSON tronqués en essayant de les compléter
     if (!cleaned.endsWith("}") && !cleaned.endsWith("]}")) {
-      console.log("🔧 Tentative de réparation JSON tronqué...");
+      logger.log("🔧 Tentative de réparation JSON tronqué...");
 
       // Compter les accolades ouvertes non fermées
       const openBraces = (cleaned.match(/\{/g) || []).length;
@@ -54,7 +55,7 @@ export class JsonUtils {
     try {
       return JSON.parse(cleanedContent);
     } catch (error) {
-      console.log(
+      logger.log(
         "🔧 Parsing JSON direct échoué, tentatives de récupération...",
       );
 
@@ -70,7 +71,7 @@ export class JsonUtils {
         }
       } catch (e) {
         // 🛡️ Log l'erreur au lieu de l'ignorer silencieusement
-        console.warn(
+        logger.warn(
           "⚠️ [JSON-UTILS] Tentative extraction JSON échouée:",
           e instanceof Error ? e.message : "Erreur inconnue",
         );
@@ -83,7 +84,7 @@ export class JsonUtils {
         const matches = cleanedContent.match(questionPattern);
 
         if (matches) {
-          console.log(`🔧 Trouvé ${matches.length} patterns de questions`);
+          logger.log(`🔧 Trouvé ${matches.length} patterns de questions`);
           // Essayer de reconstruire le JSON
           const questions = [];
           for (const match of matches) {
@@ -116,7 +117,7 @@ export class JsonUtils {
                 }
               }
             } catch (e) {
-              console.warn("⚠️ Impossible de parser une question individuelle");
+              logger.warn("⚠️ Impossible de parser une question individuelle");
             }
           }
 
@@ -130,7 +131,7 @@ export class JsonUtils {
         }
       } catch (e) {
         // 🛡️ Log l'erreur au lieu de l'ignorer silencieusement
-        console.warn(
+        logger.warn(
           "⚠️ [JSON-UTILS] Tentative reconstruction questions échouée:",
           e instanceof Error ? e.message : "Erreur inconnue",
         );
@@ -173,8 +174,8 @@ export class JsonUtils {
           }
         }
       } catch (secondError) {
-        console.error("❌ Contenu IA non parsable:", content.substring(0, 500));
-        console.error("❌ Erreur de parsing détaillée:", secondError);
+        logger.error("❌ Contenu IA non parsable:", content.substring(0, 500));
+        logger.error("❌ Erreur de parsing détaillée:", secondError);
         throw new Error("Erreur de parsing du JSON généré par l'IA");
       }
     }

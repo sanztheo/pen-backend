@@ -7,6 +7,7 @@
  * - Isolation des données par workspace/userId
  */
 
+import { logger } from "../../../utils/logger.js";
 import { quizPreprocessorAgent } from "./QuizPreprocessorAgent.js";
 import type { PreprocessorPromptParams, QuizType } from "./prompts.js";
 import type { QuizPreprocessorOutput, QuestionType } from "./types.js";
@@ -84,7 +85,7 @@ export interface PreprocessorIntegrationResult {
 export async function runPreprocessorForGeneration(
   params: PreprocessorIntegrationParams,
 ): Promise<PreprocessorIntegrationResult> {
-  console.log("[PREPROCESSOR-INTEGRATION] Démarrage analyse:", {
+  logger.log("[PREPROCESSOR-INTEGRATION] Démarrage analyse:", {
     userId: params.userId,
     schoolLevel: params.schoolLevel,
   });
@@ -139,7 +140,7 @@ export async function runPreprocessorForGeneration(
     params.userId,
   );
 
-  console.log("[PREPROCESSOR-INTEGRATION] Recommandations obtenues:", {
+  logger.log("[PREPROCESSOR-INTEGRATION] Recommandations obtenues:", {
     questionCount: recommendations.recommendedQuestionCount,
     difficulty: recommendations.difficulty,
     typesCount: recommendations.questionTypes.length,
@@ -310,7 +311,7 @@ function extractBlockNoteContent(blockNoteContent: unknown): {
       }
     }
   } catch (error) {
-    console.warn("[PREPROCESSOR] Erreur parsing BlockNote:", error);
+    logger.warn("[PREPROCESSOR] Erreur parsing BlockNote:", error);
   }
 
   return { text, hasFormulas, hasDefinitions };

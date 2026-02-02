@@ -4,6 +4,7 @@ import { requireAICredits } from "../middlewares/requireAICredits.js";
 import { z } from "zod";
 // Utiliser fetch global (Node >= 18)
 import { testAI } from "../controllers/ai/base.js";
+import { logger } from "../utils/logger.js";
 import {
   generateContent,
   improveContent,
@@ -165,7 +166,7 @@ router.post(
         await markJobPending(job.id, userId);
       }
 
-      console.log(
+      logger.log(
         `🎯 [AI-ASYNC] Job créé: ${job.id} (generate-content) pour user ${userId}`,
       );
 
@@ -176,7 +177,7 @@ router.post(
           "Job créé avec succès. Utilisez GET /api/jobs/:jobId pour récupérer le résultat",
       });
     } catch (error: unknown) {
-      console.error("[AI-ASYNC] Erreur création job:", error);
+      logger.error("[AI-ASYNC] Erreur création job:", error);
       return res.status(500).json({ error: "Erreur serveur" });
     }
   },
@@ -213,7 +214,7 @@ router.post(
         await markJobPending(job.id, userId);
       }
 
-      console.log(
+      logger.log(
         `🎯 [AI-ASYNC] Job créé: ${job.id} (translate) pour user ${userId}`,
       );
 
@@ -223,7 +224,7 @@ router.post(
         message: "Job créé avec succès",
       });
     } catch (error: unknown) {
-      console.error("[AI-ASYNC] Erreur création job:", error);
+      logger.error("[AI-ASYNC] Erreur création job:", error);
       return res.status(500).json({ error: "Erreur serveur" });
     }
   },
@@ -259,7 +260,7 @@ router.post(
         await markJobPending(job.id, userId);
       }
 
-      console.log(
+      logger.log(
         `🎯 [AI-ASYNC] Job créé: ${job.id} (correct) pour user ${userId}`,
       );
 
@@ -269,7 +270,7 @@ router.post(
         message: "Job créé avec succès",
       });
     } catch (error: unknown) {
-      console.error("[AI-ASYNC] Erreur création job:", error);
+      logger.error("[AI-ASYNC] Erreur création job:", error);
       return res.status(500).json({ error: "Erreur serveur" });
     }
   },
@@ -309,7 +310,7 @@ router.post(
         await markJobPending(job.id, userId);
       }
 
-      console.log(
+      logger.log(
         `🎯 [AI-ASYNC] Job créé: ${job.id} (autocomplete) pour user ${userId}`,
       );
 
@@ -319,7 +320,7 @@ router.post(
         message: "Job créé avec succès",
       });
     } catch (error: unknown) {
-      console.error("[AI-ASYNC] Erreur création job:", error);
+      logger.error("[AI-ASYNC] Erreur création job:", error);
       return res.status(500).json({ error: "Erreur serveur" });
     }
   },
@@ -335,7 +336,7 @@ router.post(
     try {
       const { messages, toolDefinitions, maxTokens, temperature } = req.body;
 
-      console.log("🔄 [AI-CHAT] Messages UIMessage reçus:", {
+      logger.log("🔄 [AI-CHAT] Messages UIMessage reçus:", {
         messagesCount: messages?.length,
         hasToolDefinitions: !!toolDefinitions,
         maxTokens: maxTokens || "non fourni",
@@ -362,7 +363,7 @@ router.post(
         apiKey: process.env.OPENAI_API_KEY,
       });
 
-      console.log("🤖 [AI-CHAT] Configuration:", {
+      logger.log("🤖 [AI-CHAT] Configuration:", {
         model: modelName,
         hasTools: !!toolDefinitions,
         apiKeyConfigured: !!process.env.OPENAI_API_KEY,
@@ -370,7 +371,7 @@ router.post(
 
       // ✅ BlockNote v0.40+: Utiliser convertToModelMessages et toolDefinitionsToToolSet
       const convertedMessages = convertToModelMessages(messages);
-      console.log("📋 [AI-CHAT] Messages convertis:", {
+      logger.log("📋 [AI-CHAT] Messages convertis:", {
         originalCount: messages.length,
         convertedCount: convertedMessages.length,
         firstMessage: convertedMessages[0],
@@ -388,13 +389,13 @@ router.post(
       // 🔒 AUDIT: Journaliser la consommation
       const userId = req.user?.id;
       const cost = req.aiCredits?.cost ?? 1.0;
-      console.log(
+      logger.log(
         `✅ [AUDIT] Chat endpoint utilisé: userId=${userId}, cost=${cost}`,
       );
 
       // ✅ BlockNote v0.40+: Convertir Response en stream Express
       const response = result.toUIMessageStreamResponse();
-      console.log("🌊 [AI-CHAT] Stream response créé:", {
+      logger.log("🌊 [AI-CHAT] Stream response créé:", {
         hasBody: !!response.body,
         headers: Array.from(response.headers.entries()),
       });
@@ -424,7 +425,7 @@ router.post(
         res.end();
       }
     } catch (error: unknown) {
-      console.error("❌ [AI-CHAT] Erreur:", error);
+      logger.error("❌ [AI-CHAT] Erreur:", error);
       res.status(500).json({
         error: "AI chat error",
       });
@@ -443,7 +444,7 @@ router.post(
       // 🛡️ Validation sécurisée des paramètres OpenAI
       const validationResult = OpenAIProxySchema.safeParse(req.body);
       if (!validationResult.success) {
-        console.warn(`❌ [AI-PROXY] Validation échouée:`, {
+        logger.warn(`❌ [AI-PROXY] Validation échouée:`, {
           userId: req.user?.id,
           errors: validationResult.error.issues,
           receivedData: Object.keys(req.body || {}),
@@ -506,13 +507,13 @@ router.post(
       // 🔒 AUDIT: Journaliser la consommation proxy
       const userId = req.user?.id;
       const cost = req.aiCredits?.cost ?? 0.25;
-      console.log(
+      logger.log(
         `🔒 [AUDIT] Proxy OpenAI utilisé: userId=${userId}, cost=${cost}, status=${response.status}`,
       );
 
       res.status(response.status).send(text);
     } catch (error: unknown) {
-      console.error("[AI Proxy] Error:", error);
+      logger.error("[AI Proxy] Error:", error);
       res.status(500).json({ error: "AI proxy error" });
     }
   },

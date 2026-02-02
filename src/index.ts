@@ -51,6 +51,7 @@ import { backendConfig, CLIENT_URL } from "./utils/config.js";
 import { startWorkers, stopWorkers } from "./workers/index.js";
 import { closeQueues } from "./lib/queues.js";
 import { startMonitoring, stopMonitoring } from "./lib/monitoring.js";
+import { logger } from "./utils/logger.js";
 import {
   initFuturaScheduler,
   stopFuturaScheduler,
@@ -76,15 +77,15 @@ import {
 import { authenticateToken } from "./middlewares/auth.js";
 
 dotenv.config();
-// Logger.init(); // ❌ DÉSACTIVÉ - maintenant console.log s'affiche dans le terminal
+// Logger.init(); // ❌ DÉSACTIVÉ - maintenant logger.log s'affiche dans le terminal
 
 /**
  * 🏓 Test automatique de la route webhook Paddle au démarrage
  */
 async function testPaddleWebhookRoute(): Promise<void> {
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("🏓 TEST WEBHOOK PADDLE");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  logger.log("🏓 TEST WEBHOOK PADDLE");
+  logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   try {
     const response = await fetch(
@@ -101,19 +102,19 @@ async function testPaddleWebhookRoute(): Promise<void> {
 
     if (response.status === 400) {
       // 400 = route accessible, signature invalide (attendu)
-      console.log("✅ Route webhook Paddle: ACCESSIBLE");
-      console.log("   URL: /api/webhooks/paddle");
-      console.log("   Status: Prêt à recevoir les webhooks Paddle");
+      logger.log("✅ Route webhook Paddle: ACCESSIBLE");
+      logger.log("   URL: /api/webhooks/paddle");
+      logger.log("   Status: Prêt à recevoir les webhooks Paddle");
     } else if (response.status === 500) {
-      console.log(
+      logger.log(
         "⚠️  Route webhook: ACCESSIBLE mais PADDLE_WEBHOOK_SECRET manquant",
       );
     } else {
-      console.log(`⚠️  Route webhook: Status inattendu (${response.status})`);
+      logger.log(`⚠️  Route webhook: Status inattendu (${response.status})`);
     }
   } catch (error: unknown) {
-    console.log("❌ Route webhook Paddle: INACCESSIBLE");
-    console.log(
+    logger.log("❌ Route webhook Paddle: INACCESSIBLE");
+    logger.log(
       `   Erreur: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
@@ -121,13 +122,13 @@ async function testPaddleWebhookRoute(): Promise<void> {
   // Vérifier la config
   const hasSecret = !!process.env.PADDLE_WEBHOOK_SECRET;
   const hasApiKey = !!process.env.PADDLE_API_KEY;
-  console.log(
+  logger.log(
     `   PADDLE_API_KEY: ${hasApiKey ? "✅ Configuré" : "❌ Manquant"}`,
   );
-  console.log(
+  logger.log(
     `   PADDLE_WEBHOOK_SECRET: ${hasSecret ? "✅ Configuré" : "❌ Manquant"}`,
   );
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 
 const app = express();
@@ -154,7 +155,7 @@ app.use(
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
-      console.warn(`🛡️ [CORS] Origine bloquée: ${origin}`);
+      logger.warn(`🛡️ [CORS] Origine bloquée: ${origin}`);
       return callback(new Error("CORS non autorisé"), false);
     },
     credentials: true,
@@ -180,7 +181,7 @@ app.post(
   "/api/webhooks/paddle",
   express.raw({ type: "application/json" }),
   (_req, _res, next) => {
-    console.log("🏓 [WEBHOOK] Route /api/webhooks/paddle touchée");
+    logger.log("🏓 [WEBHOOK] Route /api/webhooks/paddle touchée");
     next();
   },
   paddleWebhookHandler,
@@ -247,7 +248,7 @@ app.use(
     res: express.Response,
     _next: express.NextFunction,
   ) => {
-    console.error("❌ Erreur non gérée:", error);
+    logger.error("❌ Erreur non gérée:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   },
 );
@@ -257,7 +258,7 @@ const authenticateTokenWS = async (token: string) => {
     // Utiliser la vérification de token Clerk pour WebSocket
     return await AuthService.verifyToken(token);
   } catch (error) {
-    console.error("Erreur authentification WebSocket:", error);
+    logger.error("Erreur authentification WebSocket:", error);
     return null;
   }
 };
@@ -285,7 +286,7 @@ const setupYjsWebSocket = (server: http.Server) => {
 
     ws.on("error", (err) => {
       if (err.message.includes("payload")) {
-        console.error(
+        logger.error(
           `[WS] ❌ Message trop volumineux reçu de l'utilisateur ${user?.id || "UNDEFINED"}. Fermeture de la connexion.`,
         );
         ws.close(1009, "Message trop volumineux");
@@ -312,7 +313,7 @@ const setupYjsWebSocket = (server: http.Server) => {
         return;
       }
 
-      console.log(
+      logger.log(
         `[WS] 💾 Connexion sauvegarde pour page: ${pageId} - User défini: ${!!user} (${user?.id || "UNDEFINED"})`,
       );
 
@@ -320,7 +321,7 @@ const setupYjsWebSocket = (server: http.Server) => {
         try {
           // 🛡️ RATE LIMITING - Vérifier limite de messages AVANT traitement
           if (!checkWebSocketMessageLimit(ws)) {
-            console.log(
+            logger.log(
               `[WS] ❌ Rate limit messages dépassé pour page ${pageId}, message ignoré`,
             );
             ws.send(
@@ -334,12 +335,12 @@ const setupYjsWebSocket = (server: http.Server) => {
 
           const data = JSON.parse(message.toString());
           if (data.type === "save" && data.content) {
-            console.log(
+            logger.log(
               `[WS] 💾 Sauvegarde reçue pour ${pageId} par user: ${user?.id || "UNDEFINED"}`,
             );
 
             if (!user) {
-              console.error(
+              logger.error(
                 `[WS] ❌ SÉCURITÉ: Utilisateur non défini pour page ${pageId}`,
               );
               ws.send(
@@ -374,7 +375,7 @@ const setupYjsWebSocket = (server: http.Server) => {
               });
 
               if (!pageAccess) {
-                console.error(
+                logger.error(
                   `[WS] ❌ SÉCURITÉ: Accès refusé pour user ${user.id} sur page ${pageId}`,
                 );
                 ws.send(
@@ -386,7 +387,7 @@ const setupYjsWebSocket = (server: http.Server) => {
                 return;
               }
 
-              console.log(
+              logger.log(
                 `[WS] ✅ SÉCURITÉ: Accès autorisé pour user ${user.id} sur page ${pageId}`,
               );
 
@@ -399,24 +400,24 @@ const setupYjsWebSocket = (server: http.Server) => {
                 },
               });
 
-              console.log(
+              logger.log(
                 `[WS] ✅ SAUVEGARDE DB RÉUSSIE: Page ${pageId} écrite en base de données par user ${user.id}`,
               );
 
               // 🗑️ INVALIDATION CACHE REDIS: Invalider le cache pour forcer rechargement depuis DB
               await invalidateBlockNoteCache(pageId);
-              console.log(`[WS] 🗑️ Cache Redis invalidé pour page ${pageId}`);
+              logger.log(`[WS] 🗑️ Cache Redis invalidé pour page ${pageId}`);
 
               // 🧠 PEN-20: Invalider le cache de contexte quiz si cette page est utilisée
               ContextCacheService.invalidateForPages([pageId]).catch((err) =>
-                console.warn(`[WS] ⚠️ Erreur invalidation cache quiz:`, err),
+                logger.warn(`[WS] ⚠️ Erreur invalidation cache quiz:`, err),
               );
 
               ws.send(
                 JSON.stringify({ type: "save-success", timestamp: Date.now() }),
               );
             } catch (dbError) {
-              console.error(
+              logger.error(
                 `[WS] ❌ Erreur sauvegarde DB pour ${pageId}:`,
                 dbError,
               );
@@ -429,7 +430,7 @@ const setupYjsWebSocket = (server: http.Server) => {
             }
           }
         } catch (error) {
-          console.error("[WS] Erreur sauvegarde:", error);
+          logger.error("[WS] Erreur sauvegarde:", error);
           ws.send(
             JSON.stringify({ type: "save-error", error: "Format invalide" }),
           );
@@ -448,7 +449,7 @@ const setupYjsWebSocket = (server: http.Server) => {
 
     if (!pageId || pageId === "collaboration") {
       ws.close(1008, "ID de page manquant");
-      console.log(`[WS] ❌ ID de page manquant dans l'URL: ${url}`);
+      logger.log(`[WS] ❌ ID de page manquant dans l'URL: ${url}`);
       return;
     }
 
@@ -480,14 +481,14 @@ const setupYjsWebSocket = (server: http.Server) => {
     });
 
     if (!pageAccess) {
-      console.error(
+      logger.error(
         `[WS] ❌ SÉCURITÉ: Accès refusé pour user ${user.id} sur page collaboration ${pageId}`,
       );
       ws.close(1008, "Accès refusé à cette page");
       return;
     }
 
-    console.log(
+    logger.log(
       `[WS] ✅ Accès collaboration autorisé pour user ${user.id} sur page ${pageId}`,
     );
 
@@ -517,7 +518,7 @@ const setupYjsWebSocket = (server: http.Server) => {
       try {
         // 🛡️ RATE LIMITING WEBSOCKET - Vérifier limite de messages
         if (!checkWebSocketMessageLimit(ws)) {
-          console.log(
+          logger.log(
             "[WS] ❌ Rate limit messages dépassé, fermeture connexion",
           );
           ws.close(1008, "Trop de messages");
@@ -543,13 +544,13 @@ const setupYjsWebSocket = (server: http.Server) => {
             break;
         }
       } catch (error) {
-        console.error("[Yjs] Erreur traitement message:", error);
+        logger.error("[Yjs] Erreur traitement message:", error);
       }
     });
 
     // Incrémenter le compteur de connexions
     connections.set(pageId, (connections.get(pageId) || 0) + 1);
-    console.log(
+    logger.log(
       `[Yjs] Connexion établie pour la page: ${pageId} (total: ${connections.get(pageId)})`,
     );
 
@@ -566,7 +567,7 @@ const setupYjsWebSocket = (server: http.Server) => {
       const connectionCount = (connections.get(pageId) || 1) - 1;
       connections.set(pageId, connectionCount);
 
-      console.log(
+      logger.log(
         `[Yjs] Déconnexion pour la page: ${pageId} (restant: ${connectionCount})`,
       );
 
@@ -579,13 +580,13 @@ const setupYjsWebSocket = (server: http.Server) => {
         }
         docs.delete(pageId);
         connections.delete(pageId);
-        console.log(
+        logger.log(
           `[Yjs] Document supprimé de la mémoire pour la page: ${pageId}`,
         );
       }
     });
 
-    console.log(`[Yjs] Connexion établie pour la page: ${pageId}`);
+    logger.log(`[Yjs] Connexion établie pour la page: ${pageId}`);
   });
 
   server.on("upgrade", (request, socket, head) => {
@@ -593,12 +594,12 @@ const setupYjsWebSocket = (server: http.Server) => {
     const token = url.searchParams.get("token");
     const clientIp = request.socket.remoteAddress || "unknown";
 
-    console.log(`[WS] Tentative de connexion: ${url.pathname}`);
-    console.log(`[WS] Token présent: ${!!token}`);
+    logger.log(`[WS] Tentative de connexion: ${url.pathname}`);
+    logger.log(`[WS] Token présent: ${!!token}`);
 
     // 🛡️ RATE LIMITING WEBSOCKET - Vérifier limite de connexions par IP
     if (!checkWebSocketConnectionLimit(clientIp)) {
-      console.log(`[WS] ❌ Rate limit dépassé pour IP: ${clientIp}`);
+      logger.log(`[WS] ❌ Rate limit dépassé pour IP: ${clientIp}`);
       socket.write("HTTP/1.1 429 Too Many Requests\r\n\r\n");
       socket.destroy();
       return;
@@ -607,7 +608,7 @@ const setupYjsWebSocket = (server: http.Server) => {
     if (url.pathname.startsWith("/ws/save/")) {
       // Route de sauvegarde rapide
       if (!token) {
-        console.log(
+        logger.log(
           "[WS] ❌ Token manquant pour sauvegarde - connexion rejetée",
         );
         socket.destroy();
@@ -617,24 +618,24 @@ const setupYjsWebSocket = (server: http.Server) => {
         try {
           const user = await authenticateTokenWS(token);
           if (user) {
-            console.log(`[WS] ✅ Sauvegarde WebSocket - user: ${user.id}`);
+            logger.log(`[WS] ✅ Sauvegarde WebSocket - user: ${user.id}`);
             // Stocker l'utilisateur dans la request pour l'utiliser dans la connexion
             (request as unknown as { user: typeof user }).user = user;
             wss.handleUpgrade(request, socket, head, (ws) => {
               wss.emit("connection", ws, request);
             });
           } else {
-            console.log("[WS] ❌ Authentication sauvegarde échouée");
+            logger.log("[WS] ❌ Authentication sauvegarde échouée");
             socket.destroy();
           }
         } catch (error) {
-          console.log("[WS] ❌ Erreur auth sauvegarde:", error);
+          logger.log("[WS] ❌ Erreur auth sauvegarde:", error);
           socket.destroy();
         }
       })();
     } else if (url.pathname.startsWith("/ws/collaboration/")) {
       if (!token) {
-        console.log("[WS] ❌ Token manquant - connexion rejetée");
+        logger.log("[WS] ❌ Token manquant - connexion rejetée");
         socket.destroy();
         return;
       }
@@ -642,25 +643,25 @@ const setupYjsWebSocket = (server: http.Server) => {
         try {
           const user = await authenticateTokenWS(token);
           if (user) {
-            console.log(`[WS] ✅ Authentication réussie pour user: ${user.id}`);
+            logger.log(`[WS] ✅ Authentication réussie pour user: ${user.id}`);
             // Stocker l'utilisateur dans la request pour l'utiliser dans la connexion
             (request as unknown as { user: typeof user }).user = user;
             wss.handleUpgrade(request, socket, head, (ws) => {
               wss.emit("connection", ws, request);
             });
           } else {
-            console.log("[WS] ❌ Authentication échouée - connexion rejetée");
+            logger.log("[WS] ❌ Authentication échouée - connexion rejetée");
             socket.destroy();
           }
         } catch (error) {
-          console.log("[WS] ❌ Erreur lors de l'authentication:", error);
+          logger.log("[WS] ❌ Erreur lors de l'authentication:", error);
           socket.destroy();
         }
       })();
     } else if (url.pathname.startsWith("/ws/quiz-progress/")) {
       // Route pour les mises à jour de progression de quiz
       if (!token) {
-        console.log(
+        logger.log(
           "[WS] ❌ Token manquant pour progression - connexion rejetée",
         );
         socket.destroy();
@@ -676,7 +677,7 @@ const setupYjsWebSocket = (server: http.Server) => {
           : null;
 
       if (!processId) {
-        console.log("[WS] ❌ ID de processus manquant pour progression");
+        logger.log("[WS] ❌ ID de processus manquant pour progression");
         socket.destroy();
         return;
       }
@@ -685,7 +686,7 @@ const setupYjsWebSocket = (server: http.Server) => {
       const uuidRegex =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(processId)) {
-        console.log("[WS] ❌ Format processId invalide");
+        logger.log("[WS] ❌ Format processId invalide");
         socket.destroy();
         return;
       }
@@ -696,14 +697,14 @@ const setupYjsWebSocket = (server: http.Server) => {
           if (user) {
             // SEC-04: Vérification ownership du processId
             if (!progressService.isProcessOwner(processId, user.id)) {
-              console.warn(
+              logger.warn(
                 `[WS] ❌ processId ${processId} n'appartient pas à ${user.id}`,
               );
               socket.destroy();
               return;
             }
 
-            console.log(
+            logger.log(
               `[WS] ✅ Progression WebSocket - user: ${user.id}, processus: ${processId}`,
             );
             wss.handleUpgrade(request, socket, head, (ws) => {
@@ -721,33 +722,33 @@ const setupYjsWebSocket = (server: http.Server) => {
               );
             });
           } else {
-            console.log("[WS] ❌ Authentication progression échouée");
+            logger.log("[WS] ❌ Authentication progression échouée");
             socket.destroy();
           }
         } catch (error) {
-          console.log("[WS] ❌ Erreur auth progression:", error);
+          logger.log("[WS] ❌ Erreur auth progression:", error);
           socket.destroy();
         }
       })();
     } else {
-      console.log(`[WS] ❌ Chemin non autorisé: ${url.pathname}`);
+      logger.log(`[WS] ❌ Chemin non autorisé: ${url.pathname}`);
       socket.destroy();
     }
   });
 
-  console.log("🚀 Serveur WebSocket configuré :");
-  console.log("   - /ws/collaboration/ (Yjs)");
-  console.log("   - /ws/save/ (Sauvegarde)");
-  console.log("   - /ws/quiz-progress/ (Progression quiz)");
+  logger.log("🚀 Serveur WebSocket configuré :");
+  logger.log("   - /ws/collaboration/ (Yjs)");
+  logger.log("   - /ws/save/ (Sauvegarde)");
+  logger.log("   - /ws/quiz-progress/ (Progression quiz)");
 };
 
 server.listen(PORT, async () => {
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(
+  logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  logger.log(
     `🚀 Serveur Pen SaaS démarré sur le port ${PORT} en mode ${NODE_ENV}`,
   );
-  console.log(`✨ VERSION: RATE-LIMITED-SECURE - ${new Date().toISOString()}`);
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  logger.log(`✨ VERSION: RATE-LIMITED-SECURE - ${new Date().toISOString()}`);
+  logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   // 🛡️ Afficher la configuration du rate limiting
   logRateLimitConfig();
@@ -762,7 +763,7 @@ server.listen(PORT, async () => {
     await DatabaseHealthCheck.displayDiagnostic();
     const connectionOk = await DatabaseHealthCheck.testConnectionWithRetry(3);
     if (connectionOk) {
-      console.log("🎯 Démarrage des tâches automatiques...");
+      logger.log("🎯 Démarrage des tâches automatiques...");
       startCronJobs();
 
       // 💓 Activer le keep-alive DB pour éviter les timeouts
@@ -780,10 +781,10 @@ server.listen(PORT, async () => {
       // 🏓 Test automatique du webhook Paddle
       await testPaddleWebhookRoute();
     } else {
-      console.error("⚠️ Tâches automatiques désactivées - BDD inaccessible");
+      logger.error("⚠️ Tâches automatiques désactivées - BDD inaccessible");
     }
   } catch (error: unknown) {
-    console.error(
+    logger.error(
       "❌ Erreur lors du diagnostic de BDD:",
       error instanceof Error ? error.message : String(error),
     );
@@ -792,7 +793,7 @@ server.listen(PORT, async () => {
 
 // 🧹 Graceful shutdown - Arrêter proprement les workers et queues
 process.on("SIGTERM", async () => {
-  console.log("🛑 [SHUTDOWN] Signal SIGTERM reçu, arrêt gracieux...");
+  logger.log("🛑 [SHUTDOWN] Signal SIGTERM reçu, arrêt gracieux...");
   stopMonitoring();
   await stopFuturaScheduler();
   await stopWorkers();
@@ -801,7 +802,7 @@ process.on("SIGTERM", async () => {
 });
 
 process.on("SIGINT", async () => {
-  console.log("🛑 [SHUTDOWN] Signal SIGINT reçu, arrêt gracieux...");
+  logger.log("🛑 [SHUTDOWN] Signal SIGINT reçu, arrêt gracieux...");
   stopMonitoring();
   await stopFuturaScheduler();
   await stopWorkers();

@@ -3,6 +3,7 @@
  * Endpoints pour la gestion des crédits IA BlockNote
  */
 
+import { logger } from "../utils/logger.js";
 import express from 'express';
 import { authenticateToken } from '../middlewares/auth.js';
 import { Request } from 'express';
@@ -27,7 +28,7 @@ router.post('/deduct', authenticateToken, async (req: AuthRequest, res) => {
 
     // 🚨 SÉCURITÉ: Validation stricte du montant
     if (typeof amount !== 'number' || !isFinite(amount) || amount <= 0 || amount > 10) {
-      console.error(`🚨 [SÉCURITÉ] Tentative manipulation crédits par ${userId}: amount=${amount}`);
+      logger.error(`🚨 [SÉCURITÉ] Tentative manipulation crédits par ${userId}: amount=${amount}`);
       return res.status(400).json({
         success: false,
         error: 'Montant invalide',
@@ -55,7 +56,7 @@ router.post('/deduct', authenticateToken, async (req: AuthRequest, res) => {
       res.status(403).json(result);
     }
   } catch (error) {
-    console.error('Erreur déduction crédits IA:', error);
+    logger.error('Erreur déduction crédits IA:', error);
     res.status(500).json({
       success: false,
       error: 'Erreur serveur lors de la déduction des crédits',
@@ -80,7 +81,7 @@ router.get('/remaining', authenticateToken, async (req: AuthRequest, res) => {
       unlimited: remainingCredits === -1
     });
   } catch (error) {
-    console.error('Erreur récupération crédits restants:', error);
+    logger.error('Erreur récupération crédits restants:', error);
     res.status(500).json({
       success: false,
       error: 'Erreur serveur lors de la récupération des crédits',
@@ -106,7 +107,7 @@ router.get('/can-use', authenticateToken, async (req: AuthRequest, res) => {
       unlimited: remainingCredits === -1
     });
   } catch (error) {
-    console.error('Erreur vérification utilisation IA:', error);
+    logger.error('Erreur vérification utilisation IA:', error);
     res.status(500).json({
       success: false,
       error: 'Erreur serveur lors de la vérification',
@@ -127,7 +128,7 @@ router.post('/refund', authenticateToken, async (req: AuthRequest, res) => {
 
     // 🚨 SÉCURITÉ: Validation stricte du montant de remboursement
     if (typeof amount !== 'number' || !isFinite(amount) || amount <= 0 || amount > 10) {
-      console.error(`🚨 [SÉCURITÉ] Tentative manipulation remboursement par ${userId}: amount=${amount}`);
+      logger.error(`🚨 [SÉCURITÉ] Tentative manipulation remboursement par ${userId}: amount=${amount}`);
       return res.status(400).json({
         success: false,
         error: 'Montant de remboursement invalide',
@@ -145,25 +146,25 @@ router.post('/refund', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     // 🔄 Rembourser les crédits
-    console.log(`🔄 [CREDITS] Remboursement demandé par ${userId}: ${amount} crédits pour action "${action}"`);
+    logger.log(`🔄 [CREDITS] Remboursement demandé par ${userId}: ${amount} crédits pour action "${action}"`);
     const result = await AICreditsService.refundCredits(userId, amount, action);
 
     if (result.success) {
-      console.log(`✅ [CREDITS] Remboursement réussi pour ${userId}: ${amount} crédits. Nouveau solde: ${result.newBalance}`);
+      logger.log(`✅ [CREDITS] Remboursement réussi pour ${userId}: ${amount} crédits. Nouveau solde: ${result.newBalance}`);
       res.json({
         success: true,
         newBalance: result.newBalance,
         message: `${amount} crédit${amount > 1 ? 's' : ''} remboursé${amount > 1 ? 's' : ''}`
       });
     } else {
-      console.error(`❌ [CREDITS] Échec du remboursement pour ${userId}:`, result.error);
+      logger.error(`❌ [CREDITS] Échec du remboursement pour ${userId}:`, result.error);
       res.status(400).json({
         success: false,
         error: result.error || 'Échec du remboursement'
       });
     }
   } catch (error) {
-    console.error('❌ Erreur remboursement crédits IA:', error);
+    logger.error('❌ Erreur remboursement crédits IA:', error);
     res.status(500).json({
       success: false,
       error: 'Erreur serveur lors du remboursement des crédits'

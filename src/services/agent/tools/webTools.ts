@@ -2,6 +2,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import OpenAI from "openai";
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Context utilisateur injecté via closure
@@ -100,12 +101,12 @@ Utilise OpenAI Web Search pour des résultats de qualité avec sources citées.
 Idéal pour des questions sur l'actualité, des faits récents, ou des informations non présentes dans les sources RAG.`,
       inputSchema: searchWebSchema,
       execute: async ({ query, searchContextSize }) => {
-        console.log(
+        logger.log(
           `🔍 [TOOL:searchWeb] query="${query}", contextSize=${searchContextSize}`,
         );
 
         if (!process.env.OPENAI_API_KEY) {
-          console.warn(`⚠️ [TOOL:searchWeb] OPENAI_API_KEY non configurée`);
+          logger.warn(`⚠️ [TOOL:searchWeb] OPENAI_API_KEY non configurée`);
           return {
             error: "Recherche web non disponible (API key manquante)",
             results: [],
@@ -159,7 +160,7 @@ Idéal pour des questions sur l'actualité, des faits récents, ou des informati
             }
           }
 
-          console.log(
+          logger.log(
             `✅ [TOOL:searchWeb] Réponse obtenue avec ${sources.length} sources`,
           );
 
@@ -173,7 +174,7 @@ Idéal pour des questions sur l'actualité, des faits récents, ou des informati
             })),
           };
         } catch (error) {
-          console.error(`❌ [TOOL:searchWeb] Erreur:`, error);
+          logger.error(`❌ [TOOL:searchWeb] Erreur:`, error);
           return {
             error: "Erreur lors de la recherche web",
             results: [],
@@ -192,7 +193,7 @@ Retourne les titres et extraits des articles correspondants.
 Utile pour des informations encyclopédiques de référence.`,
       inputSchema: searchWikipediaSchema,
       execute: async ({ query, limit }) => {
-        console.log(
+        logger.log(
           `🔍 [TOOL:searchWikipedia] query="${query}", limit=${limit}`,
         );
 
@@ -209,7 +210,7 @@ Utile pour des informations encyclopédiques de référence.`,
 
           const results = data.query?.search || [];
 
-          console.log(
+          logger.log(
             `✅ [TOOL:searchWikipedia] ${results.length} articles trouvés`,
           );
 
@@ -223,7 +224,7 @@ Utile pour des informations encyclopédiques de référence.`,
             })),
           };
         } catch (error) {
-          console.error(`❌ [TOOL:searchWikipedia] Erreur:`, error);
+          logger.error(`❌ [TOOL:searchWikipedia] Erreur:`, error);
           return {
             error: "Erreur lors de la recherche Wikipedia",
             count: 0,
@@ -241,7 +242,7 @@ Utile pour des informations encyclopédiques de référence.`,
 Retourne l'extrait, les catégories, et l'URL de l'article.`,
       inputSchema: getWikipediaArticleSchema,
       execute: async ({ pageid, title }) => {
-        console.log(
+        logger.log(
           `🔍 [TOOL:getWikipediaArticle] pageid=${pageid}, title=${title}`,
         );
 
@@ -276,7 +277,7 @@ Retourne l'extrait, les catégories, et l'URL de l'article.`,
             return { error: "Article non trouvé", article: null };
           }
 
-          console.log(
+          logger.log(
             `✅ [TOOL:getWikipediaArticle] Article "${page.title}" récupéré`,
           );
 
@@ -294,7 +295,7 @@ Retourne l'extrait, les catégories, et l'URL de l'article.`,
             },
           };
         } catch (error) {
-          console.error(`❌ [TOOL:getWikipediaArticle] Erreur:`, error);
+          logger.error(`❌ [TOOL:getWikipediaArticle] Erreur:`, error);
           return {
             error: "Erreur lors de la récupération de l'article",
             article: null,

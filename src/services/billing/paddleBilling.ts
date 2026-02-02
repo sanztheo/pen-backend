@@ -2,6 +2,7 @@ import { Paddle, Environment } from "@paddle/paddle-node-sdk";
 import { prisma } from "../../lib/prisma.js";
 import type { SubscriptionPlan, SubscriptionStatus } from "@prisma/client";
 import { SecureLogger } from "../../middlewares/secureLogging.js";
+import { logger } from "../../utils/logger.js";
 
 /**
  * Configuration des plans Paddle
@@ -59,7 +60,7 @@ export class PaddleBillingService {
           },
           update: {},
         });
-        console.log(`✅ [PADDLE] Abonnement gratuit créé pour ${userId}`);
+        logger.log(`✅ [PADDLE] Abonnement gratuit créé pour ${userId}`);
       }
 
       return {
@@ -69,7 +70,7 @@ export class PaddleBillingService {
         isPremium: subscription.plan === "premium",
       };
     } catch (error) {
-      console.error("❌ [PADDLE] Erreur récupération abonnement:", error);
+      logger.error("❌ [PADDLE] Erreur récupération abonnement:", error);
 
       // 🛡️ SÉCURITÉ: Retourner un statut d'erreur détectable par le frontend
       // au lieu de silencieusement dégrader vers free_user
@@ -109,17 +110,17 @@ export class PaddleBillingService {
       if (trialDates) {
         const { trialStart, trialEnd } = trialDates;
         if (!(trialStart instanceof Date) || isNaN(trialStart.getTime())) {
-          console.warn(
+          logger.warn(
             `⚠️ [PADDLE] Invalid trialStart for user ${userId}, ignoring trial dates`,
           );
           trialDates = undefined;
         } else if (!(trialEnd instanceof Date) || isNaN(trialEnd.getTime())) {
-          console.warn(
+          logger.warn(
             `⚠️ [PADDLE] Invalid trialEnd for user ${userId}, ignoring trial dates`,
           );
           trialDates = undefined;
         } else if (trialEnd <= trialStart) {
-          console.warn(
+          logger.warn(
             `⚠️ [PADDLE] trialEnd <= trialStart for user ${userId}, ignoring trial dates`,
           );
           trialDates = undefined;
@@ -129,7 +130,7 @@ export class PaddleBillingService {
       const isTrial = !!trialDates;
       const status: SubscriptionStatus = isTrial ? "trialing" : "active";
 
-      console.log(
+      logger.log(
         `⬆️ [PADDLE] Activation Premium pour: ${userId} (${isTrial ? "TRIAL" : "ACTIVE"})`,
       );
 
@@ -169,12 +170,12 @@ export class PaddleBillingService {
       // Synchroniser les limites utilisateur
       await this.syncUserLimitsAfterPlanChange(userId, "premium");
 
-      console.log(
+      logger.log(
         `✅ [PADDLE] Premium activé pour: ${userId} (status: ${status})`,
       );
       return subscription;
     } catch (error) {
-      console.error("❌ [PADDLE] Erreur activation Premium:", error);
+      logger.error("❌ [PADDLE] Erreur activation Premium:", error);
       throw error;
     }
   }
@@ -185,7 +186,7 @@ export class PaddleBillingService {
    */
   static async cancelSubscription(userId: string, effectiveDate?: Date) {
     try {
-      console.log(`🚫 [PADDLE] Annulation abonnement pour: ${userId}`);
+      logger.log(`🚫 [PADDLE] Annulation abonnement pour: ${userId}`);
 
       const subscription = await prisma.userSubscription.update({
         where: { userId },
@@ -196,10 +197,10 @@ export class PaddleBillingService {
         },
       });
 
-      console.log(`✅ [PADDLE] Abonnement marqué pour annulation: ${userId}`);
+      logger.log(`✅ [PADDLE] Abonnement marqué pour annulation: ${userId}`);
       return subscription;
     } catch (error) {
-      console.error("❌ [PADDLE] Erreur annulation:", error);
+      logger.error("❌ [PADDLE] Erreur annulation:", error);
       throw error;
     }
   }
@@ -210,7 +211,7 @@ export class PaddleBillingService {
    */
   static async finalizeCancel(userId: string) {
     try {
-      console.log(`🔄 [PADDLE] Finalisation annulation pour: ${userId}`);
+      logger.log(`🔄 [PADDLE] Finalisation annulation pour: ${userId}`);
 
       const now = new Date();
       const periodEnd = new Date(now);
@@ -231,10 +232,10 @@ export class PaddleBillingService {
       // Synchroniser les limites vers le plan gratuit
       await this.syncUserLimitsAfterPlanChange(userId, "free_user");
 
-      console.log(`✅ [PADDLE] Utilisateur remis en plan gratuit: ${userId}`);
+      logger.log(`✅ [PADDLE] Utilisateur remis en plan gratuit: ${userId}`);
       return subscription;
     } catch (error) {
-      console.error("❌ [PADDLE] Erreur finalisation annulation:", error);
+      logger.error("❌ [PADDLE] Erreur finalisation annulation:", error);
       throw error;
     }
   }
@@ -263,7 +264,7 @@ export class PaddleBillingService {
       });
       return subscription;
     } catch (error) {
-      console.error("❌ [PADDLE] Erreur mise à jour subscription:", error);
+      logger.error("❌ [PADDLE] Erreur mise à jour subscription:", error);
       throw error;
     }
   }
@@ -404,7 +405,7 @@ export class PaddleBillingService {
         isPremium: subscription.isPremium,
       };
     } catch (error) {
-      console.error("❌ [PADDLE] Erreur récupération stats:", error);
+      logger.error("❌ [PADDLE] Erreur récupération stats:", error);
       throw error;
     }
   }
@@ -420,7 +421,7 @@ export class PaddleBillingService {
 
       return subscription?.userId || null;
     } catch (error) {
-      console.error("❌ [PADDLE] Erreur recherche par customerId:", error);
+      logger.error("❌ [PADDLE] Erreur recherche par customerId:", error);
       return null;
     }
   }
@@ -436,7 +437,7 @@ export class PaddleBillingService {
 
       return subscription?.userId || null;
     } catch (error) {
-      console.error("❌ [PADDLE] Erreur recherche par subscriptionId:", error);
+      logger.error("❌ [PADDLE] Erreur recherche par subscriptionId:", error);
       return null;
     }
   }

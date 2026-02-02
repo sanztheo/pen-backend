@@ -3,6 +3,7 @@
 import type { PersonalizationContext } from "../../../utils/personalizationUtils.js";
 import { formatSpecialtyLabel } from "../../config/index.js";
 import { generateQuestionId } from "../../utils/index.js";
+import { logger } from "../../../../../utils/logger.js";
 
 /**
  * Interface for existing question in duplicate prevention
@@ -53,14 +54,14 @@ export function buildSingleQuestionPrompt(
   } = request;
 
   // Debug: Vérifier toutes les propriétés
-  console.log(`[CHAT-COMPLETION-DEBUG] Propriétés reçues:`);
-  console.log(
+  logger.log(`[CHAT-COMPLETION-DEBUG] Propriétés reçues:`);
+  logger.log(
     `  - ragContext: ${ragContext ? `${ragContext.length} chars` : "undefined/null"}`,
   );
-  console.log(`  - coursesOnly: ${coursesOnly}`);
-  console.log(`  - specificSubject: ${specificSubject}`);
-  console.log(`  - questionType: ${questionTypes[0]}`);
-  console.log(
+  logger.log(`  - coursesOnly: ${coursesOnly}`);
+  logger.log(`  - specificSubject: ${specificSubject}`);
+  logger.log(`  - questionType: ${questionTypes[0]}`);
+  logger.log(
     `  - personalization: ${personalization?.hasPersonalization ? "OUI" : "NON"}`,
   );
 
@@ -170,7 +171,7 @@ Ne JAMAIS varier les points selon la difficulte.
 
   // Intégration du contexte RAG avec structure XML
   if (ragContext && ragContext.trim().length > 0) {
-    console.log(
+    logger.log(
       `[CHAT-COMPLETION] Contexte RAG reçu: ${ragContext.length} caractères, coursesOnly: ${coursesOnly}`,
     );
 

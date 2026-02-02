@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { DashboardLayoutService } from '../services/dashboardLayoutService.js';
+import { logger } from "../utils/logger.js";
 
 /**
  * Contrôleur pour la gestion de la disposition du dashboard
@@ -34,7 +35,7 @@ export const DashboardLayoutController = {
 
       return res.json(layout);
     } catch (error) {
-      console.error('Erreur lors de la récupération du layout:', error);
+      logger.error('Erreur lors de la récupération du layout:', error);
       return res.status(500).json({
         error: 'Erreur lors de la récupération de la disposition',
       });
@@ -68,7 +69,7 @@ export const DashboardLayoutController = {
 
       return res.json(savedLayout);
     } catch (error) {
-      console.error('Erreur lors de la sauvegarde du layout:', error);
+      logger.error('Erreur lors de la sauvegarde du layout:', error);
       return res.status(500).json({
         error: 'Erreur lors de la sauvegarde de la disposition',
       });
@@ -100,7 +101,7 @@ export const DashboardLayoutController = {
         layout: [],
       });
     } catch (error) {
-      console.error('Erreur lors de la réinitialisation du layout:', error);
+      logger.error('Erreur lors de la réinitialisation du layout:', error);
       return res.status(500).json({
         error: 'Erreur lors de la réinitialisation de la disposition',
       });

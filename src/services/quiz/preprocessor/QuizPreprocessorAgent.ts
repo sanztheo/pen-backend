@@ -8,6 +8,7 @@
  * - Timeout sur appels OpenAI
  */
 
+import { logger } from "../../../utils/logger.js";
 import OpenAI from "openai";
 import { z } from "zod";
 import {
@@ -145,7 +146,7 @@ export class QuizPreprocessorAgent {
     try {
       parsed = JSON.parse(jsonContent);
     } catch (error) {
-      console.error("[PREPROCESSOR] JSON parse failed, using fallback:", error);
+      logger.error("[PREPROCESSOR] JSON parse failed, using fallback:", error);
       return DEFAULT_AI_OUTPUT;
     }
 
@@ -153,7 +154,7 @@ export class QuizPreprocessorAgent {
     const validationResult = PreprocessorAIOutputSchema.safeParse(parsed);
 
     if (!validationResult.success) {
-      console.warn("[PREPROCESSOR] Zod validation failed:", {
+      logger.warn("[PREPROCESSOR] Zod validation failed:", {
         errors: validationResult.error.errors.map((e) => ({
           path: e.path.join("."),
           message: e.message,

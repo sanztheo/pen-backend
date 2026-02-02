@@ -4,6 +4,7 @@ import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma.js";
 import { nanoid } from "nanoid";
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Context utilisateur injecté via closure
@@ -68,7 +69,7 @@ Retourne l'ID, le titre et l'URL de la page créée.
 Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou des notes.`,
       inputSchema: createPageSchema,
       execute: async ({ title, content, projectId, icon }) => {
-        console.log(
+        logger.log(
           `🔍 [TOOL:createPage] title="${title}", projectId=${projectId || "root"}`,
         );
 
@@ -140,7 +141,7 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
             },
           });
 
-          console.log(
+          logger.log(
             `✅ [TOOL:createPage] Page créée: "${page.title}" (ID: ${page.id})`,
           );
 
@@ -156,7 +157,7 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
             createdAt: page.createdAt.toISOString(),
           };
         } catch (error) {
-          console.error(`❌ [TOOL:createPage] Erreur:`, error);
+          logger.error(`❌ [TOOL:createPage] Erreur:`, error);
           return {
             success: false,
             error: "Erreur lors de la création de la page",
@@ -174,7 +175,7 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
 Utile pour vérifier qu'une page créée précédemment n'a pas été supprimée.`,
       inputSchema: checkPageExistsSchema,
       execute: async ({ pageId }) => {
-        console.log(`🔍 [TOOL:checkPageExists] pageId=${pageId}`);
+        logger.log(`🔍 [TOOL:checkPageExists] pageId=${pageId}`);
 
         try {
           const page = await prisma.page.findFirst({
@@ -208,7 +209,7 @@ Utile pour vérifier qu'une page créée précédemment n'a pas été supprimée
             url: `/page/${page.id}`,
           };
         } catch (error) {
-          console.error(`❌ [TOOL:checkPageExists] Erreur:`, error);
+          logger.error(`❌ [TOOL:checkPageExists] Erreur:`, error);
           return {
             exists: false,
             pageId,

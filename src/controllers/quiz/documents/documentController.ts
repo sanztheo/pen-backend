@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { documentSearchService } from '../../../services/quiz/documentSearchService.js';
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Contrôleur pour la recherche documentaire
@@ -71,7 +72,7 @@ export class DocumentController {
         topics
       };
 
-      console.log(`🔍 Recherche documentaire pour utilisateur ${userId}:`, {
+      logger.log(`🔍 Recherche documentaire pour utilisateur ${userId}:`, {
         query: searchRequest.query,
         limit: searchRequest.limit,
         topics: searchRequest.topics
@@ -80,8 +81,8 @@ export class DocumentController {
       const searchResult = await documentSearchService.searchDocuments(searchRequest);
 
       // Log des résultats pour debug
-      console.log(`📊 Résultats recherche: ${searchResult.total_results} chunks en ${searchResult.execution_time_ms}ms`);
-      console.log(`🧠 Stratégie: ${searchResult.search_strategy}, Topics détectés:`, searchResult.detected_topics);
+      logger.log(`📊 Résultats recherche: ${searchResult.total_results} chunks en ${searchResult.execution_time_ms}ms`);
+      logger.log(`🧠 Stratégie: ${searchResult.search_strategy}, Topics détectés:`, searchResult.detected_topics);
 
       res.status(200).json({
         success: true,
@@ -100,7 +101,7 @@ export class DocumentController {
       });
 
     } catch (error) {
-      console.error('Erreur recherche documentaire:', error);
+      logger.error('Erreur recherche documentaire:', error);
       res.status(500).json({
         error: 'Erreur lors de la recherche documentaire',
         details: error instanceof Error ? error.message : 'Erreur inconnue'
@@ -143,7 +144,7 @@ export class DocumentController {
       });
 
     } catch (error) {
-      console.error('Erreur récupération stats documentaires:', error);
+      logger.error('Erreur récupération stats documentaires:', error);
       res.status(500).json({
         error: 'Erreur lors de la récupération des statistiques',
         details: error instanceof Error ? error.message : 'Erreur inconnue'

@@ -3,6 +3,7 @@ import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
 import { Prisma } from "../../../node_modules/.prisma/client-embeddings/index.js";
 import crypto from "crypto";
 import type { RAGChunkInput } from "./index.js";
+import { logger } from "../../utils/logger.js";
 
 type RAGSourceWithChunkCount = Prisma.RAGSourceGetPayload<{
   include: { _count: { select: { chunks: true } } };
@@ -100,7 +101,7 @@ export class UserFilesRAGSystem {
         chunksCount: existingSource._count.chunks,
       };
     } catch (error) {
-      console.error(`❌ [USER-FILE] Erreur recherche source par hash:`, error);
+      logger.error(`❌ [USER-FILE] Erreur recherche source par hash:`, error);
       return null;
     }
   }
@@ -178,11 +179,11 @@ export class UserFilesRAGSystem {
         }
 
         default:
-          console.warn(`⚠️ [USER-FILE] Type MIME non supporté: ${mimeType}`);
+          logger.warn(`⚠️ [USER-FILE] Type MIME non supporté: ${mimeType}`);
           return buffer.toString("utf-8");
       }
     } catch (error) {
-      console.error(
+      logger.error(
         `❌ [USER-FILE] Erreur extraction contenu (${mimeType}):`,
         error,
       );
@@ -279,7 +280,7 @@ export class UserFilesRAGSystem {
       });
     }
 
-    console.log(
+    logger.log(
       `🧩 [USER-FILE] Chunking: ${text.length} chars → ${chunks.length} chunks`,
     );
     return chunks;
@@ -329,19 +330,19 @@ export class UserFilesRAGSystem {
     try {
       const { ragSystem } = await import("./index.js");
       const t0 = Date.now();
-      console.log(
+      logger.log(
         `🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${text.substring(0, 50)}..."`,
       );
 
       const embedding =
         await ragSystem.embeddingService.generateEmbedding(text);
 
-      console.log(
+      logger.log(
         `✅ [EMBEDDING-FAST] Embedding généré en ${Date.now() - t0}ms: ${embedding.length} dimensions`,
       );
       return embedding;
     } catch (error) {
-      console.error("❌ [USER-FILE] Erreur génération embedding:", error);
+      logger.error("❌ [USER-FILE] Erreur génération embedding:", error);
       throw error;
     }
   }
@@ -377,7 +378,7 @@ export class UserFilesRAGSystem {
     );
 
     const t0 = Date.now();
-    console.log(
+    logger.log(
       `⚙️  [USER-FILE] Embedding ${chunks.length} chunks (x${concurrency})…`,
     );
 
@@ -398,7 +399,7 @@ export class UserFilesRAGSystem {
             quality: chunk.quality ?? 1.0,
           } satisfies PreparedRAGChunkRow;
         } catch (error) {
-          console.error(`❌ [USER-FILE] Erreur embedding chunk ${i}:`, error);
+          logger.error(`❌ [USER-FILE] Erreur embedding chunk ${i}:`, error);
           return null;
         }
       },
@@ -433,12 +434,12 @@ export class UserFilesRAGSystem {
         `;
         inserted++;
       }
-      console.log(
+      logger.log(
         `💾 [USER-FILE] Inséré ${inserted}/${filtered.length} chunks…`,
       );
     }
 
-    console.log(`✅ [USER-FILE] Terminé en ${Date.now() - t0} ms`);
+    logger.log(`✅ [USER-FILE] Terminé en ${Date.now() - t0} ms`);
   }
 
   /**
@@ -448,13 +449,13 @@ export class UserFilesRAGSystem {
    */
   async processUserFile(file: UserFileContent): Promise<string | null> {
     try {
-      console.log(
+      logger.log(
         `📄 [USER-FILE] Traitement: "${file.fileName}" (${file.mimeType})`,
       );
 
       // 1. Calculer le hash du contenu
       const contentHash = this.calculateContentHash(file.buffer);
-      console.log(`🔑 [USER-FILE] Hash: ${contentHash.substring(0, 16)}...`);
+      logger.log(`🔑 [USER-FILE] Hash: ${contentHash.substring(0, 16)}...`);
 
       // 2. Vérifier si une source existe déjà avec ce hash
       const existingSource = await this.findExistingByHash(
@@ -479,7 +480,7 @@ export class UserFilesRAGSystem {
           existingSource.status === "COMPLETED" &&
           existingSource.chunksCount > 0
         ) {
-          console.log(
+          logger.log(
             `♻️ [DEDUP-FILE] Réutilisation: "${file.fileName}" (${existingSource.chunksCount} chunks existants)`,
           );
 
@@ -492,7 +493,7 @@ export class UserFilesRAGSystem {
         }
 
         // Si > 7 jours OU chunks manquants → ré-embedder
-        console.log(
+        logger.log(
           `🔄 [DEDUP-FILE] Re-embedding nécessaire: "${file.fileName}" (raison: ${isOlderThan7Days ? ">7 jours" : "chunks manquants"})`,
         );
 
@@ -503,7 +504,7 @@ export class UserFilesRAGSystem {
       }
 
       // 4. Extraction du texte
-      console.log(`📝 [USER-FILE] Extraction du contenu...`);
+      logger.log(`📝 [USER-FILE] Extraction du contenu...`);
       const extractedText = await this.extractFileContent(
         file.buffer,
         file.mimeType,
@@ -513,7 +514,7 @@ export class UserFilesRAGSystem {
         throw new Error("Contenu extrait vide ou trop court");
       }
 
-      console.log(
+      logger.log(
         `✅ [USER-FILE] Texte extrait: ${extractedText.length} caractères`,
       );
 
@@ -551,7 +552,7 @@ export class UserFilesRAGSystem {
             updatedAt: new Date(),
           },
         });
-        console.log(`🆕 [USER-FILE] Source mise à jour: ${source.id}`);
+        logger.log(`🆕 [USER-FILE] Source mise à jour: ${source.id}`);
       } else {
         source = await prisma.rAGSource.create({
           data: {
@@ -574,7 +575,7 @@ export class UserFilesRAGSystem {
             lastUsedAt: new Date(),
           },
         });
-        console.log(`🆕 [USER-FILE] Nouvelle source: ${source.id}`);
+        logger.log(`🆕 [USER-FILE] Nouvelle source: ${source.id}`);
       }
 
       // 8. Génération des embeddings et sauvegarde
@@ -589,12 +590,12 @@ export class UserFilesRAGSystem {
         },
       });
 
-      console.log(
+      logger.log(
         `✅ [USER-FILE] Terminé: "${file.fileName}" (${chunks.length} chunks)`,
       );
       return source.id;
     } catch (error) {
-      console.error(
+      logger.error(
         `❌ [USER-FILE] Erreur traitement fichier "${file.fileName}":`,
         error,
       );

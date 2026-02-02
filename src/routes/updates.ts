@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken } from '../middlewares/auth.js';
+import { logger } from "../utils/logger.js";
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -22,7 +23,7 @@ router.get('/', async (req, res) => {
 
     res.json({ updates });
   } catch (error) {
-    console.error('Erreur lors de la récupération des updates:', error);
+    logger.error('Erreur lors de la récupération des updates:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
@@ -45,7 +46,7 @@ router.get('/:id', async (req, res) => {
 
     res.json({ update });
   } catch (error) {
-    console.error('Erreur lors de la récupération de l\'update:', error);
+    logger.error('Erreur lors de la récupération de l\'update:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

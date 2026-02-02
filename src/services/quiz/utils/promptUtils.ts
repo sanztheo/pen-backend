@@ -1,3 +1,4 @@
+import { logger } from "../../../utils/logger.js";
 import {
   QuestionType,
   SchoolLevel,
@@ -38,7 +39,7 @@ export class PromptUtils {
       request.specialties ||
       request.lyceeSpecialties ||
       request.selectedSpecialties;
-    console.log(
+    logger.log(
       `📚 [CUSTOM] Génération prompt personnalisé: ${request.schoolLevel} - Spécialités: ${specialtiesDebug?.join(", ") || "N/A"} - Types: ${request.questionTypes?.join(", ") || "N/A"}`,
     );
     return this.getCustomPrompt(request);
@@ -62,10 +63,10 @@ export class PromptUtils {
     const shouldActivateFewShot = !ragContextProvided;
 
     if (shouldActivateFewShot) {
-      console.log(
+      logger.log(
         `🎓 [FEW-SHOT] Génération SANS RAG détectée - Ajout des exemples calibrés`,
       );
-      console.log(
+      logger.log(
         `🎓 [FEW-SHOT] Contexte RAG: ${ragContextProvided ? "OUI" : "NON"} - Few-Shot: ACTIVÉ`,
       );
       const fewShotPrompt = getFewShotPrompt(
@@ -73,14 +74,14 @@ export class PromptUtils {
         request.collegeGrade,
       );
       basePrompt += "\n\n" + fewShotPrompt;
-      console.log(
+      logger.log(
         `🎓 [FEW-SHOT] Exemples intégrés pour améliorer la qualité sans documents`,
       );
     } else {
-      console.log(
+      logger.log(
         `📚 [RAG] Génération AVEC contexte RAG - Few-Shot désactivé (non nécessaire)`,
       );
-      console.log(
+      logger.log(
         `📚 [RAG] Taille contexte: ${request.ragContext?.length || 0} caractères`,
       );
     }
@@ -263,12 +264,12 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
     switch (preset) {
       case QuizPreset.BREVET:
         if (subject) {
-          console.log(`📝 [BREVET] Génération prompt pour: ${subject}`);
+          logger.log(`📝 [BREVET] Génération prompt pour: ${subject}`);
           return getBrevetPrompt(subject, request?.collegeGrade);
         }
         // Vérifier s'il y a un specificSubject dans la requête
         if (request?.specificSubject) {
-          console.log(
+          logger.log(
             `📝 [BREVET] Génération prompt pour specificSubject: ${request.specificSubject}`,
           );
           return getBrevetPrompt(
@@ -276,17 +277,17 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
             request?.collegeGrade,
           );
         }
-        console.log(`📝 [BREVET] Génération prompt par défaut: FRANCAIS`);
+        logger.log(`📝 [BREVET] Génération prompt par défaut: FRANCAIS`);
         return getBrevetPrompt(ExamSubject.FRANCAIS, request?.collegeGrade);
 
       case QuizPreset.BAC:
         if (subject) {
-          console.log(`🎓 [BAC] Génération prompt pour: ${subject}`);
+          logger.log(`🎓 [BAC] Génération prompt pour: ${subject}`);
           return getBacPrompt(subject, request?.lyceeSpecialties);
         }
         // Vérifier s'il y a un specificSubject dans la requête
         if (request?.specificSubject) {
-          console.log(
+          logger.log(
             `🎓 [BAC] Génération prompt pour specificSubject: ${request.specificSubject}`,
           );
           return getBacPrompt(
@@ -294,14 +295,14 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
             request?.lyceeSpecialties,
           );
         }
-        console.log(`🎓 [BAC] Génération prompt par défaut: PHILOSOPHIE`);
+        logger.log(`🎓 [BAC] Génération prompt par défaut: PHILOSOPHIE`);
         return getBacPrompt(ExamSubject.PHILOSOPHIE, request?.lyceeSpecialties);
 
       case QuizPreset.PARTIELS:
         if (subject && request?.higherEdField) {
           // Pour les partiels, on utilise le nom de la matière spécifique
           const subjectName = this.getPartielsSubjectName(request, subject);
-          console.log(
+          logger.log(
             `📚 [PARTIELS] Génération prompt pour: ${request.higherEdField} - ${subjectName}`,
           );
           return getPartielsPrompt(request.higherEdField, subjectName);
@@ -312,12 +313,12 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
             request,
             request.specificSubject,
           );
-          console.log(
+          logger.log(
             `📚 [PARTIELS] Génération prompt pour specificSubject: ${request.higherEdField} - ${subjectName}`,
           );
           return getPartielsPrompt(request.higherEdField, subjectName);
         }
-        console.log(
+        logger.log(
           `📚 [PARTIELS] Génération prompt par défaut: ${request?.higherEdField || "Général"}`,
         );
         return getPartielsPrompt(
@@ -326,7 +327,7 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
         );
 
       default:
-        console.log(
+        logger.log(
           `⚠️ [PRESET] Preset non reconnu: ${preset}, fallback vers prompt générique`,
         );
         // Fallback vers le prompt générique

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
 import { wikipediaRAG, type WikipediaArticle } from "../../rag/wikipedia.js";
 import { ragSystem } from "../../rag/index.js";
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Context utilisateur injecté via closure
@@ -141,7 +142,7 @@ UTILISE CET OUTIL pour stocker des articles Wikipedia importants que tu veux pou
 Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
       inputSchema: indexWikipediaToRAGSchema,
       execute: async ({ pageid, title }) => {
-        console.log(
+        logger.log(
           `🔄 [TOOL:indexWikipediaToRAG] pageid=${pageid}, title=${title}`,
         );
 
@@ -189,7 +190,7 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
           });
 
           if (existing) {
-            console.log(
+            logger.log(
               `♻️ [TOOL:indexWikipediaToRAG] Article déjà indexé: "${existing.title}" (${existing.totalChunks} chunks)`,
             );
             return {
@@ -224,7 +225,7 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
           };
 
           // 5. Indexer via WikipediaRAGSystem (chunks + embeddings + pgvector)
-          console.log(
+          logger.log(
             `📖 [TOOL:indexWikipediaToRAG] Indexation de "${resolvedTitle}"...`,
           );
           const sourceIds = await wikipediaRAG.processWikipediaArticles(
@@ -246,7 +247,7 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
             select: { id: true, title: true, totalChunks: true, status: true },
           });
 
-          console.log(
+          logger.log(
             `✅ [TOOL:indexWikipediaToRAG] "${resolvedTitle}" indexé avec ${source?.totalChunks || 0} chunks`,
           );
 
@@ -259,7 +260,7 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
             message: `Article "${resolvedTitle}" indexé avec succès (${source?.totalChunks} chunks avec embeddings text-embedding-3-small)`,
           };
         } catch (error) {
-          console.error(`❌ [TOOL:indexWikipediaToRAG] Erreur:`, error);
+          logger.error(`❌ [TOOL:indexWikipediaToRAG] Erreur:`, error);
           return {
             error: "Erreur lors de l'indexation Wikipedia",
             indexed: false,
@@ -278,7 +279,7 @@ cet outil retourne l'article entier organisé par sections.
 Idéal pour une lecture approfondie ou avant d'indexer dans RAG.`,
       inputSchema: getWikipediaFullContentSchema,
       execute: async ({ pageid, title, maxSections }) => {
-        console.log(
+        logger.log(
           `📖 [TOOL:getWikipediaFullContent] pageid=${pageid}, title=${title}`,
         );
 
@@ -328,7 +329,7 @@ Idéal pour une lecture approfondie ou avant d'indexer dans RAG.`,
           // Parser les sections
           const sections = parseWikiSections(fullText).slice(0, maxSections);
 
-          console.log(
+          logger.log(
             `✅ [TOOL:getWikipediaFullContent] "${pageData.title}": ${fullText.length} chars, ${sections.length} sections`,
           );
 
@@ -349,7 +350,7 @@ Idéal pour une lecture approfondie ou avant d'indexer dans RAG.`,
             },
           };
         } catch (error) {
-          console.error(`❌ [TOOL:getWikipediaFullContent] Erreur:`, error);
+          logger.error(`❌ [TOOL:getWikipediaFullContent] Erreur:`, error);
           return { error: "Erreur lors de la récupération", article: null };
         }
       },
@@ -365,7 +366,7 @@ DIFFÉRENT de searchRagChunks: celui-ci cherche UNIQUEMENT dans les sources Wiki
 Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les rechercher.`,
       inputSchema: searchWikipediaRAGSchema,
       execute: async ({ query, limit, threshold }) => {
-        console.log(
+        logger.log(
           `🔍 [TOOL:searchWikipediaRAG] query="${query}", limit=${limit}`,
         );
 
@@ -416,7 +417,7 @@ Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les reche
             })
             .slice(0, limit);
 
-          console.log(
+          logger.log(
             `✅ [TOOL:searchWikipediaRAG] ${uniqueResults.length} chunks Wikipedia trouvés`,
           );
 
@@ -435,7 +436,7 @@ Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les reche
             })),
           };
         } catch (error) {
-          console.error(`❌ [TOOL:searchWikipediaRAG] Erreur:`, error);
+          logger.error(`❌ [TOOL:searchWikipediaRAG] Erreur:`, error);
           return {
             error: "Erreur lors de la recherche Wikipedia RAG",
             count: 0,
@@ -454,7 +455,7 @@ Utile pour voir quels articles sont disponibles pour la recherche sémantique.
 Retourne le titre, nombre de chunks, et date d'indexation.`,
       inputSchema: listWikipediaRAGSourcesSchema,
       execute: async ({ limit }) => {
-        console.log(`📋 [TOOL:listWikipediaRAGSources] limit=${limit}`);
+        logger.log(`📋 [TOOL:listWikipediaRAGSources] limit=${limit}`);
 
         try {
           const sources = await prismaEmbeddings.rAGSource.findMany({
@@ -478,7 +479,7 @@ Retourne le titre, nombre de chunks, et date d'indexation.`,
             take: limit,
           });
 
-          console.log(
+          logger.log(
             `✅ [TOOL:listWikipediaRAGSources] ${sources.length} articles Wikipedia indexés`,
           );
 
@@ -494,7 +495,7 @@ Retourne le titre, nombre de chunks, et date d'indexation.`,
             })),
           };
         } catch (error) {
-          console.error(`❌ [TOOL:listWikipediaRAGSources] Erreur:`, error);
+          logger.error(`❌ [TOOL:listWikipediaRAGSources] Erreur:`, error);
           return {
             error: "Erreur lors de la récupération",
             count: 0,

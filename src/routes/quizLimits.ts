@@ -3,6 +3,7 @@
  * Endpoints pour la gestion des limitations de quiz personnalisés et presets
  */
 
+import { logger } from "../utils/logger.js";
 import express from 'express';
 import { authenticateToken } from '../middlewares/auth.js';
 import { Request } from 'express';
@@ -34,7 +35,7 @@ router.get('/custom/check', authenticateToken, async (req: AuthRequest, res) => 
       limitType: 'quiz-custom'
     });
   } catch (error) {
-    console.error('Erreur vérification limites quiz personnalisés:', error);
+    logger.error('Erreur vérification limites quiz personnalisés:', error);
     res.status(500).json({
       success: false,
       error: 'Erreur serveur lors de la vérification des limites',
@@ -64,7 +65,7 @@ router.get('/preset/check/:preset', authenticateToken, async (req: AuthRequest, 
       existingSequence: result.existingSequence
     });
   } catch (error) {
-    console.error('Erreur vérification limites séquences preset:', error);
+    logger.error('Erreur vérification limites séquences preset:', error);
     res.status(500).json({
       success: false,
       error: 'Erreur serveur lors de la vérification des limites',
@@ -99,7 +100,7 @@ router.post('/custom/deduct', authenticateToken, async (req: AuthRequest, res) =
       });
     }
   } catch (error) {
-    console.error('Erreur déduction quiz personnalisé:', error);
+    logger.error('Erreur déduction quiz personnalisé:', error);
     res.status(500).json({
       success: false,
       error: 'Erreur serveur lors de la déduction',
@@ -166,7 +167,7 @@ router.post('/preset/start', authenticateToken, async (req: AuthRequest, res) =>
       });
     }
   } catch (error) {
-    console.error('Erreur démarrage séquence preset:', error);
+    logger.error('Erreur démarrage séquence preset:', error);
     res.status(500).json({
       success: false,
       error: 'Erreur serveur lors du démarrage de la séquence'
@@ -209,7 +210,7 @@ router.post('/refund', authenticateToken, async (req: AuthRequest, res) => {
       });
     }
   } catch (error) {
-    console.error('Erreur remboursement quota quiz:', error);
+    logger.error('Erreur remboursement quota quiz:', error);
     res.status(500).json({
       success: false,
       error: 'Erreur serveur lors du remboursement'
@@ -254,7 +255,7 @@ router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
       }
     });
   } catch (error) {
-    console.error('Erreur récupération statut limites quiz:', error);
+    logger.error('Erreur récupération statut limites quiz:', error);
     res.status(500).json({
       success: false,
       error: 'Erreur serveur lors de la récupération du statut'

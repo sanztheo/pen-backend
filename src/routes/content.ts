@@ -3,6 +3,7 @@
  * API simplifiée qui masque les workspaces aux utilisateurs
  */
 
+import { logger } from "../utils/logger.js";
 import { Router } from "express";
 import { z } from "zod";
 import { authenticateToken } from "../middlewares/auth.js";
@@ -47,22 +48,22 @@ router.get("/", authenticateToken, async (req, res) => {
     // 🚀 Essayer de récupérer depuis le cache Redis
     const cachedContent = await cacheSidebarContent(userId);
     if (cachedContent) {
-      console.log("✅ [CONTENT-API] Retour depuis cache Redis");
+      logger.log("✅ [CONTENT-API] Retour depuis cache Redis");
       return res.json(cachedContent);
     }
 
     // ❌ Pas de cache : récupérer depuis la DB
-    console.log("❌ [CONTENT-API] Cache MISS - récupération DB");
+    logger.log("❌ [CONTENT-API] Cache MISS - récupération DB");
     const content = await SimplifiedContentService.getUserContent(userId);
 
     // 💾 Sauvegarder dans le cache pour les prochaines requêtes
     saveSidebarContent(userId, content).catch((err) =>
-      console.warn("⚠️ [CONTENT-API] Échec sauvegarde cache:", err),
+      logger.warn("⚠️ [CONTENT-API] Échec sauvegarde cache:", err),
     );
 
     res.json(content);
   } catch (error: unknown) {
-    console.error("❌ [CONTENT-API] Erreur récupération contenu:", error);
+    logger.error("❌ [CONTENT-API] Erreur récupération contenu:", error);
     res.status(500).json({
       success: false,
       error: "Erreur interne du serveur",
@@ -87,7 +88,7 @@ router.get("/workspace", authenticateToken, async (req, res) => {
       workspaceId,
     });
   } catch (error: unknown) {
-    console.error("❌ [CONTENT-API] Erreur récupération workspaceId:", error);
+    logger.error("❌ [CONTENT-API] Erreur récupération workspaceId:", error);
     res.status(500).json({
       success: false,
       error: "Erreur lors de la récupération du workspace",
@@ -109,7 +110,7 @@ router.get("/projects", authenticateToken, async (req, res) => {
       projects,
     });
   } catch (error: unknown) {
-    console.error("❌ [CONTENT-API] Erreur récupération projets:", error);
+    logger.error("❌ [CONTENT-API] Erreur récupération projets:", error);
     res.status(500).json({
       success: false,
       error: "Erreur interne du serveur",
@@ -131,7 +132,7 @@ router.get("/pages", authenticateToken, async (req, res) => {
       pages,
     });
   } catch (error: unknown) {
-    console.error("❌ [CONTENT-API] Erreur récupération pages:", error);
+    logger.error("❌ [CONTENT-API] Erreur récupération pages:", error);
     res.status(500).json({
       success: false,
       error: "Erreur interne du serveur",
@@ -156,7 +157,7 @@ router.post("/projects", authenticateToken, async (req, res) => {
     // 🗑️ Invalider le cache sidebar après création
     const { invalidateSidebarCache } = await import("../lib/redis.js");
     invalidateSidebarCache(userId).catch((err) =>
-      console.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
+      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
     );
 
     res.status(201).json({
@@ -183,7 +184,7 @@ router.post("/projects", authenticateToken, async (req, res) => {
       });
     }
 
-    console.error("❌ [CONTENT-API] Erreur création projet:", error);
+    logger.error("❌ [CONTENT-API] Erreur création projet:", error);
     res.status(500).json({
       success: false,
       error: "Erreur interne du serveur",
@@ -209,7 +210,7 @@ router.post("/pages", authenticateToken, async (req, res) => {
     // 🗑️ Invalider le cache sidebar après création
     const { invalidateSidebarCache } = await import("../lib/redis.js");
     invalidateSidebarCache(userId).catch((err) =>
-      console.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
+      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
     );
 
     res.status(201).json({
@@ -226,7 +227,7 @@ router.post("/pages", authenticateToken, async (req, res) => {
       });
     }
 
-    console.error("❌ [CONTENT-API] Erreur création page:", error);
+    logger.error("❌ [CONTENT-API] Erreur création page:", error);
     res.status(500).json({
       success: false,
       error: "Erreur interne du serveur",
@@ -266,7 +267,7 @@ router.put("/projects/:id", authenticateToken, async (req, res) => {
     // 🗑️ Invalider le cache sidebar après modification
     const { invalidateSidebarCache } = await import("../lib/redis.js");
     invalidateSidebarCache(userId).catch((err) =>
-      console.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
+      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
     );
 
     res.json({
@@ -283,7 +284,7 @@ router.put("/projects/:id", authenticateToken, async (req, res) => {
       });
     }
 
-    console.error("❌ [CONTENT-API] Erreur mise à jour projet:", error);
+    logger.error("❌ [CONTENT-API] Erreur mise à jour projet:", error);
     res.status(500).json({
       success: false,
       error: "Erreur interne du serveur",
@@ -305,7 +306,7 @@ router.delete("/projects/:id", authenticateToken, async (req, res) => {
     // 🗑️ Invalider le cache sidebar après suppression
     const { invalidateSidebarCache } = await import("../lib/redis.js");
     invalidateSidebarCache(userId).catch((err) =>
-      console.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
+      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
     );
 
     res.json({
@@ -313,7 +314,7 @@ router.delete("/projects/:id", authenticateToken, async (req, res) => {
       message: "Projet supprimé avec succès",
     });
   } catch (error: unknown) {
-    console.error("❌ [CONTENT-API] Erreur suppression projet:", error);
+    logger.error("❌ [CONTENT-API] Erreur suppression projet:", error);
     res.status(500).json({
       success: false,
       error: "Erreur interne du serveur",
@@ -335,7 +336,7 @@ router.delete("/pages/:id", authenticateToken, async (req, res) => {
     // 🗑️ Invalider le cache sidebar après suppression
     const { invalidateSidebarCache } = await import("../lib/redis.js");
     invalidateSidebarCache(userId).catch((err) =>
-      console.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
+      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
     );
 
     res.json({
@@ -343,7 +344,7 @@ router.delete("/pages/:id", authenticateToken, async (req, res) => {
       message: "Page supprimée avec succès",
     });
   } catch (error: unknown) {
-    console.error("❌ [CONTENT-API] Erreur suppression page:", error);
+    logger.error("❌ [CONTENT-API] Erreur suppression page:", error);
     res.status(500).json({
       success: false,
       error: "Erreur interne du serveur",
@@ -402,7 +403,7 @@ router.patch("/projects/:id/pin", authenticateToken, async (req, res) => {
     // 🗑️ Invalider le cache sidebar après modification
     const { invalidateSidebarCache } = await import("../lib/redis.js");
     invalidateSidebarCache(userId).catch((err) =>
-      console.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
+      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
     );
 
     res.json({
@@ -410,7 +411,7 @@ router.patch("/projects/:id/pin", authenticateToken, async (req, res) => {
       project: updatedProject,
     });
   } catch (error: unknown) {
-    console.error("❌ [CONTENT-API] Erreur toggle pin projet:", error);
+    logger.error("❌ [CONTENT-API] Erreur toggle pin projet:", error);
     res.status(500).json({
       success: false,
       error: "Erreur interne du serveur",
@@ -464,7 +465,7 @@ router.patch("/pages/:id/pin", authenticateToken, async (req, res) => {
     // 🗑️ Invalider le cache sidebar après modification
     const { invalidateSidebarCache } = await import("../lib/redis.js");
     invalidateSidebarCache(userId).catch((err) =>
-      console.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
+      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
     );
 
     res.json({
@@ -472,7 +473,7 @@ router.patch("/pages/:id/pin", authenticateToken, async (req, res) => {
       page: updatedPage,
     });
   } catch (error: unknown) {
-    console.error("❌ [CONTENT-API] Erreur toggle pin page:", error);
+    logger.error("❌ [CONTENT-API] Erreur toggle pin page:", error);
     res.status(500).json({
       success: false,
       error: "Erreur interne du serveur",

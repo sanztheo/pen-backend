@@ -3,6 +3,7 @@
  * Empeche un utilisateur de saturer les ressources AI
  */
 
+import { logger } from "../utils/logger.js";
 import type { Request, Response, NextFunction } from "express";
 import { redis } from "../lib/redis.js";
 
@@ -44,7 +45,7 @@ export const aiConcurrencyLimit = async (
       if (decremented) return;
       decremented = true;
       redis.decr(key).catch((err) => {
-        console.error("[AI-CONCURRENCY] Erreur DECR:", err);
+        logger.error("[AI-CONCURRENCY] Erreur DECR:", err);
       });
     };
 
@@ -54,7 +55,7 @@ export const aiConcurrencyLimit = async (
     next();
   } catch (err) {
     // Redis failure: allow request through (fail open)
-    console.error("[AI-CONCURRENCY] Erreur Redis:", err);
+    logger.error("[AI-CONCURRENCY] Erreur Redis:", err);
     next();
   }
 };

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { AIService } from '../../services/ai/index.js';
+import { logger } from "../../utils/logger.js";
 
 // Tester la configuration et connexion IA
 export const testAI = async (req: Request, res: Response) => {
@@ -35,7 +36,7 @@ export const testAI = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Erreur test IA:', error);
+    logger.error('Erreur test IA:', error);
     res.status(500).json({
       error: 'Erreur interne lors du test IA',
       configured: AIService.isConfigured(),

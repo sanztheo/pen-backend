@@ -10,6 +10,7 @@
  * - Bloque l'accès aux workspaces des autres utilisateurs
  */
 
+import { logger } from "../utils/logger.js";
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma.js";
 
@@ -70,7 +71,7 @@ export const verifyWorkspaceAccess = async (
     });
 
     if (!workspace) {
-      console.warn(
+      logger.warn(
         `🚨 [WORKSPACE-ACCESS] Tentative d'accès non autorisé: userId=${userId}, workspaceId=${workspaceId}`,
       );
       return res.status(403).json({
@@ -82,7 +83,7 @@ export const verifyWorkspaceAccess = async (
     // Workspace valide, continuer
     next();
   } catch (error) {
-    console.error("[WORKSPACE-ACCESS] Erreur lors de la vérification:", error);
+    logger.error("[WORKSPACE-ACCESS] Erreur lors de la vérification:", error);
     return res.status(500).json({
       error: "Erreur lors de la vérification des permissions",
       code: "WORKSPACE_ACCESS_ERROR",
@@ -130,7 +131,7 @@ export const verifyWorkspaceOwnership = async (
     });
 
     if (!workspace) {
-      console.warn(
+      logger.warn(
         `🚨 [WORKSPACE-OWNERSHIP] Tentative d'opération propriétaire non autorisée: userId=${userId}, workspaceId=${workspaceId}`,
       );
       return res.status(403).json({
@@ -142,7 +143,7 @@ export const verifyWorkspaceOwnership = async (
 
     next();
   } catch (error) {
-    console.error(
+    logger.error(
       "[WORKSPACE-OWNERSHIP] Erreur lors de la vérification:",
       error,
     );
@@ -190,7 +191,7 @@ export const verifyConversationAccess = async (
     });
 
     if (!conversation) {
-      console.warn(
+      logger.warn(
         `🚨 [CONVERSATION-ACCESS] Tentative d'accès non autorisé: userId=${userId}, conversationId=${conversationId}`,
       );
       return res.status(403).json({
@@ -202,7 +203,7 @@ export const verifyConversationAccess = async (
     // Conversation valide, continuer
     next();
   } catch (error) {
-    console.error(
+    logger.error(
       "[CONVERSATION-ACCESS] Erreur lors de la vérification:",
       error,
     );

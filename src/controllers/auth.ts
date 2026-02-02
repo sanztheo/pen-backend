@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AuthService } from "../services/auth.js";
 import { UserSyncService } from "../services/userSync.js";
 import { z } from "zod";
+import { logger } from "../utils/logger.js";
 
 // Schémas de validation
 const registerSchema = z.object({
@@ -122,7 +123,7 @@ export const register = async (req: Request, res: Response) => {
       });
     }
 
-    console.error("Erreur inscription:", error);
+    logger.error("Erreur inscription:", error);
     res.status(500).json({
       error: "Erreur interne du serveur",
       code: "INTERNAL_ERROR",
@@ -149,7 +150,7 @@ export const login = async (req: Request, res: Response) => {
       });
     }
 
-    console.error("Erreur connexion:", error);
+    logger.error("Erreur connexion:", error);
     res.status(500).json({
       error: "Erreur interne du serveur",
       code: "INTERNAL_ERROR",
@@ -165,14 +166,14 @@ export const logout = async (req: Request, res: Response) => {
 
     if (token) {
       // Avec Clerk, la déconnexion se fait principalement côté client
-      console.log("Token de déconnexion reçu:", token ? "Présent" : "Absent");
+      logger.log("Token de déconnexion reçu:", token ? "Présent" : "Absent");
     }
 
     res.json({
       message: "Déconnexion réussie",
     });
   } catch (error) {
-    console.error("Erreur déconnexion:", error);
+    logger.error("Erreur déconnexion:", error);
     res.status(500).json({
       error: "Erreur interne du serveur",
       code: "INTERNAL_ERROR",
@@ -206,7 +207,7 @@ export const getProfile = async (req: Request, res: Response) => {
       user: completeUserData,
     });
   } catch (error) {
-    console.error("Erreur profil:", error);
+    logger.error("Erreur profil:", error);
     res.status(500).json({
       error: "Erreur interne du serveur",
       code: "INTERNAL_ERROR",
@@ -232,7 +233,7 @@ export const refresh = async (req: Request, res: Response) => {
       code: "USE_CLERK_REFRESH",
     });
   } catch (error) {
-    console.error("Erreur refresh token:", error);
+    logger.error("Erreur refresh token:", error);
     res.status(500).json({
       error: "Erreur interne du serveur",
       code: "INTERNAL_ERROR",
@@ -326,7 +327,7 @@ export const updateProfile = async (req: Request, res: Response) => {
         user: formatSafeUserData(updatedUser),
       });
     } catch (syncError) {
-      console.error("Erreur sync PostgreSQL:", syncError);
+      logger.error("Erreur sync PostgreSQL:", syncError);
       return res.status(500).json({
         error: "Erreur lors de la mise à jour des données",
         code: "SYNC_ERROR",
@@ -341,7 +342,7 @@ export const updateProfile = async (req: Request, res: Response) => {
       });
     }
 
-    console.error("Erreur mise à jour profil:", error);
+    logger.error("Erreur mise à jour profil:", error);
     res.status(500).json({
       error: "Erreur interne du serveur",
       code: "INTERNAL_ERROR",
@@ -374,7 +375,7 @@ export const updateEmail = async (req: Request, res: Response) => {
         code: "VALIDATION_ERROR",
       });
     }
-    console.error("Erreur mise à jour email:", error);
+    logger.error("Erreur mise à jour email:", error);
     return res.status(500).json({
       error: "Erreur interne du serveur",
       code: "INTERNAL_ERROR",
@@ -408,7 +409,7 @@ export const updatePassword = async (req: Request, res: Response) => {
       });
     }
 
-    console.error("Erreur mise à jour mot de passe:", error);
+    logger.error("Erreur mise à jour mot de passe:", error);
     res.status(500).json({
       error: "Erreur interne du serveur",
       code: "INTERNAL_ERROR",

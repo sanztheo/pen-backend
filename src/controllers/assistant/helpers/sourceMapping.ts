@@ -3,6 +3,7 @@
  * Convertit les IDs inventés du frontend en vrais UUIDs de la DB
  */
 
+import { logger } from "../../../utils/logger.js";
 import { prisma } from "../../../lib/prisma.js";
 import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
 
@@ -51,13 +52,13 @@ export async function mapRagSourcesToRealUUIDs(
   const titles = ragSources.map((s) => s.title).filter(Boolean);
 
   if (titles.length === 0) {
-    console.log(
+    logger.log(
       `⚠️ [SOURCE-MAPPING] Aucun titre valide trouvé dans ragSources`,
     );
     return [];
   }
 
-  console.log(
+  logger.log(
     `🔍 [SOURCE-MAPPING] Recherche de ${titles.length} sources en DB par titre...`,
   );
 
@@ -75,7 +76,7 @@ export async function mapRagSourcesToRealUUIDs(
     },
   });
 
-  console.log(
+  logger.log(
     `✅ [SOURCE-MAPPING] ${dbSources.length}/${titles.length} sources trouvées en DB`,
   );
 
@@ -83,7 +84,7 @@ export async function mapRagSourcesToRealUUIDs(
   if (dbSources.length < titles.length) {
     const foundTitles = new Set(dbSources.map((s) => s.title));
     const notFound = titles.filter((t) => !foundTitles.has(t));
-    console.log(
+    logger.log(
       `⚠️ [SOURCE-MAPPING] Sources non trouvées: ${notFound.join(", ")}`,
     );
   }
@@ -114,7 +115,7 @@ export async function mapAllSourcesToRealUUIDs(
   if (ragSources.length > 0) {
     const wikipediaSources = await mapRagSourcesToRealUUIDs(ragSources);
     mappedSources.push(...wikipediaSources);
-    console.log(
+    logger.log(
       `✅ [SOURCE-MAPPING] ${wikipediaSources.length} Wikipedia sources mappées`,
     );
   }
@@ -127,7 +128,7 @@ export async function mapAllSourcesToRealUUIDs(
       type: "PAGE",
     }));
     mappedSources.push(...pageSources);
-    console.log(
+    logger.log(
       `✅ [SOURCE-MAPPING] ${pageSources.length} pages workspace ajoutées`,
     );
   }
@@ -145,12 +146,12 @@ export async function mapAllSourcesToRealUUIDs(
         type: "FILE",
       }));
     mappedSources.push(...attachmentSources);
-    console.log(
+    logger.log(
       `✅ [SOURCE-MAPPING] ${attachmentSources.length} pièces jointes ajoutées`,
     );
   }
 
-  console.log(
+  logger.log(
     `📊 [SOURCE-MAPPING] Total: ${mappedSources.length} sources mappées`,
   );
   return mappedSources;

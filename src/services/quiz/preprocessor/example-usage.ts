@@ -5,6 +5,7 @@
  * NE PAS IMPORTER ce fichier - c'est uniquement pour documentation.
  */
 
+import { logger } from "../../../utils/logger.js";
 import { Request, Response } from "express";
 import { quizLimitValidator } from "./index.js";
 import type { QuizPreprocessorOutput } from "./types.js";
@@ -64,7 +65,7 @@ export async function createQuizWithValidation(req: Request, res: Response) {
 
     res.json({ success: true, quiz });
   } catch (error) {
-    console.error("Error creating quiz:", error);
+    logger.error("Error creating quiz:", error);
     res.status(500).json({ error: "Erreur serveur" });
   }
 }
@@ -100,7 +101,7 @@ export async function checkQuizCreationAllowed(req: Request, res: Response) {
 
     res.json({ success: true, allowed: true });
   } catch (error) {
-    console.error("Error checking quiz creation:", error);
+    logger.error("Error checking quiz creation:", error);
     res.status(500).json({ error: "Erreur serveur" });
   }
 }
@@ -139,7 +140,7 @@ export async function getUserQuizLimits(req: Request, res: Response) {
       },
     });
   } catch (error) {
-    console.error("Error fetching limits:", error);
+    logger.error("Error fetching limits:", error);
     res.status(500).json({ error: "Erreur serveur" });
   }
 }
@@ -179,7 +180,7 @@ export async function validateQuizParams(
     // Passer au contrôleur suivant
     next();
   } catch (error) {
-    console.error("Validation error:", error);
+    logger.error("Validation error:", error);
     res.status(500).json({ error: "Erreur de validation" });
   }
 }

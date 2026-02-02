@@ -1,11 +1,12 @@
 import { prisma } from './prisma.js';
+import { logger } from "../utils/logger.js";
 
 /**
  * Fonction de maintenance pour réinitialiser les limites mensuellement
  * À exécuter via un CRON job quotidien
  */
 export async function processMonthlyResets() {
-  console.log('🔄 [Monthly Reset] Démarrage du processus de reset mensuel...');
+  logger.log('🔄 [Monthly Reset] Démarrage du processus de reset mensuel...');
   
   try {
     const now = new Date();
@@ -47,7 +48,7 @@ export async function processMonthlyResets() {
 
       // Si on a dépassé la date de reset, réinitialiser
       if (now >= nextResetDate) {
-        console.log(`🔄 [Monthly Reset] Reset pour utilisateur ${user.id}`, {
+        logger.log(`🔄 [Monthly Reset] Reset pour utilisateur ${user.id}`, {
           lastReset: limits.lastResetAt,
           currentPeriodStart: subscription.currentPeriodStart?.toISOString(),
           nextReset: nextResetDate.toISOString(),
@@ -93,12 +94,12 @@ export async function processMonthlyResets() {
     // Traitement des downgrades programmés (cancelAtPeriodEnd = true)
     const downgradeCount = await processScheduledDowngrades(now);
     
-    console.log(`✅ [Monthly Reset] Terminé: ${resetCount} resets effectués, ${downgradeCount} downgrades traités`);
+    logger.log(`✅ [Monthly Reset] Terminé: ${resetCount} resets effectués, ${downgradeCount} downgrades traités`);
     
     return { resetCount, downgradeCount };
     
   } catch (error) {
-    console.error('❌ [Monthly Reset] Erreur:', error);
+    logger.error('❌ [Monthly Reset] Erreur:', error);
     throw error;
   }
 }
@@ -119,7 +120,7 @@ async function processScheduledDowngrades(now: Date) {
   let downgradeCount = 0;
   
   for (const subscription of subscriptionsToDowngrade) {
-    console.log(`📉 [Scheduled Downgrade] Downgrade utilisateur ${subscription.userId} vers free_user`);
+    logger.log(`📉 [Scheduled Downgrade] Downgrade utilisateur ${subscription.userId} vers free_user`);
     
     // Calculer la nouvelle période mensuelle
     const newPeriodStart = now;
@@ -164,7 +165,7 @@ async function processScheduledDowngrades(now: Date) {
  * Fonction pour tester le reset d'un utilisateur spécifique
  */
 export async function testUserReset(userId: string) {
-  console.log(`🧪 [Test Reset] Test reset pour utilisateur ${userId}`);
+  logger.log(`🧪 [Test Reset] Test reset pour utilisateur ${userId}`);
   
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -186,6 +187,6 @@ export async function testUserReset(userId: string) {
     }
   });
   
-  console.log(`✅ [Test Reset] Reset effectué pour ${userId}`);
+  logger.log(`✅ [Test Reset] Reset effectué pour ${userId}`);
   return { success: true, resetAt: now };
 }

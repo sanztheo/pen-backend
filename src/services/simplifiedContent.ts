@@ -3,6 +3,7 @@
  * API simplifiée qui masque les workspaces et expose directement projets/pages
  */
 
+import { logger } from "../utils/logger.js";
 import { prisma } from "../lib/prisma.js";
 import { DefaultWorkspaceService } from "./defaultWorkspace.js";
 import {
@@ -91,7 +92,7 @@ export class SimplifiedContentService {
         await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
       return this._getUserProjects(userId, defaultWorkspaceId);
     } catch (error) {
-      console.error(
+      logger.error(
         "❌ [SIMPLIFIED-CONTENT] Erreur récupération projets:",
         error,
       );
@@ -106,7 +107,7 @@ export class SimplifiedContentService {
         await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
       return this._getUserRootPages(userId, defaultWorkspaceId);
     } catch (error) {
-      console.error(
+      logger.error(
         "❌ [SIMPLIFIED-CONTENT] Erreur récupération pages racine:",
         error,
       );
@@ -133,7 +134,7 @@ export class SimplifiedContentService {
         pages: rootPages,
       };
     } catch (error) {
-      console.error(
+      logger.error(
         "❌ [SIMPLIFIED-CONTENT] Erreur récupération contenu:",
         error,
       );
@@ -151,7 +152,7 @@ export class SimplifiedContentService {
   ) {
     try {
       const startTime = Date.now(); // 🕐 DÉBUT
-      console.log(`⏱️  [SIMPLIFIED-PERF] START createProject`);
+      logger.log(`⏱️  [SIMPLIFIED-PERF] START createProject`);
 
       // 🚀 PHASE 2 OPTIMIZATION: Paralléliser avec REDIS CACHE
       const beforeValidations = Date.now();
@@ -164,7 +165,7 @@ export class SimplifiedContentService {
             : Promise.resolve(null),
         ],
       );
-      console.log(
+      logger.log(
         `⏱️  [SIMPLIFIED-PERF] Validations parallèles (REDIS): ${Date.now() - beforeValidations}ms`,
       );
 
@@ -173,7 +174,7 @@ export class SimplifiedContentService {
         throw new Error("Workspace par défaut non trouvé");
       if (!userLimits) throw new Error("Limitations utilisateur non trouvées");
 
-      console.log("🔍 [SIMPLIFIED-CONTENT] Debug limitations projet:", {
+      logger.log("🔍 [SIMPLIFIED-CONTENT] Debug limitations projet:", {
         userId,
         projectsUsed: userLimits.projectsUsed,
         projectsLimit: userLimits.projectsLimit,
@@ -186,7 +187,7 @@ export class SimplifiedContentService {
         userLimits.projectsLimit === -1 ||
         userLimits.projectsUsed < userLimits.projectsLimit;
       if (!canCreateProject) {
-        console.error(
+        logger.error(
           "🚫 [SIMPLIFIED-CONTENT] Création bloquée par limitation:",
           {
             projectsUsed: userLimits.projectsUsed,
@@ -225,7 +226,7 @@ export class SimplifiedContentService {
           _count: { select: { pages: true } },
         },
       });
-      console.log(
+      logger.log(
         `⏱️  [SIMPLIFIED-PERF] Création projet DB: ${Date.now() - beforeCreate}ms`,
       );
 
@@ -246,16 +247,16 @@ export class SimplifiedContentService {
             }),
           ]);
         } catch (err) {
-          console.error("⚠️ [ASYNC] Erreur updates projet:", err);
+          logger.error("⚠️ [ASYNC] Erreur updates projet:", err);
         }
       })();
 
-      console.log(
+      logger.log(
         `⏱️  [SIMPLIFIED-PERF] TOTAL createProject: ${Date.now() - startTime}ms`,
       );
       return project;
     } catch (error) {
-      console.error("❌ [SIMPLIFIED-CONTENT] Erreur création projet:", error);
+      logger.error("❌ [SIMPLIFIED-CONTENT] Erreur création projet:", error);
       throw error;
     }
   }
@@ -273,7 +274,7 @@ export class SimplifiedContentService {
   ) {
     try {
       const startTime = Date.now(); // 🕐 DÉBUT
-      console.log(`⏱️  [SIMPLIFIED-PERF] START createPage`);
+      logger.log(`⏱️  [SIMPLIFIED-PERF] START createPage`);
 
       // 🚀 PHASE 2 OPTIMIZATION: Paralléliser avec REDIS CACHE
       const beforeValidations = Date.now();
@@ -283,7 +284,7 @@ export class SimplifiedContentService {
           ? cacheProject(data.projectId, userId) // Redis cache (10min TTL)
           : Promise.resolve(null),
       ]);
-      console.log(
+      logger.log(
         `⏱️  [SIMPLIFIED-PERF] Validations parallèles (REDIS): ${Date.now() - beforeValidations}ms`,
       );
 
@@ -318,7 +319,7 @@ export class SimplifiedContentService {
           updatedAt: true,
         },
       });
-      console.log(
+      logger.log(
         `⏱️  [SIMPLIFIED-PERF] Création page DB: ${Date.now() - beforeCreate}ms`,
       );
 
@@ -329,15 +330,15 @@ export class SimplifiedContentService {
           data: { lastActivityAt: new Date() },
         })
         .catch((err) =>
-          console.error("⚠️ [ASYNC] Erreur update workspace:", err),
+          logger.error("⚠️ [ASYNC] Erreur update workspace:", err),
         );
 
-      console.log(
+      logger.log(
         `⏱️  [SIMPLIFIED-PERF] TOTAL createPage: ${Date.now() - startTime}ms`,
       );
       return page;
     } catch (error) {
-      console.error("❌ [SIMPLIFIED-CONTENT] Erreur création page:", error);
+      logger.error("❌ [SIMPLIFIED-CONTENT] Erreur création page:", error);
       throw error;
     }
   }
@@ -373,7 +374,7 @@ export class SimplifiedContentService {
 
       return { success: true };
     } catch (error) {
-      console.error(
+      logger.error(
         "❌ [SIMPLIFIED-CONTENT] Erreur suppression projet:",
         error,
       );
@@ -403,7 +404,7 @@ export class SimplifiedContentService {
         const { userPagesRAG } = await import("./rag/userPages.js");
         await userPagesRAG.removeUserPage(pageId, userId, page.workspaceId);
       } catch (e) {
-        console.warn(
+        logger.warn(
           "🧠 [RAG] Échec suppression sources (simplifiedContent.deletePage), poursuite de la suppression de la page:",
           e,
         );
@@ -412,7 +413,7 @@ export class SimplifiedContentService {
       await prisma.page.delete({ where: { id: pageId } });
       return { success: true };
     } catch (error) {
-      console.error("❌ [SIMPLIFIED-CONTENT] Erreur suppression page:", error);
+      logger.error("❌ [SIMPLIFIED-CONTENT] Erreur suppression page:", error);
       throw error;
     }
   }

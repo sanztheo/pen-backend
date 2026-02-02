@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { FuturaRssService } from "../services/futuraRss.service.js";
 import { secureError } from "../lib/secureLogging.js";
+import { logger } from "../utils/logger.js";
 
 export class DailyArticleController {
   /**
@@ -14,7 +15,7 @@ export class DailyArticleController {
 
       // Si aucun article du jour n'est disponible, récupérer le dernier article disponible
       if (!article) {
-        console.log(
+        logger.log(
           "⚠️ [DAILY-ARTICLE] Aucun article du jour, récupération du dernier disponible...",
         );
         article = await FuturaRssService.getLatestAvailableArticle();

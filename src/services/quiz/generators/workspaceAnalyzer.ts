@@ -1,6 +1,7 @@
 import { AIService } from '../../ai/base.js';
 import { SchoolLevel } from '../types.js';
 import { JsonUtils } from '../utils/jsonUtils.js';
+import { logger } from "../../../utils/logger.js";
 
 /**
  * Analyseur de contenu utilisateur pour la génération de quiz
@@ -62,13 +63,13 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide, sans texte explicatif :
             throw error;
           }
         } catch (secondError) {
-          console.error('❌ Erreur parsing analyse workspace:', result.content.substring(0, 300));
+          logger.error('❌ Erreur parsing analyse workspace:', result.content.substring(0, 300));
           throw error;
         }
       }
 
     } catch (error) {
-      console.error('Erreur analyse workspace IA:', error);
+      logger.error('Erreur analyse workspace IA:', error);
       // Retour par défaut en cas d'erreur
       return {
         mainTopics: ['Contenu général'],

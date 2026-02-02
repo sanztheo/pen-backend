@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { DailyArticleController } from '../controllers/dailyArticle.controller.js';
+import { logger } from "../utils/logger.js";
 
 const router = Router();
 const dailyArticleController = new DailyArticleController();
@@ -14,7 +15,7 @@ const onlyLocalAccess = (req: Request, res: Response, next: NextFunction) => {
     return next();
   }
 
-  console.warn(`⚠️ [SECURITY] Tentative d'accès non autorisé à /refresh depuis ${clientIP}`);
+  logger.warn(`⚠️ [SECURITY] Tentative d'accès non autorisé à /refresh depuis ${clientIP}`);
   return res.status(403).json({
     success: false,
     error: 'Accès interdit - Route réservée aux opérations internes'

@@ -3,6 +3,7 @@
  * Système centralisé de configuration debug pour éviter les logs excessifs
  */
 
+import { logger } from "../../../utils/logger.js";
 export interface DebugConfig {
   WEB_TRACING: boolean;
   RAG_VERBOSE: boolean;
@@ -22,31 +23,31 @@ export const DEBUG_CONFIG: DebugConfig = {
 export class DebugLogger {
   static web(message: string, ...args: unknown[]) {
     if (DEBUG_CONFIG.WEB_TRACING) {
-      console.log(`🌐 [WEB-DEBUG] ${message}`, ...args);
+      logger.log(`🌐 [WEB-DEBUG] ${message}`, ...args);
     }
   }
 
   static rag(message: string, ...args: unknown[]) {
     if (DEBUG_CONFIG.RAG_VERBOSE) {
-      console.log(`🔍 [RAG-DEBUG] ${message}`, ...args);
+      logger.log(`🔍 [RAG-DEBUG] ${message}`, ...args);
     }
   }
 
   static performance(message: string, ...args: unknown[]) {
     if (DEBUG_CONFIG.PERFORMANCE_TIMING) {
-      console.log(`⚡ [PERF-DEBUG] ${message}`, ...args);
+      logger.log(`⚡ [PERF-DEBUG] ${message}`, ...args);
     }
   }
 
   static session(message: string, ...args: unknown[]) {
     if (DEBUG_CONFIG.SESSION_DEBUG) {
-      console.log(`🔍 [SESSION-DEBUG] ${message}`, ...args);
+      logger.log(`🔍 [SESSION-DEBUG] ${message}`, ...args);
     }
   }
 
   static embedding(message: string, ...args: unknown[]) {
     if (DEBUG_CONFIG.EMBEDDING_DEBUG) {
-      console.log(`🧠 [EMBEDDING-DEBUG] ${message}`, ...args);
+      logger.log(`🧠 [EMBEDDING-DEBUG] ${message}`, ...args);
     }
   }
 }

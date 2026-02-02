@@ -7,6 +7,7 @@
  * @see https://ai-sdk.dev/docs/ai-sdk-ui/chatbot-message-persistence
  */
 
+import { logger } from "../../utils/logger.js";
 import { prisma } from "../../lib/prisma.js";
 import type { UIMessage } from "ai";
 
@@ -43,7 +44,7 @@ export async function saveConversation({
   messages: UIMessage[];
   mode?: string;
 }): Promise<void> {
-  console.log(
+  logger.log(
     `💾 [CONVERSATION] Sauvegarde: ${conversationId}, ${messages.length} messages`,
   );
 
@@ -94,11 +95,11 @@ export async function saveConversation({
       });
     }
 
-    console.log(
+    logger.log(
       `✅ [CONVERSATION] Sauvegardé: ${conversationId}, ${messages.length} messages`,
     );
   } catch (error) {
-    console.error(`❌ [CONVERSATION] Erreur sauvegarde:`, error);
+    logger.error(`❌ [CONVERSATION] Erreur sauvegarde:`, error);
     // Ne pas throw pour ne pas casser le stream
   }
 }
@@ -111,7 +112,7 @@ export async function loadConversation(
   conversationId: string,
   userId: string,
 ): Promise<UIMessage[] | null> {
-  console.log(`📖 [CONVERSATION] Chargement: ${conversationId}`);
+  logger.log(`📖 [CONVERSATION] Chargement: ${conversationId}`);
 
   try {
     // Vérifier que la conversation appartient à l'utilisateur
@@ -128,7 +129,7 @@ export async function loadConversation(
     });
 
     if (!conversation) {
-      console.log(`⚠️ [CONVERSATION] Non trouvée: ${conversationId}`);
+      logger.log(`⚠️ [CONVERSATION] Non trouvée: ${conversationId}`);
       return null;
     }
 
@@ -148,12 +149,12 @@ export async function loadConversation(
       }
     });
 
-    console.log(
+    logger.log(
       `✅ [CONVERSATION] Chargé: ${conversationId}, ${messages.length} messages`,
     );
     return messages;
   } catch (error) {
-    console.error(`❌ [CONVERSATION] Erreur chargement:`, error);
+    logger.error(`❌ [CONVERSATION] Erreur chargement:`, error);
     return null;
   }
 }
@@ -215,7 +216,7 @@ export async function deleteConversation(
 
     return result.count > 0;
   } catch (error) {
-    console.error(`❌ [CONVERSATION] Erreur suppression:`, error);
+    logger.error(`❌ [CONVERSATION] Erreur suppression:`, error);
     return false;
   }
 }

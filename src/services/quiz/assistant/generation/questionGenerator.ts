@@ -3,6 +3,7 @@
 import OpenAI from "openai";
 import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 import { AIService } from "../../../ai/base.js";
+import { logger } from "../../../../utils/logger.js";
 import {
   getPersonalizationContextForUser,
   type PersonalizationContext,
@@ -77,10 +78,10 @@ export class QuestionGenerator {
       }
 
       const generationModel = AIService.getQuizGenerationModel();
-      console.log(
+      logger.log(
         `🚀 [STREAMING] Génération via Chat Completion + JSON strict (${generationModel})`,
       );
-      console.log(
+      logger.log(
         `🧠 [STREAMING-DEBUG] ragContext dans request: ${request.ragContext ? `${request.ragContext.length} caractères` : "VIDE ou undefined"}`,
       );
 
@@ -92,12 +93,12 @@ export class QuestionGenerator {
             request.userId,
           );
           if (personalization?.hasPersonalization) {
-            console.log(
+            logger.log(
               `👤 [PERSONALIZATION] Contexte utilisateur chargé: ${personalization.classe || "N/A"}, ${personalization.domaine || "N/A"}`,
             );
           }
         } catch (error) {
-          console.warn(
+          logger.warn(
             "⚠️ [PERSONALIZATION] Impossible de charger la personnalisation:",
             error,
           );
@@ -126,7 +127,7 @@ export class QuestionGenerator {
         personalization,
       );
 
-      console.log(`📤 [STREAMING] Envoi à ${generationModel} avec JSON strict`);
+      logger.log(`📤 [STREAMING] Envoi à ${generationModel} avec JSON strict`);
 
       // Configuration de base pour l'appel API
       const apiConfig: ExtendedChatConfig = {
@@ -156,7 +157,7 @@ export class QuestionGenerator {
         apiConfig.reasoning_effort = "low";
         apiConfig.max_completion_tokens = 2000;
         // GPT-5 n'accepte que temperature=1 (défaut), on ne le spécifie pas
-        console.log(
+        logger.log(
           "🧠 [STREAMING] GPT-5-mini détecté : reasoning_effort=low, max_completion_tokens=2000, temperature=1 (défaut)",
         );
       } else {
@@ -179,19 +180,19 @@ export class QuestionGenerator {
         isSingleQuestionGenerationResult(result) &&
         result.questions.length > 0
       ) {
-        console.log(
+        logger.log(
           "✅ [STREAMING] Question générée avec succès via chat completion",
         );
         return result;
       }
 
-      console.error(
+      logger.error(
         "❌ [STREAMING] Réponse inattendue du chat completion:",
         result,
       );
       throw new Error("Aucune question valide générée");
     } catch (error) {
-      console.error("❌ [STREAMING] Erreur génération question:", error);
+      logger.error("❌ [STREAMING] Erreur génération question:", error);
       throw error;
     }
   }

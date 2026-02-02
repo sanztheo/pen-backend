@@ -11,6 +11,7 @@
  * - Format de sortie: {iv}:{authTag}:{encrypted} (base64)
  */
 
+import { logger } from "../utils/logger.js";
 import crypto from "crypto";
 import { z } from "zod";
 
@@ -75,7 +76,7 @@ export class EncryptionService {
 
       return result;
     } catch (error) {
-      console.error("❌ [ENCRYPTION] Erreur lors du chiffrement:", error);
+      logger.error("❌ [ENCRYPTION] Erreur lors du chiffrement:", error);
       throw new Error("Échec du chiffrement des données sensibles");
     }
   }
@@ -95,7 +96,7 @@ export class EncryptionService {
     // Le format chiffré est : {iv}:{authTag}:{encrypted} (3 parties séparées par :)
     const parts = encrypted.split(":");
     if (parts.length !== 3) {
-      console.log(
+      logger.log(
         "⚠️ [ENCRYPTION] Données en clair détectées, pas de déchiffrement nécessaire",
       );
       return encrypted; // Retourner tel quel si ce n'est pas le bon format
@@ -118,8 +119,8 @@ export class EncryptionService {
 
       return decrypted;
     } catch (error) {
-      console.error("❌ [ENCRYPTION] Erreur lors du déchiffrement:", error);
-      console.error(
+      logger.error("❌ [ENCRYPTION] Erreur lors du déchiffrement:", error);
+      logger.error(
         "❌ [ENCRYPTION] Données corrompues ou clé invalide — déchiffrement impossible",
       );
       return null;
@@ -141,7 +142,7 @@ export class EncryptionService {
       const jsonString = JSON.stringify(data);
       return this.encrypt(jsonString);
     } catch (error) {
-      console.error("❌ [ENCRYPTION] Erreur lors du chiffrement JSON:", error);
+      logger.error("❌ [ENCRYPTION] Erreur lors du chiffrement JSON:", error);
       throw new Error("Échec du chiffrement des données JSON");
     }
   }
@@ -160,13 +161,13 @@ export class EncryptionService {
 
     // Cas 2 : Déjà un objet (données en clair stockées comme objet)
     if (typeof encrypted === "object") {
-      console.log("⚠️ [ENCRYPTION] Données JSON en clair (objet) détectées");
+      logger.log("⚠️ [ENCRYPTION] Données JSON en clair (objet) détectées");
       return encrypted;
     }
 
     // Cas 3 : String (peut être chiffré ou JSON en clair)
     if (typeof encrypted !== "string") {
-      console.error(
+      logger.error(
         "❌ [ENCRYPTION] Type de données invalide:",
         typeof encrypted,
       );
@@ -188,13 +189,13 @@ export class EncryptionService {
       // Si le déchiffrement ou le parsing échoue,
       // essayer de parser directement (JSON en clair)
       try {
-        console.log(
+        logger.log(
           "⚠️ [ENCRYPTION] Tentative de parsing JSON en clair (string)",
         );
         const parsedUnknown: unknown = JSON.parse(encrypted);
         return parsedUnknown;
       } catch (parseError) {
-        console.error("❌ [ENCRYPTION] Erreur parsing JSON:", parseError);
+        logger.error("❌ [ENCRYPTION] Erreur parsing JSON:", parseError);
         return null;
       }
     }

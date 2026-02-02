@@ -4,6 +4,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { redisCache } from "../services/cache/redisCache.js";
 import { invalidateBlockNoteCache } from "../lib/redis.js";
+import { logger } from "../utils/logger.js";
 
 // Type pour les pages du projet avec arborescence
 interface ProjectPageWithChildren {
@@ -63,7 +64,7 @@ export const createPage = async (req: Request, res: Response) => {
 
     const validatedData = createPageSchema.parse(req.body);
     const userId = req.user.id;
-    console.log(`⏱️  [PERF] Validation: ${Date.now() - startTime}ms`);
+    logger.log(`⏱️  [PERF] Validation: ${Date.now() - startTime}ms`);
 
     // 🚀 PHASE 1 OPTIMIZATION: Déterminer workspaceId avant la parallélisation
     let workspaceIdForCheck: string | undefined;
@@ -124,7 +125,7 @@ export const createPage = async (req: Request, res: Response) => {
           })
         : Promise.resolve(null),
     ]);
-    console.log(
+    logger.log(
       `⏱️  [PERF] Queries parallèles: ${Date.now() - beforeValidations}ms`,
     );
 
@@ -201,7 +202,7 @@ export const createPage = async (req: Request, res: Response) => {
         _count: { select: { children: true } },
       },
     });
-    console.log(`⏱️  [PERF] Création page DB: ${Date.now() - beforeCreate}ms`);
+    logger.log(`⏱️  [PERF] Création page DB: ${Date.now() - beforeCreate}ms`);
 
     // 🚀 PHASE 1 OPTIMIZATION: Updates d'activité et compteurs en asynchrone (non-bloquant)
     // Ces opérations ne sont pas critiques pour la réponse client
@@ -224,7 +225,7 @@ export const createPage = async (req: Request, res: Response) => {
           })
         : Promise.resolve(null),
     ]).catch((error) => {
-      console.error("⚠️ [ASYNC] Erreur updates non-bloquants:", error);
+      logger.error("⚠️ [ASYNC] Erreur updates non-bloquants:", error);
       // Ne pas bloquer la réponse, juste logger
     });
 
@@ -244,14 +245,14 @@ export const createPage = async (req: Request, res: Response) => {
             updatedAt: page.updatedAt,
           })
           .catch((error) => {
-            console.error(
+            logger.error(
               `🧠 [RAG] Erreur traitement page "${page.title}":`,
               error,
             );
           });
       }
     } catch (error) {
-      console.error("🧠 [RAG] Service non disponible:", error);
+      logger.error("🧠 [RAG] Service non disponible:", error);
     }
 
     // 🗑️ REDIS CACHE INVALIDATION: Invalider le cache asynchrone (non-bloquant)
@@ -260,15 +261,15 @@ export const createPage = async (req: Request, res: Response) => {
         await redisCache.invalidatePattern(`recent-pages:${req.user!.id}:*`, {
           namespace: "pages",
         });
-        console.log(
+        logger.log(
           `🗑️ [Cache] Pages récentes invalidées pour user ${req.user!.id}`,
         );
       } catch (error) {
-        console.warn("⚠️ [Cache] Échec invalidation:", error);
+        logger.warn("⚠️ [Cache] Échec invalidation:", error);
       }
     })();
 
-    console.log(`⏱️  [PERF] TOTAL createPage: ${Date.now() - startTime}ms`);
+    logger.log(`⏱️  [PERF] TOTAL createPage: ${Date.now() - startTime}ms`);
     res.status(201).json({
       message: "Page créée avec succès",
       page,
@@ -280,7 +281,7 @@ export const createPage = async (req: Request, res: Response) => {
         details: error.errors,
       });
     }
-    console.error("Erreur création page:", error);
+    logger.error("Erreur création page:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -296,13 +297,13 @@ export const getPage = async (req: Request, res: Response) => {
 
     // 🚫 BLOQUER les IDs temporaires (optimistic UI)
     if (id.startsWith("temp-")) {
-      console.log(`⏭️  [GET-PAGE] ID temporaire ignoré: "${id}"`);
+      logger.log(`⏭️  [GET-PAGE] ID temporaire ignoré: "${id}"`);
       return res
         .status(404)
         .json({ error: "Page temporaire, en cours de création" });
     }
 
-    console.log(
+    logger.log(
       `🔍 [GET-PAGE] ID reçu: "${id}" (type: ${typeof id}, length: ${id?.length})`,
     );
 
@@ -337,7 +338,7 @@ export const getPage = async (req: Request, res: Response) => {
 
     res.json({ page });
   } catch (error) {
-    console.error("Erreur récupération page:", error);
+    logger.error("Erreur récupération page:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -381,7 +382,7 @@ export const getWorkspaceRootPages = async (req: Request, res: Response) => {
 
     res.json({ pages });
   } catch (error) {
-    console.error("Erreur récupération pages racine:", error);
+    logger.error("Erreur récupération pages racine:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -413,7 +414,7 @@ export const getRecentPages = async (req: Request, res: Response) => {
     const recentPages = await redisCache.getOrSet(
       cacheKey,
       async () => {
-        console.log(
+        logger.log(
           `🔄 [Cache MISS] Fetching pages from DB for user ${req.user!.id}`,
         );
         const pages = await prisma.page.findMany({
@@ -468,11 +469,11 @@ export const getRecentPages = async (req: Request, res: Response) => {
     );
 
     const duration = Date.now() - startTime;
-    console.log(`⚡ [getRecentPages] Réponse en ${duration}ms`);
+    logger.log(`⚡ [getRecentPages] Réponse en ${duration}ms`);
 
     res.json({ pages: recentPages, pagination: { page, limit } });
   } catch (error) {
-    console.error("❌ [getRecentPages] Erreur:", error);
+    logger.error("❌ [getRecentPages] Erreur:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -593,7 +594,7 @@ export const getProjectPages = async (req: Request, res: Response) => {
       pagination: { page, limit },
     });
   } catch (error) {
-    console.error("Erreur récupération pages projet:", error);
+    logger.error("Erreur récupération pages projet:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -724,14 +725,14 @@ export const updatePage = async (req: Request, res: Response) => {
             updatedAt: updatedPage.updatedAt,
           })
           .catch((error) => {
-            console.error(
+            logger.error(
               `🧠 [RAG] Erreur re-traitement page "${updatedPage.title}":`,
               error,
             );
           });
       }
     } catch (error) {
-      console.error("🧠 [RAG] Service non disponible:", error);
+      logger.error("🧠 [RAG] Service non disponible:", error);
     }
 
     // 🗑️ REDIS CACHE INVALIDATION: Invalider le cache des pages récentes pour tous les membres du workspace
@@ -761,12 +762,12 @@ export const updatePage = async (req: Request, res: Response) => {
           });
         }
 
-        console.log(
+        logger.log(
           `🗑️ [Cache Invalidation] Pages récentes invalidées pour ${userIds.length} utilisateurs`,
         );
       }
     } catch (cacheError) {
-      console.warn(
+      logger.warn(
         "⚠️ [Cache Invalidation] Échec invalidation cache (non bloquant):",
         cacheError,
       );
@@ -783,7 +784,7 @@ export const updatePage = async (req: Request, res: Response) => {
         details: error.errors,
       });
     }
-    console.error("Erreur mise à jour page:", error);
+    logger.error("Erreur mise à jour page:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -886,7 +887,7 @@ export const deletePage = async (req: Request, res: Response) => {
             );
           }
         } catch (e) {
-          console.warn(
+          logger.warn(
             "🧠 [RAG] Échec suppression sources liées à la page (continuation):",
             e,
           );
@@ -910,7 +911,7 @@ export const deletePage = async (req: Request, res: Response) => {
     const allDeletedIds = [id, ...allDescendantIds];
     for (const pageId of allDeletedIds) {
       invalidateBlockNoteCache(pageId).catch((err) =>
-        console.warn(
+        logger.warn(
           `⚠️ [REDIS] Erreur invalidation cache page ${pageId}:`,
           err,
         ),
@@ -923,16 +924,16 @@ export const deletePage = async (req: Request, res: Response) => {
         namespace: "pages",
       })
       .catch((err) =>
-        console.warn("⚠️ [Cache] Échec invalidation pages récentes:", err),
+        logger.warn("⚠️ [Cache] Échec invalidation pages récentes:", err),
       );
 
     // 🗑️ REDIS CACHE INVALIDATION: Invalider le cache Sidebar
     const { invalidateSidebarCache } = await import("../lib/redis.js");
     invalidateSidebarCache(req.user!.id).catch((err) =>
-      console.warn("⚠️ [Cache] Échec invalidation cache sidebar:", err),
+      logger.warn("⚠️ [Cache] Échec invalidation cache sidebar:", err),
     );
 
-    console.log(
+    logger.log(
       `🗑️ [DELETE] ${allDeletedIds.length} page(s) supprimée(s) et cache invalidé`,
     );
 
@@ -941,7 +942,7 @@ export const deletePage = async (req: Request, res: Response) => {
       deletedPageId: id,
     });
   } catch (error) {
-    console.error("Erreur suppression page:", error);
+    logger.error("Erreur suppression page:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -996,7 +997,7 @@ export const cleanupArchivedPages = async (req: Request, res: Response) => {
         );
       }
     } catch (error) {
-      console.error("🧠 [RAG] Erreur suppression sources:", error);
+      logger.error("🧠 [RAG] Erreur suppression sources:", error);
     }
 
     // Supprimer toutes les pages archivées
@@ -1031,7 +1032,7 @@ export const cleanupArchivedPages = async (req: Request, res: Response) => {
       deletedPages: deletedPages.count,
     });
   } catch (error) {
-    console.error("Erreur nettoyage pages archivées:", error);
+    logger.error("Erreur nettoyage pages archivées:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -1082,7 +1083,7 @@ export const togglePagePin = async (req: Request, res: Response) => {
       page: updatedPage,
     });
   } catch (error) {
-    console.error("Erreur toggle pin page:", error);
+    logger.error("Erreur toggle pin page:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };

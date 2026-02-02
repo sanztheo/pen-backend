@@ -9,6 +9,7 @@
  * aux résultats d'autres utilisateurs (IDOR protection).
  */
 
+import { logger } from "../utils/logger.js";
 import { redis } from "./redis.js";
 import { z } from "zod";
 
@@ -78,11 +79,11 @@ export const storeJobResult = async <T = unknown>(
     const key = getSecureKey(userId, jobId);
     const resultWithOwnership = { ...result, userId };
     await redis.setex(key, JOB_RESULT_TTL, JSON.stringify(resultWithOwnership));
-    console.log(
+    logger.log(
       `✅ [JOB-RESULTS] Résultat stocké: ${jobId} pour user ${userId} (status: ${result.status})`,
     );
   } catch (error) {
-    console.error(`❌ [JOB-RESULTS] Erreur stockage: ${jobId}`, error);
+    logger.error(`❌ [JOB-RESULTS] Erreur stockage: ${jobId}`, error);
     throw error;
   }
 };
@@ -116,7 +117,7 @@ export const getJobResult = async <T>(
         }
         // 🛡️ Vérifier que le job legacy appartient bien à l'utilisateur
         if (legacyResult.userId && legacyResult.userId !== userId) {
-          console.warn(
+          logger.warn(
             `🚨 [JOB-RESULTS] ACCÈS REFUSÉ: userId=${userId} tente d'accéder au job ${jobId} appartenant à ${legacyResult.userId}`,
           );
           return null;
@@ -124,7 +125,7 @@ export const getJobResult = async <T>(
         // Si pas de userId stocké (très ancien job), on accepte pour compatibilité
         // mais on log un warning
         if (!legacyResult.userId) {
-          console.warn(
+          logger.warn(
             `⚠️ [JOB-RESULTS] Job legacy sans userId: ${jobId} - accès autorisé par défaut`,
           );
         }
@@ -132,7 +133,7 @@ export const getJobResult = async <T>(
     }
 
     if (!data) {
-      console.log(`❌ [JOB-RESULTS] Résultat non trouvé: ${jobId}`);
+      logger.log(`❌ [JOB-RESULTS] Résultat non trouvé: ${jobId}`);
       return null;
     }
 
@@ -146,12 +147,12 @@ export const getJobResult = async <T>(
       result: parsedResult && parsedResult.success ? parsedResult.data : undefined,
     };
 
-    console.log(
+    logger.log(
       `✅ [JOB-RESULTS] Résultat récupéré: ${jobId} (status: ${typedResult.status})`,
     );
     return typedResult;
   } catch (error) {
-    console.error(`❌ [JOB-RESULTS] Erreur récupération: ${jobId}`, error);
+    logger.error(`❌ [JOB-RESULTS] Erreur récupération: ${jobId}`, error);
     return null;
   }
 };
@@ -224,8 +225,8 @@ export const deleteJobResult = async (
       }
     }
 
-    console.log(`🗑️ [JOB-RESULTS] Résultat supprimé: ${jobId}`);
+    logger.log(`🗑️ [JOB-RESULTS] Résultat supprimé: ${jobId}`);
   } catch (error) {
-    console.error(`❌ [JOB-RESULTS] Erreur suppression: ${jobId}`, error);
+    logger.error(`❌ [JOB-RESULTS] Erreur suppression: ${jobId}`, error);
   }
 };

@@ -1,4 +1,5 @@
 import express from "express";
+import { logger } from "../utils/logger.js";
 import {
   paddle,
   PaddleBillingService,
@@ -103,21 +104,21 @@ export const paddleWebhookHandler: express.RequestHandler = async (
   res,
 ) => {
   // 🚨 LOG ULTRA PRIORITAIRE
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log("🏓 PADDLE WEBHOOK HANDLER APPELÉ !");
-  console.log("URL:", req.url);
-  console.log("Method:", req.method);
-  console.log(
+  logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  logger.log("🏓 PADDLE WEBHOOK HANDLER APPELÉ !");
+  logger.log("URL:", req.url);
+  logger.log("Method:", req.method);
+  logger.log(
     "Paddle-Signature:",
     req.headers["paddle-signature"] ? "Présent" : "ABSENT",
   );
 
   // 🔍 DEBUG DÉTAILLÉ DU BODY
   const isBuffer = Buffer.isBuffer(req.body);
-  console.log("Body is Buffer:", isBuffer);
-  console.log("Body type:", typeof req.body);
-  console.log("Body constructor:", req.body?.constructor?.name);
-  console.log(
+  logger.log("Body is Buffer:", isBuffer);
+  logger.log("Body type:", typeof req.body);
+  logger.log("Body constructor:", req.body?.constructor?.name);
+  logger.log(
     "Body length:",
     isBuffer
       ? req.body.length
@@ -128,19 +129,19 @@ export const paddleWebhookHandler: express.RequestHandler = async (
 
   // 🔍 Afficher les premiers caractères du body pour debug
   if (isBuffer) {
-    console.log(
+    logger.log(
       "Body preview (Buffer→String):",
       req.body.toString("utf8").substring(0, 100) + "...",
     );
   } else if (typeof req.body === "string") {
-    console.log("Body preview (String):", req.body.substring(0, 100) + "...");
+    logger.log("Body preview (String):", req.body.substring(0, 100) + "...");
   } else {
-    console.log(
+    logger.log(
       "Body preview (Object):",
       JSON.stringify(req.body).substring(0, 100) + "...",
     );
   }
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   try {
     const signature = req.headers["paddle-signature"] as string;
@@ -148,12 +149,12 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     const secretKey = process.env.PADDLE_WEBHOOK_SECRET;
 
     if (!secretKey) {
-      console.error("[Paddle Webhook] ❌ PADDLE_WEBHOOK_SECRET manquant");
+      logger.error("[Paddle Webhook] ❌ PADDLE_WEBHOOK_SECRET manquant");
       return res.status(500).json({ error: "PADDLE_WEBHOOK_SECRET manquant" });
     }
 
     if (!signature) {
-      console.error("[Paddle Webhook] ❌ Header paddle-signature manquant");
+      logger.error("[Paddle Webhook] ❌ Header paddle-signature manquant");
       return res.status(400).json({ error: "Missing paddle-signature header" });
     }
 
@@ -161,10 +162,10 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     let event: Awaited<ReturnType<typeof paddle.webhooks.unmarshal>>;
     try {
       event = await paddle.webhooks.unmarshal(rawBody, secretKey, signature);
-      console.log(`✅ [Paddle Webhook] Signature valide`);
+      logger.log(`✅ [Paddle Webhook] Signature valide`);
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : String(e);
-      console.error("[Paddle Webhook] ❌ Signature invalide:", errorMessage);
+      logger.error("[Paddle Webhook] ❌ Signature invalide:", errorMessage);
       return res.status(400).json({ error: "Invalid signature" });
     }
 
@@ -173,7 +174,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     const eventData = event.data;
 
     // 🔍 DEBUG: Log le type d'événement reçu
-    console.log(`📨 [Paddle Webhook] Type: ${eventType}, EventID: ${eventId}`);
+    logger.log(`📨 [Paddle Webhook] Type: ${eventType}, EventID: ${eventId}`);
 
     // 2️⃣ IDEMPOTENCE - Éviter de traiter 2x le même événement
     if (eventId) {
@@ -182,7 +183,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
       });
 
       if (alreadyProcessed) {
-        console.log(
+        logger.log(
           `⏭️ [Paddle Webhook] Event déjà traité: ${eventType} - ${eventId}`,
         );
         return res
@@ -223,7 +224,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
       const paddleCustomerId = subData?.customerId;
       const paddleSubscriptionId = subData?.id;
 
-      console.log(`📝 [Paddle Webhook] subscription.created:`, {
+      logger.log(`📝 [Paddle Webhook] subscription.created:`, {
         subscriptionId: paddleSubscriptionId,
         customerId: paddleCustomerId,
         status: subscriptionStatus,
@@ -242,7 +243,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
           ? new Date(subData.currentBillingPeriod.endsAt)
           : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 jours par défaut
 
-        console.log(`🎁 [Paddle Webhook] TRIAL activé pour user ${userId}:`, {
+        logger.log(`🎁 [Paddle Webhook] TRIAL activé pour user ${userId}:`, {
           trialStart: trialStart.toISOString(),
           trialEnd: trialEnd.toISOString(),
           paddleCustomerId,
@@ -283,7 +284,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     // ✅ subscription.activated - Plan activé
     if (eventType === EventName.SubscriptionActivated) {
       if (!userId) {
-        console.warn(
+        logger.warn(
           `⚠️ [Paddle Webhook] subscription.activated sans userId:`,
           {
             subscriptionId: subData?.id,
@@ -298,7 +299,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
       const paddleSubscriptionId = subData?.id;
 
       if (!paddleCustomerId || !paddleSubscriptionId) {
-        console.warn(
+        logger.warn(
           `⚠️ [Paddle Webhook] subscription.activated missing required fields:`,
           { paddleCustomerId, paddleSubscriptionId },
         );
@@ -311,7 +312,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
         ? new Date(subData.currentBillingPeriod.endsAt)
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-      console.log(`✅ [Paddle Webhook] subscription.activated:`, {
+      logger.log(`✅ [Paddle Webhook] subscription.activated:`, {
         userId,
         paddleCustomerId,
         paddleSubscriptionId,
@@ -339,7 +340,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     // 🔄 subscription.updated - Mise à jour subscription
     if (eventType === EventName.SubscriptionUpdated) {
       if (!userId) {
-        console.warn(`⚠️ [Paddle Webhook] subscription.updated sans userId`);
+        logger.warn(`⚠️ [Paddle Webhook] subscription.updated sans userId`);
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
@@ -351,7 +352,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
         : undefined;
       const scheduledChange = subData?.scheduledChange;
 
-      console.log(`🔄 [Paddle Webhook] subscription.updated:`, {
+      logger.log(`🔄 [Paddle Webhook] subscription.updated:`, {
         userId,
         status: subData?.status,
         currentPeriodStart: currentPeriodStart?.toISOString(),
@@ -383,7 +384,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     // ⚠️ subscription.canceled - Annulé (mais actif jusqu'à fin période)
     if (eventType === EventName.SubscriptionCanceled) {
       if (!userId) {
-        console.warn(`⚠️ [Paddle Webhook] subscription.canceled sans userId`);
+        logger.warn(`⚠️ [Paddle Webhook] subscription.canceled sans userId`);
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
@@ -391,7 +392,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
         ? new Date(subData.scheduledChange.effectiveAt)
         : undefined;
 
-      console.log(`⚠️ [Paddle Webhook] subscription.canceled:`, {
+      logger.log(`⚠️ [Paddle Webhook] subscription.canceled:`, {
         userId,
         status: subData?.status,
         effectiveAt: effectiveAt?.toISOString(),
@@ -400,11 +401,11 @@ export const paddleWebhookHandler: express.RequestHandler = async (
       // Si le status est "canceled" (plus actif), remettre en free
       if (subData?.status === "canceled") {
         await PaddleBillingService.finalizeCancel(userId);
-        console.log(`✅ [Paddle Webhook] Utilisateur remis en free: ${userId}`);
+        logger.log(`✅ [Paddle Webhook] Utilisateur remis en free: ${userId}`);
       } else {
         // Sinon juste marquer comme annulé (actif jusqu'à fin période)
         await PaddleBillingService.cancelSubscription(userId, effectiveAt);
-        console.log(
+        logger.log(
           `✅ [Paddle Webhook] Subscription marquée pour annulation: ${userId}`,
         );
       }
@@ -421,11 +422,11 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     // ⏸️ subscription.paused - Plan en pause
     if (eventType === EventName.SubscriptionPaused) {
       if (!userId) {
-        console.warn(`⚠️ [Paddle Webhook] subscription.paused sans userId`);
+        logger.warn(`⚠️ [Paddle Webhook] subscription.paused sans userId`);
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
-      console.log(`⏸️ [Paddle Webhook] subscription.paused:`, { userId });
+      logger.log(`⏸️ [Paddle Webhook] subscription.paused:`, { userId });
 
       // Mettre en pause = retour temporaire au free
       await PaddleBillingService.finalizeCancel(userId);
@@ -442,7 +443,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     // ▶️ subscription.resumed - Plan repris
     if (eventType === EventName.SubscriptionResumed) {
       if (!userId) {
-        console.warn(`⚠️ [Paddle Webhook] subscription.resumed sans userId`);
+        logger.warn(`⚠️ [Paddle Webhook] subscription.resumed sans userId`);
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
@@ -450,7 +451,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
       const paddleSubscriptionId = subData?.id;
 
       if (!paddleCustomerId || !paddleSubscriptionId) {
-        console.warn(
+        logger.warn(
           `⚠️ [Paddle Webhook] subscription.resumed missing required fields:`,
           { paddleCustomerId, paddleSubscriptionId },
         );
@@ -463,7 +464,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
         ? new Date(subData.currentBillingPeriod.endsAt)
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-      console.log(`▶️ [Paddle Webhook] subscription.resumed:`, {
+      logger.log(`▶️ [Paddle Webhook] subscription.resumed:`, {
         userId,
         paddleCustomerId,
         paddleSubscriptionId,
@@ -488,7 +489,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
 
     // 💳 transaction.completed - Paiement réussi
     if (eventType === EventName.TransactionCompleted) {
-      console.log(`💳 [Paddle Webhook] transaction.completed:`, {
+      logger.log(`💳 [Paddle Webhook] transaction.completed:`, {
         transactionId: txnData?.id,
         subscriptionId: txnData?.subscriptionId,
         status: txnData?.status,
@@ -509,7 +510,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     // ❌ transaction.payment_failed - Paiement échoué
     if (eventType === EventName.TransactionPaymentFailed) {
       const firstPayment = txnData?.payments?.[0];
-      console.log(`❌ [Paddle Webhook] transaction.payment_failed:`, {
+      logger.log(`❌ [Paddle Webhook] transaction.payment_failed:`, {
         transactionId: txnData?.id,
         subscriptionId: txnData?.subscriptionId,
         errorCode: firstPayment?.errorCode,
@@ -529,7 +530,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     }
 
     // Si on arrive ici, événement non géré mais valide
-    console.log(`⏭️ [Paddle Webhook] Event non géré: ${eventType}`);
+    logger.log(`⏭️ [Paddle Webhook] Event non géré: ${eventType}`);
 
     if (eventId) {
       await prisma.webhookEvent.create({
@@ -540,7 +541,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (
     return res.status(200).json({ received: true, unhandled: eventType });
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    console.error("[Paddle Webhook] ❌ Erreur:", errorMessage);
+    logger.error("[Paddle Webhook] ❌ Erreur:", errorMessage);
     return res.status(500).json({ error: "Webhook error" });
   }
 };

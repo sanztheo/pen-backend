@@ -3,6 +3,7 @@
  * Verifies that the authenticated user has admin privileges
  */
 
+import { logger } from "../utils/logger.js";
 import { Request, Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma.js";
 
@@ -34,7 +35,7 @@ export const requireAdmin = async (
     }
 
     if (!user.isAdmin) {
-      console.log(`[ADMIN] Access denied for user ${user.email}`);
+      logger.log(`[ADMIN] Access denied for user ${user.email}`);
       res.status(403).json({
         success: false,
         error: "Accès administrateur requis",
@@ -42,10 +43,10 @@ export const requireAdmin = async (
       return;
     }
 
-    console.log(`[ADMIN] Access granted for admin ${user.email}`);
+    logger.log(`[ADMIN] Access granted for admin ${user.email}`);
     next();
   } catch (error) {
-    console.error("[ADMIN] Middleware error:", error);
+    logger.error("[ADMIN] Middleware error:", error);
     res.status(500).json({
       success: false,
       error: "Erreur de vérification des droits",

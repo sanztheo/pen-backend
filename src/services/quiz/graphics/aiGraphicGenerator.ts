@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { logger } from "../../../utils/logger.js";
 
 // Configuration OpenAI
 const openai = new OpenAI({
@@ -36,7 +37,7 @@ export class AIGraphicGenerator {
       const systemPrompt = this.getSystemPrompt(prompt.library);
       const userPrompt = this.getUserPrompt(prompt);
 
-      console.log(
+      logger.log(
         `[AI-GRAPHICS] Génération graphique pour: ${prompt.subject} - ${prompt.topic}`,
       );
 
@@ -63,12 +64,12 @@ export class AIGraphicGenerator {
       // Parser la réponse IA (JSON structuré)
       const result = this.parseAIResponse(aiResponse);
 
-      console.log(
+      logger.log(
         `[AI-GRAPHICS] Graphique généré: ${result.type} avec ${result.library}`,
       );
       return result;
     } catch (error) {
-      console.error("[AI-GRAPHICS] Erreur génération:", error);
+      logger.error("[AI-GRAPHICS] Erreur génération:", error);
       throw error;
     }
   }
@@ -324,12 +325,12 @@ Génère uniquement la configuration JSON sécurisée.`;
    */
   private parseAIResponse(aiResponse: string): GeneratedGraphic {
     try {
-      console.log("[AI-GRAPHICS] Réponse brute IA:", aiResponse);
+      logger.log("[AI-GRAPHICS] Réponse brute IA:", aiResponse);
 
       // Extraire le JSON de la réponse
       const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/);
       if (!jsonMatch) {
-        console.log(
+        logger.log(
           "[AI-GRAPHICS] Pas de bloc JSON trouvé, essai parsing direct...",
         );
         // Fallback: essayer de parser directement si pas de bloc code
@@ -338,23 +339,23 @@ Génère uniquement la configuration JSON sécurisée.`;
           throw new Error("Format JSON non trouvé dans la réponse IA");
         }
         const jsonStr = directMatch[0];
-        console.log("[AI-GRAPHICS] JSON extrait (direct):", jsonStr);
+        logger.log("[AI-GRAPHICS] JSON extrait (direct):", jsonStr);
         const parsed = JSON.parse(jsonStr);
         return this.validateParsedResponse(parsed);
       }
 
       let jsonStr = jsonMatch[1].trim();
-      console.log("[AI-GRAPHICS] JSON extrait:", jsonStr);
+      logger.log("[AI-GRAPHICS] JSON extrait:", jsonStr);
 
       // Nettoyer le JSON (enlever commentaires, caractères étranges)
       jsonStr = this.cleanJsonString(jsonStr);
-      console.log("[AI-GRAPHICS] JSON nettoyé:", jsonStr);
+      logger.log("[AI-GRAPHICS] JSON nettoyé:", jsonStr);
 
       const parsed = JSON.parse(jsonStr);
 
       return this.validateParsedResponse(parsed);
     } catch (error) {
-      console.error("[AI-GRAPHICS] Erreur parsing:", error);
+      logger.error("[AI-GRAPHICS] Erreur parsing:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Erreur de parsing inconnue";
       throw new Error(`Impossible de parser la réponse IA: ${errorMessage}`);
@@ -455,7 +456,7 @@ Génère uniquement la configuration JSON sécurisée.`;
       } else {
         p.library = "apexcharts";
       }
-      console.log("🔧 Bibliothèque auto-détectée:", p.library);
+      logger.log("🔧 Bibliothèque auto-détectée:", p.library);
     }
 
     // Générer une description intelligente si manquante
@@ -491,7 +492,7 @@ Génère uniquement la configuration JSON sécurisée.`;
 
       smartDescription += ` généré avec ${p.library}`;
       p.description = smartDescription;
-      console.log("🔧 Description intelligente générée:", p.description);
+      logger.log("🔧 Description intelligente générée:", p.description);
     }
 
     // Validation du type
@@ -541,7 +542,7 @@ Génère uniquement la configuration JSON sécurisée.`;
       }
 
       if (p.dataValues && p.dataValues.length > 0) {
-        console.log(
+        logger.log(
           "🔧 Valeurs de données extraites automatiquement:",
           p.dataValues,
         );
