@@ -625,6 +625,21 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 }, // 50 Mo
 });
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isPdfParseFn(value: unknown): value is PdfParseFn {
+  return typeof value === "function";
+}
+
+function getPdfParseFnFromModule(mod: unknown): PdfParseFn | null {
+  if (isPdfParseFn(mod)) return mod;
+  if (!isRecord(mod)) return null;
+  if (isPdfParseFn(mod.default)) return mod.default;
+  return null;
+}
+
 // Upload simple (extraction texte sans persistance)
 router.post(
   "/upload",
@@ -645,11 +660,15 @@ router.post(
           try {
             let pdfParseFn: PdfParseFn;
             try {
-              const mod = await import("pdf-parse/lib/pdf-parse.js");
-              pdfParseFn = (mod.default || mod) as PdfParseFn;
+              const mod: unknown = await import("pdf-parse/lib/pdf-parse.js");
+              const parsed = getPdfParseFnFromModule(mod);
+              if (!parsed) throw new Error("Invalid pdf-parse module");
+              pdfParseFn = parsed;
             } catch {
-              const mod = await import("pdf-parse");
-              pdfParseFn = (mod.default || mod) as PdfParseFn;
+              const mod: unknown = await import("pdf-parse");
+              const parsed = getPdfParseFnFromModule(mod);
+              if (!parsed) throw new Error("Invalid pdf-parse module");
+              pdfParseFn = parsed;
             }
             const data = await pdfParseFn(f.buffer);
             text = data?.text || "";

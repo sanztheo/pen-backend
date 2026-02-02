@@ -1098,6 +1098,42 @@ interface WikipediaAPIParseResponse {
   };
 }
 
+const WikipediaAPIQueryResponseSchema: z.ZodType<WikipediaAPIQueryResponse> = z
+  .object({
+    query: z
+      .object({
+        pages: z
+          .record(
+            z
+              .object({
+                pageid: z.number().optional(),
+                title: z.string().optional(),
+                missing: z.boolean().optional(),
+                fullurl: z.string().optional(),
+                extract: z.string().optional(),
+              })
+              .passthrough(),
+          )
+          .optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
+const WikipediaAPIParseResponseSchema: z.ZodType<WikipediaAPIParseResponse> = z
+  .object({
+    parse: z
+      .object({
+        wikitext: z
+          .object({
+            "*": z.string().optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
 /**
  * Récupère le contenu complet d'un article Wikipedia
  */
@@ -1134,7 +1170,12 @@ async function getWikipediaArticleContent(
       throw new Error(`Erreur récupération infos: ${infoResponse.status}`);
     }
 
-    const infoData = (await infoResponse.json()) as WikipediaAPIQueryResponse;
+    const infoRaw: unknown = await infoResponse.json();
+    const infoParsed = WikipediaAPIQueryResponseSchema.safeParse(infoRaw);
+    if (!infoParsed.success) {
+      throw new Error("Réponse Wikipedia invalide (query.pages)");
+    }
+    const infoData = infoParsed.data;
     const pageInfo = infoData.query?.pages?.[pageId];
 
     if (!pageInfo || pageInfo.missing) {
@@ -1163,7 +1204,12 @@ async function getWikipediaArticleContent(
       throw new Error(`Erreur récupération parse: ${parseResponse.status}`);
     }
 
-    const parseData = (await parseResponse.json()) as WikipediaAPIParseResponse;
+    const parseRaw: unknown = await parseResponse.json();
+    const parseParsed = WikipediaAPIParseResponseSchema.safeParse(parseRaw);
+    if (!parseParsed.success) {
+      throw new Error("Réponse Wikipedia invalide (parse.wikitext)");
+    }
+    const parseData = parseParsed.data;
     const wikitext = parseData.parse?.wikitext?.["*"] || "";
 
     // Nettoyer le wikitext pour le convertir en texte lisible
@@ -1214,8 +1260,13 @@ async function getWikipediaArticleContent(
       });
 
       if (extractResponse.ok) {
-        const extractData =
-          (await extractResponse.json()) as WikipediaAPIQueryResponse;
+        const extractRaw: unknown = await extractResponse.json();
+        const extractParsed =
+          WikipediaAPIQueryResponseSchema.safeParse(extractRaw);
+        if (!extractParsed.success) {
+          throw new Error("Réponse Wikipedia invalide (extracts)");
+        }
+        const extractData = extractParsed.data;
         const extractText = extractData.query?.pages?.[pageId]?.extract || "";
         if (extractText.length > cleanText.length) {
           cleanText = extractText;

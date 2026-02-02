@@ -10,6 +10,7 @@ import {
   QuizCorrectionResult,
   AnswerValue,
 } from "../types.js";
+import { z } from "zod";
 
 /**
  * Convertit une AnswerValue en string pour l'affichage et le stockage
@@ -70,6 +71,24 @@ interface PerformanceAnalysisData {
   personalizedTips?: string[];
 }
 
+const OpenQuestionCorrectionDataSchema: z.ZodType<OpenQuestionCorrectionData> = z
+  .object({
+    score: z.coerce.number(),
+    explanation: z.string().optional(),
+    suggestion: z.string().optional(),
+  })
+  .passthrough();
+
+const PerformanceAnalysisDataSchema: z.ZodType<PerformanceAnalysisData> = z
+  .object({
+    summary: z.string().optional(),
+    strengths: z.array(z.string()).optional(),
+    weaknesses: z.array(z.string()).optional(),
+    recommendations: z.array(z.string()).optional(),
+    personalizedTips: z.array(z.string()).optional(),
+  })
+  .passthrough();
+
 // Types pour les résultats de correction (compatible avec QuestionResult)
 interface QuestionCorrectionResult extends BaseCorrectionResult {
   questionId: string;
@@ -127,6 +146,37 @@ interface AICorrectionResponse {
   questionResults?: AIQuestionResult[];
   exerciseResults?: AIExerciseResult[];
 }
+
+const AIQuestionResultSchema: z.ZodType<AIQuestionResult> = z
+  .object({
+    questionId: z.string(),
+    userAnswer: z.string().optional(),
+    correctAnswer: z.string().optional(),
+    score: z.coerce.number().optional(),
+    maxScore: z.coerce.number().optional(),
+    isCorrect: z.union([z.boolean(), z.string()]).optional(),
+    explanation: z.string().optional(),
+  })
+  .passthrough();
+
+const AIExerciseResultSchema: z.ZodType<AIExerciseResult> = z
+  .object({
+    exerciseId: z.string(),
+    userAnswer: z.string().optional(),
+    correctAnswer: z.string().optional(),
+    score: z.coerce.number().optional(),
+    maxScore: z.coerce.number().optional(),
+    isCorrect: z.union([z.boolean(), z.string()]).optional(),
+    explanation: z.string().optional(),
+  })
+  .passthrough();
+
+const AICorrectionResponseSchema: z.ZodType<AICorrectionResponse> = z
+  .object({
+    questionResults: z.array(AIQuestionResultSchema).optional(),
+    exerciseResults: z.array(AIExerciseResultSchema).optional(),
+  })
+  .passthrough();
 
 // Type pour les réponses JSON de correction d'une seule question
 interface SingleQuestionCorrectionResponse {
@@ -710,9 +760,17 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
           result.content.substring(0, 300) + "...",
         );
 
-        const aiCorrectionData = JsonUtils.extractJsonFromText(
+        const aiCorrectionRaw: unknown = JsonUtils.extractJsonFromText(
           result.content,
-        ) as AICorrectionResponse;
+        );
+        const aiCorrectionParsed =
+          AICorrectionResponseSchema.safeParse(aiCorrectionRaw);
+        if (!aiCorrectionParsed.success) {
+          console.warn("⚠️ Réponse IA invalide (questions ouvertes)");
+        }
+        const aiCorrectionData: AICorrectionResponse = aiCorrectionParsed.success
+          ? aiCorrectionParsed.data
+          : {};
 
         // Traiter les corrections IA pour les questions ouvertes
         aiCorrections = this.processQuestionResults(
@@ -1411,9 +1469,17 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
           `🐛 [DEBUG] Réponse IA pour exercices ouverts du sujet (${result.content.length} caractères)`,
         );
 
-        const aiCorrectionData = JsonUtils.extractJsonFromText(
+        const aiCorrectionRaw: unknown = JsonUtils.extractJsonFromText(
           result.content,
-        ) as AICorrectionResponse;
+        );
+        const aiCorrectionParsed =
+          AICorrectionResponseSchema.safeParse(aiCorrectionRaw);
+        if (!aiCorrectionParsed.success) {
+          console.warn("⚠️ Réponse IA invalide (exercices ouverts)");
+        }
+        const aiCorrectionData: AICorrectionResponse = aiCorrectionParsed.success
+          ? aiCorrectionParsed.data
+          : {};
 
         // Traiter les corrections IA pour les exercices ouverts
         aiCorrections = this.processSubjectExerciseResults(
@@ -1885,9 +1951,13 @@ Réponds UNIQUEMENT en JSON array valide.`;
       model: AIService.getQuizCorrectionModel(),
     });
 
-    const correctionData = JsonUtils.extractJsonFromText(
-      result.content,
-    ) as OpenQuestionCorrectionData;
+    const correctionRaw: unknown = JsonUtils.extractJsonFromText(result.content);
+    const correctionParsed =
+      OpenQuestionCorrectionDataSchema.safeParse(correctionRaw);
+    if (!correctionParsed.success) {
+      throw new Error("Réponse IA invalide (correction question ouverte)");
+    }
+    const correctionData = correctionParsed.data;
 
     // 🔧 FIX: Vérifier si l'utilisateur n'a pas répondu
     const hasNoAnswer =
@@ -2076,9 +2146,12 @@ Format JSON STRICT requis.`;
       });
 
       console.log("🧠 [ANALYSIS] Réponse IA reçue, parsing...");
-      const analysisData = JsonUtils.extractJsonFromText(
-        result.content,
-      ) as PerformanceAnalysisData;
+      const analysisRaw: unknown = JsonUtils.extractJsonFromText(result.content);
+      const analysisParsed = PerformanceAnalysisDataSchema.safeParse(analysisRaw);
+      if (!analysisParsed.success) {
+        throw new Error("Réponse IA invalide (analyse)");
+      }
+      const analysisData = analysisParsed.data;
 
       return {
         summary: analysisData.summary || "Analyse non disponible",

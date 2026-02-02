@@ -45,7 +45,7 @@ const MIN_CALL_INTERVAL = 3000; // 3 secondes entre chaque appel pour gpt-4.1-na
 
 export class FuturaRssService {
   private static RSS_URL = "https://www.futura-sciences.com/rss/actualites.xml";
-  private static parser = new Parser();
+  private static parser = new Parser<Record<string, unknown>, RssItem>();
 
   /**
    * Récupère le contenu complet d'un article depuis sa page web
@@ -427,7 +427,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
       }
 
       // Valider les articles avec l'AI (on teste les 30 premiers)
-      const first30Articles = feed.items.slice(0, 30) as RssItem[];
+      const first30Articles = feed.items.slice(0, 30);
       const validatedArticles: {
         item: RssItem;
         score: number;
@@ -457,7 +457,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         console.warn(
           "⚠️ Aucun article validé par l'AI, utilisation du premier article disponible",
         );
-        selectedArticle = feed.items[0] as RssItem;
+        selectedArticle = feed.items[0];
         console.log(
           `🎲 Article de secours: "${selectedArticle.title?.substring(0, 80)}..."`,
         );

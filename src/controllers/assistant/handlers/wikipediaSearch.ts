@@ -82,7 +82,35 @@ const WikipediaCategoryMembersResponseSchema: z.ZodType<WikipediaCategoryMembers
         })
         .optional(),
     })
-    .passthrough();
+  .passthrough();
+
+const WikipediaSearchResponseSchema: z.ZodType<WikipediaSearchResponse> = z
+  .object({
+    query: z
+      .object({
+        search: z
+          .array(
+            z
+              .object({
+                pageid: z.number(),
+                title: z.string(),
+                snippet: z.string().optional(),
+                size: z.number().optional(),
+                wordcount: z.number().optional(),
+                timestamp: z.string().optional(),
+              })
+              .passthrough(),
+          )
+          .optional(),
+        searchinfo: z
+          .object({
+            totalhits: z.number().optional(),
+          })
+          .optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
 
 const WikipediaExtractResponseSchema: z.ZodType<WikipediaExtractResponse> = z
   .object({
@@ -157,7 +185,12 @@ export const wikipediaSearch = async (
       throw new Error(`Erreur API Wikipedia: ${searchResponse.status}`);
     }
 
-    const searchData = (await searchResponse.json()) as WikipediaSearchResponse;
+    const searchRaw: unknown = await searchResponse.json();
+    const searchParsed = WikipediaSearchResponseSchema.safeParse(searchRaw);
+    if (!searchParsed.success) {
+      throw new Error("Réponse API Wikipedia invalide (search)");
+    }
+    const searchData = searchParsed.data;
 
     if (!searchData.query?.search) {
       console.log(
@@ -206,8 +239,12 @@ export const wikipediaSearch = async (
       );
     }
 
-    const extractData =
-      (await extractResponse.json()) as WikipediaExtractResponse;
+    const extractRaw: unknown = await extractResponse.json();
+    const extractParsed = WikipediaExtractResponseSchema.safeParse(extractRaw);
+    if (!extractParsed.success) {
+      throw new Error("Réponse API Wikipedia invalide (extracts)");
+    }
+    const extractData = extractParsed.data;
     const pages: WikipediaPagesMap = extractData.query?.pages || {};
 
     // Étape 3: Combiner les résultats de recherche avec les extraits
@@ -332,8 +369,13 @@ export const wikipediaGetEnrichedArticles = async (
         continue;
       }
 
-      const contentData =
-        (await contentResponse.json()) as WikipediaExtractResponse;
+      const contentRaw: unknown = await contentResponse.json();
+      const contentParsed = WikipediaExtractResponseSchema.safeParse(contentRaw);
+      if (!contentParsed.success) {
+        console.warn(`⚠️ Réponse Wikipedia invalide pour ${pageId}`);
+        continue;
+      }
+      const contentData = contentParsed.data;
       const pageData = contentData.query?.pages?.[pageId];
 
       if (!pageData || pageData.missing) {

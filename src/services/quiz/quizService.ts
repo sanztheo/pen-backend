@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma } from "@prisma/client";
+import type { QuizPreset as PrismaQuizPreset } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { AIQuizService } from "./aiQuizService.js";
 import {
@@ -190,7 +191,7 @@ interface SequentialQuizSubmitResult {
 interface FormattedHistoryQuiz {
   id: string;
   title: string;
-  preset?: QuizPreset;
+  preset?: QuizPreset | PrismaQuizPreset;
   isSequential: boolean;
   isSequence?: boolean;
   isCompleted: boolean;
@@ -1012,7 +1013,8 @@ export class QuizService {
       });
 
       // Transformer les séquences pour les rendre compatibles avec l'affichage
-      const formattedSequences = quizSequences.map((sequence) => {
+      const formattedSequences: FormattedHistoryQuiz[] = quizSequences.map(
+        (sequence) => {
         const subjects = Array.isArray(sequence.subjects)
           ? (sequence.subjects as unknown as ExamSubject[])
           : [];
@@ -1082,14 +1084,36 @@ export class QuizService {
               ? subjects[sequence.currentSubjectIndex]
               : null,
         };
-      });
+      },
+      );
+
+      const formattedIndividualQuizzes: FormattedHistoryQuiz[] =
+        individualQuizzes.map((quiz) => ({
+          id: quiz.id,
+          title: quiz.template?.title || "Quiz",
+          preset: quiz.preset || undefined,
+          isSequential: false,
+          isCompleted: quiz.isCompleted,
+          createdAt: quiz.createdAt,
+          updatedAt: quiz.updatedAt,
+          schoolLevel: quiz.template?.schoolLevel || "",
+          questions: quiz.questions,
+          result: quiz.result
+            ? {
+                totalScore: quiz.result.totalScore,
+                maxScore: quiz.result.maxScore,
+                percentage: quiz.result.percentage,
+                adaptedGrade: quiz.result.adaptedGrade,
+                gradeScale: quiz.result.gradeScale,
+                detailedScoring: quiz.result.detailedScoring,
+              }
+            : null,
+          sequenceType: "individual",
+        }));
 
       // Combiner et trier par date de création (plus récent d'abord)
-      const allItems = [
-        ...individualQuizzes.map((quiz) => ({
-          ...quiz,
-          sequenceType: "individual",
-        })),
+      const allItems: FormattedHistoryQuiz[] = [
+        ...formattedIndividualQuizzes,
         ...formattedSequences,
       ].sort(
         (a, b) =>
@@ -1097,7 +1121,7 @@ export class QuizService {
       );
 
       // Appliquer la pagination sur le résultat combiné
-      return allItems.slice(offset, offset + limit) as FormattedHistoryQuiz[];
+      return allItems.slice(offset, offset + limit);
     } catch (error) {
       console.error("❌ Erreur récupération historique:", error);
       throw new Error("Impossible de récupérer l'historique des quiz");
@@ -2554,24 +2578,25 @@ export class QuizService {
   private static cleanGraphicPropertiesForSave(
     subjects: QuizSubject[],
   ): QuizSubject[] {
-    return subjects.map((subject: QuizSubject) => ({
-      ...subject,
-      questions: subject.questions.map((question: Question) => {
-        if (question.hasGraphic) {
+    return subjects.map(
+      (subject: QuizSubject): QuizSubject => ({
+        ...subject,
+        questions: subject.questions.map((question: Question): Question => {
+          if (!question.hasGraphic) return question;
+
           return {
             ...question,
             // 🔧 Remplacer undefined par des valeurs par défaut
-            graphicConfig: question.graphicConfig || null, // undefined → null
+            graphicConfig: question.graphicConfig ?? null, // undefined → null
             graphicDescription: question.graphicDescription || "", // undefined → chaîne vide
             graphicDataValues: question.graphicDataValues || [], // undefined → array vide
             graphicType: question.graphicType || "2d", // undefined → '2d'
             graphicLibrary: question.graphicLibrary || "apexcharts", // undefined → 'apexcharts'
             graphicId: question.graphicId || `graphic_${Date.now()}`, // undefined → ID généré
-          } as Question;
-        }
-        return question;
+          };
+        }),
       }),
-    })) as QuizSubject[];
+    );
   }
 
   /**

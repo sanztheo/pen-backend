@@ -4,6 +4,7 @@ import {
   GeneratedQuiz,
   WorkspaceAnalysisResult,
   Question,
+  QuestionType,
 } from "../types.js";
 import { PromptUtils } from "../utils/promptUtils.js";
 import { JsonUtils } from "../utils/jsonUtils.js";
@@ -20,6 +21,17 @@ import { AIGraphicGenerator } from "../graphics/aiGraphicGenerator.js";
 import { PARTIELS_CONFIG } from "../presets/partiels/index.js";
 import { BAC_CONFIG } from "../presets/bac/index.js";
 import { BREVET_CONFIG } from "../presets/brevet/index.js";
+
+type Difficulty = "facile" | "moyen" | "difficile";
+type GraphicLibrary = "apexcharts" | "plotly";
+
+function isDifficulty(value: string): value is Difficulty {
+  return value === "facile" || value === "moyen" || value === "difficile";
+}
+
+function isGraphicLibrary(value: string): value is GraphicLibrary {
+  return value === "apexcharts" || value === "plotly";
+}
 
 // Interface pour une option QCM
 interface QuizOption {
@@ -42,6 +54,10 @@ interface QuizQuestionFromAI {
   options?: QuizOption[];
   leftColumn?: MatchingItem[];
   rightColumn?: MatchingItem[];
+  correctMatches?: Array<{ leftId: string; rightId: string }>;
+  correctAnswer?: boolean;
+  expectedAnswer?: string;
+  multipleAnswers?: boolean;
   points?: number;
   difficulty?: string;
   timeEstimate?: number;
@@ -104,6 +120,72 @@ interface GraphicConfiguration {
  */
 export class QuizGenerator {
   private static aiGraphicGenerator = new AIGraphicGenerator();
+
+  private static toQuestionFromAI(q: QuizQuestionFromAI): Question {
+    const difficulty: Difficulty =
+      typeof q.difficulty === "string" && isDifficulty(q.difficulty)
+        ? q.difficulty
+        : "moyen";
+
+    const graphicLibrary: GraphicLibrary | undefined =
+      typeof q.graphicLibrary === "string" && isGraphicLibrary(q.graphicLibrary)
+        ? q.graphicLibrary
+        : undefined;
+
+    const base = {
+      id: q.id || `q_${Date.now()}_${Math.random()}`,
+      question: q.question,
+      difficulty,
+      points: q.points || 1,
+      category: q.category || "Général",
+      timeEstimate: q.timeEstimate || 30,
+      hasGraphic: q.hasGraphic,
+      graphicConfig: q.graphicConfig ?? null,
+      graphicType: q.graphicType,
+      graphicDescription: q.graphicDescription,
+      graphicDataValues: Array.isArray(q.graphicDataValues)
+        ? q.graphicDataValues.filter((v) => typeof v === "number")
+        : undefined,
+      graphicLibrary,
+    };
+
+    if (q.type === QuestionType.MULTIPLE_CHOICE) {
+      return {
+        ...base,
+        type: QuestionType.MULTIPLE_CHOICE,
+        options: (q.options ?? []).map((o, index) => ({
+          id: o.id || `option_${index + 1}`,
+          text: o.text,
+          isCorrect: o.isCorrect ?? false,
+        })),
+        multipleAnswers: q.multipleAnswers,
+      };
+    }
+
+    if (q.type === QuestionType.TRUE_FALSE) {
+      return {
+        ...base,
+        type: QuestionType.TRUE_FALSE,
+        correctAnswer: q.correctAnswer ?? true,
+      };
+    }
+
+    if (q.type === QuestionType.MATCHING) {
+      return {
+        ...base,
+        type: QuestionType.MATCHING,
+        leftColumn: q.leftColumn ?? [],
+        rightColumn: q.rightColumn ?? [],
+        correctMatches: q.correctMatches ?? [],
+      };
+    }
+
+    return {
+      ...base,
+      type: QuestionType.OPEN_QUESTION,
+      expectedAnswer: q.expectedAnswer,
+    };
+  }
 
   /**
    * Détermine le nombre maximum de tokens selon le preset utilisé
@@ -599,17 +681,10 @@ IMPORTANT pour le titre IA :
       });
 
       // Parse du JSON avec robustesse améliorée
-      const quizData = JsonUtils.extractJsonFromText(
-        result.content,
-      ) as QuizDataFromAI;
-
-      // Log du contenu IA reçu pour debug
-      console.log("🟡 Contenu IA reçu:", JSON.stringify(quizData, null, 2));
+      const extracted = JsonUtils.extractJsonFromText(result.content);
 
       // Normalisation intelligente du format de réponse IA
-      const normalizedQuizData = this.normalizeQuizData(
-        quizData,
-      ) as QuizDataFromAI;
+      const normalizedQuizData = this.normalizeQuizData(extracted);
 
       // Validation et normalisation des questions
       // Pour les quiz personnalisés (NONE), toutes les questions valent 1 point
@@ -667,12 +742,9 @@ IMPORTANT pour le titre IA :
         aiGeneratedTitle: normalizedQuizData.aiGeneratedTitle, // ✅ Titre généré par l'IA
         description: normalizedQuizData.description,
         schoolLevel: request.schoolLevel,
-        questions: normalizedQuizData.questions.map(
-          (q: QuizQuestionFromAI) => ({
-            ...q,
-            id: q.id || `q_${Date.now()}_${Math.random()}`,
-          }),
-        ) as Question[],
+        questions: normalizedQuizData.questions.map((q) =>
+          this.toQuestionFromAI(q),
+        ),
         totalPoints: normalizedQuizData.questions.reduce(
           (sum: number, q: QuizQuestionFromAI) => sum + (q.points || 1),
           0,
@@ -856,9 +928,8 @@ IMPORTANT pour le titre IA :
         model: AIService.getDefaultModel(),
       });
 
-      const quizData = JsonUtils.extractJsonFromText(
-        result.content,
-      ) as QuizDataFromAI;
+      const extracted = JsonUtils.extractJsonFromText(result.content);
+      const quizData = this.normalizeQuizData(extracted);
 
       // Validation et normalisation des questions (workspace)
       // Pour les quiz personnalisés (basés sur workspaces), toutes les questions valent 1 point
@@ -931,10 +1002,7 @@ IMPORTANT pour le titre IA :
         aiGeneratedTitle: quizData.aiGeneratedTitle, // ✅ Titre workspace généré par l'IA
         description: quizData.description,
         schoolLevel: request.schoolLevel,
-        questions: quizData.questions.map((q: QuizQuestionFromAI) => ({
-          ...q,
-          id: q.id || `q_${Date.now()}_${Math.random()}`,
-        })) as Question[],
+        questions: quizData.questions.map((q) => this.toQuestionFromAI(q)),
         totalPoints: quizData.questions.reduce(
           (sum: number, q: QuizQuestionFromAI) => sum + (q.points || 1),
           0,

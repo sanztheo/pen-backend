@@ -39,7 +39,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 interface PageWithBlockNote {
   id: string;
   title: string;
-  blockNoteContent: BlockNoteBlock[] | null;
+  blockNoteContent: unknown;
 }
 
 // Type for Prisma error with code
@@ -530,9 +530,7 @@ router.get(
       }
 
       // 🚀 REDIS CACHE: Récupérer depuis cache (2min TTL)
-      const page = (await cacheBlockNoteContent(
-        pageId,
-      )) as PageWithBlockNote | null;
+      const page: PageWithBlockNote | null = await cacheBlockNoteContent(pageId);
 
       if (!page) {
         return res.status(404).json({ error: "Page non trouvée" });
