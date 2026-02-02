@@ -1,10 +1,10 @@
 // 🚀 RAG System - Service Principal
-import { prismaEmbeddings } from "../../lib/prismaEmbeddings.js";
+import {
+  prismaEmbeddings,
+  type RAGSourceType,
+  type Prisma,
+} from "../../lib/prismaEmbeddings.js";
 import { logger } from "../../utils/logger.js";
-import type {
-  RAGSourceType,
-  Prisma,
-} from "../../../node_modules/.prisma/client-embeddings/index.js";
 
 // Type pour la réponse de l'API OpenAI
 interface OpenAIChatCompletion {
@@ -20,7 +20,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isNumberArray(value: unknown): value is number[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "number");
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === "number")
+  );
 }
 
 function isOpenAIChatCompletion(value: unknown): value is OpenAIChatCompletion {
