@@ -4,11 +4,12 @@ import path from "path";
 export class Logger {
   private static logDir = path.join(process.cwd(), "logs");
   private static currentLogFile: string;
+  private static nativeConsole = globalThis.console;
   private static originalConsole = {
-    log: console.log,
-    error: console.error,
-    warn: console.warn,
-    info: console.info,
+    log: Logger.nativeConsole.log,
+    error: Logger.nativeConsole.error,
+    warn: Logger.nativeConsole.warn,
+    info: Logger.nativeConsole.info,
   };
 
   /**
@@ -41,31 +42,31 @@ Environnement: ${process.env.NODE_ENV || "development"}
 Port: ${process.env.PORT || 3001}
 ================================================================================
 
-`);
+    `);
 
     // Intercepter les logs console
-    console.log = (...args) => {
+    this.nativeConsole.log = (...args) => {
       const message = this.formatMessage("LOG", args);
       this.originalConsole.log(...args);
       this.writeToFile(message);
     };
 
     // Intercepter console.error
-    console.error = (...args) => {
+    this.nativeConsole.error = (...args) => {
       const message = this.formatMessage("ERROR", args);
       this.originalConsole.error(...args);
       this.writeToFile(message);
     };
 
-    // Intercepter console.warn
-    console.warn = (...args) => {
+    // Intercepter les warnings
+    this.nativeConsole.warn = (...args) => {
       const message = this.formatMessage("WARN", args);
       this.originalConsole.warn(...args);
       this.writeToFile(message);
     };
 
-    // Intercepter console.info
-    console.info = (...args) => {
+    // Intercepter les infos
+    this.nativeConsole.info = (...args) => {
       const message = this.formatMessage("INFO", args);
       this.originalConsole.info(...args);
       this.writeToFile(message);
@@ -117,7 +118,7 @@ Durée de fonctionnement: ${this.getUptime()}
       this.writeToFile(message);
     });
 
-    console.log("📝 Système de logging initialisé:", this.currentLogFile);
+    this.nativeConsole.log("📝 Système de logging initialisé:", this.currentLogFile);
     this.interceptSpecialLogs();
     this.cleanOldLogs();
   }
@@ -132,7 +133,7 @@ Durée de fonctionnement: ${this.getUptime()}
         const originalRequest = require("express").request;
         if (originalRequest) {
           // Intercepter les requêtes Express pour logging détaillé
-          console.log("🔍 Interception des requêtes Express activée");
+          this.nativeConsole.log("🔍 Interception des requêtes Express activée");
         }
       } catch {
         // Express pas disponible
@@ -301,11 +302,11 @@ ${JSON.stringify(detailedError, null, 2)}
         const filesToDelete = files.slice(10);
         filesToDelete.forEach((file) => {
           fs.unlinkSync(file.path);
-          console.log(`🗑️ Log supprimé: ${file.name}`);
+          this.nativeConsole.log(`🗑️ Log supprimé: ${file.name}`);
         });
       }
 
-      console.log(
+      this.nativeConsole.log(
         `📁 Logs disponibles: ${files.length} fichiers dans ${this.logDir}`,
       );
     } catch (error) {
@@ -317,10 +318,10 @@ ${JSON.stringify(detailedError, null, 2)}
    * Restaure les fonctions console originales (pour les tests)
    */
   static restore() {
-    console.log = this.originalConsole.log;
-    console.error = this.originalConsole.error;
-    console.warn = this.originalConsole.warn;
-    console.info = this.originalConsole.info;
+    this.nativeConsole.log = this.originalConsole.log;
+    this.nativeConsole.error = this.originalConsole.error;
+    this.nativeConsole.warn = this.originalConsole.warn;
+    this.nativeConsole.info = this.originalConsole.info;
   }
 
   /**

@@ -7,14 +7,16 @@
  * 3. Provides consistent API across frontend/backend
  */
 
+const nativeConsole = globalThis.console;
+
 export const logger = {
-  log: (...args: unknown[]) => console.log(...args),
-  warn: (...args: unknown[]) => console.warn(...args),
-  error: (...args: unknown[]) => console.error(...args),
-  info: (...args: unknown[]) => console.info(...args),
+  log: (...args: unknown[]) => nativeConsole.log(...args),
+  warn: (...args: unknown[]) => nativeConsole.warn(...args),
+  error: (...args: unknown[]) => nativeConsole.error(...args),
+  info: (...args: unknown[]) => nativeConsole.info(...args),
   debug: (...args: unknown[]) => {
     if (process.env.NODE_ENV === "development" || process.env.DEBUG) {
-      console.log("[DEBUG]", ...args);
+      nativeConsole.log("[DEBUG]", ...args);
     }
   },
 };
