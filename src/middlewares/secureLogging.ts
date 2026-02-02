@@ -4,6 +4,7 @@
  */
 
 import { Request, Response, NextFunction } from "express";
+import { logger } from "../utils/logger.js";
 
 export interface SecureLogOptions {
   maxLength?: number;
@@ -26,7 +27,7 @@ export class SecureLogger {
     }
 
     const sanitizedData = this.sanitizeData(data, options);
-    console.log(message, sanitizedData);
+    logger.log(message, sanitizedData);
   }
 
   /**
@@ -37,9 +38,9 @@ export class SecureLogger {
       // En production, logs minimaux
       const errorMessage =
         error instanceof Error ? error.message : "Erreur interne";
-      console.error(message, errorMessage);
+      logger.error(message, errorMessage);
     } else {
-      console.error(message, error);
+      logger.error(message, error);
     }
   }
 
@@ -48,7 +49,7 @@ export class SecureLogger {
    */
   static warn(message: string, data?: unknown, options?: SecureLogOptions) {
     const sanitizedData = this.sanitizeData(data, options);
-    console.warn(message, sanitizedData);
+    logger.warn(message, sanitizedData);
   }
 
   /**
@@ -56,7 +57,7 @@ export class SecureLogger {
    */
   static debug(message: string, data?: unknown) {
     if (!this.isProduction) {
-      console.log(`🐛 [DEBUG] ${message}`, data);
+      logger.debug(message, data);
     }
   }
 
@@ -73,7 +74,7 @@ export class SecureLogger {
       action: data?.action || "unknown",
       resource: data?.resource || "unknown",
     };
-    console.log(`🔒 [AUDIT] ${message}`, auditData);
+    logger.info(`🔒 [AUDIT] ${message}`, auditData);
   }
 
   /**
