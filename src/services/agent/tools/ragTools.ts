@@ -1,13 +1,13 @@
 // 🔍 RAG Tools - Vercel AI SDK Format
 import { tool } from "ai";
 import { z } from "zod";
-import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
+import {
+  prismaEmbeddings,
+  type Prisma,
+  type RAGSourceType,
+} from "../../../lib/prismaEmbeddings.js";
 import { ragSystem, type RAGSearchOptions } from "../../rag/index.js";
 import { logger } from "../../../utils/logger.js";
-import type {
-  RAGSourceType,
-  Prisma,
-} from "../../../../node_modules/.prisma/client-embeddings/index.js";
 
 /**
  * Context utilisateur injecté via closure dans createRagTools()

@@ -1,6 +1,8 @@
 // 🧹 RAG Cleanup Service - Nettoyage automatique des embeddings non utilisés
-import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
-import { Prisma } from "../../../node_modules/.prisma/client-embeddings/index.js";
+import {
+  prismaEmbeddings as prisma,
+  type Prisma,
+} from "../../lib/prismaEmbeddings.js";
 import { logger } from "../../utils/logger.js";
 
 // Type pour les sources avec count de chunks
@@ -263,10 +265,7 @@ export class RAGCleanupService {
 
     return {
       candidateCount: candidates.length,
-      totalChunks: candidates.reduce(
-        (sum, s) => sum + s._count.chunks,
-        0,
-      ),
+      totalChunks: candidates.reduce((sum, s) => sum + s._count.chunks, 0),
       estimatedSpaceMB: candidates.reduce(
         (sum, s) => sum + s._count.chunks / 1024,
         0,
