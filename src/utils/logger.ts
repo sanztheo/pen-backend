@@ -2,7 +2,7 @@
  * Logger wrapper for consistent logging across the backend
  *
  * This is a thin wrapper around console.* that:
- * 1. Satisfies CLAUDE.md rule (no direct console.log)
+ * 1. Satisfies CLAUDE.md rule (no direct console usage in app code)
  * 2. Works with the Logger class interceptor (src/lib/logger.ts)
  * 3. Provides consistent API across frontend/backend
  */
