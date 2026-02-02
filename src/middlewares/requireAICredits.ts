@@ -30,13 +30,11 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
       const userId = req.user?.id;
 
       if (!userId) {
-        return res
-          .status(401)
-          .json({
-            success: false,
-            error: "Utilisateur non authentifié",
-            code: "UNAUTHORIZED",
-          });
+        return res.status(401).json({
+          success: false,
+          error: "Utilisateur non authentifié",
+          code: "UNAUTHORIZED",
+        });
       }
 
       // SÉCURITÉ: Vérifier que l'utilisateur existe en base de données
@@ -49,13 +47,11 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
           "error: ❌ [AI-CREDITS] Tentative d'utilisation pour un utilisateur inexistant",
           { userId },
         );
-        return res
-          .status(404)
-          .json({
-            success: false,
-            error: "Utilisateur non trouvé",
-            code: "USER_NOT_FOUND",
-          });
+        return res.status(404).json({
+          success: false,
+          error: "Utilisateur non trouvé",
+          code: "USER_NOT_FOUND",
+        });
       }
 
       // 💰 Calculer le coût (dynamique si fourni, sinon fixe)
@@ -73,14 +69,12 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
           path: req.path,
           action,
         });
-        return res
-          .status(403)
-          .json({
-            success: false,
-            error: "Limite de crédits IA atteinte",
-            code: "CREDITS_EXHAUSTED",
-            limitReached: true,
-          });
+        return res.status(403).json({
+          success: false,
+          error: "Limite de crédits IA atteinte",
+          code: "CREDITS_EXHAUSTED",
+          limitReached: true,
+        });
       }
 
       // 2. Déduire les crédits
@@ -97,19 +91,17 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
           cost,
           remainingCredits: deductionResult.remainingCredits,
         });
-        return res
-          .status(403)
-          .json({
-            success: false,
-            error: deductionResult.message,
-            code: "CREDITS_DEDUCTION_FAILED",
-            remainingCredits: deductionResult.remainingCredits,
-            limitReached: deductionResult.limitReached,
-          });
+        return res.status(403).json({
+          success: false,
+          error: deductionResult.message,
+          code: "CREDITS_DEDUCTION_FAILED",
+          remainingCredits: deductionResult.remainingCredits,
+          limitReached: deductionResult.limitReached,
+        });
       }
 
       // 3. Ajouter infos crédits à la requête
-      (req as any).aiCredits = {
+      req.aiCredits = {
         cost,
         remainingCredits: deductionResult.remainingCredits,
         action,
@@ -126,13 +118,11 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
       next();
     } catch (error) {
       secureLog("error: ❌ [AI-CREDITS] Erreur middleware crédits IA", error);
-      return res
-        .status(500)
-        .json({
-          success: false,
-          error: "Erreur interne lors de la vérification des crédits",
-          code: "CREDITS_CHECK_ERROR",
-        });
+      return res.status(500).json({
+        success: false,
+        error: "Erreur interne lors de la vérification des crédits",
+        code: "CREDITS_CHECK_ERROR",
+      });
     }
   };
 };
