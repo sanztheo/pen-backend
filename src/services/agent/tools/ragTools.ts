@@ -74,7 +74,7 @@ const checkSourcesRagStatusSchema = z.object({
 /**
  * Crée les tools RAG avec le contexte utilisateur
  */
-export function createRagTools(ctx: RagToolsContext): Record<string, unknown> {
+export function createRagTools(ctx: RagToolsContext) {
   return {
     /**
      * Liste toutes les sources RAG disponibles dans le workspace
