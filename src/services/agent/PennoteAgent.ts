@@ -1,5 +1,5 @@
 // 🤖 Pennote Agent - Vercel AI SDK v5
-import { streamText, stepCountIs } from "ai";
+import { streamText, stepCountIs, type ToolSet } from "ai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createRagTools } from "./tools/ragTools.js";
@@ -71,13 +71,13 @@ export async function runPennoteAgent(
 
   // 🧠 AGENT INTELLIGENT: Tous les outils sont disponibles pour tous les modes
   // La différence entre modes est dans maxSteps et le system prompt qui guide l'intensité
-  const tools: Record<string, any> = {
+  const tools = {
     ...ragTools,
     ...workspaceTools,
     ...webTools,
     ...pageTools,
     ...wikipediaTools,
-  };
+  } satisfies ToolSet;
 
   // System prompt
   const systemPrompt = buildSystemPrompt(mode, {

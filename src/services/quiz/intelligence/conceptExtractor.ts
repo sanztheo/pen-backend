@@ -121,7 +121,9 @@ export class ConceptExtractorService {
       }
 
       // 3. Extraire le texte du contenu BlockNote
-      const blocks = page.blockNoteContent as any[] | null;
+      const blocks = Array.isArray(page.blockNoteContent)
+        ? (page.blockNoteContent as unknown[])
+        : null;
       if (!blocks || blocks.length === 0) {
         console.log(`🧠 [ConceptExtractor] Page vide, skip`);
         return {

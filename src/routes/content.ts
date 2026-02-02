@@ -21,7 +21,7 @@ const createProjectSchema = z.object({
 const createPageSchema = z.object({
   title: z.string().min(1, "Le titre est requis").max(255),
   projectId: z.string().uuid().nullable().optional(),
-  blockNoteContent: z.any().optional(), // Contenu pré-rempli (import PDF)
+  blockNoteContent: z.unknown().optional(), // Contenu pré-rempli (import PDF)
 });
 
 const updateProjectSchema = z.object({

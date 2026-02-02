@@ -220,14 +220,14 @@ export const cacheBlockNoteContent = async (pageId: string) => {
     }
 
     console.log(`❌ [REDIS-CACHE] BlockNote MISS: ${pageId}`);
-    const page = await prisma.page.findUnique({
-      where: { id: pageId },
-      select: {
-        id: true,
-        title: true,
-        blockNoteContent: true,
-      },
-    } as any);
+	    const page = await prisma.page.findUnique({
+	      where: { id: pageId },
+	      select: {
+	        id: true,
+	        title: true,
+	        blockNoteContent: true,
+	      },
+	    });
 
     if (page) {
       // TTL 24h (86400s) - invalidé à chaque sauvegarde WebSocket
@@ -237,16 +237,16 @@ export const cacheBlockNoteContent = async (pageId: string) => {
     return page;
   } catch (error) {
     console.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
-    return await prisma.page.findUnique({
-      where: { id: pageId },
-      select: {
-        id: true,
-        title: true,
-        blockNoteContent: true,
-      },
-    } as any);
-  }
-};
+	    return await prisma.page.findUnique({
+	      where: { id: pageId },
+	      select: {
+	        id: true,
+	        title: true,
+	        blockNoteContent: true,
+	      },
+	    });
+	  }
+	};
 
 /**
  * Invalider le cache BlockNote (après sauvegarde)

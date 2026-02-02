@@ -263,11 +263,11 @@ export class RAGCleanupService {
     return {
       candidateCount: candidates.length,
       totalChunks: candidates.reduce(
-        (sum, s) => sum + ((s as any)._count.chunks || 0),
+        (sum, s) => sum + s._count.chunks,
         0,
       ),
       estimatedSpaceMB: candidates.reduce(
-        (sum, s) => sum + ((s as any)._count.chunks || 0) / 1024,
+        (sum, s) => sum + s._count.chunks / 1024,
         0,
       ),
       oldestSource: candidates.length > 0 ? candidates[0].createdAt : null,
@@ -276,7 +276,7 @@ export class RAGCleanupService {
         title: s.title,
         createdAt: s.createdAt,
         lastUsedAt: s.lastUsedAt,
-        chunks: (s as any)._count.chunks,
+        chunks: s._count.chunks,
         isGlobal: s.isGlobal,
       })),
     };
@@ -336,7 +336,7 @@ export class RAGCleanupService {
     // Supprimer les fichiers et leurs chunks
     for (const file of oldFiles) {
       try {
-        const chunksCount = (file as any)._count.chunks;
+        const chunksCount = file._count.chunks;
 
         // Supprimer les chunks
         await prisma.rAGChunk.deleteMany({

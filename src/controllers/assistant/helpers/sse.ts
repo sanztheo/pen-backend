@@ -1,5 +1,11 @@
 import type { Response } from 'express';
 
+type ResponseWithFlush = Response & { flush: () => void };
+
+function hasFlush(res: Response): res is ResponseWithFlush {
+  return typeof (res as { flush?: unknown }).flush === 'function';
+}
+
 export function sseWriteData(res: Response, text: string) {
   const normalized = String(text || '').replace(/\r\n/g, '\n');
   const parts = normalized.split('\n');
@@ -7,7 +13,7 @@ export function sseWriteData(res: Response, text: string) {
     res.write(`data: ${p}\n`);
   }
   res.write('\n');
-  if ((res as any).flush) {
-    try { (res as any).flush(); } catch {}
+  if (hasFlush(res)) {
+    try { res.flush(); } catch {}
   }
 }

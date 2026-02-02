@@ -140,6 +140,14 @@ export class QuizLimitValidator {
   }
 
   /**
+   * Expose le contexte utilisateur pour l'affichage (frontend/debug).
+   * Évite d'accéder à la méthode privée via cast.
+   */
+  async getUserContextForDisplay(userId: string): Promise<UserQuizContext> {
+    return this.getUserContext(userId);
+  }
+
+  /**
    * Vérifie si l'utilisateur peut créer un quiz avec les paramètres donnés
    */
   async canCreateQuiz(

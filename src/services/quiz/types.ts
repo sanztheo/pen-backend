@@ -296,6 +296,8 @@ export interface BaseQuestion {
   difficulty: "facile" | "moyen" | "difficile";
   points: number;
   category?: string;
+  subject?: string; // Libellé matière/cluster (usage UI / génération intelligente)
+  metadata?: Record<string, unknown>; // Métadonnées additionnelles (scoring, clustering, etc.)
   timeEstimate?: number; // en secondes
   latexRequired?: boolean; // indique si LaTeX est requis pour la réponse
   latexHint?: string; // indication sur l'utilisation du LaTeX

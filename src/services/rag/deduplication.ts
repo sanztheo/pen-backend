@@ -1,6 +1,11 @@
 // 🔄 RAG Deduplication System - Évite les doublons d'embeddings
 import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
+import { Prisma } from "../../../node_modules/.prisma/client-embeddings/index.js";
 import type { RAGSourceType } from "../../../node_modules/.prisma/client-embeddings/index.js";
+
+type RAGSourceWithChunkCount = Prisma.RAGSourceGetPayload<{
+  include: { _count: { select: { chunks: true } } };
+}>;
 
 export interface DeduplicationResult {
   exists: boolean;
@@ -31,14 +36,15 @@ export class RAGDeduplicationService {
     title: string,
   ): Promise<DeduplicationResult> {
     // 🌍 ÉTAPE 1: Rechercher d'abord dans les sources GLOBALES partagées
-    const globalSource = await prisma.rAGSource.findFirst({
+    const globalSource: RAGSourceWithChunkCount | null =
+      await prisma.rAGSource.findFirst({
       where: {
         isGlobal: true,
         sourceType: "WIKIPEDIA",
         title: {
           equals: title,
-          mode: "insensitive",
-        } as any,
+          mode: Prisma.QueryMode.insensitive,
+        },
       },
       include: {
         _count: {
@@ -47,21 +53,22 @@ export class RAGDeduplicationService {
       },
     });
 
-    if (globalSource && (globalSource as any)._count.chunks > 0) {
+    if (globalSource && globalSource._count.chunks > 0) {
       console.log(
-        `🌍 [DEDUP-GLOBAL] Source Wikipedia globale trouvée: "${title}" (${(globalSource as any)._count.chunks} chunks)`,
+        `🌍 [DEDUP-GLOBAL] Source Wikipedia globale trouvée: "${title}" (${globalSource._count.chunks} chunks)`,
       );
       return {
         exists: true,
         sourceId: globalSource.id,
-        chunksCount: (globalSource as any)._count.chunks,
+        chunksCount: globalSource._count.chunks,
         lastUpdated: globalSource.updatedAt,
         shouldUpdate: false, // Source globale complète, pas besoin de mise à jour
       };
     }
 
     // 👤 ÉTAPE 2: Si pas de source globale, rechercher dans les sources USER
-    const userSource = await prisma.rAGSource.findFirst({
+    const userSource: RAGSourceWithChunkCount | null =
+      await prisma.rAGSource.findFirst({
       where: {
         userId,
         workspaceId,
@@ -69,8 +76,8 @@ export class RAGDeduplicationService {
         isGlobal: false,
         title: {
           equals: title,
-          mode: "insensitive",
-        } as any,
+          mode: Prisma.QueryMode.insensitive,
+        },
       },
       include: {
         _count: {
@@ -84,12 +91,12 @@ export class RAGDeduplicationService {
     }
 
     // Vérifier si l'embedding est complet (au moins 1 chunk)
-    const hasChunks = (userSource as any)._count.chunks > 0;
+    const hasChunks = userSource._count.chunks > 0;
 
     return {
       exists: true,
       sourceId: userSource.id,
-      chunksCount: (userSource as any)._count.chunks,
+      chunksCount: userSource._count.chunks,
       lastUpdated: userSource.updatedAt,
       shouldUpdate: !hasChunks,
     };
@@ -110,21 +117,23 @@ export class RAGDeduplicationService {
     const results = new Map<string, DeduplicationResult>();
 
     // 🌍 ÉTAPE 1: Recherche en batch des sources GLOBALES
-    const globalSources = await prisma.rAGSource.findMany({
+    const globalSources: RAGSourceWithChunkCount[] = await prisma.rAGSource.findMany(
+      {
       where: {
         isGlobal: true,
         sourceType: "WIKIPEDIA",
         title: {
           in: titles,
-          mode: "insensitive",
-        } as any,
+          mode: Prisma.QueryMode.insensitive,
+        },
       },
       include: {
         _count: {
           select: { chunks: true },
         },
       },
-    });
+      },
+    );
 
     // 👤 ÉTAPE 2: Recherche en batch des sources USER (pour les titres non trouvés en global)
     const globalTitles = globalSources.map((s) => s.title.toLowerCase());
@@ -132,7 +141,7 @@ export class RAGDeduplicationService {
       (t) => !globalTitles.includes(t.toLowerCase()),
     );
 
-    const userSources =
+    const userSources: RAGSourceWithChunkCount[] =
       remainingTitles.length > 0
         ? await prisma.rAGSource.findMany({
             where: {
@@ -142,8 +151,8 @@ export class RAGDeduplicationService {
               isGlobal: false,
               title: {
                 in: remainingTitles,
-                mode: "insensitive",
-              } as any,
+                mode: Prisma.QueryMode.insensitive,
+              },
             },
             include: {
               _count: {
@@ -157,7 +166,7 @@ export class RAGDeduplicationService {
     const existingSources = [...globalSources, ...userSources];
 
     // Créer un map des sources existantes (insensible à la casse)
-    const existingMap = new Map<string, (typeof existingSources)[0]>();
+    const existingMap = new Map<string, RAGSourceWithChunkCount>();
     existingSources.forEach((source) => {
       existingMap.set(source.title.toLowerCase(), source);
     });
@@ -169,11 +178,11 @@ export class RAGDeduplicationService {
       if (!existing) {
         results.set(title, { exists: false });
       } else {
-        const hasChunks = (existing as any)._count.chunks > 0;
+        const hasChunks = existing._count.chunks > 0;
         results.set(title, {
           exists: true,
           sourceId: existing.id,
-          chunksCount: (existing as any)._count.chunks,
+          chunksCount: existing._count.chunks,
           lastUpdated: existing.updatedAt,
           shouldUpdate: !hasChunks,
         });
@@ -198,7 +207,8 @@ export class RAGDeduplicationService {
     fileName?: string,
   ): Promise<DeduplicationResult> {
     // Recherche par hash de contenu (plus fiable que le nom)
-    const existingSource = await prisma.rAGSource.findFirst({
+    const existingSource: RAGSourceWithChunkCount | null =
+      await prisma.rAGSource.findFirst({
       where: {
         userId,
         workspaceId,
@@ -215,8 +225,8 @@ export class RAGDeduplicationService {
                 {
                   title: {
                     equals: fileName,
-                    mode: "insensitive",
-                  } as any,
+                    mode: Prisma.QueryMode.insensitive,
+                  },
                 },
               ]
             : []),
@@ -233,12 +243,12 @@ export class RAGDeduplicationService {
       return { exists: false };
     }
 
-    const hasChunks = (existingSource as any)._count.chunks > 0;
+    const hasChunks = existingSource._count.chunks > 0;
 
     return {
       exists: true,
       sourceId: existingSource.id,
-      chunksCount: (existingSource as any)._count.chunks,
+      chunksCount: existingSource._count.chunks,
       lastUpdated: existingSource.updatedAt,
       shouldUpdate: !hasChunks,
     };

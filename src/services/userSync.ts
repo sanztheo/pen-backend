@@ -167,6 +167,7 @@ export class UserSyncService {
       firstName?: string;
       lastName?: string;
       avatarUrl?: string;
+      avatar?: string; // compat front: certains clients envoient 'avatar' (URL)
       displayName?: string;
       timezone?: string;
       language?: string;
@@ -191,8 +192,7 @@ export class UserSyncService {
         if (metadata.avatarUrl !== undefined)
           updateData.avatarUrl = metadata.avatarUrl;
         // Support front qui enverrait 'avatar' (URL) côté updateProfile
-        if ((metadata as any).avatar !== undefined)
-          updateData.avatarUrl = (metadata as any).avatar;
+        if (metadata.avatar !== undefined) updateData.avatarUrl = metadata.avatar;
 
         // 🚀 NOUVEAU : Gérer le paramètre d'autocomplétion
         if (metadata.autocompletionEnabled !== undefined)

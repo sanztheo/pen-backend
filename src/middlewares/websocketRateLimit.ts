@@ -11,6 +11,11 @@
 import { WebSocket } from "ws";
 import { SecureLogger } from "./secureLogging.js";
 
+function getWebSocketId(ws: WebSocket): string {
+  const id = (ws as unknown as { id?: unknown }).id;
+  return typeof id === "string" && id.trim() ? id : "unknown";
+}
+
 /**
  * Tracker de connexions WebSocket par IP
  */
@@ -88,7 +93,7 @@ export const checkWebSocketMessageLimit = (ws: WebSocket): boolean => {
   // Vérifier la limite
   if (tracker.count >= WS_RATE_LIMIT.messagesPerMinute) {
     SecureLogger.warn("🚨 [WS-RATE-LIMIT] Limite de messages atteinte", {
-      wsId: (ws as any).id || "unknown",
+      wsId: getWebSocketId(ws),
       count: tracker.count,
       limit: WS_RATE_LIMIT.messagesPerMinute,
     });

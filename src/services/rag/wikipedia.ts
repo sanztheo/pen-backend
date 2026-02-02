@@ -3,6 +3,17 @@ import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
 import { deduplicationService } from "./deduplication.js";
 import type { RAGChunkInput } from "./index.js";
 
+type PreparedRAGChunkRow = {
+  sourceId: string;
+  chunkIndex: number;
+  content: string;
+  cleanContent: string;
+  embedding: string;
+  tokenCount: number;
+  sectionTitle: string | null;
+  quality: number;
+};
+
 export interface WikipediaArticle {
   pageid: number;
   title: string;
@@ -485,23 +496,23 @@ export class WikipediaRAGSystem {
       `⚙️  [WIKIPEDIA] Embedding ${chunks.length} chunks (x${concurrency})…`,
     );
 
-    const prepared = await mapWithConcurrency(
-      chunks,
-      concurrency,
-      async (chunk, i) => {
-        const embedding = await this.generateEmbedding(chunk.content);
-        return {
-          sourceId,
-          chunkIndex: i,
-          content: chunk.content,
-          cleanContent: this.cleanContent(chunk.content),
-          embedding: JSON.stringify(embedding),
-          tokenCount: this.estimateTokens(chunk.content),
-          sectionTitle: chunk.sectionTitle,
-          quality: chunk.quality || 1.0,
-        } as any;
-      },
-    );
+	    const prepared = await mapWithConcurrency(
+	      chunks,
+	      concurrency,
+	      async (chunk, i) => {
+	        const embedding = await this.generateEmbedding(chunk.content);
+	        return {
+	          sourceId,
+	          chunkIndex: i,
+	          content: chunk.content,
+	          cleanContent: this.cleanContent(chunk.content),
+	          embedding: JSON.stringify(embedding),
+	          tokenCount: this.estimateTokens(chunk.content),
+	          sectionTitle: chunk.sectionTitle ?? null,
+	          quality: chunk.quality ?? 1.0,
+	        } satisfies PreparedRAGChunkRow;
+	      },
+	    );
 
     let inserted = 0;
     for (const batch of chunkArray(prepared, batchSize)) {

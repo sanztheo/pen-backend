@@ -24,6 +24,10 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 /**
  * Service de sélection intelligente de contenu pour Quiz Intelligence
  */
@@ -217,11 +221,14 @@ export class SmartContentSelectorService {
   /**
    * Extrait les paragraphes d'un contenu BlockNote
    */
-  private static extractParagraphs(blocks: any[]): string[] {
+  private static extractParagraphs(blocks: unknown[]): string[] {
     const paragraphs: string[] = [];
 
     for (const block of blocks) {
-      if (block.type === "paragraph" || block.type === "heading") {
+      if (!isRecord(block)) continue;
+
+      const type = block.type;
+      if (type === "paragraph" || type === "heading") {
         const text = extractTextFromBlockNote([block]);
         if (text.trim().length > 0) {
           paragraphs.push(text.trim());
@@ -229,7 +236,7 @@ export class SmartContentSelectorService {
       }
 
       // Récursion pour les blocs imbriqués
-      if (block.children && Array.isArray(block.children)) {
+      if (Array.isArray(block.children)) {
         paragraphs.push(...this.extractParagraphs(block.children));
       }
     }

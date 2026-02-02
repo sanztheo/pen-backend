@@ -52,10 +52,12 @@ import { PreprocessorController } from "./assistant/preprocessorController.js";
 
 // Note: Ce helper utilise 'object' car il copie dynamiquement des méthodes statiques de classes.
 // Le cast interne vers Record est nécessaire pour l'accès par index.
-function copyStaticMethods(target: object, source: object) {
+function copyStaticMethods<TTarget extends object, TSource extends object>(
+  target: TTarget,
+  source: TSource,
+) {
   Object.getOwnPropertyNames(source).forEach((key) => {
     if (key !== "prototype" && key !== "length" && key !== "name") {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (target as Record<string, unknown>)[key] = (
         source as Record<string, unknown>
       )[key];
@@ -72,8 +74,16 @@ function copyStaticMethods(target: object, source: object) {
  * Note: Typage explicite requis car les méthodes sont copiées dynamiquement
  * et doivent être compatibles avec les handlers Express.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const UnifiedQuizControllerObj: Record<string, any> = {};
+type UnifiedQuizControllerType = typeof BaseQuizController &
+  typeof PreferencesController &
+  typeof SequenceController &
+  typeof SequenceDebugController &
+  typeof DocumentController &
+  typeof PagesProjectsController &
+  typeof RAGController &
+  typeof PreprocessorController;
+
+const UnifiedQuizControllerObj = {} as UnifiedQuizControllerType;
 
 // Quiz de base
 copyStaticMethods(UnifiedQuizControllerObj, BaseQuizController);

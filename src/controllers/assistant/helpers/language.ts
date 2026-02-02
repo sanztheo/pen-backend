@@ -1,5 +1,9 @@
 import type { Request } from 'express';
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 export function detectPreferredLanguage(req: Request): { code: string; name: string } {
   // 1) Tenter de lire langue depuis la personnalisation envoyée en header
   let personaLang: string | null = null;
@@ -16,7 +20,13 @@ export function detectPreferredLanguage(req: Request): { code: string; name: str
   // 2) Tenter le body.personalization.langue si non défini en header
   if (!personaLang) {
     try {
-      const bodyLang = (req.body as any)?.personalization?.langue;
+      const body = req.body as unknown;
+      const bodyLang =
+        isRecord(body) &&
+        isRecord(body.personalization) &&
+        typeof body.personalization.langue === 'string'
+          ? body.personalization.langue
+          : undefined;
       if (typeof bodyLang === 'string' && bodyLang.trim()) personaLang = String(bodyLang).trim();
     } catch {}
   }

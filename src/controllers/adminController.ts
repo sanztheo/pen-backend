@@ -408,7 +408,8 @@ export class AdminController {
         return;
       }
 
-      const jobResult = await getJobResult(jobId, userId);
+      type ExportJobPayload = { rowCount?: number };
+      const jobResult = await getJobResult<ExportJobPayload>(jobId, userId);
 
       if (!jobResult) {
         res.status(404).json({
@@ -451,7 +452,8 @@ export class AdminController {
         return;
       }
 
-      const jobResult = await getJobResult(jobId, userId);
+      type ExportJobPayload = { rowCount?: number };
+      const jobResult = await getJobResult<ExportJobPayload>(jobId, userId);
 
       if (!jobResult) {
         res.status(404).json({

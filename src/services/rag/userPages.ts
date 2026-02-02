@@ -2,6 +2,21 @@
 import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
 import type { RAGChunkInput } from "./index.js";
 
+type PreparedRAGChunkRow = {
+  sourceId: string;
+  chunkIndex: number;
+  content: string;
+  cleanContent: string;
+  embedding: string;
+  tokenCount: number;
+  sectionTitle: string | null;
+  quality: number;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 export interface UserPageContent {
   id: string;
   title: string;
@@ -81,9 +96,12 @@ export class UserPagesRAGSystem {
       let source;
       if (existingSource) {
         // Vérifier si la page a vraiment changé depuis la dernière fois
-        const existingMetadata = existingSource.metadata as any;
         const pageLastModified = page.updatedAt.toISOString();
-        const existingLastModified = existingMetadata?.lastModified;
+        const existingLastModified =
+          isRecord(existingSource.metadata) &&
+          typeof existingSource.metadata["lastModified"] === "string"
+            ? existingSource.metadata["lastModified"]
+            : undefined;
 
         if (
           existingLastModified === pageLastModified &&
@@ -453,18 +471,20 @@ export class UserPagesRAGSystem {
             cleanContent: this.cleanContent(chunk.content),
             embedding: JSON.stringify(embedding),
             tokenCount: this.estimateTokens(chunk.content),
-            sectionTitle: chunk.sectionTitle,
-            quality: chunk.quality || 1.0,
-          } as any;
+            sectionTitle: chunk.sectionTitle ?? null,
+            quality: chunk.quality ?? 1.0,
+          } satisfies PreparedRAGChunkRow;
         } catch (error) {
           console.error(`❌ [USER-PAGE] Erreur embedding chunk ${i}:`, error);
           // On ignore ce chunk en cas d'erreur individuelle
-          return null as any;
+          return null;
         }
       },
     );
 
-    const filtered = prepared.filter(Boolean) as any[];
+    const filtered = prepared.filter(
+      (row): row is PreparedRAGChunkRow => row !== null,
+    );
     let inserted = 0;
     for (const batch of chunkArray(filtered, batchSize)) {
       // Utiliser SQL brut pour insérer les embeddings (Prisma ne supporte pas vector nativement)
