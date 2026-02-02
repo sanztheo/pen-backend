@@ -209,25 +209,43 @@ export const clearUserCache = async (userId: string) => {
  * TTL long car invalidation automatique à chaque sauvegarde (pas de collaboration)
  * Performance optimale: données en cache jusqu'à modification utilisateur
  */
-export const cacheBlockNoteContent = async (pageId: string) => {
+type CachedBlockNotePage = {
+  id: string;
+  title: string;
+  blockNoteContent: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isCachedBlockNotePage(value: unknown): value is CachedBlockNotePage {
+  if (!isRecord(value)) return false;
+  return typeof value.id === "string" && typeof value.title === "string";
+}
+
+export const cacheBlockNoteContent = async (
+  pageId: string,
+): Promise<CachedBlockNotePage | null> => {
   try {
     const cacheKey = `blocknote:${pageId}`;
     const cached = await redis.get(cacheKey);
 
     if (cached) {
       console.log(`✅ [REDIS-CACHE] BlockNote HIT: ${pageId}`);
-      return JSON.parse(cached);
+      const parsed: unknown = JSON.parse(cached);
+      if (isCachedBlockNotePage(parsed)) return parsed;
     }
 
     console.log(`❌ [REDIS-CACHE] BlockNote MISS: ${pageId}`);
-	    const page = await prisma.page.findUnique({
-	      where: { id: pageId },
-	      select: {
-	        id: true,
-	        title: true,
-	        blockNoteContent: true,
-	      },
-	    });
+    const page = await prisma.page.findUnique({
+      where: { id: pageId },
+      select: {
+        id: true,
+        title: true,
+        blockNoteContent: true,
+      },
+    });
 
     if (page) {
       // TTL 24h (86400s) - invalidé à chaque sauvegarde WebSocket
@@ -237,16 +255,16 @@ export const cacheBlockNoteContent = async (pageId: string) => {
     return page;
   } catch (error) {
     console.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
-	    return await prisma.page.findUnique({
-	      where: { id: pageId },
-	      select: {
-	        id: true,
-	        title: true,
-	        blockNoteContent: true,
-	      },
-	    });
-	  }
-	};
+    return await prisma.page.findUnique({
+      where: { id: pageId },
+      select: {
+        id: true,
+        title: true,
+        blockNoteContent: true,
+      },
+    });
+  }
+};
 
 /**
  * Invalider le cache BlockNote (après sauvegarde)

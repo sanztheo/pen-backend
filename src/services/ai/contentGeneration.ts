@@ -1,5 +1,4 @@
 import OpenAI from "openai";
-import { Stream } from "openai/streaming";
 import { z } from "zod";
 import type {
   ChatCompletionChunk,
@@ -100,6 +99,11 @@ function parseChatCompletionResponse(raw: unknown): ChatCompletionResponse {
     throw new Error("Réponse OpenAI invalide (chat/completions)");
   }
   return parsed.data;
+}
+
+function isAsyncIterable<T>(value: unknown): value is AsyncIterable<T> {
+  if (typeof value !== "object" || value === null) return false;
+  return Symbol.asyncIterator in value;
 }
 
 /**
@@ -223,9 +227,13 @@ export class ContentGenerationService {
           payloadStream.temperature = options.temperature ?? 0.7;
         }
 
-        const stream = (await client.chat.completions.create(payloadStream, {
+        const created = await client.chat.completions.create(payloadStream, {
           signal: controller.signal, // 🚫 Passer le signal à OpenAI
-        })) as Stream<ChatCompletionChunk>;
+        });
+        if (!isAsyncIterable<ChatCompletionChunk>(created)) {
+          throw new Error("OpenAI streaming response attendu");
+        }
+        const stream: AsyncIterable<ChatCompletionChunk> = created;
 
         let fullContent = "";
         let accumulatedReasoning = ""; // 🆕 Accumulateur de raisonnement
@@ -347,9 +355,11 @@ export class ContentGenerationService {
               payloadFollow.max_tokens = maxFollowTokens;
               payloadFollow.temperature = options.temperature ?? 0.7;
             }
-            const stream2 = (await client.chat.completions.create(
-              payloadFollow,
-            )) as Stream<ChatCompletionChunk>;
+            const created2 = await client.chat.completions.create(payloadFollow);
+            if (!isAsyncIterable<ChatCompletionChunk>(created2)) {
+              throw new Error("OpenAI streaming response attendu");
+            }
+            const stream2: AsyncIterable<ChatCompletionChunk> = created2;
             for await (const chunk of stream2) {
               const content = chunk.choices[0]?.delta?.content || "";
               if (content) {

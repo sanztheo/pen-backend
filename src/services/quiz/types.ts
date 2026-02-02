@@ -310,7 +310,7 @@ export interface BaseQuestion {
   graphicLibrary?: "apexcharts" | "plotly"; // Bibliothèque utilisée pour le graphique
   graphicType?: string; // Type de graphique (line, bar, scatter, etc.)
   graphicDescription?: string; // Description du graphique pour accessibilité
-  graphicConfig?: Record<string, unknown>; // Configuration JSON brute du graphique (ApexCharts/Plotly)
+  graphicConfig?: Record<string, unknown> | null; // Configuration JSON brute du graphique (ApexCharts/Plotly)
   graphicDataValues?: number[]; // Valeurs clés du graphique pour correction IA
 }
 

@@ -181,9 +181,7 @@ const buildSpecialtyDistribution = (
     return [];
   }
 
-  const uniqueSpecialties = Array.from(
-    new Set(specialties),
-  ) as LyceeSpecialty[];
+  const uniqueSpecialties = Array.from(new Set(specialties));
   if (uniqueSpecialties.length === 0) {
     return [];
   }

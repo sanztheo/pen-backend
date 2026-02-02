@@ -6,7 +6,7 @@
 import { prisma } from "../../lib/prisma.js";
 import { SecureLogger } from "../../middlewares/secureLogging.js";
 import { retryPrismaTransaction } from "../../lib/retryWithBackoff.js";
-import type { QuizPreset, LyceeSpecialty } from "../quiz/types.js";
+import { QuizPreset, LyceeSpecialty } from "../quiz/types.js";
 import type { Prisma } from "@prisma/client";
 
 /**
@@ -32,11 +32,19 @@ function toJsonValue<T>(value: T): Prisma.InputJsonValue {
   return value as unknown as Prisma.InputJsonValue;
 }
 
+const LYCEE_SPECIALTY_VALUES: ReadonlySet<string> = new Set(
+  Object.values(LyceeSpecialty),
+);
+
+function isLyceeSpecialty(value: string): value is LyceeSpecialty {
+  return LYCEE_SPECIALTY_VALUES.has(value);
+}
+
 /**
  * Helper to cast string array to LyceeSpecialty array
  */
 function toLyceeSpecialties(values: string[] | undefined): LyceeSpecialty[] {
-  return (values ?? []) as LyceeSpecialty[];
+  return (values ?? []).filter(isLyceeSpecialty);
 }
 
 export interface QuizLimitResult {
