@@ -82,7 +82,7 @@ const RATE_LIMIT_CONFIG = {
 const onLimitReached = (req: Request, res: Response) => {
   SecureLogger.warn("🚨 [RATE-LIMIT] Limite atteinte", {
     ip: req.ip,
-    userId: (req as any).user?.id,
+    userId: req.user?.id,
     path: req.path,
     method: req.method,
     userAgent: req.get("user-agent"),
@@ -172,7 +172,7 @@ export const aiRateLimit = rateLimit({
   },
   keyGenerator: (req) => {
     // Limite par user ID si authentifié, sinon par IP
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     const ip = getIpKey(req);
     return userId ? `user_${userId}` : `ip_${ip}`;
   },
@@ -194,7 +194,7 @@ export const quizRateLimit = rateLimit({
     retryAfter: "15 minutes",
   },
   keyGenerator: (req) => {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     const ip = getIpKey(req);
     return userId ? `user_${userId}` : `ip_${ip}`;
   },
@@ -218,7 +218,7 @@ export const preprocessorRateLimit = rateLimit({
   },
   keyGenerator: (req) => {
     // SÉCURITÉ: Toujours par userId, jamais par IP seule pour éviter les abus
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       // Si pas d'userId, bloquer (ce endpoint nécessite authentification)
       return `blocked_no_user_${getIpKey(req)}`;
@@ -251,7 +251,7 @@ export const assistantRateLimit = rateLimit({
     return !RATE_LIMIT_CONFIG.enabled;
   },
   keyGenerator: (req) => {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     const ip = getIpKey(req);
     return userId ? `user_${userId}` : `ip_${ip}`;
   },
@@ -273,7 +273,7 @@ export const adminRateLimit = rateLimit({
     retryAfter: "15 minutes",
   },
   keyGenerator: (req) => {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     return userId ? `admin_${userId}` : `ip_${getIpKey(req)}`;
   },
 });

@@ -11,7 +11,7 @@ export const validateEmail = (
   next: NextFunction,
 ) => {
   // Get email from request body or user object
-  const email = req.body?.email || (req as any).user?.email;
+  const email = req.body?.email || req.user?.email;
 
   if (!email) {
     return next(); // No email to validate, let other middlewares handle auth

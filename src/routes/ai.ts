@@ -140,7 +140,11 @@ router.post(
   requireAICredits({ cost: 0.5, action: "content_generation" }),
   async (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Non authentifié" });
+      }
+
       const { prompt, context, ...options } = req.body;
 
       if (!prompt) {
@@ -186,7 +190,11 @@ router.post(
   requireAICredits({ cost: 0.3, action: "specialized_function" }),
   async (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Non authentifié" });
+      }
+
       const { text, language } = req.body;
 
       if (!text || !language) {
@@ -229,7 +237,11 @@ router.post(
   requireAICredits({ cost: 0.3, action: "specialized_function" }),
   async (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Non authentifié" });
+      }
+
       const { text } = req.body;
 
       if (!text) {
@@ -271,7 +283,11 @@ router.post(
   requireAICredits({ cost: 0.3, action: "specialized_function" }),
   async (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Non authentifié" });
+      }
+
       const { content, cursorPosition, blockType } = req.body;
 
       if (!content || cursorPosition === undefined) {
@@ -325,7 +341,7 @@ router.post(
         maxTokens: maxTokens || "non fourni",
         temperature: temperature || "non fourni",
         bodyKeys: Object.keys(req.body),
-        userId: (req as any).user?.id,
+        userId: req.user?.id,
       });
 
       // Validation basique
@@ -370,8 +386,8 @@ router.post(
       });
 
       // 🔒 AUDIT: Journaliser la consommation
-      const userId = (req as any).user?.id;
-      const cost = (req as any).aiCredits?.cost ?? 1.0;
+      const userId = req.user?.id;
+      const cost = req.aiCredits?.cost ?? 1.0;
       console.log(
         `✅ [AUDIT] Chat endpoint utilisé: userId=${userId}, cost=${cost}`,
       );
@@ -428,7 +444,7 @@ router.post(
       const validationResult = OpenAIProxySchema.safeParse(req.body);
       if (!validationResult.success) {
         console.warn(`❌ [AI-PROXY] Validation échouée:`, {
-          userId: (req as any).user?.id,
+          userId: req.user?.id,
           errors: validationResult.error.issues,
           receivedData: Object.keys(req.body || {}),
         });
@@ -439,8 +455,9 @@ router.post(
           details: validationResult.error.issues.map((issue) => ({
             field: issue.path.join("."),
             message: issue.message,
-            expected: (issue as any).expected,
-            received: (issue as any).received,
+            // Zod ZodIssue may have 'expected'/'received' on certain types
+            expected: "expected" in issue ? issue.expected : undefined,
+            received: "received" in issue ? issue.received : undefined,
           })),
         });
       }
@@ -487,8 +504,8 @@ router.post(
       const text = await response.text();
 
       // 🔒 AUDIT: Journaliser la consommation proxy
-      const userId = (req as any).user?.id;
-      const cost = (req as any).aiCredits?.cost ?? 0.25;
+      const userId = req.user?.id;
+      const cost = req.aiCredits?.cost ?? 0.25;
       console.log(
         `🔒 [AUDIT] Proxy OpenAI utilisé: userId=${userId}, cost=${cost}, status=${response.status}`,
       );

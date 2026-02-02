@@ -38,7 +38,7 @@ export const dailyTokenQuota = async (
   res: Response,
   next: NextFunction,
 ) => {
-  const userId = (req as any).user?.id;
+  const userId = req.user?.id;
   if (!userId) return next();
 
   if (process.env.RATE_LIMIT_ENABLED === "false") return next();

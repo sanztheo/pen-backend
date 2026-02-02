@@ -273,7 +273,10 @@ const setupYjsWebSocket = (server: http.Server) => {
   wss.on("connection", async (ws, req) => {
     const url = req.url?.split("?")[0] || "";
     const pathSegments = url.split("/").filter(Boolean);
-    const user = (req as any).user; // Récupérer l'utilisateur authentifié
+    // Récupérer l'utilisateur authentifié (ajouté par authenticateTokenWS)
+    const user = (
+      req as http.IncomingMessage & { user?: { id: string; email: string } }
+    ).user;
 
     if (!user) {
       ws.close(1008, "Utilisateur non authentifié");

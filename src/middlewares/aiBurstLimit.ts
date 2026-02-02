@@ -28,7 +28,7 @@ export const aiBurstRateLimit = rateLimit({
     retryAfter: "60 seconds",
   },
   keyGenerator: (req) => {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     return userId ? `user_${userId}` : `ip_${getIpKey(req)}`;
   },
   skip: () => process.env.RATE_LIMIT_ENABLED === "false",

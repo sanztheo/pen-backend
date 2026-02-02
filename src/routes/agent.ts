@@ -115,7 +115,7 @@ router.post(
   requireAICredits({ dynamicCost: calculateDynamicCost, action: "agent_chat" }),
   async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
 
       if (!userId) {
         return res.status(401).json({ error: "Utilisateur non authentifié" });
@@ -252,7 +252,7 @@ router.post(
       );
 
       // Log de la consommation
-      const cost = (req as any).aiCredits?.cost ?? calculateDynamicCost(req);
+      const cost = req.aiCredits?.cost ?? calculateDynamicCost(req);
       console.log(
         `✅ [AUDIT] Agent chat: userId=${userId}, mode=${mode}, cost=${cost}`,
       );
@@ -311,11 +311,11 @@ router.post(
         error instanceof Error ? error.message : String(error);
       console.error("❌ [AGENT-CHAT] Erreur:", error);
 
-      const creditsCost = (req as any).aiCredits?.cost;
-      const userId = (req as any).user?.id;
-      if (creditsCost && userId) {
+      const creditsCost = req.aiCredits?.cost;
+      const refundUserId = req.user?.id;
+      if (creditsCost && refundUserId) {
         AICreditsService.refundCredits(
-          userId,
+          refundUserId,
           creditsCost,
           "agent_chat_error",
         ).catch((err: unknown) =>
@@ -352,7 +352,7 @@ router.post(
   }),
   async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
 
       if (!userId) {
         return res.status(401).json({ error: "Utilisateur non authentifié" });
@@ -412,11 +412,11 @@ router.post(
         error instanceof Error ? error.message : String(error);
       console.error("❌ [AGENT-SIMPLE] Erreur:", error);
 
-      const creditsCost = (req as any).aiCredits?.cost;
-      const userId = (req as any).user?.id;
-      if (creditsCost && userId) {
+      const creditsCost = req.aiCredits?.cost;
+      const refundUserId = req.user?.id;
+      if (creditsCost && refundUserId) {
         AICreditsService.refundCredits(
-          userId,
+          refundUserId,
           creditsCost,
           "agent_simple_error",
         ).catch((err: unknown) =>
@@ -456,7 +456,7 @@ router.post(
   }),
   async (req: Request, res: Response) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.user?.id;
 
       if (!userId) {
         return res.status(401).json({ error: "Utilisateur non authentifié" });
@@ -615,11 +615,11 @@ router.post(
         error instanceof Error ? error.message : String(error);
       console.error("❌ [WORKFLOW] Erreur:", error);
 
-      const creditsCost = (req as any).aiCredits?.cost;
-      const userId = (req as any).user?.id;
-      if (creditsCost && userId) {
+      const creditsCost = req.aiCredits?.cost;
+      const refundUserId = req.user?.id;
+      if (creditsCost && refundUserId) {
         AICreditsService.refundCredits(
-          userId,
+          refundUserId,
           creditsCost,
           "workflow_error",
         ).catch((err: unknown) =>
@@ -686,7 +686,7 @@ router.get("/modes", (req: Request, res: Response) => {
  */
 router.get("/conversations", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: "Non authentifié" });
     }
@@ -718,7 +718,7 @@ router.get("/conversations", async (req: Request, res: Response) => {
  */
 router.get("/conversations/:id", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: "Non authentifié" });
     }
@@ -750,7 +750,7 @@ router.get("/conversations/:id", async (req: Request, res: Response) => {
  */
 router.delete("/conversations/:id", async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: "Non authentifié" });
     }
