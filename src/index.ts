@@ -174,7 +174,27 @@ app.use(
   }),
 );
 
-app.use(compression());
+// 🔥 Compression - EXCLURE les SSE (text/event-stream) pour permettre le streaming temps réel
+app.use(
+  compression({
+    filter: (req, res) => {
+      // Ne pas compresser les SSE (streams agent/chat)
+      const contentType = res.getHeader("Content-Type");
+      // Content-Type peut être string | number | string[]
+      const contentTypeStr = Array.isArray(contentType)
+        ? contentType[0]
+        : contentType;
+      if (
+        typeof contentTypeStr === "string" &&
+        contentTypeStr.includes("text/event-stream")
+      ) {
+        return false;
+      }
+      // Compresser tout le reste normalement
+      return compression.filter(req, res);
+    },
+  }),
+);
 
 // 🏓 Paddle webhook - AVANT rate limit et json parser (body brut requis)
 app.post(
