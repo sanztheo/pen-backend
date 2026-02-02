@@ -43,7 +43,7 @@ Port: ${process.env.PORT || 3001}
 
 `);
 
-    // Intercepter console.log
+    // Intercepter les logs console
     console.log = (...args) => {
       const message = this.formatMessage("LOG", args);
       this.originalConsole.log(...args);
