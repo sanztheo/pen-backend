@@ -9,6 +9,12 @@ import {
 
 const router = Router();
 
+type AllowedMimeType = (typeof UPLOAD_CONFIG.ALLOWED_IMAGE_TYPES)[number];
+
+function isAllowedMimeType(mimetype: string): mimetype is AllowedMimeType {
+  return UPLOAD_CONFIG.ALLOWED_IMAGE_TYPES.includes(mimetype as AllowedMimeType);
+}
+
 // 🛡️ Extension de Request pour inclure le fichier multer
 declare module "express-serve-static-core" {
   interface Request {
@@ -29,7 +35,7 @@ const upload = multer({
     cb: FileFilterCallback,
   ) => {
     // Validation stricte du type MIME
-    if (UPLOAD_CONFIG.ALLOWED_IMAGE_TYPES.includes(file.mimetype as any)) {
+    if (isAllowedMimeType(file.mimetype)) {
       cb(null, true);
     } else {
       cb(new Error(`Type de fichier non supporté: ${file.mimetype}`));

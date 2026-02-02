@@ -1,7 +1,40 @@
 // 📄 User Files RAG System - Traitement intelligent des fichiers utilisateur
 import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
+import { Prisma } from "../../../node_modules/.prisma/client-embeddings/index.js";
 import crypto from "crypto";
 import type { RAGChunkInput } from "./index.js";
+
+type RAGSourceWithChunkCount = Prisma.RAGSourceGetPayload<{
+  include: { _count: { select: { chunks: true } } };
+}>;
+
+type PdfParseResult = { text?: string };
+type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
+
+type PreparedRAGChunkRow = {
+  sourceId: string;
+  chunkIndex: number;
+  content: string;
+  cleanContent: string;
+  embedding: string;
+  tokenCount: number;
+  sectionTitle: string | null;
+  quality: number;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function resolvePdfParseFn(mod: unknown): PdfParseFn {
+  if (typeof mod === "function") {
+    return mod as PdfParseFn;
+  }
+  if (isRecord(mod) && typeof mod.default === "function") {
+    return mod.default as PdfParseFn;
+  }
+  throw new Error("pdf-parse import did not resolve to a function");
+}
 
 export interface UserFileContent {
   buffer: Buffer;
@@ -39,7 +72,8 @@ export class UserFilesRAGSystem {
     chunksCount: number;
   } | null> {
     try {
-      const existingSource = await prisma.rAGSource.findFirst({
+      const existingSource: RAGSourceWithChunkCount | null =
+        await prisma.rAGSource.findFirst({
         where: {
           userId,
           workspaceId,
@@ -63,7 +97,7 @@ export class UserFilesRAGSystem {
         id: existingSource.id,
         lastUsedAt: existingSource.lastUsedAt,
         status: existingSource.status,
-        chunksCount: (existingSource as any)._count.chunks,
+        chunksCount: existingSource._count.chunks,
       };
     } catch (error) {
       console.error(`❌ [USER-FILE] Erreur recherche source par hash:`, error);
@@ -85,16 +119,16 @@ export class UserFilesRAGSystem {
       switch (mimeType) {
         case "application/pdf": {
           // PDF via pdf-parse
-          let pdfParseFn: any;
+          let pdfParseFn: PdfParseFn;
           try {
-            const mod = await import("pdf-parse/lib/pdf-parse.js");
-            pdfParseFn = (mod as any).default || (mod as any);
+            const mod: unknown = await import("pdf-parse/lib/pdf-parse.js");
+            pdfParseFn = resolvePdfParseFn(mod);
           } catch {
-            const mod = await import("pdf-parse");
-            pdfParseFn = (mod as any).default || (mod as any);
+            const mod: unknown = await import("pdf-parse");
+            pdfParseFn = resolvePdfParseFn(mod);
           }
           const pdfData = await pdfParseFn(buffer);
-          return pdfData?.text || "";
+          return typeof pdfData.text === "string" ? pdfData.text : "";
         }
 
         case "text/plain":
@@ -114,12 +148,14 @@ export class UserFilesRAGSystem {
           // CSV via papaparse
           const Papa = await import("papaparse");
           const text = buffer.toString("utf-8");
-          const parsed = Papa.default.parse(text, { header: true });
+          const parsed = Papa.default.parse<Record<string, unknown>>(text, {
+            header: true,
+          });
           // Convertir en texte lisible
           return parsed.data
-            .map((row: any) =>
+            .map((row) =>
               Object.entries(row)
-                .map(([k, v]) => `${k}: ${v}`)
+                .map(([k, v]) => `${k}: ${String(v)}`)
                 .join(", "),
             )
             .join("\n");
@@ -358,17 +394,19 @@ export class UserFilesRAGSystem {
             cleanContent: this.cleanContent(chunk.content),
             embedding: JSON.stringify(embedding),
             tokenCount: this.estimateTokens(chunk.content),
-            sectionTitle: chunk.sectionTitle,
-            quality: chunk.quality || 1.0,
-          } as any;
+            sectionTitle: chunk.sectionTitle ?? null,
+            quality: chunk.quality ?? 1.0,
+          } satisfies PreparedRAGChunkRow;
         } catch (error) {
           console.error(`❌ [USER-FILE] Erreur embedding chunk ${i}:`, error);
-          return null as any;
+          return null;
         }
       },
     );
 
-    const filtered = prepared.filter(Boolean) as any[];
+    const filtered = prepared.filter(
+      (row): row is PreparedRAGChunkRow => row !== null,
+    );
     let inserted = 0;
     for (const batch of chunkArray(filtered, batchSize)) {
       // Utiliser SQL brut pour insérer les embeddings (Prisma ne supporte pas vector nativement)

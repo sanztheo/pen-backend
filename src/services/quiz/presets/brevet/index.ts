@@ -1,4 +1,25 @@
-import { QuizGenerationRequest, SequentialQuizConfig, ExamSubject, QuizPreset, SchoolLevel, CollegeGrade, QuestionType } from '../../types.js';
+import {
+  QuizGenerationRequest,
+  SequentialQuizConfig,
+  ExamSubject,
+  QuizPreset,
+  SchoolLevel,
+  CollegeGrade,
+  QuestionType,
+  SubjectGraphicConfig,
+} from "../../types.js";
+
+type BrevetSubjectEntry = (typeof BREVET_CONFIG.subjects)[number];
+type GraphicEnabledBrevetSubjectEntry = Extract<
+  BrevetSubjectEntry,
+  { enableGraphics: true }
+>;
+
+function isGraphicEnabledBrevetSubjectEntry(
+  cfg: BrevetSubjectEntry | undefined,
+): cfg is GraphicEnabledBrevetSubjectEntry {
+  return cfg != null && "enableGraphics" in cfg && cfg.enableGraphics === true;
+}
 
 // Configuration officielle du Brevet des collèges - Version améliorée
 export const BREVET_CONFIG = {
@@ -95,12 +116,14 @@ export function createBrevetSequentialConfig(
         minDocumentLength: cfg.minDocumentLength,
         maxDocuments: cfg.maxDocuments
       } : undefined;
-      const graphicConfig = (cfg as any)?.enableGraphics ? {
-        enableGraphics: (cfg as any).enableGraphics,
-        graphicProbability: (cfg as any).graphicProbability,
-        preferredLibraries: (cfg as any).preferredLibraries,
-        graphicTypes: (cfg as any).graphicTypes
-      } : undefined;
+      const graphicConfig = isGraphicEnabledBrevetSubjectEntry(cfg)
+        ? {
+            enableGraphics: cfg.enableGraphics,
+            graphicProbability: cfg.graphicProbability,
+            preferredLibraries: [...cfg.preferredLibraries],
+            graphicTypes: [...cfg.graphicTypes],
+          }
+        : undefined;
 
       return {
         subject,
@@ -140,17 +163,20 @@ export function generateBrevetSubjectRequest(
     maxDocuments: subjectConfig.maxDocuments
   };
 
-  const graphicConfig = (subjectConfig as any).enableGraphics ? {
-    enableGraphics: (subjectConfig as any).enableGraphics,
-    graphicProbability: (subjectConfig as any).graphicProbability,
-    preferredLibraries: (subjectConfig as any).preferredLibraries,
-    graphicTypes: (subjectConfig as any).graphicTypes
-  } : {
-    enableGraphics: false,
-    graphicProbability: 0,
-    preferredLibraries: [],
-    graphicTypes: []
-  };
+  const graphicConfig: SubjectGraphicConfig =
+    isGraphicEnabledBrevetSubjectEntry(subjectConfig)
+      ? {
+          enableGraphics: subjectConfig.enableGraphics,
+          graphicProbability: subjectConfig.graphicProbability,
+          preferredLibraries: [...subjectConfig.preferredLibraries],
+          graphicTypes: [...subjectConfig.graphicTypes],
+        }
+      : {
+          enableGraphics: false,
+          graphicProbability: 0,
+          preferredLibraries: [],
+          graphicTypes: [],
+        };
 
   return {
     userId,

@@ -117,7 +117,7 @@ export async function getUserQuizLimits(req: Request, res: Response) {
     }
 
     // Récupérer le contexte utilisateur via le validator
-    const context = await (quizLimitValidator as any).getUserContext(userId);
+    const context = await quizLimitValidator.getUserContextForDisplay(userId);
     const planLimits = quizLimitValidator.getLimitsForPlan(context.plan);
 
     res.json({

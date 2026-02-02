@@ -7,6 +7,10 @@ import { prisma } from "../../../lib/prisma.js";
 import { logger } from "../../../utils/logger.js";
 import { SchoolLevel } from "../types.js";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 /**
  * Type de personnalisation utilisateur stockée dans User.settings.personalization
  */
@@ -50,8 +54,20 @@ export async function getUserPersonalization(
       return null;
     }
 
-    const settings = user.settings as any;
-    return settings.personalization || null;
+    const settings = user.settings as unknown;
+    if (!isRecord(settings)) return null;
+    const personalization = settings.personalization;
+    if (!isRecord(personalization)) return null;
+
+    const result: UserPersonalization = {};
+    if (typeof personalization.classe === "string") result.classe = personalization.classe;
+    if (typeof personalization.etude === "string") result.etude = personalization.etude;
+    if (typeof personalization.filiere === "string") result.filiere = personalization.filiere;
+    if (typeof personalization.langue === "string") result.langue = personalization.langue;
+    if (typeof personalization.presentation === "string") result.presentation = personalization.presentation;
+    if (typeof personalization.attente === "string") result.attente = personalization.attente;
+
+    return Object.keys(result).length > 0 ? result : null;
   } catch (error) {
     logger.error(
       "❌ [PERSONALIZATION] Erreur récupération personnalisation:",

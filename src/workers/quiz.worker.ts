@@ -16,6 +16,7 @@ import { markJobCompleted, markJobFailed } from "../lib/jobResults.js";
 import {
   QuizGenerationRequest,
   QuizCorrectionRequest,
+  type Question,
 } from "../services/quiz/types.js";
 
 // Types de jobs Quiz
@@ -120,7 +121,7 @@ const processQuizJob = async (
         }
 
         // Extraire les questions du quiz
-        const questions = quiz.questions as any; // Type Prisma Json
+        const questions = quiz.questions as unknown as Question[]; // Type Prisma Json
 
         // Générer la correction
         const correction = await CorrectionGenerator.correctQuiz(

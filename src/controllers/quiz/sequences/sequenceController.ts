@@ -2,6 +2,15 @@ import { Request, Response } from "express";
 import { QuizService } from "../../../services/quiz/quizService.js";
 import { prisma } from "../../../lib/prisma.js";
 import { validateSourceDocuments } from "../utils/validators.js";
+import { z } from "zod";
+import { LyceeSpecialty, QuizPreset } from "../../../services/quiz/types.js";
+
+const StartPresetSequenceBodySchema = z.object({
+  preset: z.nativeEnum(QuizPreset),
+  selectedSpecialties: z.array(z.nativeEnum(LyceeSpecialty)).optional(),
+  higherEdField: z.string().min(1).optional(),
+  workspaceIds: z.array(z.string()).optional(),
+});
 
 /**
  * Contrôleur pour la gestion des séquences de quiz
@@ -18,8 +27,13 @@ export class SequenceController {
         return;
       }
 
+      const parsedBody = StartPresetSequenceBodySchema.safeParse(req.body);
+      if (!parsedBody.success) {
+        res.status(400).json({ error: "Données invalides", details: parsedBody.error.errors });
+        return;
+      }
       const { preset, selectedSpecialties, higherEdField, workspaceIds } =
-        req.body;
+        parsedBody.data;
 
       if (!preset) {
         res.status(400).json({ error: "Type de preset requis" });
@@ -47,7 +61,7 @@ export class SequenceController {
       // Création de la séquence via QuizService
       const result = await QuizService.startPresetSequence({
         userId,
-        preset: preset as any, // Cast vers QuizPreset
+        preset,
         specialties: selectedSpecialties,
         higherEdField,
         workspaceIds: workspaceIds || [],

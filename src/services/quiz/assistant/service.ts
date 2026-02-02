@@ -3,6 +3,10 @@
 import { QuestionGenerator } from "./generation/questionGenerator.js";
 import { ChatCorrection } from "./correction/chatCorrection.js";
 import type {
+  SingleQuestionGenerationRequest,
+  SingleQuestionGenerationResult,
+} from "./generation/questionGenerator.js";
+import type {
   QuizAnswer,
   LegacyQuizAnswer,
   CorrectQuizOptions,
@@ -23,55 +27,57 @@ export class OpenAIAssistantService {
 
   // ===== GÉNÉRATION DE QUESTIONS (Chat Completion) =====
 
-  /**
-   * Génère une seule question pour le streaming avec chat completion + JSON strict
-   */
-  async generateSingleQuestion(request: any): Promise<any> {
-    return this.questionGenerator.generateSingleQuestion(request);
-  }
+	  /**
+	   * Génère une seule question pour le streaming avec chat completion + JSON strict
+	   */
+	  async generateSingleQuestion(
+	    request: SingleQuestionGenerationRequest,
+	  ): Promise<SingleQuestionGenerationResult> {
+	    return this.questionGenerator.generateSingleQuestion(request);
+	  }
 
   // ===== CORRECTION DE QUIZ (Chat Completion) =====
 
   /**
    * Méthode de correction générique (compatibilité)
    */
-  async correctQuiz(
-    quizId: string,
-    answers: LegacyQuizAnswer[],
-    options: CorrectQuizOptions = {},
-  ): Promise<any> {
-    return this.chatCorrection.correctQuiz(quizId, answers, options);
-  }
+	  async correctQuiz(
+	    quizId: string,
+	    answers: LegacyQuizAnswer[],
+	    options: CorrectQuizOptions = {},
+	  ): ReturnType<ChatCorrection["correctQuiz"]> {
+	    return this.chatCorrection.correctQuiz(quizId, answers, options);
+	  }
 
   /**
    * Corrige un quiz standard via Chat Completion + JSON strict
    */
-  async correctStandardQuizChatCompletion(
-    quizId: string,
-    answers: QuizAnswer[],
-    options?: CorrectQuizOptions,
-  ): Promise<any> {
-    return this.chatCorrection.correctStandardQuizChatCompletion(
-      quizId,
-      answers,
-      options,
-    );
-  }
+	  async correctStandardQuizChatCompletion(
+	    quizId: string,
+	    answers: QuizAnswer[],
+	    options?: CorrectQuizOptions,
+	  ): ReturnType<ChatCorrection["correctStandardQuizChatCompletion"]> {
+	    return this.chatCorrection.correctStandardQuizChatCompletion(
+	      quizId,
+	      answers,
+	      options,
+	    );
+	  }
 
   /**
    * Corrige un quiz complet via Chat Completion + JSON strict
    */
-  async correctCompleteQuizChatCompletion(
-    quizId: string,
-    answers: QuizAnswer[],
-    options?: CorrectQuizOptions,
-  ): Promise<any> {
-    return this.chatCorrection.correctCompleteQuizChatCompletion(
-      quizId,
-      answers,
-      options,
-    );
-  }
+	  async correctCompleteQuizChatCompletion(
+	    quizId: string,
+	    answers: QuizAnswer[],
+	    options?: CorrectQuizOptions,
+	  ): ReturnType<ChatCorrection["correctCompleteQuizChatCompletion"]> {
+	    return this.chatCorrection.correctCompleteQuizChatCompletion(
+	      quizId,
+	      answers,
+	      options,
+	    );
+	  }
 
   // ===== MÉTHODES UTILITAIRES =====
 

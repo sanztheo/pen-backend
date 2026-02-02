@@ -16,6 +16,10 @@ const clean = (v: unknown, max = 700) => {
   return s.length > max ? s.slice(0, max) : s;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 function parseFromHeader(req: Request): Personalization | null {
   const raw = (req.headers['x-user-personalization'] as string) || '';
   if (!raw) return null;
@@ -35,8 +39,10 @@ function parseFromHeader(req: Request): Personalization | null {
 }
 
 function parseFromBody(req: Request): Personalization | null {
-  const obj = (req.body as any)?.personalization;
-  if (!obj || typeof obj !== 'object') return null;
+  const body = req.body as unknown;
+  if (!isRecord(body)) return null;
+  const obj = body.personalization;
+  if (!isRecord(obj)) return null;
   const p: Personalization = {};
   if (obj.classe !== undefined) p.classe = clean(obj.classe, 120);
   if (obj.etude !== undefined) p.etude = clean(obj.etude, 120);
@@ -60,15 +66,17 @@ export async function readPersonalizationFromReq(req: Request): Promise<Personal
   try {
     if (!req.user?.id) return null;
     const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { settings: true } });
-    const p = (user?.settings as any)?.personalization as Personalization | undefined;
-    if (!p) return null;
+    const settings = user?.settings as unknown;
+    if (!isRecord(settings)) return null;
+    const personalization = settings.personalization;
+    if (!isRecord(personalization)) return null;
     return {
-      classe: clean(p.classe, 120),
-      etude: clean(p.etude, 120),
-      filiere: clean(p.filiere, 120),
-      langue: clean(p.langue, 10),
-      presentation: clean(p.presentation, 700),
-      attente: clean(p.attente, 500)
+      classe: clean(personalization.classe, 120),
+      etude: clean(personalization.etude, 120),
+      filiere: clean(personalization.filiere, 120),
+      langue: clean(personalization.langue, 10),
+      presentation: clean(personalization.presentation, 700),
+      attente: clean(personalization.attente, 500)
     };
   } catch {
     return null;

@@ -2,6 +2,13 @@ import { Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { z } from 'zod';
 
+function getErrorCode(err: unknown): string | undefined {
+  if (typeof err !== 'object' || err === null) return undefined;
+  if (!('code' in err)) return undefined;
+  const code = (err as { code?: unknown }).code;
+  return typeof code === 'string' ? code : undefined;
+}
+
 // Schema de validation pour les opérations de drag & drop
 const ReorderItemSchema = z.object({
   id: z.string(),
@@ -18,7 +25,7 @@ const ReorderRequestSchema = z.object({
 export const reorderItems = async (req: Request, res: Response) => {
   try {
     const { items, workspaceId } = ReorderRequestSchema.parse(req.body);
-    const userId = (req as any).user?.id;
+    const userId = req.user?.id;
 
     if (!userId) {
       return res.status(401).json({ success: false, error: 'Non authentifié', code: 'UNAUTHENTICATED' });
@@ -178,7 +185,8 @@ export const reorderItems = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Données invalides', code: 'VALIDATION_ERROR', details: error.errors });
     }
 
-    if (error && typeof (error as any).code === 'string' && (error as any).code.startsWith('P')) { // Erreur Prisma
+    const errorCode = getErrorCode(error);
+    if (errorCode && errorCode.startsWith('P')) { // Erreur Prisma
       return res.status(409).json({ success: false, error: 'Conflit de données ou référence invalide', code: 'PRISMA_ERROR' });
     }
 

@@ -14,7 +14,7 @@ import { redis } from "./redis.js";
 const JOB_RESULT_TTL = 300; // 5 minutes - temps pour récupérer le résultat
 const JOB_RESULT_PREFIX = "job-result:";
 
-export interface JobResult<T = any> {
+export interface JobResult<T = unknown> {
   status: "pending" | "completed" | "failed";
   result?: T;
   error?: string;
@@ -45,7 +45,7 @@ const getLegacyKey = (jobId: string): string => {
  * @param userId - ID de l'utilisateur propriétaire du job
  * @param result - Résultat du job
  */
-export const storeJobResult = async <T = any>(
+export const storeJobResult = async <T = unknown>(
   jobId: string,
   userId: string,
   result: JobResult<T>,
@@ -70,7 +70,7 @@ export const storeJobResult = async <T = any>(
  * @param userId - ID de l'utilisateur demandeur (pour vérification)
  * @returns Le résultat du job si l'utilisateur est propriétaire, null sinon
  */
-export const getJobResult = async <T = any>(
+export const getJobResult = async <T = unknown>(
   jobId: string,
   userId: string,
 ): Promise<JobResult<T> | null> => {
@@ -143,7 +143,7 @@ export const markJobPending = async (
 /**
  * 🛡️ Marquer un job comme complété avec son résultat
  */
-export const markJobCompleted = async <T = any>(
+export const markJobCompleted = async <T = unknown>(
   jobId: string,
   userId: string,
   result: T,

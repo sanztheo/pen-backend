@@ -43,7 +43,7 @@ const OpenAIProxySchema = z
         z.object({
           role: z.enum(["system", "user", "assistant"]),
           // Le SDK peut envoyer soit une string, soit un tableau de parties
-          content: z.union([z.string(), z.array(z.any())]),
+          content: z.union([z.string(), z.array(z.unknown())]),
         }),
       )
       .min(1)

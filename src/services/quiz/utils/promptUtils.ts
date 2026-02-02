@@ -194,12 +194,11 @@ export class PromptUtils {
     }
 
     // Difficulté
-    if (
-      (request as any).difficulty &&
-      (request as any).difficulty !== "adaptatif"
-    ) {
+    const difficulty = (request as unknown as { difficulty?: unknown })
+      .difficulty;
+    if (typeof difficulty === "string" && difficulty !== "adaptatif") {
       customizations.push(
-        `- NIVEAU DE DIFFICULTÉ : ${(request as any).difficulty.toUpperCase()}`,
+        `- NIVEAU DE DIFFICULTÉ : ${difficulty.toUpperCase()}`,
       );
     }
 

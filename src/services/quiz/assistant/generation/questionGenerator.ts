@@ -1,14 +1,54 @@
 // assistant/generation/questionGenerator.ts - Générateur de questions via Chat Completion
 
 import OpenAI from "openai";
+import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 import { AIService } from "../../../ai/base.js";
 import {
   getPersonalizationContextForUser,
   type PersonalizationContext,
 } from "../../utils/personalizationUtils.js";
+import type { Question } from "../../types.js";
 import { QUIZ_QUESTION_SCHEMA } from "../config/index.js";
 import { buildSystemPrompt } from "./prompts/systemPrompt.js";
 import { buildSingleQuestionPrompt } from "./prompts/questionPrompt.js";
+
+type ExistingQuestion = { question: string };
+
+export interface SingleQuestionGenerationRequest {
+  userId?: string;
+  schoolLevel?: string;
+  questionTypes?: string[];
+  specificSubject?: string;
+  existingQuestions?: unknown[];
+  lyceeSpecialties?: string[];
+  focusSpecialty?: string;
+  focusSpecialtyLabel?: string;
+  higherEdField?: string;
+  higherEdLevel?: string;
+  ragContext?: string;
+  coursesOnly?: boolean;
+  difficulty?: string;
+}
+
+export type SingleQuestionGenerationResult = Record<string, unknown> & {
+  questions: Question[];
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isSingleQuestionGenerationResult(
+  value: unknown,
+): value is SingleQuestionGenerationResult {
+  return isRecord(value) && Array.isArray(value.questions);
+}
+
+/** Extended API config for GPT-5 models */
+interface ExtendedChatConfig extends ChatCompletionCreateParamsNonStreaming {
+  reasoning_effort?: "low" | "medium" | "high";
+  max_completion_tokens?: number;
+}
 
 /**
  * Classe pour la génération de questions via Chat Completion avec JSON strict
@@ -25,8 +65,17 @@ export class QuestionGenerator {
   /**
    * Génère une seule question pour le streaming avec chat completion + JSON strict
    */
-  async generateSingleQuestion(request: any): Promise<any> {
+  async generateSingleQuestion(
+    request: SingleQuestionGenerationRequest,
+  ): Promise<SingleQuestionGenerationResult> {
     try {
+      if (!request.schoolLevel) {
+        throw new Error("Paramètre manquant: schoolLevel");
+      }
+      if (!request.questionTypes || request.questionTypes.length === 0) {
+        throw new Error("Paramètre manquant: questionTypes");
+      }
+
       const generationModel = AIService.getQuizGenerationModel();
       console.log(
         `🚀 [STREAMING] Génération via Chat Completion + JSON strict (${generationModel})`,
@@ -37,7 +86,7 @@ export class QuestionGenerator {
 
       // Récupérer la personnalisation utilisateur si userId fourni
       let personalization: PersonalizationContext | undefined;
-      if (request.userId) {
+      if (request.userId && typeof request.userId === "string") {
         try {
           personalization = await getPersonalizationContextForUser(
             request.userId,
@@ -57,12 +106,30 @@ export class QuestionGenerator {
 
       // Construire les messages pour chat completion avec personnalisation
       const systemPrompt = buildSystemPrompt(personalization);
-      const userPrompt = buildSingleQuestionPrompt(request, personalization);
+      const normalizedExistingQuestions: ExistingQuestion[] = Array.isArray(
+        request.existingQuestions,
+      )
+        ? request.existingQuestions.flatMap((q) =>
+            isRecord(q) && typeof q.question === "string"
+              ? [{ question: q.question }]
+              : [],
+          )
+        : [];
+
+      const userPrompt = buildSingleQuestionPrompt(
+        {
+          ...request,
+          schoolLevel: request.schoolLevel,
+          questionTypes: request.questionTypes,
+          existingQuestions: normalizedExistingQuestions,
+        },
+        personalization,
+      );
 
       console.log(`📤 [STREAMING] Envoi à ${generationModel} avec JSON strict`);
 
       // Configuration de base pour l'appel API
-      const apiConfig: any = {
+      const apiConfig: ExtendedChatConfig = {
         model: generationModel,
         messages: [
           {
@@ -106,12 +173,10 @@ export class QuestionGenerator {
       }
 
       // Parser la réponse JSON
-      const result = JSON.parse(responseContent);
+      const result: unknown = JSON.parse(responseContent);
 
       if (
-        result &&
-        result.questions &&
-        Array.isArray(result.questions) &&
+        isSingleQuestionGenerationResult(result) &&
         result.questions.length > 0
       ) {
         console.log(

@@ -74,7 +74,15 @@ export const requirePremiumPlan = () => {
       }
 
       // Ajouter les infos d'abonnement à la requête pour usage ultérieur
-      (req as any).subscription = {
+      if (!subscription.currentPeriodEnd) {
+        return res.status(500).json({
+          success: false,
+          error: "Abonnement invalide (date de fin manquante)",
+          code: "SUBSCRIPTION_INVALID",
+        });
+      }
+
+      req.subscription = {
         plan: subscription.plan,
         status: subscription.status,
         currentPeriodEnd: subscription.currentPeriodEnd,
