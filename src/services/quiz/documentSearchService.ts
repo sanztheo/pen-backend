@@ -7,6 +7,25 @@
 import { Pool } from "pg";
 import { AIService } from "../ai/base.js";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isNumberArray(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "number");
+}
+
+function extractOpenAIEmbeddingResponse(value: unknown): number[] | null {
+  if (!isRecord(value)) return null;
+  const data = value.data;
+  if (!Array.isArray(data)) return null;
+  const first = data[0];
+  if (!isRecord(first)) return null;
+  const embedding = first.embedding;
+  if (!isNumberArray(embedding)) return null;
+  return embedding;
+}
+
 // Connexion dédiée à la base d'embeddings
 const embeddingPool = new Pool({
   connectionString: process.env.EMBEDDING_DATABASE_URL,
@@ -672,12 +691,10 @@ Format exact attendu:
         return null;
       }
 
-      const data = (await response.json()) as {
-        data?: Array<{ embedding?: number[] }>;
-      };
-      const embedding = data.data?.[0]?.embedding;
+      const raw: unknown = await response.json();
+      const embedding = extractOpenAIEmbeddingResponse(raw);
 
-      if (!embedding || !Array.isArray(embedding)) {
+      if (!embedding) {
         console.error("❌ Format de réponse OpenAI invalide");
         return null;
       }

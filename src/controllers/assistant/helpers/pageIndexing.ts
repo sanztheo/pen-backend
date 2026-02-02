@@ -29,6 +29,15 @@ function isParagraphBlockWithContent(
   return b.type === "paragraph" && Array.isArray(b.content);
 }
 
+function safeJsonParse(value: string): unknown {
+  const parsed: unknown = JSON.parse(value);
+  return parsed;
+}
+
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
+
 /**
  * 🔧 Helper - Indexe les pages mentionnées et retourne les sources RAG
  * Utilisé par askStream et searchStream pour éviter la duplication
@@ -53,12 +62,12 @@ export async function indexAndPreparePagesForAI(
           let textContent = pageData.title || "";
           try {
             if (pageData.blockNoteContent) {
-              const content =
+              const content: unknown =
                 typeof pageData.blockNoteContent === "string"
-                  ? (JSON.parse(pageData.blockNoteContent) as unknown)
+                  ? safeJsonParse(pageData.blockNoteContent)
                   : pageData.blockNoteContent;
-              if (content && Array.isArray(content)) {
-                const textParts = (content as unknown[])
+              if (isUnknownArray(content)) {
+                const textParts = content
                   .filter(isParagraphBlockWithContent)
                   .map((block) =>
                     block.content

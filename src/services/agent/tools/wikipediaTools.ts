@@ -66,6 +66,65 @@ const listWikipediaRAGSourcesSchema = z.object({
     .describe("Nombre max de sources à retourner"),
 });
 
+const WikipediaSearchApiResponseSchema = z
+  .object({
+    query: z
+      .object({
+        search: z
+          .array(
+            z.object({
+              pageid: z.number(),
+              title: z.string().optional(),
+            }),
+          )
+          .optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
+const WikipediaIntroExtractResponseSchema = z
+  .object({
+    query: z
+      .object({
+        pages: z
+          .record(
+            z
+              .object({
+                pageid: z.number(),
+                title: z.string(),
+                extract: z.string().optional(),
+              })
+              .passthrough(),
+          )
+          .optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
+const WikipediaFullContentResponseSchema = z
+  .object({
+    query: z
+      .object({
+        pages: z
+          .record(
+            z
+              .object({
+                pageid: z.number(),
+                title: z.string(),
+                extract: z.string().optional(),
+                canonicalurl: z.string().optional(),
+                categories: z.array(z.object({ title: z.string() })).optional(),
+              })
+              .passthrough(),
+          )
+          .optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
 /**
  * Crée les tools Wikipedia avec intégration pgvector
  */
@@ -98,9 +157,15 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
           if (!resolvedPageId && title) {
             const searchUrl = `https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(title)}&srlimit=1&format=json&origin=*`;
             const response = await fetch(searchUrl);
-            const data = (await response.json()) as {
-              query?: { search?: Array<{ pageid: number; title: string }> };
-            };
+            const raw: unknown = await response.json();
+            const parsed = WikipediaSearchApiResponseSchema.safeParse(raw);
+            if (!parsed.success) {
+              return {
+                error: `Réponse Wikipedia invalide pour la recherche "${title}"`,
+                indexed: false,
+              };
+            }
+            const data = parsed.data;
 
             const firstResult = data.query?.search?.[0];
             if (!firstResult) {
@@ -140,18 +205,13 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
           // 3. Récupérer l'extrait pour le contexte
           const infoUrl = `https://fr.wikipedia.org/w/api.php?action=query&pageids=${resolvedPageId}&prop=extracts&exintro=1&explaintext=1&format=json&origin=*`;
           const infoResponse = await fetch(infoUrl);
-          const infoData = (await infoResponse.json()) as {
-            query?: {
-              pages?: {
-                [key: string]: {
-                  pageid: number;
-                  title: string;
-                  extract?: string;
-                };
-              };
-            };
-          };
-          const pageInfo = infoData.query?.pages?.[String(resolvedPageId)];
+          const infoRaw: unknown = await infoResponse.json();
+          const infoParsed =
+            WikipediaIntroExtractResponseSchema.safeParse(infoRaw);
+          const pageInfo =
+            infoParsed.success
+              ? infoParsed.data.query?.pages?.[String(resolvedPageId)]
+              : undefined;
           const extract = pageInfo?.extract || "";
           resolvedTitle =
             pageInfo?.title || resolvedTitle || "Article Wikipedia";
@@ -233,10 +293,10 @@ Idéal pour une lecture approfondie ou avant d'indexer dans RAG.`,
           if (!resolvedPageId && title) {
             const searchUrl = `https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(title)}&srlimit=1&format=json&origin=*`;
             const response = await fetch(searchUrl);
-            const data = (await response.json()) as {
-              query?: { search?: Array<{ pageid: number }> };
-            };
-            resolvedPageId = data.query?.search?.[0]?.pageid;
+            const raw: unknown = await response.json();
+            const parsed = WikipediaSearchApiResponseSchema.safeParse(raw);
+            resolvedPageId =
+              parsed.success ? parsed.data.query?.search?.[0]?.pageid : undefined;
 
             if (!resolvedPageId) {
               return { error: `Article "${title}" non trouvé`, article: null };
@@ -247,19 +307,12 @@ Idéal pour une lecture approfondie ou avant d'indexer dans RAG.`,
           const url = `https://fr.wikipedia.org/w/api.php?action=query&format=json&pageids=${resolvedPageId}&prop=extracts|info|categories&explaintext=1&exsectionformat=wiki&inprop=url&cllimit=10&origin=*`;
 
           const response = await fetch(url);
-          const data = (await response.json()) as {
-            query?: {
-              pages?: {
-                [key: string]: {
-                  pageid: number;
-                  title: string;
-                  extract?: string;
-                  canonicalurl?: string;
-                  categories?: Array<{ title: string }>;
-                };
-              };
-            };
-          };
+          const raw: unknown = await response.json();
+          const parsed = WikipediaFullContentResponseSchema.safeParse(raw);
+          if (!parsed.success) {
+            return { error: "Réponse Wikipedia invalide", article: null };
+          }
+          const data = parsed.data;
 
           const pageData = data.query?.pages?.[String(resolvedPageId)];
           if (!pageData) {

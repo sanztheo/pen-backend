@@ -10,6 +10,7 @@
  */
 
 import { redis } from "./redis.js";
+import { z } from "zod";
 
 const JOB_RESULT_TTL = 300; // 5 minutes - temps pour récupérer le résultat
 const JOB_RESULT_PREFIX = "job-result:";
@@ -22,6 +23,28 @@ export interface JobResult<T = unknown> {
   createdAt: Date;
   completedAt?: Date;
   userId?: string; // 🛡️ SÉCURITÉ: Ownership du job
+}
+
+const JobResultSchema = z.object({
+  status: z.enum(["pending", "completed", "failed"]),
+  result: z.unknown().optional(),
+  error: z.string().optional(),
+  progress: z.number().optional(),
+  createdAt: z.coerce.date(),
+  completedAt: z.coerce.date().optional(),
+  userId: z.string().optional(),
+}).passthrough();
+
+type ParsedJobResult = z.infer<typeof JobResultSchema>;
+
+function parseJobResult(raw: string): ParsedJobResult | null {
+  try {
+    const parsedUnknown: unknown = JSON.parse(raw);
+    const parsed = JobResultSchema.safeParse(parsedUnknown);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -70,9 +93,10 @@ export const storeJobResult = async <T = unknown>(
  * @param userId - ID de l'utilisateur demandeur (pour vérification)
  * @returns Le résultat du job si l'utilisateur est propriétaire, null sinon
  */
-export const getJobResult = async <T = unknown>(
+export const getJobResult = async <T>(
   jobId: string,
   userId: string,
+  resultSchema: z.ZodType<T>,
 ): Promise<JobResult<T> | null> => {
   try {
     // 🛡️ Chercher d'abord avec la clé sécurisée
@@ -86,7 +110,10 @@ export const getJobResult = async <T = unknown>(
       data = await redis.get(legacyKey);
 
       if (data) {
-        const legacyResult = JSON.parse(data) as JobResult<T>;
+        const legacyResult = parseJobResult(data);
+        if (!legacyResult) {
+          return null;
+        }
         // 🛡️ Vérifier que le job legacy appartient bien à l'utilisateur
         if (legacyResult.userId && legacyResult.userId !== userId) {
           console.warn(
@@ -109,18 +136,20 @@ export const getJobResult = async <T = unknown>(
       return null;
     }
 
-    const result = JSON.parse(data) as JobResult<T>;
+    const base = parseJobResult(data);
+    if (!base) return null;
 
-    // Reconvertir les dates
-    result.createdAt = new Date(result.createdAt);
-    if (result.completedAt) {
-      result.completedAt = new Date(result.completedAt);
-    }
+    const parsedResult =
+      base.result === undefined ? undefined : resultSchema.safeParse(base.result);
+    const typedResult: JobResult<T> = {
+      ...base,
+      result: parsedResult && parsedResult.success ? parsedResult.data : undefined,
+    };
 
     console.log(
-      `✅ [JOB-RESULTS] Résultat récupéré: ${jobId} (status: ${result.status})`,
+      `✅ [JOB-RESULTS] Résultat récupéré: ${jobId} (status: ${typedResult.status})`,
     );
-    return result;
+    return typedResult;
   } catch (error) {
     console.error(`❌ [JOB-RESULTS] Erreur récupération: ${jobId}`, error);
     return null;
@@ -188,9 +217,9 @@ export const deleteJobResult = async (
     const legacyKey = getLegacyKey(jobId);
     const legacyData = await redis.get(legacyKey);
     if (legacyData) {
-      const legacyResult = JSON.parse(legacyData) as JobResult;
+      const legacyResult = parseJobResult(legacyData);
       // Ne supprimer que si c'est le bon propriétaire ou pas de propriétaire
-      if (!legacyResult.userId || legacyResult.userId === userId) {
+      if (!legacyResult?.userId || legacyResult.userId === userId) {
         await redis.del(legacyKey);
       }
     }

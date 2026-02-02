@@ -13,6 +13,7 @@ import {
   MultipleChoiceQuestion,
   TrueFalseQuestion,
 } from "../types.js";
+import { z } from "zod";
 import {
   documentSearchService,
   DocumentChunk,
@@ -53,6 +54,44 @@ interface QuizResponseMetadata {
   generationTime?: number;
   basedOnWorkspaces?: string[];
 }
+
+const AIQuestionResponseSchema = z
+  .object({
+    id: z.union([z.number(), z.string()]),
+    type: z.string().optional(),
+    text: z.string().optional(),
+    question: z.string().optional(),
+    choices: z.array(z.string()).optional(),
+    correctAnswer: z.union([z.string(), z.boolean()]).optional(),
+    explanation: z.string().optional(),
+    basedOnDocument: z.boolean().optional(),
+    documentReference: z.string().optional(),
+    keywords: z.array(z.string()).optional(),
+  })
+  .passthrough();
+
+const QuizResponseMetadataSchema = z
+  .object({
+    totalQuestions: z.number().optional(),
+    documentQuestions: z.number().optional(),
+    knowledgeQuestions: z.number().optional(),
+    subject: z.string().optional(),
+    generatedAt: z.coerce.date().optional(),
+    documentBased: z.boolean().optional(),
+    documentsUsed: z.number().optional(),
+    documentRatio: z.number().optional(),
+    aiModel: z.string().optional(),
+    generationTime: z.number().optional(),
+    basedOnWorkspaces: z.array(z.string()).optional(),
+  })
+  .passthrough() satisfies z.ZodType<QuizResponseMetadata>;
+
+const AIQuizResponseSchema = z
+  .object({
+    questions: z.array(AIQuestionResponseSchema),
+    metadata: QuizResponseMetadataSchema.optional(),
+  })
+  .passthrough() satisfies z.ZodType<AIQuizResponse>;
 
 interface QuestionOption {
   id: string;
@@ -657,7 +696,8 @@ Format de réponse attendu (JSON uniquement) :
         cleanContent = jsonMatch[0];
       }
 
-      const parsed = JSON.parse(cleanContent) as unknown as AIQuizResponse;
+      const parsedUnknown: unknown = JSON.parse(cleanContent);
+      const parsed = AIQuizResponseSchema.parse(parsedUnknown);
 
       if (!parsed.questions || !Array.isArray(parsed.questions)) {
         throw new Error("Format de réponse invalide: questions manquantes");

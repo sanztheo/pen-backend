@@ -402,6 +402,13 @@ export const getRecentPages = async (req: Request, res: Response) => {
     // 🚀 REDIS CACHE: Clé unique par utilisateur et pagination
     const cacheKey = `recent-pages:${req.user.id}:page${page}:limit${limit}`;
 
+    const RecentPagesSchema = z.array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+      }).passthrough(),
+    );
+
     // 🚀 INSTANT RESPONSE: Utiliser getOrSet pour cache-aside pattern
     const recentPages = await redisCache.getOrSet(
       cacheKey,
@@ -456,6 +463,7 @@ export const getRecentPages = async (req: Request, res: Response) => {
         });
         return pages;
       },
+      (value) => RecentPagesSchema.parse(value),
       { ttl: 120, namespace: "pages" }, // 2 minutes de cache
     );
 

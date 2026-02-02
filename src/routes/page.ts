@@ -29,10 +29,10 @@ interface AuthenticatedRequest extends Request {
 }
 
 // Type for BlockNote node during tree traversal
-interface BlockNoteNode {
-  text?: string;
-  content?: BlockNoteNode | BlockNoteNode[];
-  children?: BlockNoteNode[];
+type BlockNoteNode = Record<string, unknown>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 // Type for page with BlockNote content from Prisma
@@ -217,10 +217,10 @@ router.get("/search-content", async (req, res) => {
 
     const qLower = query.toLowerCase();
 
-    const blocksToText = (blocks: BlockNoteNode[]): string => {
+    const blocksToText = (blocks: unknown[]): string => {
       let text = "";
       const walk = (
-        node: BlockNoteNode | BlockNoteNode[] | string | null | undefined,
+        node: unknown,
       ): void => {
         if (!node) return;
         // Inline content
@@ -232,13 +232,14 @@ router.get("/search-content", async (req, res) => {
           text += node + " ";
           return;
         }
-        if (node.text) {
-          text += String(node.text) + " ";
+        if (!isRecord(node)) return;
+        if (typeof node.text === "string") {
+          text += node.text + " ";
         }
-        if (node.content) {
+        if ("content" in node) {
           walk(node.content);
         }
-        if (node.children) {
+        if (Array.isArray(node.children)) {
           walk(node.children);
         }
       };
@@ -255,18 +256,16 @@ router.get("/search-content", async (req, res) => {
     for (const p of pages) {
       try {
         const raw: unknown = p.blockNoteContent;
-        let contentArr: BlockNoteNode[] | null = null;
+        let contentArr: unknown[] | null = null;
         if (Array.isArray(raw)) {
-          contentArr = raw as BlockNoteNode[];
+          contentArr = raw;
         } else if (typeof raw === "string") {
           try {
-            contentArr = JSON.parse(raw) as BlockNoteNode[];
+            const parsed: unknown = JSON.parse(raw);
+            contentArr = Array.isArray(parsed) ? parsed : null;
           } catch {
             contentArr = null;
           }
-        } else if (raw && typeof raw === "object") {
-          // Certains drivers renvoient un objet JSON déjà parsé
-          contentArr = raw as BlockNoteNode[];
         }
         if (!Array.isArray(contentArr) || contentArr.length === 0) continue;
         const plain = blocksToText(contentArr);

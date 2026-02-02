@@ -2,6 +2,7 @@
 import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
 import { deduplicationService } from "./deduplication.js";
 import type { RAGChunkInput } from "./index.js";
+import { z } from "zod";
 
 type PreparedRAGChunkRow = {
   sourceId: string;
@@ -274,21 +275,27 @@ export class WikipediaRAGSystem {
     try {
       // 🔥 Utiliser l'API TextExtracts pour récupérer le texte complet en plaintext
       // Doc: https://www.mediawiki.org/wiki/Extension:TextExtracts
-      interface WikipediaFullExtractResponse {
-        query?: {
-          pages?: {
-            [pageid: string]: {
-              pageid: number;
-              title: string;
-              extract?: string;
-              canonicalurl?: string;
-              fullurl?: string;
-              missing?: boolean;
-              categories?: Array<{ title: string }>;
-            };
-          };
-        };
-      }
+      const WikipediaFullExtractResponseSchema = z
+        .object({
+          query: z
+            .object({
+              pages: z
+                .record(
+                  z.object({
+                    pageid: z.number(),
+                    title: z.string(),
+                    extract: z.string().optional(),
+                    canonicalurl: z.string().optional(),
+                    fullurl: z.string().optional(),
+                    missing: z.boolean().optional(),
+                    categories: z.array(z.object({ title: z.string() })).optional(),
+                  }),
+                )
+                .optional(),
+            })
+            .optional(),
+        })
+        .passthrough();
 
       // 🔥 UNE SEULE requête pour tout récupérer:
       // - prop=extracts: texte complet en plaintext
@@ -300,7 +307,12 @@ export class WikipediaRAGSystem {
       const response = await fetch(
         `https://fr.wikipedia.org/w/api.php?action=query&format=json&pageids=${pageid}&prop=extracts|info|categories&explaintext=1&exsectionformat=wiki&inprop=url&cllimit=10&origin=*`,
       );
-      const data = (await response.json()) as WikipediaFullExtractResponse;
+      const raw: unknown = await response.json();
+      const parsed = WikipediaFullExtractResponseSchema.safeParse(raw);
+      if (!parsed.success) {
+        throw new Error("Réponse Wikipedia invalide (query.pages)");
+      }
+      const data = parsed.data;
       const pageData = data.query?.pages?.[pageid.toString()];
 
       if (!pageData || pageData.missing) {

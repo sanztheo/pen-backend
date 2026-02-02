@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { Stream } from "openai/streaming";
+import { z } from "zod";
 import type {
   ChatCompletionChunk,
   ChatCompletionCreateParamsStreaming,
@@ -65,6 +66,40 @@ interface ChatCompletionResponse {
     completion_tokens: number;
     total_tokens: number;
   };
+}
+
+const ChatCompletionResponseSchema: z.ZodType<ChatCompletionResponse> = z
+  .object({
+    id: z.string(),
+    object: z.string(),
+    created: z.number(),
+    model: z.string(),
+    choices: z.array(
+      z.object({
+        index: z.number(),
+        message: z.object({
+          role: z.string(),
+          content: z.string().nullable(),
+        }),
+        finish_reason: z.string().nullable(),
+      }),
+    ),
+    usage: z
+      .object({
+        prompt_tokens: z.number(),
+        completion_tokens: z.number(),
+        total_tokens: z.number(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
+function parseChatCompletionResponse(raw: unknown): ChatCompletionResponse {
+  const parsed = ChatCompletionResponseSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error("Réponse OpenAI invalide (chat/completions)");
+  }
+  return parsed.data;
 }
 
 /**
@@ -420,7 +455,8 @@ export class ContentGenerationService {
         throw new Error(`Erreur OpenAI (${response.status}): ${errorText}`);
       }
 
-      const data = (await response.json()) as ChatCompletionResponse;
+      const raw: unknown = await response.json();
+      const data = parseChatCompletionResponse(raw);
       const content = data.choices?.[0]?.message?.content || "";
 
       const responseTime = Date.now() - startTime;
@@ -489,8 +525,9 @@ export class ContentGenerationService {
           );
 
           if (continuationResponse.ok) {
+            const continuationRaw: unknown = await continuationResponse.json();
             const continuationData =
-              (await continuationResponse.json()) as ChatCompletionResponse;
+              parseChatCompletionResponse(continuationRaw);
             const continuationContent =
               continuationData.choices?.[0]?.message?.content || "";
             finalContent += continuationContent;

@@ -10,6 +10,7 @@ import { markJobPending, getJobResult } from "../lib/jobResults.js";
 import { AdminStatsService } from "../services/admin/adminStatsService.js";
 import { HealthCheckService } from "../services/admin/healthCheckService.js";
 import { getExportCSV } from "../workers/export.worker.js";
+import { z } from "zod";
 import {
   ModerationFilters,
   UserListFilters,
@@ -409,7 +410,14 @@ export class AdminController {
       }
 
       type ExportJobPayload = { rowCount?: number };
-      const jobResult = await getJobResult<ExportJobPayload>(jobId, userId);
+      const ExportJobPayloadSchema = z.object({
+        rowCount: z.number().optional(),
+      }) satisfies z.ZodType<ExportJobPayload>;
+      const jobResult = await getJobResult(
+        jobId,
+        userId,
+        ExportJobPayloadSchema,
+      );
 
       if (!jobResult) {
         res.status(404).json({
@@ -453,7 +461,14 @@ export class AdminController {
       }
 
       type ExportJobPayload = { rowCount?: number };
-      const jobResult = await getJobResult<ExportJobPayload>(jobId, userId);
+      const ExportJobPayloadSchema = z.object({
+        rowCount: z.number().optional(),
+      }) satisfies z.ZodType<ExportJobPayload>;
+      const jobResult = await getJobResult(
+        jobId,
+        userId,
+        ExportJobPayloadSchema,
+      );
 
       if (!jobResult) {
         res.status(404).json({

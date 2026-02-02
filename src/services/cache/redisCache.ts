@@ -44,6 +44,13 @@ interface CacheOptions {
   namespace?: string; // Namespace pour organiser les clés
 }
 
+type CacheParser<T> = (value: unknown) => T;
+
+function safeJsonParse(value: string): unknown {
+  const parsed: unknown = JSON.parse(value);
+  return parsed;
+}
+
 /**
  * Service de cache Redis avec support optimiste et rollback
  */
@@ -62,7 +69,11 @@ class RedisCacheService {
   /**
    * Récupère une valeur du cache
    */
-  async get<T>(key: string, options?: CacheOptions): Promise<T | null> {
+  async get<T>(
+    key: string,
+    parse: CacheParser<T>,
+    options?: CacheOptions,
+  ): Promise<T | null> {
     try {
       const cacheKey = this.getKey(key, options?.namespace);
       const data = await redis.get(cacheKey);
@@ -73,7 +84,8 @@ class RedisCacheService {
       }
 
       console.log(`✅ [Redis Cache] HIT: ${cacheKey}`);
-      return JSON.parse(data) as T;
+      const parsed = safeJsonParse(data);
+      return parse(parsed);
     } catch (error) {
       console.error(`❌ [Redis Cache] Erreur GET ${key}:`, error);
       return null; // Fallback gracieux en cas d'erreur
@@ -170,11 +182,12 @@ class RedisCacheService {
   async getOrSet<T>(
     key: string,
     factory: () => Promise<T>,
+    parse: CacheParser<T>,
     options?: CacheOptions,
   ): Promise<T> {
     try {
       // Essayer de récupérer depuis le cache
-      const cached = await this.get<T>(key, options);
+      const cached = await this.get(key, parse, options);
       if (cached !== null) {
         return cached;
       }

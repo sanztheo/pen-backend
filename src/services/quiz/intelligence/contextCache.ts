@@ -22,6 +22,7 @@ import { redis } from "../../../lib/redis.js";
 import { prisma } from "../../../lib/prisma.js";
 import crypto from "crypto";
 import { logger } from "../../../utils/logger.js";
+import { z } from "zod";
 import type {
   IntelligentContextResult,
   IntelligentGenerationConfig,
@@ -44,6 +45,58 @@ export interface ContextCacheStats {
   hits: number;
   misses: number;
   invalidations: number;
+}
+
+const CachedContextSchema = z
+  .object({
+    enrichedRagContext: z.string(),
+    questionDistribution: z.array(
+      z.object({
+        clusterId: z.string(),
+        clusterName: z.string(),
+        keywords: z.array(z.string()),
+        questionCount: z.number(),
+        content: z.string(),
+        pageIds: z.array(z.string()),
+      }),
+    ),
+    clusters: z.array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        pageCount: z.number(),
+        keywords: z.array(z.string()),
+        importance: z.number(),
+      }),
+    ),
+    processingTimeMs: z.number(),
+    stats: z.object({
+      totalPages: z.number(),
+      totalClusters: z.number(),
+      totalTokens: z.number(),
+      contentTypes: z.record(z.number()),
+    }),
+
+    cachedAt: z.coerce.date(),
+    pageHashes: z.record(z.string()),
+    config: z.object({
+      enabled: z.boolean(),
+      maxTokens: z.number().optional(),
+      balanceContentTypes: z.boolean().optional(),
+      generateClusterNames: z.boolean().optional(),
+      minPagesForClustering: z.number().optional(),
+    }),
+  })
+  .passthrough() satisfies z.ZodType<CachedContext>;
+
+function parseCachedContext(raw: string): CachedContext | null {
+  try {
+    const parsedUnknown: unknown = JSON.parse(raw);
+    const parsed = CachedContextSchema.safeParse(parsedUnknown);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================================
@@ -116,10 +169,11 @@ export class ContextCacheService {
         return null;
       }
 
-      const parsed = JSON.parse(cached) as CachedContext;
-
-      // Reconvertir la date
-      parsed.cachedAt = new Date(parsed.cachedAt);
+      const parsed = parseCachedContext(cached);
+      if (!parsed) {
+        logger.log(`⚠️ [CONTEXT-CACHE] Cache invalide (parse): ${cacheKey}`);
+        return null;
+      }
 
       logger.log(`✅ [CONTEXT-CACHE] HIT: ${cacheKey}`);
       return parsed;
@@ -234,7 +288,8 @@ export class ContextCacheService {
           const cached = await redis.get(key);
           if (!cached) continue;
 
-          const parsed = JSON.parse(cached) as CachedContext;
+          const parsed = parseCachedContext(cached);
+          if (!parsed) continue;
 
           // Vérifier si une des pages modifiées est dans ce cache
           const hasAffectedPage = pageIds.some(
@@ -353,8 +408,9 @@ export class ContextCacheService {
         try {
           const cached = await redis.get(key);
           if (cached) {
-            const parsed = JSON.parse(cached) as CachedContext;
-            const cachedAt = new Date(parsed.cachedAt);
+            const parsed = parseCachedContext(cached);
+            if (!parsed) continue;
+            const cachedAt = parsed.cachedAt;
 
             if (!oldest || cachedAt < oldest) oldest = cachedAt;
             if (!newest || cachedAt > newest) newest = cachedAt;

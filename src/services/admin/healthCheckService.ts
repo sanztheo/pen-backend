@@ -13,6 +13,7 @@ import { redisHealthCheck } from "../../lib/redis.js";
 import { AIService } from "../ai/base.js";
 import { paddle } from "../billing/paddleBilling.js";
 import { redisCache } from "../cache/redisCache.js";
+import { z } from "zod";
 
 interface ServiceHealth {
   status: "up" | "degraded" | "down";
@@ -49,6 +50,26 @@ const CACHE_KEY = "health";
 const CACHE_NAMESPACE = "admin";
 const CACHE_TTL = 30; // 30 seconds
 
+const ServiceHealthSchema = z.object({
+  status: z.enum(["up", "degraded", "down"]),
+  latency: z.number().optional(),
+  error: z.string().optional(),
+});
+
+const HealthCheckResponseSchema = z.object({
+  status: z.enum(["healthy", "degraded", "unhealthy"]),
+  timestamp: z.string(),
+  uptime: z.object({ seconds: z.number(), formatted: z.string() }),
+  services: z.object({
+    database: ServiceHealthSchema,
+    embeddingsDatabase: ServiceHealthSchema,
+    redis: ServiceHealthSchema,
+    clerk: ServiceHealthSchema,
+    openai: ServiceHealthSchema,
+    paddle: ServiceHealthSchema,
+  }),
+}) satisfies z.ZodType<HealthCheckResponse>;
+
 export class HealthCheckService {
   private static clerkClient: ClerkClient | null = null;
 
@@ -66,10 +87,15 @@ export class HealthCheckService {
    * Uses getOrSet pattern for horizontal scaling support
    */
   static async getHealthStatus(): Promise<HealthCheckResponse> {
-    return redisCache.getOrSet(CACHE_KEY, () => this.runHealthChecks(), {
-      ttl: CACHE_TTL,
-      namespace: CACHE_NAMESPACE,
-    });
+    return redisCache.getOrSet(
+      CACHE_KEY,
+      () => this.runHealthChecks(),
+      (value) => HealthCheckResponseSchema.parse(value),
+      {
+        ttl: CACHE_TTL,
+        namespace: CACHE_NAMESPACE,
+      },
+    );
   }
 
   /**
