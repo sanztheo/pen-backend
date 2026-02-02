@@ -1,6 +1,8 @@
 // 📄 User Files RAG System - Traitement intelligent des fichiers utilisateur
-import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
-import { Prisma } from "../../../node_modules/.prisma/client-embeddings/index.js";
+import {
+  prismaEmbeddings as prisma,
+  type Prisma,
+} from "../../lib/prismaEmbeddings.js";
 import crypto from "crypto";
 import type { RAGChunkInput } from "./index.js";
 import { logger } from "../../utils/logger.js";
@@ -75,22 +77,22 @@ export class UserFilesRAGSystem {
     try {
       const existingSource: RAGSourceWithChunkCount | null =
         await prisma.rAGSource.findFirst({
-        where: {
-          userId,
-          workspaceId,
-          sourceType: { in: ["PDF", "TEXT_FILE"] },
-          isGlobal: false,
-          metadata: {
-            path: ["contentHash"],
-            equals: contentHash,
+          where: {
+            userId,
+            workspaceId,
+            sourceType: { in: ["PDF", "TEXT_FILE"] },
+            isGlobal: false,
+            metadata: {
+              path: ["contentHash"],
+              equals: contentHash,
+            },
           },
-        },
-        include: {
-          _count: {
-            select: { chunks: true },
+          include: {
+            _count: {
+              select: { chunks: true },
+            },
           },
-        },
-      });
+        });
 
       if (!existingSource) return null;
 
@@ -365,9 +367,8 @@ export class UserFilesRAGSystem {
     sourceId: string,
     chunks: RAGChunkInput[],
   ): Promise<void> {
-    const { mapWithConcurrency, chunkArray } = await import(
-      "../../utils/concurrency.js"
-    );
+    const { mapWithConcurrency, chunkArray } =
+      await import("../../utils/concurrency.js");
     const concurrency = Math.max(
       1,
       parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10),

@@ -1,6 +1,8 @@
 // 🧹 RAG Cleanup Service - Nettoyage automatique des embeddings non utilisés
-import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
-import { Prisma } from "../../../node_modules/.prisma/client-embeddings/index.js";
+import {
+  prismaEmbeddings as prisma,
+  type Prisma,
+} from "../../lib/prismaEmbeddings.js";
 import { logger } from "../../utils/logger.js";
 
 // Type pour les sources avec count de chunks

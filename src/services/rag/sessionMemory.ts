@@ -1,15 +1,15 @@
 // 🧠 RAG Session Memory - Mémoire persistante entre sessions
-import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
+import {
+  prismaEmbeddings as prisma,
+  type RAGSession,
+  type RAGSource,
+} from "../../lib/prismaEmbeddings.js";
 import { logger } from "../../utils/logger.js";
 import {
   cacheActiveRAGSession,
   invalidateRAGSessionCache,
 } from "../../lib/redis.js";
 import type { RAGSearchResult } from "./index.js";
-import type {
-  RAGSession,
-  RAGSource,
-} from "../../../node_modules/.prisma/client-embeddings/index.js";
 
 // Type pour les résultats de recherche compressés stockés dans le contexte
 interface StoredSearchResult {
