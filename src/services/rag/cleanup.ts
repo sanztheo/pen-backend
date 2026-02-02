@@ -223,7 +223,17 @@ export class RAGCleanupService {
   /**
    * 📈 Obtient les statistiques de stockage RAG
    */
-  async getStorageStats() {
+  async getStorageStats(): Promise<{
+    totalSources: number;
+    totalChunks: number;
+    estimatedSizeMB: number;
+    byType: Array<{
+      type: string;
+      isGlobal: boolean;
+      sources: number;
+      chunks: number;
+    }>;
+  }> {
     const stats = await prisma.rAGSource.groupBy({
       by: ["sourceType", "isGlobal"],
       _count: { id: true },
@@ -263,10 +273,7 @@ export class RAGCleanupService {
 
     return {
       candidateCount: candidates.length,
-      totalChunks: candidates.reduce(
-        (sum, s) => sum + s._count.chunks,
-        0,
-      ),
+      totalChunks: candidates.reduce((sum, s) => sum + s._count.chunks, 0),
       estimatedSpaceMB: candidates.reduce(
         (sum, s) => sum + s._count.chunks / 1024,
         0,
