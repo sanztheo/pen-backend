@@ -1,5 +1,6 @@
 // assistant/functions.ts - Implémentation des 7 fonctions OpenAI Assistant
 import { documentSearchService } from "../documentSearchService.js";
+import { z } from "zod";
 
 /**
  * Type pour les appels de fonction OpenAI
@@ -1005,6 +1006,27 @@ interface WikipediaAPISearchResponse {
   };
 }
 
+const WikipediaSearchResultSchema: z.ZodType<WikipediaSearchResult> = z
+  .object({
+    pageid: z.number(),
+    title: z.string(),
+    snippet: z.string().optional(),
+    wordcount: z.number().optional(),
+    timestamp: z.string().optional(),
+    searchTerm: z.string().optional(),
+  })
+  .passthrough();
+
+const WikipediaAPISearchResponseSchema: z.ZodType<WikipediaAPISearchResponse> = z
+  .object({
+    query: z
+      .object({
+        search: z.array(WikipediaSearchResultSchema).optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
 /**
  * Recherche Wikipedia via API directe
  */
@@ -1038,7 +1060,12 @@ async function searchWikipediaAPI(
       throw new Error(`Erreur API Wikipedia: ${response.status}`);
     }
 
-    const data = (await response.json()) as WikipediaAPISearchResponse;
+    const raw: unknown = await response.json();
+    const parsed = WikipediaAPISearchResponseSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new Error("Réponse API Wikipedia invalide (query.search)");
+    }
+    const data = parsed.data;
     return data.query?.search || [];
   } catch (error) {
     console.error("❌ Erreur recherche Wikipedia API:", error);

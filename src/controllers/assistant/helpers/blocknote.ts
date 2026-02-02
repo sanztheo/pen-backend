@@ -62,6 +62,32 @@ interface JsonlBlockData {
   d?: number | string | boolean; // data/detail
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseJsonlBlockData(line: string): JsonlBlockData | null {
+  try {
+    const parsed: unknown = JSON.parse(line);
+    if (!isRecord(parsed)) return null;
+
+    const t = typeof parsed.t === "string" ? parsed.t : undefined;
+    const c = typeof parsed.c === "string" ? parsed.c : undefined;
+
+    const dRaw = parsed.d;
+    const d =
+      typeof dRaw === "number" ||
+      typeof dRaw === "string" ||
+      typeof dRaw === "boolean"
+        ? dRaw
+        : undefined;
+
+    return { t, c, d };
+  } catch {
+    return null;
+  }
+}
+
 // =====================================================
 // Functions
 // =====================================================
@@ -456,11 +482,9 @@ export function toBlockNoteFromJSONL(jsonl: string): BlockNoteBlock[] {
     if (line.startsWith("<thinking>") || line.startsWith("</thinking>"))
       continue;
 
-    let obj: JsonlBlockData | null = null;
-    try {
-      obj = JSON.parse(line) as JsonlBlockData;
-    } catch {
-      // Si une ligne n'est pas du JSON, fallback: traiter comme paragraphe simple
+    const obj = parseJsonlBlockData(line);
+    if (!obj) {
+      // Si une ligne n'est pas du JSON valide, fallback: traiter comme paragraphe simple
       blocks.push({ type: "paragraph", content: parseInlineContent(line) });
       continue;
     }

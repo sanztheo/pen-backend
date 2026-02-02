@@ -14,6 +14,47 @@ interface OpenAIChatCompletion {
   }>;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isNumberArray(value: unknown): value is number[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "number");
+}
+
+function isOpenAIChatCompletion(value: unknown): value is OpenAIChatCompletion {
+  if (!isRecord(value)) return false;
+  const choicesValue = value.choices;
+  if (!Array.isArray(choicesValue)) return false;
+
+  const choices: unknown[] = choicesValue;
+  for (const choice of choices) {
+    if (!isRecord(choice)) return false;
+    const messageValue = choice.message;
+    if (!isRecord(messageValue)) return false;
+    if (typeof messageValue.content !== "string") return false;
+  }
+
+  return true;
+}
+
+function extractOpenAIEmbeddings(value: unknown): number[][] | null {
+  if (!isRecord(value)) return null;
+  const dataValue = value.data;
+  if (!Array.isArray(dataValue)) return null;
+
+  const data: unknown[] = dataValue;
+  const embeddings: number[][] = [];
+  for (const item of data) {
+    if (!isRecord(item)) return null;
+    const embeddingValue = item.embedding;
+    if (!isNumberArray(embeddingValue)) return null;
+    embeddings.push(embeddingValue);
+  }
+
+  return embeddings;
+}
+
 // Type pour les informations de source RAG (avec fileName optionnel pour compatibilité)
 interface RAGSourceInfo {
   id: string;
@@ -261,7 +302,11 @@ Si AUCUNE source n'est pertinente (ex: sources sur "Caca" pour une question sur 
         },
       );
 
-      const result = (await response.json()) as OpenAIChatCompletion;
+      const raw: unknown = await response.json();
+      if (!isOpenAIChatCompletion(raw)) {
+        throw new Error("Réponse OpenAI invalide (chat/completions)");
+      }
+      const result = raw;
       const decision = result.choices?.[0]?.message?.content
         ?.trim()
         ?.toUpperCase();
@@ -398,22 +443,33 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         return "RESUME"; // Fallback intelligent pour "Résumé"
       }
 
-      const result = (await response.json()) as OpenAIChatCompletion;
+      const raw: unknown = await response.json();
+      if (!isOpenAIChatCompletion(raw)) {
+        throw new Error("Réponse OpenAI invalide (chat/completions)");
+      }
+      const result = raw;
       const rawResponse = result.choices?.[0]?.message?.content?.trim();
 
       console.log(`📤 [API-DEBUG] Raw JSON response: "${rawResponse}"`);
 
       try {
         // 🚀 Parse du JSON strict
-        const jsonResponse = JSON.parse(rawResponse || "{}");
-        const questionType = jsonResponse.type?.toUpperCase();
+        const jsonResponseRaw: unknown = JSON.parse(rawResponse || "{}");
+        const questionType =
+          isRecord(jsonResponseRaw) && typeof jsonResponseRaw.type === "string"
+            ? jsonResponseRaw.type.toUpperCase()
+            : undefined;
 
         console.log(
           `🎯 [DETECT-JSON-2025] Query: "${query}" → JSON: ${rawResponse} → Type: ${questionType}`,
         );
 
-        if (["RESUME", "EXPLICATION", "FACTUELLE"].includes(questionType)) {
-          return questionType as "RESUME" | "EXPLICATION" | "FACTUELLE";
+        if (
+          questionType === "RESUME" ||
+          questionType === "EXPLICATION" ||
+          questionType === "FACTUELLE"
+        ) {
+          return questionType;
         }
 
         console.warn(
@@ -1194,12 +1250,11 @@ class EmbeddingService {
         throw new Error(`OpenAI API erreur (${response.status}): ${errorText}`);
       }
 
-      const data = (await response.json()) as {
-        data?: Array<{ embedding?: number[] }>;
-      };
-      const embedding = data.data?.[0]?.embedding;
+      const raw: unknown = await response.json();
+      const embeddings = extractOpenAIEmbeddings(raw);
+      const embedding = embeddings?.[0];
 
-      if (!embedding || !Array.isArray(embedding)) {
+      if (!embedding) {
         throw new Error("Format de réponse OpenAI invalide");
       }
 
@@ -1240,13 +1295,11 @@ class EmbeddingService {
         throw new Error(`OpenAI API erreur (${response.status}): ${errorText}`);
       }
 
-      const data = (await response.json()) as {
-        data?: Array<{ embedding?: number[] }>;
-      };
-      const embeddings =
-        data.data
-          ?.map((item) => item.embedding)
-          .filter((emb): emb is number[] => !!emb) || [];
+      const raw: unknown = await response.json();
+      const embeddings = extractOpenAIEmbeddings(raw);
+      if (!embeddings) {
+        throw new Error("Format de réponse OpenAI invalide");
+      }
 
       if (embeddings.length !== texts.length) {
         throw new Error(

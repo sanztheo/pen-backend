@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { AIService } from "../../ai/base.js";
+import { z } from "zod";
 import {
   QuizSubject,
   SubjectDocument,
@@ -22,13 +23,13 @@ interface AIGeneratedSubjectData {
 
 interface AIGeneratedQuestionData {
   id?: string;
-  type: string;
+  type: QuestionType;
   question: string;
-  difficulty: string;
+  difficulty: "facile" | "moyen" | "difficile";
   points: number;
   category?: string;
   choices?: string[];
-  options?: Array<{ id: string; text: string; isCorrect: boolean }>;
+  options?: Array<{ id: string; text: string; isCorrect?: boolean }>;
   expectedAnswer?: string;
   correctAnswer?: boolean;
 }
@@ -55,6 +56,42 @@ interface AIThemeResponse {
 
 // Subject name mapping type
 type SubjectNameMapping = Record<string, string>;
+
+const DifficultySchema = z.enum(["facile", "moyen", "difficile"]);
+
+const AIGeneratedQuestionSchema: z.ZodType<AIGeneratedQuestionData> = z.object({
+  id: z.string().optional(),
+  type: z.nativeEnum(QuestionType),
+  question: z.string(),
+  difficulty: DifficultySchema,
+  points: z.coerce.number(),
+  category: z.string().optional(),
+  choices: z.array(z.string()).optional(),
+  options: z
+    .array(
+      z.object({
+        id: z.string(),
+        text: z.string(),
+        isCorrect: z.boolean().optional(),
+      }),
+    )
+    .optional(),
+  expectedAnswer: z.string().optional(),
+  correctAnswer: z.boolean().optional(),
+});
+
+const AIGeneratedSubjectSchema: z.ZodType<AIGeneratedSubjectData> = z.object({
+  title: z.string(),
+  description: z.string(),
+  category: z.string().optional(),
+  timeLimit: z.coerce.number().optional(),
+  instructions: z.string().optional(),
+  questions: z.array(AIGeneratedQuestionSchema),
+});
+
+const AISubjectsResponseSchema: z.ZodType<AISubjectsResponse> = z.object({
+  subjects: z.array(AIGeneratedSubjectSchema),
+});
 
 /**
  * Générateur de sujets thématiques pour les quiz
@@ -152,7 +189,12 @@ IMPORTANT:
         temperature: 0.7,
       });
 
-      const data = JSON.parse(response.content.trim()) as AISubjectsResponse;
+      const parsedUnknown: unknown = JSON.parse(response.content.trim());
+      const parsed = AISubjectsResponseSchema.safeParse(parsedUnknown);
+      if (!parsed.success) {
+        throw new Error("Réponse IA invalide (subjects JSON)");
+      }
+      const data = parsed.data;
 
       // Transformer en format QuizSubject
       return data.subjects.map(
@@ -165,9 +207,8 @@ IMPORTANT:
               // Base question properties
               const baseQuestion = {
                 id: q.id || uuidv4(),
-                type: q.type as QuestionType,
                 question: q.question,
-                difficulty: q.difficulty as "facile" | "moyen" | "difficile",
+                difficulty: q.difficulty,
                 points: q.points,
                 category: q.category || subjectData.title,
                 subjectId: subjectData.title,
@@ -176,7 +217,7 @@ IMPORTANT:
 
               // Conversion choices -> options pour MULTIPLE_CHOICE
               if (
-                q.type === "MULTIPLE_CHOICE" &&
+                q.type === QuestionType.MULTIPLE_CHOICE &&
                 q.choices &&
                 Array.isArray(q.choices)
               ) {
@@ -198,12 +239,15 @@ IMPORTANT:
                 return {
                   ...baseQuestion,
                   type: QuestionType.MULTIPLE_CHOICE,
-                  options: q.options,
+                  options: q.options.map((o) => ({
+                    ...o,
+                    isCorrect: o.isCorrect ?? false,
+                  })),
                 };
               }
 
               // For TRUE_FALSE questions
-              if (q.type === "TRUE_FALSE") {
+              if (q.type === QuestionType.TRUE_FALSE) {
                 return {
                   ...baseQuestion,
                   type: QuestionType.TRUE_FALSE,
@@ -212,7 +256,7 @@ IMPORTANT:
               }
 
               // For OPEN_QUESTION
-              if (q.type === "OPEN_QUESTION") {
+              if (q.type === QuestionType.OPEN_QUESTION) {
                 return {
                   ...baseQuestion,
                   type: QuestionType.OPEN_QUESTION,

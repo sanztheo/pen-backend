@@ -45,6 +45,47 @@ const getWikipediaArticleSchema = z.object({
     .describe("Titre de l'article (si pas de pageid)"),
 });
 
+const WikipediaSearchResponseSchema = z
+  .object({
+    query: z
+      .object({
+        search: z
+          .array(
+            z.object({
+              pageid: z.number(),
+              title: z.string(),
+              snippet: z.string(),
+            }),
+          )
+          .optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
+const WikipediaArticleResponseSchema = z
+  .object({
+    query: z
+      .object({
+        pages: z
+          .record(
+            z
+              .object({
+                pageid: z.number(),
+                title: z.string(),
+                extract: z.string().optional(),
+                fullurl: z.string().optional(),
+                categories: z.array(z.object({ title: z.string() })).optional(),
+                missing: z.boolean().optional(),
+              })
+              .passthrough(),
+          )
+          .optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
+
 /**
  * Crée les tools Web avec le contexte utilisateur
  */
@@ -159,15 +200,12 @@ Utile pour des informations encyclopédiques de référence.`,
           const searchUrl = `https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=${limit}&format=json&origin=*`;
 
           const response = await fetch(searchUrl);
-          const data = (await response.json()) as {
-            query?: {
-              search?: Array<{
-                pageid: number;
-                title: string;
-                snippet: string;
-              }>;
-            };
-          };
+          const raw: unknown = await response.json();
+          const parsed = WikipediaSearchResponseSchema.safeParse(raw);
+          if (!parsed.success) {
+            return { count: 0, articles: [] };
+          }
+          const data = parsed.data;
 
           const results = data.query?.search || [];
 
@@ -219,20 +257,12 @@ Retourne l'extrait, les catégories, et l'URL de l'article.`,
           const url = `https://fr.wikipedia.org/w/api.php?action=query&${queryParam}&prop=extracts|categories|info&exintro=1&explaintext=1&inprop=url&cllimit=10&format=json&origin=*`;
 
           const response = await fetch(url);
-          const data = (await response.json()) as {
-            query?: {
-              pages?: {
-                [key: string]: {
-                  pageid: number;
-                  title: string;
-                  extract?: string;
-                  fullurl?: string;
-                  categories?: Array<{ title: string }>;
-                  missing?: boolean;
-                };
-              };
-            };
-          };
+          const raw: unknown = await response.json();
+          const parsed = WikipediaArticleResponseSchema.safeParse(raw);
+          if (!parsed.success) {
+            return { error: "Réponse Wikipedia invalide", article: null };
+          }
+          const data = parsed.data;
 
           const pages = data.query?.pages;
           if (!pages) {

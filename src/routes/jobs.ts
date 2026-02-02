@@ -10,6 +10,7 @@
 import { Router } from "express";
 import { authenticateToken, requireUser } from "../middlewares/auth.js";
 import { getJobResult, deleteJobResult } from "../lib/jobResults.js";
+import { z } from "zod";
 
 const router = Router();
 
@@ -33,7 +34,7 @@ router.get("/:jobId", async (req, res) => {
     }
 
     // 🛡️ SÉCURITÉ: getJobResult vérifie maintenant que le job appartient à l'utilisateur
-    const result = await getJobResult(jobId, userId!);
+    const result = await getJobResult(jobId, userId!, z.unknown());
 
     if (!result) {
       return res.status(404).json({

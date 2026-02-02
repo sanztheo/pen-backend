@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import fetch from "node-fetch";
+import { z } from "zod";
 
 export interface WikipediaArticle {
   title: string;
@@ -69,6 +70,42 @@ interface WikipediaCategoryMembersResponse {
     categorymembers?: WikipediaCategoryMember[];
   };
 }
+
+const WikipediaCategoryMembersResponseSchema: z.ZodType<WikipediaCategoryMembersResponse> =
+  z
+    .object({
+      query: z
+        .object({
+          categorymembers: z
+            .array(z.object({ pageid: z.number(), title: z.string() }))
+            .optional(),
+        })
+        .optional(),
+    })
+    .passthrough();
+
+const WikipediaExtractResponseSchema: z.ZodType<WikipediaExtractResponse> = z
+  .object({
+    query: z
+      .object({
+        pages: z
+          .record(
+            z
+              .object({
+                pageid: z.number(),
+                title: z.string(),
+                extract: z.string().optional(),
+                fullurl: z.string().optional(),
+                missing: z.boolean().optional(),
+                categories: z.array(z.object({ title: z.string() })).optional(),
+              })
+              .passthrough(),
+          )
+          .optional(),
+      })
+      .optional(),
+  })
+  .passthrough();
 
 /**
  * Recherche des articles sur Wikipedia via l'API MediaWiki
@@ -567,7 +604,10 @@ async function getCategoryContent(
 
       if (!response.ok) continue;
 
-      const data = (await response.json()) as WikipediaCategoryMembersResponse;
+      const raw: unknown = await response.json();
+      const parsed = WikipediaCategoryMembersResponseSchema.safeParse(raw);
+      if (!parsed.success) continue;
+      const data = parsed.data;
       const members = data.query?.categorymembers || [];
 
       if (members.length > 0) {
@@ -639,7 +679,12 @@ export const wikipediaGetArticle = async (
       throw new Error(`Erreur API Wikipedia: ${response.status}`);
     }
 
-    const data = (await response.json()) as WikipediaExtractResponse;
+    const raw: unknown = await response.json();
+    const parsed = WikipediaExtractResponseSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new Error("Réponse API Wikipedia invalide (query.pages)");
+    }
+    const data = parsed.data;
     const pages: WikipediaPagesMap = data.query?.pages || {};
     const pagesArray = Object.values(pages);
     const pageData: WikipediaPageData | undefined = pagesArray[0];

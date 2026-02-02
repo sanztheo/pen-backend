@@ -17,6 +17,7 @@ import {
   PaginatedUserPages,
 } from "../../types/admin.types.js";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 
 // Monthly premium price (adjust based on your pricing model)
 const MONTHLY_PREMIUM_PRICE = 9.99;
@@ -24,6 +25,43 @@ const MONTHLY_PREMIUM_PRICE = 9.99;
 // Cache configuration
 const CACHE_NAMESPACE = "admin";
 const DASHBOARD_CACHE_TTL = 180; // 3 minutes
+
+const UserMetricsSchema = z.object({
+  totalUsers: z.number(),
+  activeUsers: z.number(),
+  newUsers: z.number(),
+  churnRate: z.number(),
+  growthRate: z.number(),
+}) satisfies z.ZodType<UserMetrics>;
+
+const RevenueMetricsSchema = z.object({
+  mrr: z.number(),
+  totalRevenue: z.number(),
+  freeUsers: z.number(),
+  premiumUsers: z.number(),
+  conversionRate: z.number(),
+  arpu: z.number(),
+}) satisfies z.ZodType<RevenueMetrics>;
+
+const UsageMetricsSchema = z.object({
+  totalAICreditsUsed: z.number(),
+  avgCreditsPerUser: z.number(),
+  totalQuizzesGenerated: z.number(),
+  avgQuizzesPerUser: z.number(),
+  topUsers: z.array(
+    z.object({
+      userId: z.string(),
+      email: z.string(),
+      creditsUsed: z.number(),
+    }),
+  ),
+}) satisfies z.ZodType<UsageMetrics>;
+
+const DashboardMetricsSchema = z.object({
+  users: UserMetricsSchema,
+  revenue: RevenueMetricsSchema,
+  usage: UsageMetricsSchema,
+});
 
 export class AdminStatsService {
   /**
@@ -299,6 +337,7 @@ export class AdminStatsService {
         ]);
         return { users, revenue, usage };
       },
+      (value) => DashboardMetricsSchema.parse(value),
       { namespace: CACHE_NAMESPACE, ttl: DASHBOARD_CACHE_TTL },
     );
   }

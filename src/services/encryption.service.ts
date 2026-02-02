@@ -12,6 +12,7 @@
  */
 
 import crypto from "crypto";
+import { z } from "zod";
 
 export class EncryptionService {
   private static readonly ALGORITHM = "aes-256-gcm";
@@ -151,7 +152,7 @@ export class EncryptionService {
    * @param encrypted - Chaîne chiffrée, objet ou null
    * @returns Objet déchiffré ou null
    */
-  static decryptJSON<T = unknown>(encrypted: unknown): T | null {
+  static decryptJSON(encrypted: unknown): unknown | null {
     // Cas 1 : null ou undefined
     if (!encrypted) {
       return null;
@@ -160,7 +161,7 @@ export class EncryptionService {
     // Cas 2 : Déjà un objet (données en clair stockées comme objet)
     if (typeof encrypted === "object") {
       console.log("⚠️ [ENCRYPTION] Données JSON en clair (objet) détectées");
-      return encrypted as T;
+      return encrypted;
     }
 
     // Cas 3 : String (peut être chiffré ou JSON en clair)
@@ -181,7 +182,8 @@ export class EncryptionService {
       }
 
       // Parser le JSON déchiffré
-      return JSON.parse(decrypted) as T;
+      const parsedUnknown: unknown = JSON.parse(decrypted);
+      return parsedUnknown;
     } catch (error) {
       // Si le déchiffrement ou le parsing échoue,
       // essayer de parser directement (JSON en clair)
@@ -189,12 +191,23 @@ export class EncryptionService {
         console.log(
           "⚠️ [ENCRYPTION] Tentative de parsing JSON en clair (string)",
         );
-        return JSON.parse(encrypted) as T;
+        const parsedUnknown: unknown = JSON.parse(encrypted);
+        return parsedUnknown;
       } catch (parseError) {
         console.error("❌ [ENCRYPTION] Erreur parsing JSON:", parseError);
         return null;
       }
     }
+  }
+
+  static decryptJSONWithSchema<T>(
+    encrypted: unknown,
+    schema: z.ZodType<T>,
+  ): T | null {
+    const value = this.decryptJSON(encrypted);
+    if (value === null) return null;
+    const parsed = schema.safeParse(value);
+    return parsed.success ? parsed.data : null;
   }
 
   /**

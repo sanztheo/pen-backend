@@ -10,6 +10,22 @@
 import { prisma } from "../../lib/prisma.js";
 import type { UIMessage } from "ai";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isUIMessage(value: unknown): value is UIMessage {
+  if (!isRecord(value)) return false;
+  if (typeof value.id !== "string") return false;
+  if (typeof value.role !== "string") return false;
+  if (!("parts" in value) || !Array.isArray(value.parts)) return false;
+  for (const part of value.parts) {
+    if (!isRecord(part)) return false;
+    if (typeof part.type !== "string") return false;
+  }
+  return true;
+}
+
 /**
  * Sauvegarde les messages d'une conversation
  * Appelé dans onFinish de toUIMessageStreamResponse
@@ -119,7 +135,9 @@ export async function loadConversation(
     // Parser les messages JSON vers UIMessage
     const messages: UIMessage[] = conversation.messages.map((msg) => {
       try {
-        return JSON.parse(msg.content) as UIMessage;
+        const parsed: unknown = JSON.parse(msg.content);
+        if (isUIMessage(parsed)) return parsed;
+        throw new Error("Invalid UIMessage shape");
       } catch {
         // Fallback si le JSON est invalide - construire un UIMessage v5 valide
         return {

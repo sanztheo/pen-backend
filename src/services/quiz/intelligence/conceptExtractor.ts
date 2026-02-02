@@ -6,6 +6,7 @@
 import OpenAI from "openai";
 import { prisma } from "../../../lib/prisma.js";
 import { extractTextFromBlockNote } from "../../../controllers/assistant/helpers/blocknote.js";
+import { z } from "zod";
 import {
   type ExtractedConcepts,
   type Difficulty,
@@ -19,6 +20,15 @@ import {
 
 // Lazy initialization OpenAI
 let openaiClient: OpenAI | null = null;
+
+const ExtractedConceptsSchema = z.object({
+  keywords: z.array(z.string()),
+  definitions: z.record(z.string()),
+  keyPoints: z.array(z.string()),
+  formulas: z.array(z.string()),
+  topic: z.string(),
+  summary: z.string(),
+});
 
 function getOpenAI(): OpenAI {
   if (!openaiClient) {
@@ -302,16 +312,12 @@ export class ConceptExtractorService {
     }
 
     try {
-      const parsed = JSON.parse(result) as ExtractedConcepts;
-      return {
-        keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
-        definitions:
-          typeof parsed.definitions === "object" ? parsed.definitions : {},
-        keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
-        formulas: Array.isArray(parsed.formulas) ? parsed.formulas : [],
-        topic: typeof parsed.topic === "string" ? parsed.topic : "",
-        summary: typeof parsed.summary === "string" ? parsed.summary : "",
-      };
+      const parsedUnknown: unknown = JSON.parse(result);
+      const parsed = ExtractedConceptsSchema.safeParse(parsedUnknown);
+      if (!parsed.success) {
+        throw new Error("Réponse AI invalide (schema)");
+      }
+      return parsed.data satisfies ExtractedConcepts;
     } catch {
       console.error(`❌ [ConceptExtractor] Erreur parsing JSON AI:`, result);
       throw new Error("Réponse AI non parseable");
