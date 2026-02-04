@@ -41,6 +41,7 @@ import {
 import { quizPreprocessorAgent } from "../services/quiz/preprocessor/QuizPreprocessorAgent.js";
 import type { PreprocessorPromptParams } from "../services/quiz/preprocessor/prompts.js";
 import { generateQuizTitle } from "../services/quiz/utils/titleGenerator.js";
+import { SUBSCRIPTION_LIMITS } from "../services/quiz/preprocessor/constants.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types pour le streaming de quiz
@@ -293,8 +294,40 @@ export class QuizStreamingController {
         return;
       }
 
-      // 🔐 Vérification des limites de quiz avancés (>30 questions ET >10 pages)
+      // 🔐 Vérification de la limite de sélection de pages (Free: 2, Premium: 30)
       const pagesCount = pageProjectIds?.length || 0;
+      if (pagesCount > 0) {
+        const subscription = await prisma.userSubscription.findUnique({
+          where: { userId },
+          select: { plan: true },
+        });
+
+        const plan = subscription?.plan === "premium" ? "premium" : "free_user";
+        const maxPagesSelection = SUBSCRIPTION_LIMITS[plan].maxPagesSelection;
+
+        if (pagesCount > maxPagesSelection) {
+          logger.log(
+            `❌ [STREAMING] Limite de pages dépassée: ${pagesCount} > ${maxPagesSelection} (plan: ${plan})`,
+          );
+          res.status(403).json({
+            error: "Limite de sélection de pages dépassée",
+            message:
+              plan === "free_user"
+                ? `Vous ne pouvez sélectionner que ${maxPagesSelection} pages. Passez à Premium pour sélectionner jusqu'à 30 pages.`
+                : `Vous ne pouvez pas sélectionner plus de ${maxPagesSelection} pages.`,
+            limitType: "pagesSelection",
+            currentCount: pagesCount,
+            maxAllowed: maxPagesSelection,
+          });
+          return;
+        }
+
+        logger.log(
+          `✅ [STREAMING] Limite de pages OK: ${pagesCount}/${maxPagesSelection} (plan: ${plan})`,
+        );
+      }
+
+      // 🔐 Vérification des limites de quiz avancés (>30 questions ET >10 pages)
       if (questionCount > 30 && pagesCount > 10) {
         logger.log(
           `🎯 [STREAMING] Quiz avancé détecté: ${questionCount} questions, ${pagesCount} pages`,
@@ -391,10 +424,7 @@ export class QuizStreamingController {
             });
           }
         } catch (error) {
-          logger.error(
-            `❌ [STREAMING-RAG] Erreur vérification chunks:`,
-            error,
-          );
+          logger.error(`❌ [STREAMING-RAG] Erreur vérification chunks:`, error);
         }
       }
 
@@ -534,9 +564,7 @@ export class QuizStreamingController {
                 message: `Question ${i + 1} générée avec succès`,
               });
 
-              logger.log(
-                `✅ [STREAMING] Question ${i + 1} générée et envoyée`,
-              );
+              logger.log(`✅ [STREAMING] Question ${i + 1} générée et envoyée`);
             } else {
               throw new Error(`Échec génération question ${i + 1}`);
             }
@@ -698,9 +726,7 @@ export class QuizStreamingController {
         `  - ragContext: ${req.body.ragContext ? `${req.body.ragContext.length} chars` : "undefined/null"}`,
       );
       logger.log(`  - coursesOnly: ${req.body.coursesOnly}`);
-      logger.log(
-        `  - pageProjectIds: ${req.body.pageProjectIds?.length || 0}`,
-      );
+      logger.log(`  - pageProjectIds: ${req.body.pageProjectIds?.length || 0}`);
       logger.log(`  - Body keys: ${Object.keys(req.body).join(", ")}`);
 
       // Stocker la session temporairement
@@ -756,9 +782,7 @@ export class QuizStreamingController {
       const dataData = `data: ${JSON.stringify(data)}\n\n`;
       logger.log(`📤 [STREAMING] Envoi SSE - Event: ${event}`);
       logger.log(`📤 [STREAMING] Envoi SSE - Data: ${JSON.stringify(data)}`);
-      logger.log(
-        `📤 [STREAMING] Format SSE complet:\n${eventData}${dataData}`,
-      );
+      logger.log(`📤 [STREAMING] Format SSE complet:\n${eventData}${dataData}`);
       res.write(eventData);
       res.write(dataData);
       // Forcer l'envoi immédiat des données (pour le streaming en temps réel)
@@ -840,9 +864,7 @@ export class QuizStreamingController {
       } = session.request;
 
       // 🧠 Debug: Vérifier les données récupérées de la session
-      logger.log(
-        `🧠 [SESSION-RECOVERY-DEBUG] Session ${sessionId} récupérée:`,
-      );
+      logger.log(`🧠 [SESSION-RECOVERY-DEBUG] Session ${sessionId} récupérée:`);
       logger.log(
         `  - ragContext: ${ragContext ? `${ragContext.length} chars` : "undefined/null"}`,
       );
@@ -1756,9 +1778,7 @@ export class QuizStreamingController {
           message: "Correction en cours...",
         });
 
-        logger.log(
-          `🚀 [CORRECTION-STREAMING] Début correction quiz ${quizId}`,
-        );
+        logger.log(`🚀 [CORRECTION-STREAMING] Début correction quiz ${quizId}`);
 
         // Récupérer les questions du quiz
         const questions = (Array.isArray(quiz.questions)
