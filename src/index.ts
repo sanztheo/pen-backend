@@ -36,7 +36,6 @@ import { paddleWebhookHandler } from "./routes/paddleWebhooks.js";
 import { jobsRouter } from "./routes/jobs.js";
 import { agentRouter } from "./routes/agent.js";
 import { adminRouter } from "./routes/admin.js";
-import { syncSessionRouter } from "./routes/syncSession.js";
 
 import { startCronJobs } from "./jobs/cronJobs.js";
 import { AuthService } from "./services/auth.js";
@@ -218,7 +217,6 @@ app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 
 // 🛡️ ROUTES AVEC RATE LIMITING SPÉCIFIQUE
 app.use("/api/auth", authRateLimit, authRouter); // Protection brute force
-app.use("/api/auth", syncSessionRouter); // Cross-domain session cookie for website
 app.use("/api/content", contentRouter); // 🏠 Nouvelle API simplifiée
 app.use("/api/workspaces", workspaceRouter);
 app.use("/api/projects", projectRouter);
