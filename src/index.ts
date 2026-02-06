@@ -36,6 +36,7 @@ import { paddleWebhookHandler } from "./routes/paddleWebhooks.js";
 import { jobsRouter } from "./routes/jobs.js";
 import { agentRouter } from "./routes/agent.js";
 import { adminRouter } from "./routes/admin.js";
+import { betaRouter } from "./routes/beta.js";
 
 import { startCronJobs } from "./jobs/cronJobs.js";
 import { AuthService } from "./services/auth.js";
@@ -257,6 +258,7 @@ app.use("/api/daily-article", dailyArticleRouter);
 app.use("/api/user", userRouter);
 app.use("/api/jobs", jobsRouter); // 🎯 Récupération résultats jobs BullMQ
 app.use("/api/agent", aiRateLimit, aiBurstRateLimit, agentRouter); // 🤖 Agent Pennote + burst protection
+app.use("/api/beta", betaRouter); // 🎯 Beta management
 
 app.use("*", (_req, res) =>
   res.status(404).json({ error: "Route non trouvée" }),

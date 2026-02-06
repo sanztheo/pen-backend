@@ -1,0 +1,124 @@
+import type { Request, Response } from "express";
+import { BetaService } from "../../services/BetaService.js";
+import { logger } from "../../utils/logger.js";
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^\+?[\d\s\-().]{0,30}$/;
+const MAX_PHONE_LENGTH = 32;
+const MAX_METADATA_SIZE_BYTES = 4096;
+
+export class WaitlistController {
+  static async addToWaitlist(req: Request, res: Response): Promise<void> {
+    try {
+      const body: unknown = req.body;
+      const {
+        email,
+        name,
+        phone,
+        metadata,
+      }: {
+        email?: string;
+        name?: string;
+        phone?: string;
+        metadata?: Record<string, unknown>;
+      } = typeof body === "object" && body !== null ? body : {};
+
+      // Normalize inputs
+      const trimmedEmail = email?.trim().toLowerCase();
+      const trimmedName = name?.trim();
+
+      // Validation
+      if (!trimmedEmail || !trimmedName) {
+        res.status(400).json({
+          success: false,
+          error: "email and name are required",
+          code: "MISSING_FIELDS",
+        });
+        return;
+      }
+
+      if (!EMAIL_REGEX.test(trimmedEmail)) {
+        res.status(400).json({
+          success: false,
+          error: "Invalid email format",
+          code: "INVALID_EMAIL",
+        });
+        return;
+      }
+
+      if (trimmedName.length < 2 || trimmedName.length > 200) {
+        res.status(400).json({
+          success: false,
+          error: "Name must be between 2 and 200 characters",
+          code: "INVALID_NAME_LENGTH",
+        });
+        return;
+      }
+
+      // Validate phone before building final payload
+      const trimmedPhone = phone?.trim();
+      if (trimmedPhone !== undefined && trimmedPhone !== "") {
+        if (
+          trimmedPhone.length > MAX_PHONE_LENGTH ||
+          !PHONE_REGEX.test(trimmedPhone)
+        ) {
+          res.status(400).json({
+            success: false,
+            error: `Invalid phone format (max ${MAX_PHONE_LENGTH} chars, digits/spaces/dashes only)`,
+            code: "INVALID_PHONE",
+          });
+          return;
+        }
+      }
+
+      // Build final metadata (including phone) THEN validate size
+      const waitlistMetadata: Record<string, unknown> = {
+        ...metadata,
+        ...(trimmedPhone ? { phone: trimmedPhone } : {}),
+      };
+
+      const finalPayloadSize = new TextEncoder().encode(
+        JSON.stringify(waitlistMetadata),
+      ).length;
+      if (finalPayloadSize > MAX_METADATA_SIZE_BYTES) {
+        res.status(400).json({
+          success: false,
+          error: "Metadata too large (max 4KB)",
+          code: "METADATA_TOO_LARGE",
+        });
+        return;
+      }
+
+      const userId = req.user?.id;
+
+      const result = await BetaService.addToWaitlist(
+        { email: trimmedEmail, name: trimmedName, metadata: waitlistMetadata },
+        userId,
+      );
+
+      if (result.rejected) {
+        res.status(400).json({
+          success: false,
+          error: "Active users cannot join the waitlist",
+          code: "ALREADY_ACTIVE",
+        });
+        return;
+      }
+
+      // Indistinguishable response: prevent email enumeration (BM-002)
+      // Position is only exposed to authenticated users (their own entry)
+      const response: { success: true; position?: number } = { success: true };
+      if (userId) {
+        response.position = result.position;
+      }
+
+      res.status(201).json(response);
+    } catch (error) {
+      logger.error("[BETA_WAITLIST] Error adding to waitlist:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to add to waitlist",
+      });
+    }
+  }
+}
