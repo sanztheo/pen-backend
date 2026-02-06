@@ -279,6 +279,43 @@ export const adminRateLimit = rateLimit({
 });
 
 /**
+ * 8. RATE LIMIT BETA HEARTBEAT
+ * Heartbeat pings every 30s — allow 3/min per user (margin for retries)
+ */
+export const betaHeartbeatRateLimit = rateLimit({
+  ...createBaseConfig("rl:beta-hb:"),
+  windowMs: 60 * 1000, // 1 minute
+  max: 3,
+  message: {
+    success: false,
+    error: "HEARTBEAT_RATE_LIMIT_EXCEEDED",
+    message: "Too many heartbeat requests.",
+    retryAfter: "1 minute",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `beta_hb_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
+ * 9. RATE LIMIT BETA WAITLIST
+ * Anti-spam for public waitlist signup — 5 req/15min per IP
+ */
+export const betaWaitlistRateLimit = rateLimit({
+  ...createBaseConfig("rl:beta-wl:"),
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5,
+  message: {
+    success: false,
+    error: "WAITLIST_RATE_LIMIT_EXCEEDED",
+    message: "Trop de tentatives d'inscription. Réessayez dans 15 minutes.",
+    retryAfter: "15 minutes",
+  },
+  // Key by IP since this endpoint uses optionalAuth
+});
+
+/**
  * Helper pour vérifier si le rate limiting est activé
  */
 export const isRateLimitEnabled = (): boolean => {

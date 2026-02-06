@@ -35,7 +35,9 @@
     "benchmark:quiz:large": "tsx scripts/quiz/benchmark-pipeline.ts --scenario=large",
     "benchmark:quiz:xlarge": "tsx scripts/quiz/benchmark-pipeline.ts --scenario=xlarge",
     "admin:set": "infisical run --path=/Backend/DEV -- tsx scripts/set-admin.ts",
-    "admin:set:prod": "infisical run --path=/Backend/PROD -- tsx scripts/set-admin.ts"
+    "admin:set:prod": "infisical run --path=/Backend/PROD -- tsx scripts/set-admin.ts",
+    "test:beta": "npx tsx scripts/test-beta-api.ts",
+    "test:beta:curl": "bash scripts/test-beta-api.sh"
   },
   "dependencies": {
     "@ai-sdk/deepseek": "^2.0.0",

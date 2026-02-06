@@ -9,55 +9,85 @@ datasource db {
 }
 
 model User {
-  email                 String               @unique @db.VarChar(255)
-  avatarUrl             String?              @map("avatar_url")
-  createdAt             DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  firstName             String               @map("first_name") @db.VarChar(100)
-  isActive              Boolean              @default(true) @map("is_active")
-  lastLoginAt           DateTime?            @map("last_login_at") @db.Timestamptz(6)
-  lastName              String               @map("last_name") @db.VarChar(100)
-  updatedAt             DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-  id                    String               @id @db.VarChar(255)
-  isAdmin               Boolean              @default(false) @map("is_admin")
-  autocompletionEnabled Boolean              @default(true) @map("autocompletion_enabled")
-  onboardingCompleted   Boolean              @default(false) @map("onboarding_completed")
-  settings              Json?                @default("{}")
-  activityLogs          ActivityLog[]
-  pages                 Page[]               @relation("PageAuthor")
-  projects              Project[]            @relation("ProjectOwner")
-  quizSequences         QuizSequence[]
-  quizTemplates         QuizTemplate[]
-  quizzes               Quiz[]
-  usageRecords          UsageRecord[]
-  userLimits            UserLimits?
-  quizPreferences       UserQuizPreferences?
-  subscription          UserSubscription?
-  invitedMembers        WorkspaceMember[]    @relation("InvitedBy")
-  workspaceMembers      WorkspaceMember[]
-  ownedWorkspaces       Workspace[]          @relation("WorkspaceOwner")
+  email                    String               @unique @db.VarChar(255)
+  avatarUrl                String?              @map("avatar_url")
+  createdAt                DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  firstName                String               @map("first_name") @db.VarChar(100)
+  isActive                 Boolean              @default(true) @map("is_active")
+  lastLoginAt              DateTime?            @map("last_login_at") @db.Timestamptz(6)
+  lastName                 String               @map("last_name") @db.VarChar(100)
+  updatedAt                DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                       String               @id @db.VarChar(255)
+  isAdmin                  Boolean              @default(false) @map("is_admin")
+  autocompletionEnabled    Boolean              @default(true) @map("autocompletion_enabled")
+  onboardingCompleted      Boolean              @default(false) @map("onboarding_completed")
+  settings                 Json?                @default("{}")
+  // 🎯 Beta Management
+  betaStatus               BetaStatus           @default(active) @map("beta_status")
+  betaJoinedAt             DateTime?            @map("beta_joined_at") @db.Timestamptz(6)
+  betaDeactivatedAt        DateTime?            @map("beta_deactivated_at") @db.Timestamptz(6)
+  betaReactivationDeadline DateTime?            @map("beta_reactivation_deadline") @db.Timestamptz(6)
+  // 📊 Activity Tracking (silent)
+  totalActiveTimeSeconds   Int                  @default(0) @map("total_active_time_seconds")
+  weeklyActiveTimeSeconds  Int                  @default(0) @map("weekly_active_time_seconds")
+  weeklySessionCount       Int                  @default(0) @map("weekly_session_count")
+  lastHeartbeatAt          DateTime?            @map("last_heartbeat_at") @db.Timestamptz(6)
+  lastActiveAt             DateTime?            @map("last_active_at") @db.Timestamptz(6)
+  activityLogs             ActivityLog[]
+  pages                    Page[]               @relation("PageAuthor")
+  projects                 Project[]            @relation("ProjectOwner")
+  quizSequences            QuizSequence[]
+  quizTemplates            QuizTemplate[]
+  quizzes                  Quiz[]
+  usageRecords             UsageRecord[]
+  userLimits               UserLimits?
+  quizPreferences          UserQuizPreferences?
+  subscription             UserSubscription?
+  invitedMembers           WorkspaceMember[]    @relation("InvitedBy")
+  workspaceMembers         WorkspaceMember[]
+  ownedWorkspaces          Workspace[]          @relation("WorkspaceOwner")
   // 💬 AI Conversations
-  aiConversations       AIConversation[]
+  aiConversations          AIConversation[]
   // 📊 Quiz Dashboard Layout
-  dashboardLayout       UserDashboardLayout?
+  dashboardLayout          UserDashboardLayout?
+  // 🎯 Beta Waitlist
+  betaWaitlistEntries      BetaWaitlist[]
 
+  @@index([betaStatus])
   @@map("users")
 }
 
+model BetaWaitlist {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String    @unique @db.VarChar(255)
+  userId     String?   @map("user_id") @db.VarChar(255)
+  name       String    @db.VarChar(200)
+  joinedAt   DateTime  @default(now()) @map("joined_at") @db.Timestamptz(6)
+  notifiedAt DateTime? @map("notified_at") @db.Timestamptz(6)
+  metadata   Json?     @default("{}")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([joinedAt])
+  @@index([userId])
+  @@map("beta_waitlist")
+}
+
 model Workspace {
-  name           String            @db.VarChar(255)
-  description    String?
-  color          String?           @default("#3B82F6") @db.VarChar(7)
-  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  isArchived     Boolean           @default(false) @map("is_archived")
-  lastActivityAt DateTime          @default(now()) @map("last_activity_at") @db.Timestamptz(6)
-  ownerId        String            @map("owner_id") @db.VarChar(255)
-  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  activityLogs   ActivityLog[]
-  pages          Page[]
-  projects       Project[]
-  members        WorkspaceMember[]
-  owner          User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  name            String            @db.VarChar(255)
+  description     String?
+  color           String?           @default("#3B82F6") @db.VarChar(7)
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  isArchived      Boolean           @default(false) @map("is_archived")
+  lastActivityAt  DateTime          @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  ownerId         String            @map("owner_id") @db.VarChar(255)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  activityLogs    ActivityLog[]
+  pages           Page[]
+  projects        Project[]
+  members         WorkspaceMember[]
+  owner           User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   // 💬 AI Conversations
   aiConversations AIConversation[]
 
@@ -96,7 +126,7 @@ model Project {
   id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   position       Int           @default(0)
   isPinned       Boolean       @default(false) @map("is_pinned")
-  parentId       String?       @map("parent_id") @db.Uuid  // 🚀 Nouveau: support des projets imbriqués
+  parentId       String?       @map("parent_id") @db.Uuid // 🚀 Nouveau: support des projets imbriqués
   activityLogs   ActivityLog[]
   pages          Page[]
   owner          User          @relation("ProjectOwner", fields: [createdBy], references: [id])
@@ -124,7 +154,7 @@ model Page {
   icon             String?       @db.VarChar(50)
   iconColor        String?       @map("icon_color") @db.VarChar(7)
   activityLogs     ActivityLog[]
-  aiMessages       AIMessage[]   // Messages AI qui ont créé cette page
+  aiMessages       AIMessage[] // Messages AI qui ont créé cette page
   author           User          @relation("PageAuthor", fields: [createdBy], references: [id])
   parent           Page?         @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children         Page[]        @relation("PageHierarchy")
@@ -140,24 +170,24 @@ model Page {
 // 🧠 Quiz Intelligence - Concepts pré-extraits des pages
 // Permet le clustering thématique et la sélection intelligente pour les quiz
 model PageConcepts {
-  id              String   @id @default(cuid())
-  pageId          String   @unique @map("page_id") @db.Uuid
+  id     String @id @default(cuid())
+  pageId String @unique @map("page_id") @db.Uuid
 
   // 📚 Contenu extrait
-  keywords        String[] // Mots-clés principaux
-  definitions     Json?    // {term: definition} pour les termes importants
-  keyPoints       String[] @map("key_points") // Points clés du contenu
-  formulas        String[] // Formules mathématiques/scientifiques
-  summary         String?  @db.Text // Résumé court du contenu
+  keywords    String[] // Mots-clés principaux
+  definitions Json? // {term: definition} pour les termes importants
+  keyPoints   String[] @map("key_points") // Points clés du contenu
+  formulas    String[] // Formules mathématiques/scientifiques
+  summary     String?  @db.Text // Résumé court du contenu
 
   // 🎯 Métadonnées pour clustering
-  embedding       Float[]  // Vecteur d'embedding pour similarité
-  topic           String?  @db.VarChar(100) // Thème principal détecté
-  difficulty      String   @default("medium") @db.VarChar(20) // easy, medium, hard
+  embedding  Float[] // Vecteur d'embedding pour similarité
+  topic      String? @db.VarChar(100) // Thème principal détecté
+  difficulty String  @default("medium") @db.VarChar(20) // easy, medium, hard
 
   // 📊 Statistiques
-  wordCount       Int      @default(0) @map("word_count")
-  conceptCount    Int      @default(0) @map("concept_count")
+  wordCount    Int @default(0) @map("word_count")
+  conceptCount Int @default(0) @map("concept_count")
 
   // ⏰ Timestamps
   lastExtractedAt DateTime @default(now()) @map("last_extracted_at") @db.Timestamptz(6)
@@ -165,7 +195,7 @@ model PageConcepts {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   // 🔗 Relation
-  page            Page     @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
 
   @@index([pageId])
   @@index([topic])
@@ -338,23 +368,23 @@ model QuizSequence {
 }
 
 model UserSubscription {
-  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId              String             @unique @map("user_id") @db.VarChar(255)
-  plan                SubscriptionPlan   @default(free_user)
-  status              SubscriptionStatus @default(active)
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String             @unique @map("user_id") @db.VarChar(255)
+  plan                 SubscriptionPlan   @default(free_user)
+  status               SubscriptionStatus @default(active)
   clerkSubscriptionId  String?            @map("clerk_subscription_id") @db.VarChar(255)
   paddleCustomerId     String?            @map("paddle_customer_id") @db.VarChar(255)
   paddleSubscriptionId String?            @map("paddle_subscription_id") @db.VarChar(255)
   currentPeriodStart   DateTime?          @map("current_period_start") @db.Timestamptz(6)
-  currentPeriodEnd    DateTime?          @map("current_period_end") @db.Timestamptz(6)
-  cancelAtPeriodEnd   Boolean            @default(false) @map("cancel_at_period_end")
-  canceledAt          DateTime?          @map("canceled_at") @db.Timestamptz(6)
-  trialStart          DateTime?          @map("trial_start") @db.Timestamptz(6)
-  trialEnd            DateTime?          @map("trial_end") @db.Timestamptz(6)
-  metadata            Json?              @default("{}")
-  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
-  user                User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currentPeriodEnd     DateTime?          @map("current_period_end") @db.Timestamptz(6)
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt           DateTime?          @map("canceled_at") @db.Timestamptz(6)
+  trialStart           DateTime?          @map("trial_start") @db.Timestamptz(6)
+  trialEnd             DateTime?          @map("trial_end") @db.Timestamptz(6)
+  metadata             Json?              @default("{}")
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([clerkSubscriptionId])
   @@index([paddleSubscriptionId])
@@ -378,32 +408,32 @@ model UsageRecord {
 }
 
 model UserLimits {
-  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId               String   @unique @map("user_id") @db.VarChar(255)
-  aiCreditsUsed        Float    @default(0) @map("ai_credits_used")
-  aiCreditsLimit       Float    @default(50) @map("ai_credits_limit")
-  workspacesUsed       Int      @default(0) @map("workspaces_used")
-  workspacesLimit      Int      @default(2) @map("workspaces_limit")
-  projectsUsed         Int      @default(0) @map("projects_used")
-  projectsLimit        Int      @default(-1) @map("projects_limit")
-  customQuizzesUsed    Int      @default(0) @map("custom_quizzes_used")
-  customQuizzesLimit   Int      @default(5) @map("custom_quizzes_limit")
-  presetSequencesUsed  Int      @default(0) @map("preset_sequences_used")
-  presetSequencesLimit Int      @default(1) @map("preset_sequences_limit")
-  historyQuizzesLimit  Int      @default(5) @map("history_quizzes_limit")
-  statsChartsLimit     String[] @default(["progression-area", "difficulty-radar"]) @map("stats_charts_limit")
-  pagesSelectionLimit   Int      @default(2) @map("pages_selection_limit")
-  questionsPerQuizLimit Int      @default(10) @map("questions_per_quiz_limit")
-  advancedQuizzesUsed   Int      @default(0) @map("advanced_quizzes_used")
-  advancedQuizzesLimit  Int      @default(10) @map("advanced_quizzes_limit")
+  id                     String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                 String    @unique @map("user_id") @db.VarChar(255)
+  aiCreditsUsed          Float     @default(0) @map("ai_credits_used")
+  aiCreditsLimit         Float     @default(50) @map("ai_credits_limit")
+  workspacesUsed         Int       @default(0) @map("workspaces_used")
+  workspacesLimit        Int       @default(2) @map("workspaces_limit")
+  projectsUsed           Int       @default(0) @map("projects_used")
+  projectsLimit          Int       @default(-1) @map("projects_limit")
+  customQuizzesUsed      Int       @default(0) @map("custom_quizzes_used")
+  customQuizzesLimit     Int       @default(5) @map("custom_quizzes_limit")
+  presetSequencesUsed    Int       @default(0) @map("preset_sequences_used")
+  presetSequencesLimit   Int       @default(1) @map("preset_sequences_limit")
+  historyQuizzesLimit    Int       @default(5) @map("history_quizzes_limit")
+  statsChartsLimit       String[]  @default(["progression-area", "difficulty-radar"]) @map("stats_charts_limit")
+  pagesSelectionLimit    Int       @default(2) @map("pages_selection_limit")
+  questionsPerQuizLimit  Int       @default(10) @map("questions_per_quiz_limit")
+  advancedQuizzesUsed    Int       @default(0) @map("advanced_quizzes_used")
+  advancedQuizzesLimit   Int       @default(10) @map("advanced_quizzes_limit")
   advancedQuizzesResetAt DateTime? @map("advanced_quizzes_reset_at") @db.Timestamptz(6)
-  lastResetAt          DateTime @default(now()) @map("last_reset_at") @db.Timestamptz(6)
-  resetType            String   @default("monthly") @map("reset_type") @db.VarChar(20)
-  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  pagesLimit           Int      @default(-1) @map("pages_limit")
-  pagesUsed            Int      @default(0) @map("pages_used")
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastResetAt            DateTime  @default(now()) @map("last_reset_at") @db.Timestamptz(6)
+  resetType              String    @default("monthly") @map("reset_type") @db.VarChar(20)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  pagesLimit             Int       @default(-1) @map("pages_limit")
+  pagesUsed              Int       @default(0) @map("pages_used")
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("user_limits")
@@ -490,6 +520,13 @@ enum ExamSubject {
   SPORT_SPE
 }
 
+enum BetaStatus {
+  active
+  inactive
+  waitlist
+  pending_reactivation
+}
+
 enum SubscriptionPlan {
   free_user
   premium
@@ -550,27 +587,27 @@ model OpenaiUsageLog {
 
 // 💬 Conversations avec l'IA
 model AIConversation {
-  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String      @map("user_id") @db.VarChar(255)
-  workspaceId String?     @map("workspace_id") @db.Uuid
-  title       String      @db.VarChar(255)
-  
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String  @map("user_id") @db.VarChar(255)
+  workspaceId String? @map("workspace_id") @db.Uuid
+  title       String  @db.VarChar(255)
+
   // État de la conversation
-  isActive    Boolean     @default(true) @map("is_active")
-  messageCount Int        @default(0) @map("message_count")
+  isActive      Boolean   @default(true) @map("is_active")
+  messageCount  Int       @default(0) @map("message_count")
   lastMessageAt DateTime? @map("last_message_at") @db.Timestamptz(6)
-  
+
   // Métadonnées
-  metadata    Json        @default("{}")
-  
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  
+  metadata Json @default("{}")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
   // Relations
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace   Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  messages    AIMessage[]
-  
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace?  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages  AIMessage[]
+
   @@index([userId])
   @@index([workspaceId])
   @@index([isActive, lastMessageAt])
@@ -580,49 +617,49 @@ model AIConversation {
 
 // 📝 Messages de conversation
 model AIMessage {
-  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  conversationId String         @map("conversation_id") @db.Uuid
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String        @map("conversation_id") @db.Uuid
   role           AIMessageRole
-  content        String         @db.Text
-  
+  content        String        @db.Text
+
   // Métadonnées contextuelles
-  mentions       Json?          @default("[]") // Pages mentionnées
-  files          Json?          @default("[]") // Fichiers joints
-  wikipediaSources Json?        @default("[]") @map("wikipedia_sources") // Sources Wikipedia
-  mode           String?        @db.VarChar(50) // ask, search, create
-  
+  mentions         Json?   @default("[]") // Pages mentionnées
+  files            Json?   @default("[]") // Fichiers joints
+  wikipediaSources Json?   @default("[]") @map("wikipedia_sources") // Sources Wikipedia
+  mode             String? @db.VarChar(50) // ask, search, create
+
   // Informations page créée (mode create uniquement)
-  pageId         String?        @map("page_id") @db.Uuid // ID de la page créée
-  pageTitle      String?        @map("page_title") @db.VarChar(255) // Titre de la page créée
-  projectId      String?        @map("project_id") @db.Uuid // ID du projet de la page créée
-  isPageDeleted  Boolean?       @default(false) @map("is_page_deleted") // Statut de suppression de la page
-  
+  pageId        String?  @map("page_id") @db.Uuid // ID de la page créée
+  pageTitle     String?  @map("page_title") @db.VarChar(255) // Titre de la page créée
+  projectId     String?  @map("project_id") @db.Uuid // ID du projet de la page créée
+  isPageDeleted Boolean? @default(false) @map("is_page_deleted") // Statut de suppression de la page
+
   // 🔥 NOUVEAU: Données complètes de création de page (JSON)
   // Structure: { pageId, pageTitle, pageContent, projectId, status, isComplete, createdAt, deletedAt, recreatedAt }
-  pageCreationData Json?        @map("page_creation_data") // Données complètes du modal de création
-  
+  pageCreationData Json? @map("page_creation_data") // Données complètes du modal de création
+
   // 🔥 NOUVEAU: Function Calling (tools utilisés par l'IA)
-  thinking       String?        @db.Text // Réflexion de l'IA avant réponse
-  toolCalls      Json?          @default("[]") @map("tool_calls") // Liste des tool calls executés
-  usedFallback   Boolean?       @default(false) @map("used_fallback") // Si fallback contexte utilisé (timeout)
-  
+  thinking     String?  @db.Text // Réflexion de l'IA avant réponse
+  toolCalls    Json?    @default("[]") @map("tool_calls") // Liste des tool calls executés
+  usedFallback Boolean? @default(false) @map("used_fallback") // Si fallback contexte utilisé (timeout)
+
   // 🔥 NOUVEAU: Intermediate thinking blocks with generated arguments
   intermediateThinkingBlocks Json? @default("[]") @map("intermediate_thinking_blocks") // [{iteration, thinking, toolArguments, generatedAt}]
 
   // 💰 NOUVEAU: Métadonnées de coût en crédits (pour analytics et audit)
-  creditsMode        String?  @map("credits_mode") @db.VarChar(20) // 'ask', 'search', 'create'
-  creditsReflection  String?  @map("credits_reflection") @db.VarChar(20) // 'rapide', 'profond'
-  creditsHasWeb      Boolean? @default(false) @map("credits_has_web") // Web activé
-  creditsHasSources  Boolean? @default(false) @map("credits_has_sources") // Sources ajoutées
-  creditsUsed        Float?   @map("credits_used") // Coût total calculé (pour référence rapide)
+  creditsMode       String?  @map("credits_mode") @db.VarChar(20) // 'ask', 'search', 'create'
+  creditsReflection String?  @map("credits_reflection") @db.VarChar(20) // 'rapide', 'profond'
+  creditsHasWeb     Boolean? @default(false) @map("credits_has_web") // Web activé
+  creditsHasSources Boolean? @default(false) @map("credits_has_sources") // Sources ajoutées
+  creditsUsed       Float?   @map("credits_used") // Coût total calculé (pour référence rapide)
 
   // Timing
-  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
   // Relations
-  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  page           Page?          @relation(fields: [pageId], references: [id], onDelete: SetNull)
-  
+  conversation AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  page         Page?          @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
   @@index([conversationId])
   @@index([conversationId, createdAt])
   @@index([pageId])
