@@ -525,6 +525,7 @@ enum BetaStatus {
   inactive
   waitlist
   pending_reactivation
+  expired
 }
 
 enum SubscriptionPlan {

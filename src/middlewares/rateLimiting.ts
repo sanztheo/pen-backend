@@ -26,14 +26,9 @@ import { SecureLogger } from "./secureLogging.js";
  * Utilise la fonction officielle de express-rate-limit pour gérer IPv6
  */
 const getIpKey = (req: Request): string => {
-  // Récupérer l'IP réelle derrière un proxy
-  const forwarded = req.headers["x-forwarded-for"];
-  const ip =
-    typeof forwarded === "string"
-      ? forwarded.split(",")[0].trim()
-      : req.socket.remoteAddress || "unknown";
-
-  return ip;
+  // req.ip is reliable because app.set("trust proxy", 1) is configured in index.ts
+  // This prevents x-forwarded-for spoofing — Express only trusts the proxy layer
+  return req.ip ?? req.socket.remoteAddress ?? "unknown";
 };
 
 /**
@@ -77,7 +72,9 @@ const RATE_LIMIT_CONFIG = {
 
 /**
  * Handler personnalisé lors du dépassement de limite
- * Log les incidents pour analyse de sécurité
+ * Log les incidents pour analyse de sécurité ET renvoie 429
+ * CRITICAL: express-rate-limit `handler` REMPLACE le comportement par défaut.
+ * Sans réponse explicite ici, aucun 429 n'est envoyé au client.
  */
 const onLimitReached = (req: Request, res: Response) => {
   SecureLogger.warn("🚨 [RATE-LIMIT] Limite atteinte", {
@@ -86,6 +83,12 @@ const onLimitReached = (req: Request, res: Response) => {
     path: req.path,
     method: req.method,
     userAgent: req.get("user-agent"),
+  });
+
+  res.status(429).json({
+    success: false,
+    error: "RATE_LIMIT_EXCEEDED",
+    message: "Trop de requêtes. Veuillez réessayer plus tard.",
   });
 };
 
@@ -98,7 +101,7 @@ const createBaseConfig = (storePrefix: string): Partial<Options> => ({
   legacyHeaders: false, // Désactive les anciens headers X-RateLimit-*
   store: getRateLimitStoreWithFallback(storePrefix), // Redis avec préfixe UNIQUE
   handler: onLimitReached,
-  skip: (req) => {
+  skip: () => {
     // Skip si rate limiting désactivé globalement
     if (!RATE_LIMIT_CONFIG.enabled) return true;
     return false;

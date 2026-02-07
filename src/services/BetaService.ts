@@ -3,34 +3,21 @@ import { redis } from "../lib/redis.js";
 import { logger } from "../utils/logger.js";
 import { Prisma } from "@prisma/client";
 import type { BetaStatus } from "@prisma/client";
-
-const TOTAL_BETA_SPOTS = 100;
-const HEARTBEAT_INCREMENT_SECONDS = 30;
-const HEARTBEAT_MIN_INTERVAL_SECONDS = 25;
-const STATUS_CACHE_KEY = "beta:active_count";
-const STATUS_CACHE_TTL_SECONDS = 30;
-const SERIALIZATION_MAX_RETRIES = 3;
-const SERIALIZATION_BASE_DELAY_MS = 50;
-
-interface BetaStatusResponse {
-  spotsRemaining: number;
-  totalSpots: number;
-  isFull: boolean;
-  userStatus: BetaStatus | undefined;
-}
-
-interface WaitlistInput {
-  email: string;
-  name: string;
-  phone?: string;
-  metadata?: Record<string, unknown>;
-}
-
-interface WaitlistResult {
-  position: number;
-  alreadyExists: boolean;
-  rejected?: boolean;
-}
+import {
+  TOTAL_BETA_SPOTS,
+  HEARTBEAT_INCREMENT_SECONDS,
+  HEARTBEAT_MIN_INTERVAL_SECONDS,
+  STATUS_CACHE_KEY,
+  STATUS_CACHE_TTL_SECONDS,
+  SERIALIZATION_MAX_RETRIES,
+  SERIALIZATION_BASE_DELAY_MS,
+  isInputJsonValue,
+} from "./BetaService.types.js";
+import type {
+  BetaStatusResponse,
+  WaitlistInput,
+  WaitlistResult,
+} from "./BetaService.types.js";
 
 export class BetaService {
   /**
@@ -89,7 +76,7 @@ export class BetaService {
     // This prevents counter inflation from rapid concurrent requests
     // Single raw query = ultra-fast, no round-trips
     const result = await prisma.$executeRaw`
-      UPDATE "user"
+      UPDATE "users"
       SET
         "weekly_active_time_seconds" = "weekly_active_time_seconds" + ${HEARTBEAT_INCREMENT_SECONDS},
         "total_active_time_seconds" = "total_active_time_seconds" + ${HEARTBEAT_INCREMENT_SECONDS},
@@ -123,6 +110,15 @@ export class BetaService {
       if (user?.betaStatus === "active") {
         return { position: 0, alreadyExists: false, rejected: true };
       }
+    } else {
+      // Public (unauthenticated): check by email if an active user owns this email
+      const activeByEmail = await prisma.user.findFirst({
+        where: { email: input.email, betaStatus: "active" },
+        select: { id: true },
+      });
+      if (activeByEmail) {
+        return { position: 0, alreadyExists: false, rejected: true };
+      }
     }
 
     // Upsert-style: try create, catch unique constraint (P2002) for duplicates
@@ -133,8 +129,7 @@ export class BetaService {
           email: input.email,
           name: input.name,
           userId: userId ?? undefined,
-          // Prisma.InputJsonValue boundary: metadata is validated upstream in controller
-          metadata: (input.metadata ?? {}) as Prisma.InputJsonValue,
+          metadata: isInputJsonValue(input.metadata) ? input.metadata : {},
         },
       });
     } catch (error: unknown) {
@@ -144,7 +139,15 @@ export class BetaService {
         error.code === "P2002"
       ) {
         const position = await BetaService.getWaitlistPosition(input.email);
-        return { position, alreadyExists: true, rejected: false };
+        // PEN-141: Only mark as owned if the existing entry belongs to this user
+        const existingEntry = userId
+          ? await prisma.betaWaitlist.findUnique({
+              where: { email: input.email },
+              select: { userId: true },
+            })
+          : undefined;
+        const isOwned = existingEntry?.userId === userId;
+        return { position, alreadyExists: true, rejected: false, isOwned };
       }
       throw error;
     }
@@ -164,7 +167,13 @@ export class BetaService {
       `[BETA_SERVICE] Waitlist entry created: ${input.email} (position: ${position})`,
     );
 
-    return { position, alreadyExists: false, rejected: false };
+    // New entry created with userId → owned by this user
+    return {
+      position,
+      alreadyExists: false,
+      rejected: false,
+      isOwned: !!userId,
+    };
   }
 
   /**
@@ -214,11 +223,25 @@ export class BetaService {
           code: "NO_SPOTS_AVAILABLE",
         };
       }
+      if (message === "STATUS_CHANGED") {
+        return {
+          success: false,
+          error: "User status changed during reactivation",
+          code: "STATUS_CHANGED",
+        };
+      }
       throw error;
     }
 
     // Invalidate cached active count since a user just became active
-    await redis.del(STATUS_CACHE_KEY).catch(() => {});
+    try {
+      await redis.del(STATUS_CACHE_KEY);
+    } catch (cacheError) {
+      logger.warn(
+        "[BETA_SERVICE] Failed to invalidate cache after reactivation:",
+        cacheError,
+      );
+    }
 
     logger.log(`[BETA_SERVICE] User reactivated: ${userId}`);
 
@@ -247,13 +270,24 @@ export class BetaService {
 
             const now = new Date();
 
+            // Guard inside transaction: verify status is still reactivatable
+            // (prevents race with cleanupExpiredAccounts changing status to "expired")
+            const currentUser = await tx.user.findUniqueOrThrow({
+              where: { id: userId },
+              select: { betaStatus: true },
+            });
+            const reactivatable = ["inactive", "pending_reactivation"];
+            if (!reactivatable.includes(currentUser.betaStatus)) {
+              throw new Error("STATUS_CHANGED");
+            }
+
             await tx.user.update({
               where: { id: userId },
               data: {
                 betaStatus: "active",
                 betaJoinedAt: now,
-                betaDeactivatedAt: undefined,
-                betaReactivationDeadline: undefined,
+                betaDeactivatedAt: null,
+                betaReactivationDeadline: null,
                 weeklyActiveTimeSeconds: 0,
                 weeklySessionCount: 0,
                 lastActiveAt: now,
@@ -268,9 +302,9 @@ export class BetaService {
         );
         return;
       } catch (error: unknown) {
-        // NO_SPOTS_AVAILABLE is business logic, not a transient error — propagate immediately
+        // Business logic errors — not transient, propagate immediately
         const message = error instanceof Error ? error.message : String(error);
-        if (message === "NO_SPOTS_AVAILABLE") {
+        if (message === "NO_SPOTS_AVAILABLE" || message === "STATUS_CHANGED") {
           throw error;
         }
 

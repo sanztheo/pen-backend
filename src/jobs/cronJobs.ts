@@ -12,6 +12,10 @@ const RAG_CLEANUP_SCHEDULE = "0 3 * * *"; // Tous les jours à 3h du matin
 const DAILY_ARTICLE_SCHEDULE = "0 0 * * *"; // Tous les jours à minuit
 const MONTHLY_RESET_SCHEDULE = "0 2 * * *"; // Tous les jours à 2h du matin
 const DAILY_LIMITS_RESET_SCHEDULE = "0 0 * * *"; // Tous les jours à minuit
+const BETA_CHECK_INACTIVE_SCHEDULE = "0 * * * *"; // :00 — désactive les inactifs en premier
+const BETA_PROCESS_WAITLIST_SCHEDULE = "10 * * * *"; // :10 — promeut depuis la waitlist
+const BETA_CLEANUP_EXPIRED_SCHEDULE = "20 * * * *"; // :20 — nettoie les comptes expirés (après check inactive)
+const BETA_WEEKLY_RESET_SCHEDULE = "0 0 * * 1"; // Lundi 00:00 UTC
 const NODE_ENV = process.env.NODE_ENV || "development";
 
 export function startCronJobs() {
@@ -225,6 +229,116 @@ export function startCronJobs() {
     `✅ Tâche de reset quotidien des limites programmée: ${DAILY_LIMITS_RESET_SCHEDULE} (Europe/Paris)`,
   );
 
+  // ─── Beta Management Cron Jobs ──────────────────────────────
+
+  // 🔍 Désactivation des utilisateurs inactifs (pas de heartbeat depuis 7 jours)
+  const betaCheckInactiveTask = cron.schedule(
+    BETA_CHECK_INACTIVE_SCHEDULE,
+    async () => {
+      logger.log("\n🔍 [CRON] Beta: vérification des utilisateurs inactifs...");
+      try {
+        const { BetaCronService } =
+          await import("../services/BetaCronService.js");
+
+        const result = await BetaCronService.checkInactiveUsers();
+
+        logger.log(
+          `✅ [CRON] Beta inactive check: ${result.processed} désactivés`,
+        );
+      } catch (error) {
+        logger.error("❌ [CRON] Erreur beta inactive check:", error);
+      }
+    },
+    {
+      timezone: "UTC",
+    },
+  );
+
+  logger.log(
+    `✅ Tâche beta inactive check programmée: ${BETA_CHECK_INACTIVE_SCHEDULE} (UTC)`,
+  );
+
+  // 🔄 Reset hebdomadaire des compteurs beta (lundi 00:00 UTC)
+  const betaWeeklyResetTask = cron.schedule(
+    BETA_WEEKLY_RESET_SCHEDULE,
+    async () => {
+      logger.log("\n🔄 [CRON] Beta: reset hebdomadaire des compteurs...");
+      try {
+        const { BetaCronService } =
+          await import("../services/BetaCronService.js");
+
+        const result = await BetaCronService.resetWeeklyCounters();
+
+        logger.log(
+          `✅ [CRON] Beta weekly reset: ${result.processed} users reset`,
+        );
+      } catch (error) {
+        logger.error("❌ [CRON] Erreur beta weekly reset:", error);
+      }
+    },
+    {
+      timezone: "UTC",
+    },
+  );
+
+  logger.log(
+    `✅ Tâche beta weekly reset programmée: ${BETA_WEEKLY_RESET_SCHEDULE} (UTC)`,
+  );
+
+  // 📋 Promotion automatique depuis la waitlist
+  const betaProcessWaitlistTask = cron.schedule(
+    BETA_PROCESS_WAITLIST_SCHEDULE,
+    async () => {
+      logger.log("\n📋 [CRON] Beta: traitement de la waitlist...");
+      try {
+        const { BetaCronService } =
+          await import("../services/BetaCronService.js");
+
+        const result = await BetaCronService.processWaitlist();
+
+        logger.log(
+          `✅ [CRON] Beta waitlist: ${result.processed} promus, ${result.errors} erreurs`,
+        );
+      } catch (error) {
+        logger.error("❌ [CRON] Erreur beta waitlist processing:", error);
+      }
+    },
+    {
+      timezone: "UTC",
+    },
+  );
+
+  logger.log(
+    `✅ Tâche beta waitlist processing programmée: ${BETA_PROCESS_WAITLIST_SCHEDULE} (UTC)`,
+  );
+
+  // 🗑️ Nettoyage des comptes expirés (deadline de réactivation dépassée)
+  const betaCleanupExpiredTask = cron.schedule(
+    BETA_CLEANUP_EXPIRED_SCHEDULE,
+    async () => {
+      logger.log("\n🗑️ [CRON] Beta: nettoyage des comptes expirés...");
+      try {
+        const { BetaCronService } =
+          await import("../services/BetaCronService.js");
+
+        const result = await BetaCronService.cleanupExpiredAccounts();
+
+        logger.log(
+          `✅ [CRON] Beta cleanup: ${result.processed} comptes expirés`,
+        );
+      } catch (error) {
+        logger.error("❌ [CRON] Erreur beta cleanup:", error);
+      }
+    },
+    {
+      timezone: "UTC",
+    },
+  );
+
+  logger.log(
+    `✅ Tâche beta cleanup programmée: ${BETA_CLEANUP_EXPIRED_SCHEDULE} (UTC)`,
+  );
+
   // En développement, ajouter une tâche de test plus fréquente
   if (NODE_ENV === "development") {
     // Tâche de test toutes les 5 minutes (désactivée par défaut)
@@ -258,6 +372,10 @@ export function startCronJobs() {
     dailyArticle: dailyArticleTask,
     monthlyReset: monthlyResetTask,
     dailyLimitsReset: dailyLimitsResetTask,
+    betaCheckInactive: betaCheckInactiveTask,
+    betaWeeklyReset: betaWeeklyResetTask,
+    betaProcessWaitlist: betaProcessWaitlistTask,
+    betaCleanupExpired: betaCleanupExpiredTask,
   };
 }
 
