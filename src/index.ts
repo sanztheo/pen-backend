@@ -133,6 +133,8 @@ async function testPaddleWebhookRoute(): Promise<void> {
 }
 
 const app = express();
+// Trust first proxy (Railway reverse proxy) so req.ip returns real client IP
+app.set("trust proxy", 1);
 const server = http.createServer(app);
 
 const PORT = backendConfig.port;

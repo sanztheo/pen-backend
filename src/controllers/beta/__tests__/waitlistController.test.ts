@@ -3,10 +3,18 @@
  * Covers: BM-001 (phone bypass), BM-002 (email enumeration), input validation
  */
 
-import { describe, expect, it, jest, beforeEach } from "@jest/globals";
+import {
+  afterAll,
+  describe,
+  expect,
+  it,
+  jest,
+  beforeEach,
+} from "@jest/globals";
 import type { Request, Response } from "express";
 import { WaitlistController } from "../waitlistController.js";
 import { BetaService } from "../../../services/BetaService.js";
+import { redis } from "../../../lib/redis.js";
 
 // ─── Mock BetaService ───────────────────────────────────────────
 const mockAddToWaitlist = jest.fn();
@@ -41,13 +49,23 @@ const createMockResponse = (): MockResponse => {
 const createMockRequest = (
   body: Record<string, unknown> = {},
   userId?: string,
+  userEmail?: string,
 ): Partial<Request> => ({
   body,
-  user: userId ? ({ id: userId } as Request["user"]) : undefined,
+  user: userId
+    ? ({
+        id: userId,
+        email: userEmail ?? `${userId}@test.com`,
+      } as Request["user"])
+    : undefined,
 });
 
 beforeEach(() => {
   jest.clearAllMocks();
+});
+
+afterAll(async () => {
+  await redis.disconnect();
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -455,6 +473,7 @@ describe("WaitlistController — BM-002: Email enumeration prevention", () => {
       position: 42,
       alreadyExists: false,
       rejected: false,
+      isOwned: true,
     });
 
     const req = createMockRequest(
@@ -477,6 +496,7 @@ describe("WaitlistController — BM-002: Email enumeration prevention", () => {
       position: 7,
       alreadyExists: true,
       rejected: false,
+      isOwned: true,
     });
 
     const req = createMockRequest(
@@ -497,10 +517,10 @@ describe("WaitlistController — BM-002: Email enumeration prevention", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// Active user rejection
+// Active user rejection (indistinguishable — BM-002)
 // ═══════════════════════════════════════════════════════════════
 describe("WaitlistController — Active user guard", () => {
-  it("should return 400 ALREADY_ACTIVE for active users", async () => {
+  it("should return indistinguishable 201 for rejected active users (authenticated)", async () => {
     mockAddToWaitlist.mockResolvedValue({
       position: 0,
       alreadyExists: false,
@@ -518,10 +538,124 @@ describe("WaitlistController — Active user guard", () => {
       res as unknown as Response,
     );
 
+    // BM-002: must be 201 { success: true } — indistinguishable from normal success
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ success: true });
+  });
+
+  it("should return indistinguishable 201 for rejected active users (unauthenticated)", async () => {
+    mockAddToWaitlist.mockResolvedValue({
+      position: 0,
+      alreadyExists: false,
+      rejected: true,
+    });
+
+    const req = createMockRequest({
+      email: "active-public@test.com",
+      name: "Active Public",
+    });
+    const res = createMockResponse();
+
+    await WaitlistController.addToWaitlist(
+      req as Request,
+      res as unknown as Response,
+    );
+
+    // BM-002: unauthenticated rejected must also be 201 — no email enumeration
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ success: true });
+  });
+
+  it("should have identical response shape for rejected vs new entry (unauthenticated)", async () => {
+    // Rejected (active user email submitted publicly)
+    mockAddToWaitlist.mockResolvedValue({
+      position: 0,
+      alreadyExists: false,
+      rejected: true,
+    });
+
+    const reqRejected = createMockRequest({
+      email: "active@test.com",
+      name: "Active",
+    });
+    const resRejected = createMockResponse();
+    await WaitlistController.addToWaitlist(
+      reqRejected as Request,
+      resRejected as unknown as Response,
+    );
+
+    const rejectedStatus = resRejected.status.mock.calls[0]?.[0];
+    const rejectedBody = resRejected.json.mock.calls[0]?.[0];
+
+    // New entry (normal success)
+    mockAddToWaitlist.mockResolvedValue({
+      position: 5,
+      alreadyExists: false,
+      rejected: false,
+    });
+
+    const reqNew = createMockRequest({
+      email: "new@test.com",
+      name: "New",
+    });
+    const resNew = createMockResponse();
+    await WaitlistController.addToWaitlist(
+      reqNew as Request,
+      resNew as unknown as Response,
+    );
+
+    const newStatus = resNew.status.mock.calls[0]?.[0];
+    const newBody = resNew.json.mock.calls[0]?.[0];
+
+    // CRITICAL: both must be identical — no enumeration signal
+    expect(rejectedStatus).toBe(newStatus);
+    expect(Object.keys(rejectedBody as Record<string, unknown>).sort()).toEqual(
+      Object.keys(newBody as Record<string, unknown>).sort(),
+    );
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// MISSING_USER_EMAIL guard
+// ═══════════════════════════════════════════════════════════════
+describe("WaitlistController — MISSING_USER_EMAIL guard", () => {
+  it("should reject authenticated user with no email", async () => {
+    const req = createMockRequest(
+      { email: "test@example.com", name: "No Email User" },
+      "user-no-email",
+      "",
+    );
+    const res = createMockResponse();
+
+    await WaitlistController.addToWaitlist(
+      req as Request,
+      res as unknown as Response,
+    );
+
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "ALREADY_ACTIVE" }),
+      expect.objectContaining({ code: "MISSING_USER_EMAIL" }),
     );
+    expect(mockAddToWaitlist).not.toHaveBeenCalled();
+  });
+
+  it("should reject authenticated user with undefined email", async () => {
+    const req: Partial<Request> = {
+      body: { email: "test@example.com", name: "Undefined Email" },
+      user: { id: "user-undef-email" } as Request["user"],
+    };
+    const res = createMockResponse();
+
+    await WaitlistController.addToWaitlist(
+      req as Request,
+      res as unknown as Response,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "MISSING_USER_EMAIL" }),
+    );
+    expect(mockAddToWaitlist).not.toHaveBeenCalled();
   });
 });
 

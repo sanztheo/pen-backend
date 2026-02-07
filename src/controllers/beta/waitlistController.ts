@@ -91,24 +91,42 @@ export class WaitlistController {
 
       const userId = req.user?.id;
 
-      const result = await BetaService.addToWaitlist(
-        { email: trimmedEmail, name: trimmedName, metadata: waitlistMetadata },
-        userId,
-      );
+      // PEN-140: Authenticated users must use their own email (prevent third-party submissions)
+      const userEmail =
+        userId &&
+        typeof req.user?.email === "string" &&
+        req.user.email.trim() !== ""
+          ? req.user.email.trim().toLowerCase()
+          : undefined;
 
-      if (result.rejected) {
+      if (userId && !userEmail) {
         res.status(400).json({
           success: false,
-          error: "Active users cannot join the waitlist",
-          code: "ALREADY_ACTIVE",
+          error: "Authenticated user must have a valid email",
+          code: "MISSING_USER_EMAIL",
         });
         return;
       }
 
+      // userEmail is guaranteed defined when userId is truthy (guard clause above)
+      const finalEmail = userEmail ?? trimmedEmail;
+
+      const result = await BetaService.addToWaitlist(
+        { email: finalEmail, name: trimmedName, metadata: waitlistMetadata },
+        userId,
+      );
+
+      if (result.rejected) {
+        // BM-002: Indistinguishable response — prevents email enumeration
+        // Active users silently get 201 without actually being added to waitlist
+        res.status(201).json({ success: true });
+        return;
+      }
+
       // Indistinguishable response: prevent email enumeration (BM-002)
-      // Position is only exposed to authenticated users (their own entry)
+      // PEN-141: Position only exposed if the waitlist entry belongs to this user
       const response: { success: true; position?: number } = { success: true };
-      if (userId) {
+      if (userId && result.isOwned) {
         response.position = result.position;
       }
 

@@ -3,7 +3,14 @@
  * Covers: status cache, heartbeat, waitlist, reactivation, retry serialization
  */
 
-import { describe, expect, it, jest, beforeEach } from "@jest/globals";
+import {
+  afterAll,
+  describe,
+  expect,
+  it,
+  jest,
+  beforeEach,
+} from "@jest/globals";
 import { BetaService } from "../BetaService.js";
 import { prisma } from "../../lib/prisma.js";
 import { redis } from "../../lib/redis.js";
@@ -12,6 +19,7 @@ import { Prisma } from "@prisma/client";
 // ─── Prisma Mocks ───────────────────────────────────────────────
 const mockUserCount = jest.fn();
 const mockUserFindUnique = jest.fn();
+const mockUserFindFirst = jest.fn();
 const mockUserUpdate = jest.fn();
 const mockUserUpdateMany = jest.fn();
 const mockWaitlistCreate = jest.fn();
@@ -23,6 +31,7 @@ const mockTransaction = jest.fn();
 
 (prisma.user as any).count = mockUserCount;
 (prisma.user as any).findUnique = mockUserFindUnique;
+(prisma.user as any).findFirst = mockUserFindFirst;
 (prisma.user as any).update = mockUserUpdate;
 (prisma.user as any).updateMany = mockUserUpdateMany;
 (prisma.betaWaitlist as any).create = mockWaitlistCreate;
@@ -58,6 +67,12 @@ const TEST_DATE = new Date("2026-02-06T12:00:00Z");
 beforeEach(() => {
   jest.clearAllMocks();
   mockRedisDel.mockResolvedValue(1);
+  // Default: no active user found by email (public waitlist guard)
+  mockUserFindFirst.mockResolvedValue(null);
+});
+
+afterAll(async () => {
+  await redis.disconnect();
 });
 
 // ═══════════════════════════════════════════════════════════════
