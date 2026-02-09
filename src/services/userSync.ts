@@ -1,6 +1,7 @@
 import { AuthUser } from "./auth.js";
 import { prisma } from "../lib/prisma.js";
 import { DefaultWorkspaceService } from "./defaultWorkspace.js";
+import { PaddleBillingService } from "./billing/paddleBilling.js";
 import { withRetry } from "../lib/retry.js";
 import { logger } from "../utils/logger.js";
 
@@ -84,6 +85,7 @@ export class UserSyncService {
           }
 
           // 🏠 Créer automatiquement le workspace par défaut SEULEMENT lors de la création d'un nouvel utilisateur
+          // 🎁 Beta users get premium automatically
           if (isNewUser) {
             try {
               await DefaultWorkspaceService.getOrCreateDefaultWorkspace(
@@ -95,6 +97,33 @@ export class UserSyncService {
             } catch (error) {
               logger.error(
                 "❌ [USER-SYNC] Erreur création workspace par défaut:",
+                error,
+              );
+            }
+
+            // Beta: activate premium for all new signups (atomic transaction)
+            try {
+              await prisma.$transaction(async (tx) => {
+                await tx.userSubscription.upsert({
+                  where: { userId: user.id },
+                  update: { plan: "premium", status: "active" },
+                  create: {
+                    userId: user.id,
+                    plan: "premium",
+                    status: "active",
+                  },
+                });
+                await PaddleBillingService.syncUserLimitsAfterPlanChange(
+                  user.id,
+                  "premium",
+                );
+              });
+              logger.log(
+                `[USER-SYNC] Premium beta activated for ${user.firstName} ${user.lastName}`,
+              );
+            } catch (error) {
+              logger.error(
+                "[USER-SYNC] Failed to activate beta premium (rolled back):",
                 error,
               );
             }
@@ -193,7 +222,8 @@ export class UserSyncService {
         if (metadata.avatarUrl !== undefined)
           updateData.avatarUrl = metadata.avatarUrl;
         // Support front qui enverrait 'avatar' (URL) côté updateProfile
-        if (metadata.avatar !== undefined) updateData.avatarUrl = metadata.avatar;
+        if (metadata.avatar !== undefined)
+          updateData.avatarUrl = metadata.avatar;
 
         // 🚀 NOUVEAU : Gérer le paramètre d'autocomplétion
         if (metadata.autocompletionEnabled !== undefined)

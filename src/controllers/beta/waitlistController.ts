@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { BetaService } from "../../services/BetaService.js";
 import { logger } from "../../utils/logger.js";
+import { sanitizeObjectKeys, stripHtmlTags } from "../../utils/sanitize.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\+?[\d\s\-().]{0,30}$/;
@@ -23,9 +24,10 @@ export class WaitlistController {
         metadata?: Record<string, unknown>;
       } = typeof body === "object" && body !== null ? body : {};
 
-      // Normalize inputs
+      // Normalize and sanitize inputs
       const trimmedEmail = email?.trim().toLowerCase();
-      const trimmedName = name?.trim();
+      const trimmedName =
+        name !== undefined ? stripHtmlTags(name.trim()) : undefined;
 
       // Validation
       if (!trimmedEmail || !trimmedName) {
@@ -71,9 +73,11 @@ export class WaitlistController {
         }
       }
 
-      // Build final metadata (including phone) THEN validate size
+      // Sanitize metadata (prevent prototype pollution) then merge phone
+      const safeMetadata =
+        metadata !== undefined ? sanitizeObjectKeys(metadata) : {};
       const waitlistMetadata: Record<string, unknown> = {
-        ...metadata,
+        ...safeMetadata,
         ...(trimmedPhone ? { phone: trimmedPhone } : {}),
       };
 
