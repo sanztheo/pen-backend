@@ -5,5 +5,18 @@
     "declaration": true,
     "incremental": false
   },
-  "exclude": ["node_modules", "dist", "build", "coverage", "**/*.test.ts", "**/*.spec.ts", "prisma/generated"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/__tests__/**",
+    "**/test-setup.ts",
+    "**/tests/**",
+    "prisma/generated",
+    "scripts/**",
+    "jest.config.js"
+  ]
 }
