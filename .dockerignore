@@ -1,0 +1,37 @@
+# Dependencies (rebuilt in container)
+node_modules
+
+# Build output (rebuilt in container)
+dist
+
+# Git
+.git
+.gitignore
+
+# Tests
+**/*.test.ts
+**/*.spec.ts
+**/__tests__/
+src/test-setup.ts
+jest.config.js
+coverage/
+test-load.ts
+artillery-websocket.yml
+
+# Documentation
+*.md
+docs/
+src/claudedocs/
+src/tests/
+
+# Development
+.env*
+.DS_Store
+*.log
+debug-logs/
+.claude/
+
+# Scripts not needed at runtime
+scripts/quiz/
+scripts/test-*.ts
+scripts/test-*.sh
