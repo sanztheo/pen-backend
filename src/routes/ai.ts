@@ -27,10 +27,14 @@ import { dailyTokenQuota } from "../middlewares/dailyTokenQuota.js";
 import { aiGenerationQueue } from "../lib/queues.js";
 import { markJobPending } from "../lib/jobResults.js";
 
-// 🤖 Import Vercel AI SDK pour BlockNote AI (v0.40+)
+// 🤖 Import Vercel AI SDK pour BlockNote AI (v0.45+)
 import { streamText, convertToModelMessages } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { toolDefinitionsToToolSet } from "@blocknote/xl-ai";
+import {
+  aiDocumentFormats,
+  injectDocumentStateMessages,
+  toolDefinitionsToToolSet,
+} from "@blocknote/xl-ai/server";
 
 const router = Router();
 
@@ -369,17 +373,19 @@ router.post(
         apiKeyConfigured: !!process.env.OPENAI_API_KEY,
       });
 
-      // ✅ BlockNote v0.40+: Utiliser convertToModelMessages et toolDefinitionsToToolSet
-      const convertedMessages = convertToModelMessages(messages);
+      // ✅ BlockNote v0.45+: injectDocumentStateMessages + systemPrompt + convertToModelMessages
+      const injectedMessages = injectDocumentStateMessages(messages);
+      const convertedMessages = convertToModelMessages(injectedMessages);
       logger.log("📋 [AI-CHAT] Messages convertis:", {
         originalCount: messages.length,
+        injectedCount: injectedMessages.length,
         convertedCount: convertedMessages.length,
-        firstMessage: convertedMessages[0],
       });
 
       const result = streamText({
         model: openaiProvider(modelName),
-        messages: convertedMessages, // Conversion officielle AI SDK
+        system: aiDocumentFormats.html.systemPrompt,
+        messages: convertedMessages,
         tools: toolDefinitions
           ? toolDefinitionsToToolSet(toolDefinitions)
           : undefined,
