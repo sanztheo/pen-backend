@@ -401,8 +401,9 @@ IMPORTANT: You must respond with PLAIN TEXT using Markdown formatting. Do NOT wr
 
 LaTeX formulas:
 - Use $formula$ for inline math (e.g., "L'énergie est $E = mc^2$")
-- Use $$formula$$ for block/display math on its own line
-- Both formats work in this system
+- NEVER use $$formula$$ — always use single $ delimiters: $formula$
+- For display/block math, users have the /latex command — you do not need to create block math
+- Every $ must have its closing $. Verify delimiter balance before responding.
 
 Markdown:
 - Use Markdown to structure your responses
