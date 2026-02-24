@@ -24,10 +24,7 @@ describe("SUBSCRIPTION_LIMITS constants", () => {
     const freeLimits = SUBSCRIPTION_LIMITS.free_user;
 
     expect(freeLimits.maxQuestionsPerQuiz).toBe(10);
-    expect(freeLimits.allowedQuestionTypes).toEqual([
-      "MULTIPLE_CHOICE",
-      "TRUE_FALSE",
-    ]);
+    expect(freeLimits.allowedQuestionTypes).toEqual(["MULTIPLE_CHOICE", "TRUE_FALSE"]);
     expect(freeLimits.maxPagesSelection).toBe(2);
     expect(freeLimits.maxQuizzesPerMonth).toBe(5);
     expect(freeLimits.advancedQuizzes).toBe(false);
@@ -51,10 +48,7 @@ describe("SUBSCRIPTION_LIMITS constants", () => {
 
 describe("DEFAULT_QUESTION_TYPES constants", () => {
   it("should have correct default types for free_user", () => {
-    expect(DEFAULT_QUESTION_TYPES.free_user).toEqual([
-      "MULTIPLE_CHOICE",
-      "TRUE_FALSE",
-    ]);
+    expect(DEFAULT_QUESTION_TYPES.free_user).toEqual(["MULTIPLE_CHOICE", "TRUE_FALSE"]);
   });
 
   it("should have correct default types for premium", () => {
@@ -165,10 +159,7 @@ describe("QuizLimitValidator - validateAndCorrect", () => {
       reasoning: "Advanced quiz",
     };
 
-    const result = await validator.validateAndCorrect(
-      aiSuggestion,
-      "user-premium",
-    );
+    const result = await validator.validateAndCorrect(aiSuggestion, "user-premium");
 
     expect(result.isValid).toBe(true);
     expect(result.corrections).toEqual([]);
@@ -213,11 +204,7 @@ describe("QuizLimitValidator - validateAndCorrect", () => {
 
     // Vérifier que les types invalides sont filtrés
     const correctedTypes = result.correctedOutput.questionTypes;
-    expect(
-      correctedTypes.every((t) =>
-        ["MULTIPLE_CHOICE", "TRUE_FALSE"].includes(t),
-      ),
-    ).toBe(true);
+    expect(correctedTypes.every((t) => ["MULTIPLE_CHOICE", "TRUE_FALSE"].includes(t))).toBe(true);
   });
 
   it("should use default types if all types are invalid", async () => {
@@ -250,9 +237,7 @@ describe("QuizLimitValidator - validateAndCorrect", () => {
 
     expect(result.isValid).toBe(false);
     expect(result.upgradeRequired).toBe(true);
-    expect(result.correctedOutput.questionTypes).toEqual(
-      DEFAULT_QUESTION_TYPES.free_user,
-    );
+    expect(result.correctedOutput.questionTypes).toEqual(DEFAULT_QUESTION_TYPES.free_user);
   });
 
   it("should create userLimits if not exists", async () => {
@@ -310,12 +295,8 @@ describe("QuizLimitValidator - validateAndCorrect", () => {
     const result = await validator.validateAndCorrect(aiSuggestion, "user-1");
 
     expect(result.correctedOutput.originalRecommendations).toBeDefined();
-    expect(result.correctedOutput.originalRecommendations?.questionCount).toBe(
-      20,
-    );
-    expect(
-      result.correctedOutput.originalRecommendations?.questionTypes.length,
-    ).toBe(20);
+    expect(result.correctedOutput.originalRecommendations?.questionCount).toBe(20);
+    expect(result.correctedOutput.originalRecommendations?.questionTypes.length).toBe(20);
   });
 });
 
@@ -337,10 +318,7 @@ describe("QuizLimitValidator - canCreateQuiz", () => {
       customQuizzesUsed: 2,
     });
 
-    const result = await validator.canCreateQuiz("user-1", 8, [
-      "MULTIPLE_CHOICE",
-      "TRUE_FALSE",
-    ]);
+    const result = await validator.canCreateQuiz("user-1", 8, ["MULTIPLE_CHOICE", "TRUE_FALSE"]);
 
     expect(result.allowed).toBe(true);
     expect(result.reason).toBeUndefined();
@@ -356,9 +334,7 @@ describe("QuizLimitValidator - canCreateQuiz", () => {
       customQuizzesUsed: 2,
     });
 
-    const result = await validator.canCreateQuiz("user-1", 15, [
-      "MULTIPLE_CHOICE",
-    ]);
+    const result = await validator.canCreateQuiz("user-1", 15, ["MULTIPLE_CHOICE"]);
 
     expect(result.allowed).toBe(false);
     expect(result.reason).toContain("limité à 10 questions");
@@ -374,10 +350,7 @@ describe("QuizLimitValidator - canCreateQuiz", () => {
       customQuizzesUsed: 2,
     });
 
-    const result = await validator.canCreateQuiz("user-1", 5, [
-      "OPEN_QUESTION",
-      "MATCHING",
-    ]);
+    const result = await validator.canCreateQuiz("user-1", 5, ["OPEN_QUESTION", "MATCHING"]);
 
     expect(result.allowed).toBe(false);
     expect(result.reason).toContain("Premium");
@@ -393,9 +366,7 @@ describe("QuizLimitValidator - canCreateQuiz", () => {
       customQuizzesUsed: 5, // Quota atteint
     });
 
-    const result = await validator.canCreateQuiz("user-1", 5, [
-      "MULTIPLE_CHOICE",
-    ]);
+    const result = await validator.canCreateQuiz("user-1", 5, ["MULTIPLE_CHOICE"]);
 
     expect(result.allowed).toBe(false);
     expect(result.reason).toContain("Quota mensuel");
@@ -415,10 +386,7 @@ describe("QuizLimitValidator - canCreateQuiz", () => {
       customQuizzesUsed: 100,
     });
 
-    const result = await validator.canCreateQuiz("user-premium", 30, [
-      "OPEN_QUESTION",
-      "MATCHING",
-    ]);
+    const result = await validator.canCreateQuiz("user-premium", 30, ["OPEN_QUESTION", "MATCHING"]);
 
     expect(result.allowed).toBe(true);
   });
@@ -476,9 +444,7 @@ describe("QuizLimitValidator - Edge Cases", () => {
 
     const result = await validator.validateAndCorrect(aiSuggestion, "user-1");
 
-    expect(result.correctedOutput.questionTypes).toEqual(
-      DEFAULT_QUESTION_TYPES.free_user,
-    );
+    expect(result.correctedOutput.questionTypes).toEqual(DEFAULT_QUESTION_TYPES.free_user);
   });
 
   it("should handle zero question count", async () => {

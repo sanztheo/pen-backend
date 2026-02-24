@@ -15,14 +15,7 @@ const MAX_DAILY_REQUESTS = 500;
 const secondsUntilMidnightUTC = (): number => {
   const now = new Date();
   const midnight = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate() + 1,
-      0,
-      0,
-      0,
-    ),
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0),
   );
   return Math.ceil((midnight.getTime() - now.getTime()) / 1000);
 };
@@ -34,11 +27,7 @@ const todayUTC = (): string => {
   return new Date().toISOString().slice(0, 10);
 };
 
-export const dailyTokenQuota = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const dailyTokenQuota = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user?.id;
   if (!userId) return next();
 

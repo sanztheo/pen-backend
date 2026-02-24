@@ -1,11 +1,7 @@
 // preprocessor/limitValidator.ts - Service de validation et correction des limites de quiz
 
 import { prisma } from "../../../lib/prisma.js";
-import {
-  SUBSCRIPTION_LIMITS,
-  DEFAULT_QUESTION_TYPES,
-  UPGRADE_MESSAGES,
-} from "./constants.js";
+import { SUBSCRIPTION_LIMITS, DEFAULT_QUESTION_TYPES, UPGRADE_MESSAGES } from "./constants.js";
 import type {
   QuizPreprocessorOutput,
   UserQuizContext,
@@ -34,13 +30,11 @@ export class QuizLimitValidator {
     const planLimits = SUBSCRIPTION_LIMITS[userContext.plan];
 
     const corrections: ValidationCorrection[] = [];
-    let correctedOutput = { ...aiSuggestion };
+    const correctedOutput = { ...aiSuggestion };
     let upgradeRequired = false;
 
     // 1. Valider et corriger le nombre de questions
-    if (
-      aiSuggestion.recommendedQuestionCount > planLimits.maxQuestionsPerQuiz
-    ) {
+    if (aiSuggestion.recommendedQuestionCount > planLimits.maxQuestionsPerQuiz) {
       corrections.push({
         field: "questionCount",
         originalValue: aiSuggestion.recommendedQuestionCount,
@@ -64,9 +58,7 @@ export class QuizLimitValidator {
 
       // Si aucun type valide, utiliser les types par défaut du plan
       const finalTypes =
-        allowedTypes.length > 0
-          ? allowedTypes
-          : DEFAULT_QUESTION_TYPES[userContext.plan];
+        allowedTypes.length > 0 ? allowedTypes : DEFAULT_QUESTION_TYPES[userContext.plan];
 
       corrections.push({
         field: "questionTypes",
@@ -110,8 +102,7 @@ export class QuizLimitValidator {
       where: { userId },
     });
 
-    const plan: SubscriptionPlan =
-      subscription?.plan === "premium" ? "premium" : "free_user";
+    const plan: SubscriptionPlan = subscription?.plan === "premium" ? "premium" : "free_user";
 
     // Si pas de limites, créer avec valeurs par défaut
     if (!userLimits) {
@@ -182,13 +173,11 @@ export class QuizLimitValidator {
     if (userContext.plan === "free_user") {
       if (
         userContext.currentLimits.customQuizzesLimit !== -1 &&
-        userContext.currentLimits.customQuizzesUsed >=
-          userContext.currentLimits.customQuizzesLimit
+        userContext.currentLimits.customQuizzesUsed >= userContext.currentLimits.customQuizzesLimit
       ) {
         return {
           allowed: false,
-          reason:
-            "Quota mensuel de quiz atteint. Passez à Premium pour des quiz illimités.",
+          reason: "Quota mensuel de quiz atteint. Passez à Premium pour des quiz illimités.",
         };
       }
     }

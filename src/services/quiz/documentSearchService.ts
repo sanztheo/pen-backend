@@ -30,10 +30,7 @@ function extractOpenAIEmbeddingResponse(value: unknown): number[] | null {
 // Connexion dédiée à la base d'embeddings
 const embeddingPool = new Pool({
   connectionString: process.env.EMBEDDING_DATABASE_URL,
-  ssl:
-    process.env.NODE_ENV === "production"
-      ? { rejectUnauthorized: false }
-      : false,
+  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
 });
 
 // Topics disponibles dans la base de données (depuis scraper_wikipedia.py)
@@ -139,14 +136,12 @@ function isValidAITopicResponse(value: unknown): value is AITopicResponse {
 
   if (!Array.isArray(obj.topics)) return false;
   if (typeof obj.strategy !== "string") return false;
-  if (!["topic_based", "semantic_search", "hybrid"].includes(obj.strategy))
-    return false;
+  if (!["topic_based", "semantic_search", "hybrid"].includes(obj.strategy)) return false;
 
   for (const topic of obj.topics) {
     if (typeof topic !== "object" || topic === null) return false;
     const t = topic as Record<string, unknown>;
-    if (typeof t.name !== "string" || typeof t.confidence !== "number")
-      return false;
+    if (typeof t.name !== "string" || typeof t.confidence !== "number") return false;
   }
 
   return true;
@@ -166,8 +161,7 @@ export class DocumentSearchService {
    * 🚀 Configuration OpenAI embeddings (remplace Xenova)
    */
   private static readonly OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
-  private static readonly OPENAI_API_URL =
-    "https://api.openai.com/v1/embeddings";
+  private static readonly OPENAI_API_URL = "https://api.openai.com/v1/embeddings";
 
   private validateOpenAIConfig(): void {
     if (!process.env.OPENAI_API_KEY) {
@@ -202,8 +196,7 @@ export class DocumentSearchService {
     const normalizedTopics: string[] = [];
 
     for (const topic of aiTopics) {
-      const normalized =
-        topicMappings[topic.toLowerCase()] || topic.toLowerCase();
+      const normalized = topicMappings[topic.toLowerCase()] || topic.toLowerCase();
 
       // Vérifier si le topic normalisé existe dans AVAILABLE_TOPICS
       // Type-safe check: cast to readonly array of strings for includes check
@@ -225,9 +218,7 @@ export class DocumentSearchService {
       }
     }
 
-    logger.log(
-      `🔄 Topics normalisés: ${aiTopics.join(", ")} → ${normalizedTopics.join(", ")}`,
-    );
+    logger.log(`🔄 Topics normalisés: ${aiTopics.join(", ")} → ${normalizedTopics.join(", ")}`);
     return normalizedTopics;
   }
 
@@ -238,9 +229,7 @@ export class DocumentSearchService {
     try {
       // Vérifier si l'IA est configurée
       if (!AIService.isConfigured()) {
-        logger.warn(
-          "⚠️ OpenAI non configuré, utilisation de l'analyse basique",
-        );
+        logger.warn("⚠️ OpenAI non configuré, utilisation de l'analyse basique");
         return this.fallbackTopicAnalysis(query);
       }
 
@@ -313,8 +302,7 @@ Format exact attendu:
 
         logger.log(
           "🔍 Contenu GPT à parser:",
-          cleanContent.substring(0, 200) +
-            (cleanContent.length > 200 ? "..." : ""),
+          cleanContent.substring(0, 200) + (cleanContent.length > 200 ? "..." : ""),
         );
 
         response = JSON.parse(cleanContent);
@@ -346,14 +334,11 @@ Format exact attendu:
         // Utiliser la confiance du topic original correspondant
         const originalTopic = rawTopics[index];
         const originalConfidence =
-          response.topics.find((t) => t.name === originalTopic)?.confidence ||
-          0.8;
+          response.topics.find((t) => t.name === originalTopic)?.confidence || 0.8;
         confidenceScores[normalizedTopic] = originalConfidence;
       });
 
-      logger.log(
-        `✅ GPT détecte: ${detectedTopics.join(", ")} (stratégie: ${response.strategy})`,
-      );
+      logger.log(`✅ GPT détecte: ${detectedTopics.join(", ")} (stratégie: ${response.strategy})`);
 
       return {
         detected_topics: detectedTopics,
@@ -653,8 +638,7 @@ Format exact attendu:
     return {
       detected_topics: detectedTopics,
       confidence_scores: confidenceScores,
-      search_strategy:
-        detectedTopics.length > 0 ? "topic_based" : "semantic_search",
+      search_strategy: detectedTopics.length > 0 ? "topic_based" : "semantic_search",
       reasoning: "Analyse basique enrichie (fallback)",
     };
   }
@@ -666,9 +650,7 @@ Format exact attendu:
     try {
       this.validateOpenAIConfig();
 
-      logger.log(
-        `🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${query.slice(0, 50)}..."`,
-      );
+      logger.log(`🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${query.slice(0, 50)}..."`);
       const startTime = Date.now();
 
       const response = await fetch(DocumentSearchService.OPENAI_API_URL, {
@@ -686,9 +668,7 @@ Format exact attendu:
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.error(
-          `❌ OpenAI API erreur (${response.status}): ${errorText}`,
-        );
+        logger.error(`❌ OpenAI API erreur (${response.status}): ${errorText}`);
         return null;
       }
 
@@ -753,12 +733,7 @@ Format exact attendu:
         LIMIT $4;
       `;
 
-      const result = await embeddingPool.query(query_sql, [
-        embeddingStr,
-        topics,
-        threshold,
-        limit,
-      ]);
+      const result = await embeddingPool.query(query_sql, [embeddingStr, topics, threshold, limit]);
 
       return result.rows.map((row) => ({
         id: row.id,
@@ -821,11 +796,7 @@ Format exact attendu:
         LIMIT $3;
       `;
 
-      const result = await embeddingPool.query(query_sql, [
-        embeddingStr,
-        threshold,
-        limit,
-      ]);
+      const result = await embeddingPool.query(query_sql, [embeddingStr, threshold, limit]);
 
       return result.rows.map((row) => ({
         id: row.id,
@@ -903,12 +874,7 @@ Format exact attendu:
       logger.log(
         `🔄 Topics forcés normalisés: ${topics.join(", ")} → ${detectedTopics.join(", ")}`,
       );
-      chunks = await this.searchByTopics(
-        query,
-        detectedTopics,
-        limit,
-        similarity_threshold || 0.7,
-      );
+      chunks = await this.searchByTopics(query, detectedTopics, limit, similarity_threshold || 0.7);
     } else {
       // Analyse intelligente de la requête
       const analysis = await this.analyzeQueryTopics(query);
@@ -928,21 +894,11 @@ Format exact attendu:
           );
           if (chunks.length === 0) {
             logger.log("🔄 Aucun résultat avec seuil 0.7, essai avec 0.5...");
-            chunks = await this.searchByTopics(
-              query,
-              detectedTopics,
-              limit,
-              0.5,
-            );
+            chunks = await this.searchByTopics(query, detectedTopics, limit, 0.5);
           }
           if (chunks.length === 0) {
             logger.log("🔄 Aucun résultat avec seuil 0.5, essai avec 0.3...");
-            chunks = await this.searchByTopics(
-              query,
-              detectedTopics,
-              limit,
-              0.3,
-            );
+            chunks = await this.searchByTopics(query, detectedTopics, limit, 0.3);
           }
           break;
         case "hybrid":
@@ -950,11 +906,7 @@ Format exact attendu:
           break;
         case "semantic_search":
         default:
-          chunks = await this.semanticSearch(
-            query,
-            limit,
-            similarity_threshold || 0.6,
-          );
+          chunks = await this.semanticSearch(query, limit, similarity_threshold || 0.6);
           break;
       }
     }
@@ -1000,9 +952,7 @@ Format exact attendu:
       return {
         total_documents: parseInt(stats.total_documents || "0"),
         total_chunks: parseInt(stats.total_chunks || "0"),
-        documents_with_embeddings: parseInt(
-          stats.documents_with_embeddings || "0",
-        ),
+        documents_with_embeddings: parseInt(stats.documents_with_embeddings || "0"),
         topics_available: topicsResult.rows.map((row) => row.topic),
       };
     } catch (error) {

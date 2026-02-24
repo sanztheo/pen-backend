@@ -42,11 +42,7 @@ export class SmartContentSelectorService {
     options: SelectionOptions = {},
   ): Promise<SelectedContent> {
     const startTime = Date.now();
-    const {
-      maxTokens = 8000,
-      minCoverage = 0.3,
-      balanceTypes = true,
-    } = options;
+    const { maxTokens = 8000, minCoverage = 0.3, balanceTypes = true } = options;
 
     logger.log(
       `📋 [SmartSelector] Sélection pour cluster "${cluster.name}" (${cluster.pages.length} pages)...`,
@@ -85,8 +81,7 @@ export class SmartContentSelectorService {
     // 4. Calculer la couverture
     const totalOriginalTokens = allChunks.reduce((sum, c) => sum + c.tokens, 0);
     const selectedTokens = selectedChunks.reduce((sum, c) => sum + c.tokens, 0);
-    const coverage =
-      totalOriginalTokens > 0 ? selectedTokens / totalOriginalTokens : 0;
+    const coverage = totalOriginalTokens > 0 ? selectedTokens / totalOriginalTokens : 0;
 
     // 5. Calculer la distribution par type
     const typeDistribution = this.calculateTypeDistribution(selectedChunks);
@@ -117,9 +112,7 @@ export class SmartContentSelectorService {
   /**
    * Extrait les chunks de contenu des pages
    */
-  private static async extractChunksFromPages(
-    pages: PageWithConcepts[],
-  ): Promise<ContentChunk[]> {
+  private static async extractChunksFromPages(pages: PageWithConcepts[]): Promise<ContentChunk[]> {
     const chunks: ContentChunk[] = [];
 
     for (const page of pages) {
@@ -278,10 +271,7 @@ export class SmartContentSelectorService {
   /**
    * Sélection greedy (par priorité)
    */
-  private static selectGreedy(
-    chunks: ContentChunk[],
-    maxTokens: number,
-  ): ContentChunk[] {
+  private static selectGreedy(chunks: ContentChunk[], maxTokens: number): ContentChunk[] {
     const selected: ContentChunk[] = [];
     let currentTokens = 0;
 
@@ -298,10 +288,7 @@ export class SmartContentSelectorService {
   /**
    * Sélection équilibrée (diversité des types)
    */
-  private static selectBalanced(
-    chunks: ContentChunk[],
-    maxTokens: number,
-  ): ContentChunk[] {
+  private static selectBalanced(chunks: ContentChunk[], maxTokens: number): ContentChunk[] {
     const selected: ContentChunk[] = [];
     let currentTokens = 0;
 
@@ -315,13 +302,7 @@ export class SmartContentSelectorService {
     }
 
     // Quotas par type (proportionnels à la priorité)
-    const typeOrder: ContentType[] = [
-      "definition",
-      "formula",
-      "keypoint",
-      "example",
-      "paragraph",
-    ];
+    const typeOrder: ContentType[] = ["definition", "formula", "keypoint", "example", "paragraph"];
 
     // Round-robin par type jusqu'à atteindre la limite
     let round = 0;
@@ -351,9 +332,7 @@ export class SmartContentSelectorService {
   /**
    * Calcule la distribution par type
    */
-  private static calculateTypeDistribution(
-    chunks: ContentChunk[],
-  ): Record<ContentType, number> {
+  private static calculateTypeDistribution(chunks: ContentChunk[]): Record<ContentType, number> {
     const distribution: Record<ContentType, number> = {
       definition: 0,
       formula: 0,
@@ -376,9 +355,7 @@ export class SmartContentSelectorService {
     clusters: ThematicCluster[],
     options: SelectionOptions = {},
   ): Promise<Map<string, SelectedContent>> {
-    logger.log(
-      `📋 [SmartSelector] Sélection pour ${clusters.length} clusters...`,
-    );
+    logger.log(`📋 [SmartSelector] Sélection pour ${clusters.length} clusters...`);
 
     const results = new Map<string, SelectedContent>();
 
@@ -394,10 +371,7 @@ export class SmartContentSelectorService {
    * Optimise la sélection pour une limite de tokens stricte
    * Utilisé quand on doit absolument respecter une limite
    */
-  static optimizeForTokenLimit(
-    chunks: ContentChunk[],
-    maxTokens: number,
-  ): ContentChunk[] {
+  static optimizeForTokenLimit(chunks: ContentChunk[], maxTokens: number): ContentChunk[] {
     // Algorithme du sac à dos simplifié (greedy par ratio valeur/poids)
     const scored = chunks.map((chunk) => ({
       chunk,

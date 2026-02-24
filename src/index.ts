@@ -53,10 +53,7 @@ import { startWorkers, stopWorkers } from "./workers/index.js";
 import { closeQueues } from "./lib/queues.js";
 import { startMonitoring, stopMonitoring } from "./lib/monitoring.js";
 import { logger } from "./utils/logger.js";
-import {
-  initFuturaScheduler,
-  stopFuturaScheduler,
-} from "./lib/futuraScheduler.js";
+import { initFuturaScheduler, stopFuturaScheduler } from "./lib/futuraScheduler.js";
 
 // 🛡️ RATE LIMITING IMPORTS
 import {
@@ -89,17 +86,14 @@ async function testPaddleWebhookRoute(): Promise<void> {
   logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   try {
-    const response = await fetch(
-      `http://localhost:${PORT}/api/webhooks/paddle`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Paddle-Signature": "test-signature",
-        },
-        body: JSON.stringify({ test: true }),
+    const response = await fetch(`http://localhost:${PORT}/api/webhooks/paddle`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Paddle-Signature": "test-signature",
       },
-    );
+      body: JSON.stringify({ test: true }),
+    });
 
     if (response.status === 400) {
       // 400 = route accessible, signature invalide (attendu)
@@ -107,28 +101,20 @@ async function testPaddleWebhookRoute(): Promise<void> {
       logger.log("   URL: /api/webhooks/paddle");
       logger.log("   Status: Prêt à recevoir les webhooks Paddle");
     } else if (response.status === 500) {
-      logger.log(
-        "⚠️  Route webhook: ACCESSIBLE mais PADDLE_WEBHOOK_SECRET manquant",
-      );
+      logger.log("⚠️  Route webhook: ACCESSIBLE mais PADDLE_WEBHOOK_SECRET manquant");
     } else {
       logger.log(`⚠️  Route webhook: Status inattendu (${response.status})`);
     }
   } catch (error: unknown) {
     logger.log("❌ Route webhook Paddle: INACCESSIBLE");
-    logger.log(
-      `   Erreur: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    logger.log(`   Erreur: ${error instanceof Error ? error.message : String(error)}`);
   }
 
   // Vérifier la config
   const hasSecret = !!process.env.PADDLE_WEBHOOK_SECRET;
   const hasApiKey = !!process.env.PADDLE_API_KEY;
-  logger.log(
-    `   PADDLE_API_KEY: ${hasApiKey ? "✅ Configuré" : "❌ Manquant"}`,
-  );
-  logger.log(
-    `   PADDLE_WEBHOOK_SECRET: ${hasSecret ? "✅ Configuré" : "❌ Manquant"}`,
-  );
+  logger.log(`   PADDLE_API_KEY: ${hasApiKey ? "✅ Configuré" : "❌ Manquant"}`);
+  logger.log(`   PADDLE_WEBHOOK_SECRET: ${hasSecret ? "✅ Configuré" : "❌ Manquant"}`);
   logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
 
@@ -184,13 +170,8 @@ app.use(
       // Ne pas compresser les SSE (streams agent/chat)
       const contentType = res.getHeader("Content-Type");
       // Content-Type peut être string | number | string[]
-      const contentTypeStr = Array.isArray(contentType)
-        ? contentType[0]
-        : contentType;
-      if (
-        typeof contentTypeStr === "string" &&
-        contentTypeStr.includes("text/event-stream")
-      ) {
+      const contentTypeStr = Array.isArray(contentType) ? contentType[0] : contentType;
+      if (typeof contentTypeStr === "string" && contentTypeStr.includes("text/event-stream")) {
         return false;
       }
       // Compresser tout le reste normalement
@@ -235,13 +216,7 @@ app.post("/api/chat", (req, res, next) => {
   // Passer la requête au router AI
   aiRouter(req, res, next);
 });
-app.use(
-  "/api/assistant",
-  authenticateToken,
-  assistantRateLimit,
-  aiBurstRateLimit,
-  assistantRouter,
-); // Auth + rate limit + burst AVANT routes
+app.use("/api/assistant", authenticateToken, assistantRateLimit, aiBurstRateLimit, assistantRouter); // Auth + rate limit + burst AVANT routes
 app.use("/api/conversations", conversationsRouter);
 app.use("/api/quiz", quizRateLimit, quizRouter); // Protection génération quiz
 app.use("/api/quiz/graphics", graphicsRouter);
@@ -262,16 +237,9 @@ app.use("/api/jobs", jobsRouter); // 🎯 Récupération résultats jobs BullMQ
 app.use("/api/agent", aiRateLimit, aiBurstRateLimit, agentRouter); // 🤖 Agent Pennote + burst protection
 app.use("/api/beta", betaRouter); // 🎯 Beta management
 
-app.use("*", (_req, res) =>
-  res.status(404).json({ error: "Route non trouvée" }),
-);
+app.use("*", (_req, res) => res.status(404).json({ error: "Route non trouvée" }));
 app.use(
-  (
-    error: unknown,
-    _req: express.Request,
-    res: express.Response,
-    _next: express.NextFunction,
-  ) => {
+  (error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     logger.error("❌ Erreur non gérée:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   },
@@ -292,16 +260,13 @@ const setupYjsWebSocket = (server: http.Server) => {
   const persistence = new PrismaPersistence();
   const docs = new Map<string, Y.Doc>();
   const connections = new Map<string, number>(); // Compteur de connexions par document
-  const uuidRegex =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   wss.on("connection", async (ws, req) => {
     const url = req.url?.split("?")[0] || "";
     const pathSegments = url.split("/").filter(Boolean);
     // Récupérer l'utilisateur authentifié (ajouté par authenticateTokenWS)
-    const user = (
-      req as http.IncomingMessage & { user?: { id: string; email: string } }
-    ).user;
+    const user = (req as http.IncomingMessage & { user?: { id: string; email: string } }).user;
 
     if (!user) {
       ws.close(1008, "Utilisateur non authentifié");
@@ -322,9 +287,7 @@ const setupYjsWebSocket = (server: http.Server) => {
       // Route de sauvegarde rapide
       const saveIndex = pathSegments.indexOf("save");
       const pageId =
-        saveIndex >= 0 && saveIndex + 1 < pathSegments.length
-          ? pathSegments[saveIndex + 1]
-          : null;
+        saveIndex >= 0 && saveIndex + 1 < pathSegments.length ? pathSegments[saveIndex + 1] : null;
 
       if (!pageId) {
         ws.close(1008, "ID de page manquant pour sauvegarde");
@@ -345,9 +308,7 @@ const setupYjsWebSocket = (server: http.Server) => {
         try {
           // 🛡️ RATE LIMITING - Vérifier limite de messages AVANT traitement
           if (!checkWebSocketMessageLimit(ws)) {
-            logger.log(
-              `[WS] ❌ Rate limit messages dépassé pour page ${pageId}, message ignoré`,
-            );
+            logger.log(`[WS] ❌ Rate limit messages dépassé pour page ${pageId}, message ignoré`);
             ws.send(
               JSON.stringify({
                 type: "save-error",
@@ -364,9 +325,7 @@ const setupYjsWebSocket = (server: http.Server) => {
             );
 
             if (!user) {
-              logger.error(
-                `[WS] ❌ SÉCURITÉ: Utilisateur non défini pour page ${pageId}`,
-              );
+              logger.error(`[WS] ❌ SÉCURITÉ: Utilisateur non défini pour page ${pageId}`);
               ws.send(
                 JSON.stringify({
                   type: "save-error",
@@ -437,14 +396,9 @@ const setupYjsWebSocket = (server: http.Server) => {
                 logger.warn(`[WS] ⚠️ Erreur invalidation cache quiz:`, err),
               );
 
-              ws.send(
-                JSON.stringify({ type: "save-success", timestamp: Date.now() }),
-              );
+              ws.send(JSON.stringify({ type: "save-success", timestamp: Date.now() }));
             } catch (dbError) {
-              logger.error(
-                `[WS] ❌ Erreur sauvegarde DB pour ${pageId}:`,
-                dbError,
-              );
+              logger.error(`[WS] ❌ Erreur sauvegarde DB pour ${pageId}:`, dbError);
               ws.send(
                 JSON.stringify({
                   type: "save-error",
@@ -455,9 +409,7 @@ const setupYjsWebSocket = (server: http.Server) => {
           }
         } catch (error) {
           logger.error("[WS] Erreur sauvegarde:", error);
-          ws.send(
-            JSON.stringify({ type: "save-error", error: "Format invalide" }),
-          );
+          ws.send(JSON.stringify({ type: "save-error", error: "Format invalide" }));
         }
       });
 
@@ -512,9 +464,7 @@ const setupYjsWebSocket = (server: http.Server) => {
       return;
     }
 
-    logger.log(
-      `[WS] ✅ Accès collaboration autorisé pour user ${user.id} sur page ${pageId}`,
-    );
+    logger.log(`[WS] ✅ Accès collaboration autorisé pour user ${user.id} sur page ${pageId}`);
 
     // Obtenir ou créer le document Yjs
     let doc = docs.get(pageId);
@@ -542,9 +492,7 @@ const setupYjsWebSocket = (server: http.Server) => {
       try {
         // 🛡️ RATE LIMITING WEBSOCKET - Vérifier limite de messages
         if (!checkWebSocketMessageLimit(ws)) {
-          logger.log(
-            "[WS] ❌ Rate limit messages dépassé, fermeture connexion",
-          );
+          logger.log("[WS] ❌ Rate limit messages dépassé, fermeture connexion");
           ws.close(1008, "Trop de messages");
           return;
         }
@@ -591,9 +539,7 @@ const setupYjsWebSocket = (server: http.Server) => {
       const connectionCount = (connections.get(pageId) || 1) - 1;
       connections.set(pageId, connectionCount);
 
-      logger.log(
-        `[Yjs] Déconnexion pour la page: ${pageId} (restant: ${connectionCount})`,
-      );
+      logger.log(`[Yjs] Déconnexion pour la page: ${pageId} (restant: ${connectionCount})`);
 
       // Si plus personne n'est connecté, supprimer le document de la mémoire
       if (connectionCount <= 0) {
@@ -604,9 +550,7 @@ const setupYjsWebSocket = (server: http.Server) => {
         }
         docs.delete(pageId);
         connections.delete(pageId);
-        logger.log(
-          `[Yjs] Document supprimé de la mémoire pour la page: ${pageId}`,
-        );
+        logger.log(`[Yjs] Document supprimé de la mémoire pour la page: ${pageId}`);
       }
     });
 
@@ -632,9 +576,7 @@ const setupYjsWebSocket = (server: http.Server) => {
     if (url.pathname.startsWith("/ws/save/")) {
       // Route de sauvegarde rapide
       if (!token) {
-        logger.log(
-          "[WS] ❌ Token manquant pour sauvegarde - connexion rejetée",
-        );
+        logger.log("[WS] ❌ Token manquant pour sauvegarde - connexion rejetée");
         socket.destroy();
         return;
       }
@@ -685,9 +627,7 @@ const setupYjsWebSocket = (server: http.Server) => {
     } else if (url.pathname.startsWith("/ws/quiz-progress/")) {
       // Route pour les mises à jour de progression de quiz
       if (!token) {
-        logger.log(
-          "[WS] ❌ Token manquant pour progression - connexion rejetée",
-        );
+        logger.log("[WS] ❌ Token manquant pour progression - connexion rejetée");
         socket.destroy();
         return;
       }
@@ -707,8 +647,7 @@ const setupYjsWebSocket = (server: http.Server) => {
       }
 
       // SEC-04: Validation UUID format
-      const uuidRegex =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!uuidRegex.test(processId)) {
         logger.log("[WS] ❌ Format processId invalide");
         socket.destroy();
@@ -721,16 +660,12 @@ const setupYjsWebSocket = (server: http.Server) => {
           if (user) {
             // SEC-04: Vérification ownership du processId
             if (!progressService.isProcessOwner(processId, user.id)) {
-              logger.warn(
-                `[WS] ❌ processId ${processId} n'appartient pas à ${user.id}`,
-              );
+              logger.warn(`[WS] ❌ processId ${processId} n'appartient pas à ${user.id}`);
               socket.destroy();
               return;
             }
 
-            logger.log(
-              `[WS] ✅ Progression WebSocket - user: ${user.id}, processus: ${processId}`,
-            );
+            logger.log(`[WS] ✅ Progression WebSocket - user: ${user.id}, processus: ${processId}`);
             wss.handleUpgrade(request, socket, head, (ws) => {
               // Enregistrer la connexion dans le service de progression
               progressService.registerConnection(processId, ws);
@@ -768,9 +703,7 @@ const setupYjsWebSocket = (server: http.Server) => {
 
 server.listen(PORT, async () => {
   logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  logger.log(
-    `🚀 Serveur Pen SaaS démarré sur le port ${PORT} en mode ${NODE_ENV}`,
-  );
+  logger.log(`🚀 Serveur Pen SaaS démarré sur le port ${PORT} en mode ${NODE_ENV}`);
   logger.log(`✨ VERSION: RATE-LIMITED-SECURE - ${new Date().toISOString()}`);
   logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 

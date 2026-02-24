@@ -22,11 +22,7 @@ import { prisma } from "../lib/prisma.js";
  * - req.query.workspaceId (query string)
  * - req.body.workspaceId (body)
  */
-export const verifyWorkspaceAccess = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const verifyWorkspaceAccess = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
 
@@ -39,9 +35,7 @@ export const verifyWorkspaceAccess = async (
 
     // Récupérer le workspaceId depuis params, query ou body
     const workspaceId =
-      req.params.workspaceId ||
-      (req.query.workspaceId as string) ||
-      req.body.workspaceId;
+      req.params.workspaceId || (req.query.workspaceId as string) || req.body.workspaceId;
 
     if (!workspaceId) {
       return res.status(400).json({
@@ -95,11 +89,7 @@ export const verifyWorkspaceAccess = async (
  * Vérifie que l'utilisateur est PROPRIÉTAIRE du workspace
  * (pour opérations critiques comme suppression, modification des permissions)
  */
-export const verifyWorkspaceOwnership = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const verifyWorkspaceOwnership = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
 
@@ -111,9 +101,7 @@ export const verifyWorkspaceOwnership = async (
     }
 
     const workspaceId =
-      req.params.workspaceId ||
-      (req.query.workspaceId as string) ||
-      req.body.workspaceId;
+      req.params.workspaceId || (req.query.workspaceId as string) || req.body.workspaceId;
 
     if (!workspaceId) {
       return res.status(400).json({
@@ -135,18 +123,14 @@ export const verifyWorkspaceOwnership = async (
         `🚨 [WORKSPACE-OWNERSHIP] Tentative d'opération propriétaire non autorisée: userId=${userId}, workspaceId=${workspaceId}`,
       );
       return res.status(403).json({
-        error:
-          "Seul le propriétaire du workspace peut effectuer cette opération",
+        error: "Seul le propriétaire du workspace peut effectuer cette opération",
         code: "WORKSPACE_OWNER_REQUIRED",
       });
     }
 
     next();
   } catch (error) {
-    logger.error(
-      "[WORKSPACE-OWNERSHIP] Erreur lors de la vérification:",
-      error,
-    );
+    logger.error("[WORKSPACE-OWNERSHIP] Erreur lors de la vérification:", error);
     return res.status(500).json({
       error: "Erreur lors de la vérification des permissions",
       code: "WORKSPACE_OWNERSHIP_ERROR",
@@ -158,11 +142,7 @@ export const verifyWorkspaceOwnership = async (
  * Vérifie que l'utilisateur a accès à une conversation spécifique
  * (pour endpoints /conversations/:id)
  */
-export const verifyConversationAccess = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const verifyConversationAccess = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
 
@@ -203,10 +183,7 @@ export const verifyConversationAccess = async (
     // Conversation valide, continuer
     next();
   } catch (error) {
-    logger.error(
-      "[CONVERSATION-ACCESS] Erreur lors de la vérification:",
-      error,
-    );
+    logger.error("[CONVERSATION-ACCESS] Erreur lors de la vérification:", error);
     return res.status(500).json({
       error: "Erreur lors de la vérification des permissions",
       code: "CONVERSATION_ACCESS_ERROR",

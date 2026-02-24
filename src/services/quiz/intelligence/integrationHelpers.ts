@@ -7,10 +7,7 @@
  */
 
 import { logger } from "../../../utils/logger.js";
-import {
-  ThematicClustererService,
-  ThematicCluster,
-} from "./thematicClusterer.js";
+import { ThematicClustererService, ThematicCluster } from "./thematicClusterer.js";
 import { SmartContentSelectorService } from "./smartContentSelector.js";
 import { type SelectedContent } from "./types.js";
 import { ConceptExtractorService } from "./conceptExtractor.js";
@@ -116,30 +113,23 @@ export async function prepareIntelligentContext(
     });
 
     if (clusterResult.clusters.length === 0) {
-      logger.warn(
-        `⚠️ [INTELLIGENT] Aucun cluster créé, fallback au mode normal`,
-      );
+      logger.warn(`⚠️ [INTELLIGENT] Aucun cluster créé, fallback au mode normal`);
       return null;
     }
 
-    logger.log(
-      `✅ [INTELLIGENT] ${clusterResult.clusters.length} clusters créés`,
-    );
+    logger.log(`✅ [INTELLIGENT] ${clusterResult.clusters.length} clusters créés`);
 
     // 3. Sélection intelligente du contenu pour chaque cluster
     logger.log(`📦 [INTELLIGENT] Sélection du contenu pertinent...`);
-    const tokensPerCluster = Math.floor(
-      cfg.maxTokens / clusterResult.clusters.length,
-    );
+    const tokensPerCluster = Math.floor(cfg.maxTokens / clusterResult.clusters.length);
 
-    const selectedContentMap =
-      await SmartContentSelectorService.selectForClusters(
-        clusterResult.clusters,
-        {
-          maxTokens: tokensPerCluster,
-          balanceTypes: cfg.balanceContentTypes,
-        },
-      );
+    const selectedContentMap = await SmartContentSelectorService.selectForClusters(
+      clusterResult.clusters,
+      {
+        maxTokens: tokensPerCluster,
+        balanceTypes: cfg.balanceContentTypes,
+      },
+    );
 
     // 4. Distribuer les questions entre les clusters
     const questionDistribution = distributeQuestionsByClusters(
@@ -149,10 +139,7 @@ export async function prepareIntelligentContext(
     );
 
     // 5. Construire le contexte RAG enrichi global
-    const enrichedRagContext = buildEnrichedRagContext(
-      clusterResult.clusters,
-      selectedContentMap,
-    );
+    const enrichedRagContext = buildEnrichedRagContext(clusterResult.clusters, selectedContentMap);
 
     // 6. Calculer les statistiques
     const stats = calculateStats(clusterResult.clusters, selectedContentMap);
@@ -224,9 +211,7 @@ async function ensureConceptsExtracted(pageIds: string[]): Promise<void> {
     return;
   }
 
-  logger.log(
-    `📝 [INTELLIGENT] Extraction des concepts pour ${missingPageIds.length} pages...`,
-  );
+  logger.log(`📝 [INTELLIGENT] Extraction des concepts pour ${missingPageIds.length} pages...`);
 
   // Extraire les concepts pour les pages manquantes (en parallèle avec limite)
   const BATCH_SIZE = 5;
@@ -235,10 +220,7 @@ async function ensureConceptsExtracted(pageIds: string[]): Promise<void> {
     await Promise.all(
       batch.map((pageId) =>
         ConceptExtractorService.extractAndStore(pageId).catch((err) => {
-          logger.warn(
-            `⚠️ [INTELLIGENT] Échec extraction page ${pageId}:`,
-            err.message,
-          );
+          logger.warn(`⚠️ [INTELLIGENT] Échec extraction page ${pageId}:`, err.message);
         }),
       ),
     );
@@ -347,9 +329,10 @@ function calculateStats(
     const selectedContent = selectedContentMap.get(cluster.id);
     if (selectedContent) {
       totalTokens += selectedContent.totalTokens;
-      for (const [type, count] of Object.entries(
-        selectedContent.typeDistribution,
-      ) as [string, number][]) {
+      for (const [type, count] of Object.entries(selectedContent.typeDistribution) as [
+        string,
+        number,
+      ][]) {
         contentTypes[type] = (contentTypes[type] || 0) + count;
       }
     }

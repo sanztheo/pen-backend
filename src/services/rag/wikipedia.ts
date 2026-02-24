@@ -44,16 +44,13 @@ export class WikipediaRAGSystem {
 
     // 🔍 Étape 1: Vérification en batch des doublons
     const titles = articles.map((a) => a.title);
-    const deduplicationResults =
-      await deduplicationService.checkMultipleWikipedia(
-        userId,
-        workspaceId,
-        titles,
-      );
-
-    logger.log(
-      `🔄 [DEDUP] Vérification de ${titles.length} articles Wikipedia`,
+    const deduplicationResults = await deduplicationService.checkMultipleWikipedia(
+      userId,
+      workspaceId,
+      titles,
     );
+
+    logger.log(`🔄 [DEDUP] Vérification de ${titles.length} articles Wikipedia`);
 
     for (const article of articles) {
       try {
@@ -70,9 +67,7 @@ export class WikipediaRAGSystem {
 
         // 🔄 Si existe mais sans chunks, nettoyer et recréer
         if (dedupResult?.exists && dedupResult.shouldUpdate) {
-          logger.log(
-            `🧹 [DEDUP] Nettoyage et re-embedding: "${article.title}"`,
-          );
+          logger.log(`🧹 [DEDUP] Nettoyage et re-embedding: "${article.title}"`);
           await deduplicationService.forceUpdate(dedupResult.sourceId!);
           // Continuer avec l'embedding normal en utilisant l'ID existant
         }
@@ -184,10 +179,7 @@ export class WikipediaRAGSystem {
         );
 
         // 3. Construction du contenu enrichi
-        const enrichedContent = this.buildEnrichedContent(
-          fullArticle,
-          relevantSections,
-        );
+        const enrichedContent = this.buildEnrichedContent(fullArticle, relevantSections);
 
         enrichedArticles.push({
           title: fullArticle.title,
@@ -223,10 +215,7 @@ export class WikipediaRAGSystem {
     // 1. Scoring des sections par pertinence
     const scoredSections = await Promise.all(
       article.sections.map(async (section) => {
-        const relevanceScore = await this.calculateSectionRelevance(
-          section,
-          query,
-        );
+        const relevanceScore = await this.calculateSectionRelevance(section, query);
         const qualityScore = this.assessSectionQuality(section);
 
         return {
@@ -270,9 +259,7 @@ export class WikipediaRAGSystem {
   }
 
   // 🔧 Méthodes utilitaires
-  private async getWikipediaFullContent(
-    pageid: number,
-  ): Promise<WikipediaArticle> {
+  private async getWikipediaFullContent(pageid: number): Promise<WikipediaArticle> {
     try {
       // 🔥 Utiliser l'API TextExtracts pour récupérer le texte complet en plaintext
       // Doc: https://www.mediawiki.org/wiki/Extension:TextExtracts
@@ -323,18 +310,14 @@ export class WikipediaRAGSystem {
       const title = pageData.title;
       const fullText = pageData.extract || "";
       const canonicalUrl = pageData.canonicalurl || pageData.fullurl;
-      const categories =
-        pageData.categories?.map((c) => c.title.replace("Catégorie:", "")) ||
-        [];
+      const categories = pageData.categories?.map((c) => c.title.replace("Catégorie:", "")) || [];
 
       // 🔥 Parser le texte complet en sections (maintenant c'est du plaintext propre!)
       const sections = this.parseExtractSections(fullText);
 
       // Générer un extrait court (premiers 500 caractères de l'intro)
       const introSection = sections.find((s) => s.title === "Introduction");
-      const extract = introSection
-        ? introSection.content.slice(0, 500)
-        : fullText.slice(0, 500);
+      const extract = introSection ? introSection.content.slice(0, 500) : fullText.slice(0, 500);
 
       logger.log(
         `📖 [WIKIPEDIA] "${title}": ${fullText.length} chars, ${sections.length} sections, ${categories.length} catégories`,
@@ -423,14 +406,11 @@ export class WikipediaRAGSystem {
 
     // Filtrer sections trop courtes (sauf l'intro)
     return sections.filter(
-      (section) =>
-        section.content.length > 50 || section.title === "Introduction",
+      (section) => section.content.length > 50 || section.title === "Introduction",
     );
   }
 
-  private async chunkWikipediaContent(
-    article: WikipediaArticle,
-  ): Promise<RAGChunkInput[]> {
+  private async chunkWikipediaContent(article: WikipediaArticle): Promise<RAGChunkInput[]> {
     const chunks: RAGChunkInput[] = [];
 
     if (!article.sections) return chunks;
@@ -452,9 +432,7 @@ export class WikipediaRAGSystem {
     return chunks;
   }
 
-  private async chunkLongSection(
-    section: WikipediaSection,
-  ): Promise<RAGChunkInput[]> {
+  private async chunkLongSection(section: WikipediaSection): Promise<RAGChunkInput[]> {
     const chunks: RAGChunkInput[] = [];
     const paragraphs = section.content.split("\n\n").filter((p) => p.trim());
 
@@ -488,44 +466,27 @@ export class WikipediaRAGSystem {
     return chunks;
   }
 
-  private async processWikipediaChunks(
-    sourceId: string,
-    chunks: RAGChunkInput[],
-  ): Promise<void> {
-    const { mapWithConcurrency, chunkArray } = await import(
-      "../../utils/concurrency.js"
-    );
-    const concurrency = Math.max(
-      1,
-      parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10),
-    );
-    const batchSize = Math.max(
-      1,
-      parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10),
-    );
+  private async processWikipediaChunks(sourceId: string, chunks: RAGChunkInput[]): Promise<void> {
+    const { mapWithConcurrency, chunkArray } = await import("../../utils/concurrency.js");
+    const concurrency = Math.max(1, parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10));
+    const batchSize = Math.max(1, parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10));
 
     const t0 = Date.now();
-    logger.log(
-      `⚙️  [WIKIPEDIA] Embedding ${chunks.length} chunks (x${concurrency})…`,
-    );
+    logger.log(`⚙️  [WIKIPEDIA] Embedding ${chunks.length} chunks (x${concurrency})…`);
 
-	    const prepared = await mapWithConcurrency(
-	      chunks,
-	      concurrency,
-	      async (chunk, i) => {
-	        const embedding = await this.generateEmbedding(chunk.content);
-	        return {
-	          sourceId,
-	          chunkIndex: i,
-	          content: chunk.content,
-	          cleanContent: this.cleanContent(chunk.content),
-	          embedding: JSON.stringify(embedding),
-	          tokenCount: this.estimateTokens(chunk.content),
-	          sectionTitle: chunk.sectionTitle ?? null,
-	          quality: chunk.quality ?? 1.0,
-	        } satisfies PreparedRAGChunkRow;
-	      },
-	    );
+    const prepared = await mapWithConcurrency(chunks, concurrency, async (chunk, i) => {
+      const embedding = await this.generateEmbedding(chunk.content);
+      return {
+        sourceId,
+        chunkIndex: i,
+        content: chunk.content,
+        cleanContent: this.cleanContent(chunk.content),
+        embedding: JSON.stringify(embedding),
+        tokenCount: this.estimateTokens(chunk.content),
+        sectionTitle: chunk.sectionTitle ?? null,
+        quality: chunk.quality ?? 1.0,
+      } satisfies PreparedRAGChunkRow;
+    });
 
     let inserted = 0;
     for (const batch of chunkArray(prepared, batchSize)) {
@@ -553,9 +514,7 @@ export class WikipediaRAGSystem {
         `;
         inserted++;
       }
-      logger.log(
-        `💾 [WIKIPEDIA] Inséré ${inserted}/${prepared.length} chunks…`,
-      );
+      logger.log(`💾 [WIKIPEDIA] Inséré ${inserted}/${prepared.length} chunks…`);
     }
 
     logger.log(`✅ [WIKIPEDIA] Terminé en ${Date.now() - t0} ms`);
@@ -597,20 +556,13 @@ export class WikipediaRAGSystem {
     return Math.min(quality, 1.0);
   }
 
-  private buildEnrichedContent(
-    article: WikipediaArticle,
-    sections: WikipediaSection[],
-  ): string {
+  private buildEnrichedContent(article: WikipediaArticle, sections: WikipediaSection[]): string {
     const parts = [
       `# ${article.title}`,
       "",
-      article.categories?.length
-        ? `**Catégories:** ${article.categories.join(", ")}`
-        : "",
+      article.categories?.length ? `**Catégories:** ${article.categories.join(", ")}` : "",
       "",
-      ...sections
-        .map((section) => [`## ${section.title}`, section.content, ""])
-        .flat(),
+      ...sections.map((section) => [`## ${section.title}`, section.content, ""]).flat(),
     ];
 
     return parts.filter(Boolean).join("\n");

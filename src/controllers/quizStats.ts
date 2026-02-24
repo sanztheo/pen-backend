@@ -1,6 +1,6 @@
-import { Request, Response } from 'express';
-import { StatsService } from '../services/quiz/statsService.js';
-import { DashboardLayoutService } from '../services/quiz/dashboardLayoutService.js';
+import { Request, Response } from "express";
+import { StatsService } from "../services/quiz/statsService.js";
+import { DashboardLayoutService } from "../services/quiz/dashboardLayoutService.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -18,7 +18,7 @@ export class QuizStatsController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          error: 'Utilisateur non authentifié'
+          error: "Utilisateur non authentifié",
         });
         return;
       }
@@ -27,14 +27,14 @@ export class QuizStatsController {
 
       res.status(200).json({
         success: true,
-        data: stats
+        data: stats,
       });
     } catch (error) {
-      logger.error('❌ [QuizStatsController] Erreur récupération stats avancées:', error);
+      logger.error("❌ [QuizStatsController] Erreur récupération stats avancées:", error);
       res.status(500).json({
         success: false,
-        error: 'Erreur lors de la récupération des statistiques',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la récupération des statistiques",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -50,17 +50,17 @@ export class QuizStatsController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          error: 'Utilisateur non authentifié'
+          error: "Utilisateur non authentifié",
         });
         return;
       }
 
-      const period = (req.query.period as 'week' | 'month' | 'year') || 'month';
+      const period = (req.query.period as "week" | "month" | "year") || "month";
 
-      if (!['week', 'month', 'year'].includes(period)) {
+      if (!["week", "month", "year"].includes(period)) {
         res.status(400).json({
           success: false,
-          error: 'Période invalide. Valeurs acceptées: week, month, year'
+          error: "Période invalide. Valeurs acceptées: week, month, year",
         });
         return;
       }
@@ -71,15 +71,15 @@ export class QuizStatsController {
         success: true,
         data: {
           period,
-          progression
-        }
+          progression,
+        },
       });
     } catch (error) {
-      logger.error('❌ [QuizStatsController] Erreur récupération progression:', error);
+      logger.error("❌ [QuizStatsController] Erreur récupération progression:", error);
       res.status(500).json({
         success: false,
-        error: 'Erreur lors de la récupération de la progression',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la récupération de la progression",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -95,7 +95,7 @@ export class QuizStatsController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          error: 'Utilisateur non authentifié'
+          error: "Utilisateur non authentifié",
         });
         return;
       }
@@ -104,14 +104,14 @@ export class QuizStatsController {
 
       res.status(200).json({
         success: true,
-        data: subjects
+        data: subjects,
       });
     } catch (error) {
-      logger.error('❌ [QuizStatsController] Erreur récupération matières:', error);
+      logger.error("❌ [QuizStatsController] Erreur récupération matières:", error);
       res.status(500).json({
         success: false,
-        error: 'Erreur lors de la récupération des matières',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la récupération des matières",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -127,7 +127,7 @@ export class QuizStatsController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          error: 'Utilisateur non authentifié'
+          error: "Utilisateur non authentifié",
         });
         return;
       }
@@ -136,14 +136,14 @@ export class QuizStatsController {
 
       res.status(200).json({
         success: true,
-        data: analysis
+        data: analysis,
       });
     } catch (error) {
-      logger.error('❌ [QuizStatsController] Erreur analyse difficulté:', error);
+      logger.error("❌ [QuizStatsController] Erreur analyse difficulté:", error);
       res.status(500).json({
         success: false,
-        error: 'Erreur lors de l\'analyse de difficulté',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de l'analyse de difficulté",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -159,7 +159,7 @@ export class QuizStatsController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          error: 'Utilisateur non authentifié'
+          error: "Utilisateur non authentifié",
         });
         return;
       }
@@ -168,14 +168,14 @@ export class QuizStatsController {
 
       res.status(200).json({
         success: true,
-        data: timeAnalytics
+        data: timeAnalytics,
       });
     } catch (error) {
-      logger.error('❌ [QuizStatsController] Erreur analyse temps:', error);
+      logger.error("❌ [QuizStatsController] Erreur analyse temps:", error);
       res.status(500).json({
         success: false,
-        error: 'Erreur lors de l\'analyse du temps',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de l'analyse du temps",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -191,7 +191,7 @@ export class QuizStatsController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          error: 'Utilisateur non authentifié'
+          error: "Utilisateur non authentifié",
         });
         return;
       }
@@ -200,14 +200,14 @@ export class QuizStatsController {
 
       res.status(200).json({
         success: true,
-        data: sources
+        data: sources,
       });
     } catch (error) {
-      logger.error('❌ [QuizStatsController] Erreur récupération sources:', error);
+      logger.error("❌ [QuizStatsController] Erreur récupération sources:", error);
       res.status(500).json({
         success: false,
-        error: 'Erreur lors de la récupération des sources',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la récupération des sources",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -223,7 +223,7 @@ export class QuizStatsController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          error: 'Utilisateur non authentifié'
+          error: "Utilisateur non authentifié",
         });
         return;
       }
@@ -232,14 +232,14 @@ export class QuizStatsController {
 
       res.status(200).json({
         success: true,
-        data: questionTypes
+        data: questionTypes,
       });
     } catch (error) {
-      logger.error('❌ [QuizStatsController] Erreur récupération types questions:', error);
+      logger.error("❌ [QuizStatsController] Erreur récupération types questions:", error);
       res.status(500).json({
         success: false,
-        error: 'Erreur lors de la récupération des types de questions',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la récupération des types de questions",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -255,7 +255,7 @@ export class QuizStatsController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          error: 'Utilisateur non authentifié'
+          error: "Utilisateur non authentifié",
         });
         return;
       }
@@ -264,14 +264,14 @@ export class QuizStatsController {
 
       res.status(200).json({
         success: true,
-        data: layout
+        data: layout,
       });
     } catch (error) {
-      logger.error('❌ [QuizStatsController] Erreur récupération layout:', error);
+      logger.error("❌ [QuizStatsController] Erreur récupération layout:", error);
       res.status(500).json({
         success: false,
-        error: 'Erreur lors de la récupération du layout',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la récupération du layout",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -287,7 +287,7 @@ export class QuizStatsController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          error: 'Utilisateur non authentifié'
+          error: "Utilisateur non authentifié",
         });
         return;
       }
@@ -297,7 +297,7 @@ export class QuizStatsController {
       if (!layout || !visibleCharts) {
         res.status(400).json({
           success: false,
-          error: 'Layout et visibleCharts requis'
+          error: "Layout et visibleCharts requis",
         });
         return;
       }
@@ -305,20 +305,20 @@ export class QuizStatsController {
       const savedLayout = await DashboardLayoutService.saveUserLayout(
         userId,
         layout,
-        visibleCharts
+        visibleCharts,
       );
 
       res.status(200).json({
         success: true,
         data: savedLayout,
-        message: 'Layout sauvegardé avec succès'
+        message: "Layout sauvegardé avec succès",
       });
     } catch (error) {
-      logger.error('❌ [QuizStatsController] Erreur sauvegarde layout:', error);
+      logger.error("❌ [QuizStatsController] Erreur sauvegarde layout:", error);
       res.status(500).json({
         success: false,
-        error: 'Erreur lors de la sauvegarde du layout',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la sauvegarde du layout",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -334,7 +334,7 @@ export class QuizStatsController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          error: 'Utilisateur non authentifié'
+          error: "Utilisateur non authentifié",
         });
         return;
       }
@@ -344,14 +344,14 @@ export class QuizStatsController {
       res.status(200).json({
         success: true,
         data: defaultLayout,
-        message: 'Layout réinitialisé au défaut'
+        message: "Layout réinitialisé au défaut",
       });
     } catch (error) {
-      logger.error('❌ [QuizStatsController] Erreur réinitialisation layout:', error);
+      logger.error("❌ [QuizStatsController] Erreur réinitialisation layout:", error);
       res.status(500).json({
         success: false,
-        error: 'Erreur lors de la réinitialisation du layout',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la réinitialisation du layout",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -367,31 +367,24 @@ export class QuizStatsController {
       if (!userId) {
         res.status(401).json({
           success: false,
-          error: 'Utilisateur non authentifié'
+          error: "Utilisateur non authentifié",
         });
         return;
       }
 
-      const period = (req.query.period as 'week' | 'month' | 'year') || 'month';
+      const period = (req.query.period as "week" | "month" | "year") || "month";
 
       // Récupérer toutes les stats en parallèle avec filtrage par période
-      const [
-        advanced,
-        progression,
-        subjects,
-        difficulty,
-        timeAnalytics,
-        sources,
-        questionTypes
-      ] = await Promise.all([
-        StatsService.getAdvancedUserStats(userId, period),
-        StatsService.getProgressionOverTime(userId, period),
-        StatsService.getSubjectBreakdown(userId, period),
-        StatsService.getDifficultyAnalysis(userId, period),
-        StatsService.getTimeAnalytics(userId, period),
-        StatsService.getPageSourcesUsage(userId, period),
-        StatsService.getQuestionTypeStats(userId, period)
-      ]);
+      const [advanced, progression, subjects, difficulty, timeAnalytics, sources, questionTypes] =
+        await Promise.all([
+          StatsService.getAdvancedUserStats(userId, period),
+          StatsService.getProgressionOverTime(userId, period),
+          StatsService.getSubjectBreakdown(userId, period),
+          StatsService.getDifficultyAnalysis(userId, period),
+          StatsService.getTimeAnalytics(userId, period),
+          StatsService.getPageSourcesUsage(userId, period),
+          StatsService.getQuestionTypeStats(userId, period),
+        ]);
 
       res.status(200).json({
         success: true,
@@ -399,23 +392,22 @@ export class QuizStatsController {
           advanced,
           progression: {
             period,
-            data: progression
+            data: progression,
           },
           subjects,
           difficulty,
           timeAnalytics,
           sources,
-          questionTypes
-        }
+          questionTypes,
+        },
       });
     } catch (error) {
-      logger.error('❌ [QuizStatsController] Erreur récupération stats complètes:', error);
+      logger.error("❌ [QuizStatsController] Erreur récupération stats complètes:", error);
       res.status(500).json({
         success: false,
-        error: 'Erreur lors de la récupération des statistiques',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la récupération des statistiques",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
 }
-

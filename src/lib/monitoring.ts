@@ -101,8 +101,7 @@ export const getSystemStats = async () => {
  */
 export const checkHealthThresholds = () => {
   const memory = getMemoryStats();
-  const heapUsedPercent =
-    (memory.heapUsed.value / memory.heapTotal.value) * 100;
+  const heapUsedPercent = (memory.heapUsed.value / memory.heapTotal.value) * 100;
 
   const warnings = [];
 
@@ -153,18 +152,14 @@ export const startMonitoring = (intervalMinutes: number = 5) => {
     return;
   }
 
-  logger.log(
-    `📊 [MONITORING] Démarrage monitoring (intervalle: ${intervalMinutes}min)`,
-  );
+  logger.log(`📊 [MONITORING] Démarrage monitoring (intervalle: ${intervalMinutes}min)`);
 
   monitoringInterval = setInterval(
     async () => {
       const stats = await getSystemStats();
       const health = checkHealthThresholds();
 
-      logger.log(
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      );
+      logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       logger.log("📊 [MONITORING] Métriques système");
       logger.log(
         `   💾 Heap: ${stats.memory.heapUsed.mb}MB / ${stats.memory.heapTotal.mb}MB (${Math.round((stats.memory.heapUsed.value / stats.memory.heapTotal.value) * 100)}%)`,
@@ -190,9 +185,7 @@ export const startMonitoring = (intervalMinutes: number = 5) => {
         });
       }
 
-      logger.log(
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      );
+      logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     },
     intervalMinutes * 60 * 1000,
   );

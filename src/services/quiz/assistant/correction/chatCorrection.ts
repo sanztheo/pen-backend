@@ -72,11 +72,7 @@ export class ChatCorrection {
 
       // Construire les messages pour correction
       const systemPrompt = buildCorrectionSystemPrompt();
-      const userPrompt = buildStandardCorrectionPrompt(
-        quizId,
-        answers,
-        options,
-      );
+      const userPrompt = buildStandardCorrectionPrompt(quizId, answers, options);
 
       // Debug du prompt utilisateur (tronqué)
       logger.log(
@@ -84,9 +80,7 @@ export class ChatCorrection {
         userPrompt.substring(0, 500) + "...",
       );
 
-      logger.log(
-        `📤 [CORRECTION] Envoi à ${correctionModel} avec JSON strict`,
-      );
+      logger.log(`📤 [CORRECTION] Envoi à ${correctionModel} avec JSON strict`);
 
       // Configuration de base pour l'appel API
       const apiConfig: ExtendedChatConfig = {
@@ -141,16 +135,11 @@ export class ChatCorrection {
       logCorrectionResult(result);
 
       if (result && result.corrections && Array.isArray(result.corrections)) {
-        logger.log(
-          "✅ [CORRECTION] Correction standard générée avec succès via chat completion",
-        );
+        logger.log("✅ [CORRECTION] Correction standard générée avec succès via chat completion");
         return result;
       }
 
-      logger.error(
-        "❌ [CORRECTION] Réponse inattendue du chat completion:",
-        result,
-      );
+      logger.error("❌ [CORRECTION] Réponse inattendue du chat completion:", result);
       throw new Error("Aucune correction valide générée");
     } catch (error) {
       logger.error("❌ [CORRECTION] Erreur correction standard:", error);
@@ -174,15 +163,9 @@ export class ChatCorrection {
 
       // Construire les messages pour correction complète
       const systemPrompt = buildCompleteCorrectionSystemPrompt();
-      const userPrompt = buildCompleteCorrectionPrompt(
-        quizId,
-        answers,
-        options,
-      );
+      const userPrompt = buildCompleteCorrectionPrompt(quizId, answers, options);
 
-      logger.log(
-        `📤 [CORRECTION] Envoi à ${correctionModel} avec JSON strict (schéma complet)`,
-      );
+      logger.log(`📤 [CORRECTION] Envoi à ${correctionModel} avec JSON strict (schéma complet)`);
 
       // Configuration de base pour l'appel API
       const apiConfig: ExtendedChatConfig = {
@@ -234,16 +217,11 @@ export class ChatCorrection {
       const result = JSON.parse(responseContent);
 
       if (result && result.corrections && Array.isArray(result.corrections)) {
-        logger.log(
-          "✅ [CORRECTION] Correction complète générée avec succès via chat completion",
-        );
+        logger.log("✅ [CORRECTION] Correction complète générée avec succès via chat completion");
         return result;
       }
 
-      logger.error(
-        "❌ [CORRECTION] Réponse inattendue du chat completion:",
-        result,
-      );
+      logger.error("❌ [CORRECTION] Réponse inattendue du chat completion:", result);
       throw new Error("Aucune correction complète valide générée");
     } catch (error) {
       logger.error("❌ [CORRECTION] Erreur correction complète:", error);
@@ -268,46 +246,30 @@ export class ChatCorrection {
     // Utiliser les nouvelles méthodes Chat Completion
     switch (options.type) {
       case "with_graphics":
-        return this.correctCompleteQuizChatCompletion(
-          quizId,
-          formattedAnswers,
-          {
-            graphicsData: options.graphicsData || [],
-            documentsData: [],
-            correctionType: "graphics",
-            questions: options.questions,
-          },
-        );
+        return this.correctCompleteQuizChatCompletion(quizId, formattedAnswers, {
+          graphicsData: options.graphicsData || [],
+          documentsData: [],
+          correctionType: "graphics",
+          questions: options.questions,
+        });
       case "with_documents":
-        return this.correctCompleteQuizChatCompletion(
-          quizId,
-          formattedAnswers,
-          {
-            graphicsData: [],
-            documentsData: options.documentsData || [],
-            correctionType: "documents",
-            questions: options.questions,
-          },
-        );
+        return this.correctCompleteQuizChatCompletion(quizId, formattedAnswers, {
+          graphicsData: [],
+          documentsData: options.documentsData || [],
+          correctionType: "documents",
+          questions: options.questions,
+        });
       case "complete":
-        return this.correctCompleteQuizChatCompletion(
-          quizId,
-          formattedAnswers,
-          {
-            graphicsData: options.graphicsData || [],
-            documentsData: options.documentsData || [],
-            correctionType: "complete",
-            questions: options.questions,
-          },
-        );
+        return this.correctCompleteQuizChatCompletion(quizId, formattedAnswers, {
+          graphicsData: options.graphicsData || [],
+          documentsData: options.documentsData || [],
+          correctionType: "complete",
+          questions: options.questions,
+        });
       default:
-        return this.correctStandardQuizChatCompletion(
-          quizId,
-          formattedAnswers,
-          {
-            questions: options.questions,
-          },
-        );
+        return this.correctStandardQuizChatCompletion(quizId, formattedAnswers, {
+          questions: options.questions,
+        });
     }
   }
 }

@@ -1,17 +1,17 @@
-import type { Request } from 'express';
+import type { Request } from "express";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === "object" && value !== null;
 }
 
 export function detectPreferredLanguage(req: Request): { code: string; name: string } {
   // 1) Tenter de lire langue depuis la personnalisation envoyée en header
   let personaLang: string | null = null;
-  const rawPersona = (req.headers['x-user-personalization'] as string) || '';
+  const rawPersona = (req.headers["x-user-personalization"] as string) || "";
   if (rawPersona) {
     try {
       const p = JSON.parse(rawPersona);
-      if (typeof p?.langue === 'string' && p.langue.trim()) {
+      if (typeof p?.langue === "string" && p.langue.trim()) {
         personaLang = String(p.langue).trim();
       }
     } catch {}
@@ -24,33 +24,37 @@ export function detectPreferredLanguage(req: Request): { code: string; name: str
       const bodyLang =
         isRecord(body) &&
         isRecord(body.personalization) &&
-        typeof body.personalization.langue === 'string'
+        typeof body.personalization.langue === "string"
           ? body.personalization.langue
           : undefined;
-      if (typeof bodyLang === 'string' && bodyLang.trim()) personaLang = String(bodyLang).trim();
+      if (typeof bodyLang === "string" && bodyLang.trim()) personaLang = String(bodyLang).trim();
     } catch {}
   }
 
-  const raw = personaLang || (req.headers['x-user-lang'] as string) || (req.headers['accept-language'] as string) || 'fr';
-  const first = raw.split(',')[0]?.trim() || 'fr';
-  const code = first.split('-')[0]?.toLowerCase() || 'fr';
+  const raw =
+    personaLang ||
+    (req.headers["x-user-lang"] as string) ||
+    (req.headers["accept-language"] as string) ||
+    "fr";
+  const first = raw.split(",")[0]?.trim() || "fr";
+  const code = first.split("-")[0]?.toLowerCase() || "fr";
   const map: Record<string, string> = {
-    fr: 'French',
-    en: 'English',
-    es: 'Spanish',
-    de: 'German',
-    it: 'Italian',
-    pt: 'Portuguese',
-    ar: 'Arabic',
-    zh: 'Chinese',
-    ja: 'Japanese',
-    ru: 'Russian'
+    fr: "French",
+    en: "English",
+    es: "Spanish",
+    de: "German",
+    it: "Italian",
+    pt: "Portuguese",
+    ar: "Arabic",
+    zh: "Chinese",
+    ja: "Japanese",
+    ru: "Russian",
   };
-  const name = map[code] || 'French';
+  const name = map[code] || "French";
   return { code, name };
 }
 
 export function buildLangInstruction(lang: { code: string; name: string }): string {
-  if (lang.code === 'fr') return 'Réponds en français.';
+  if (lang.code === "fr") return "Réponds en français.";
   return `Answer in ${lang.name}.`;
 }

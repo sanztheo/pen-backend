@@ -40,4 +40,4 @@ Tu es un professeur de lycée spécialisé en classe de Terminale. Génère des 
 - Questions complexes nécessitant plusieurs étapes
 - Développe l'autonomie et la rigueur académique`;
   }
-} 
+}

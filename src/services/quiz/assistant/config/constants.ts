@@ -33,9 +33,7 @@ export const SPECIALTY_LABELS: Record<string, string> = {
   HISTOIRE_ARTS: "Histoire des Arts",
 };
 
-export const formatSpecialtyLabel = (
-  specialty?: string,
-): string | undefined => {
+export const formatSpecialtyLabel = (specialty?: string): string | undefined => {
   if (!specialty) {
     return undefined;
   }

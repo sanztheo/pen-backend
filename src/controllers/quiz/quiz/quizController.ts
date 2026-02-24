@@ -81,17 +81,13 @@ export class QuizController {
       if (usePersonalization || !bodySchoolLevel) {
         const personalizationData = await getUserPersonalization(userId);
         if (personalizationData) {
-          schoolLevel =
-            personalizationData.classe || bodySchoolLevel || "COLLEGE";
-          logger.log(
-            "[QUIZ-GENERATE] 👤 Personnalisation récupérée depuis DB:",
-            {
-              classe: personalizationData.classe,
-              etude: personalizationData.etude,
-              filiere: personalizationData.filiere,
-              resolvedSchoolLevel: schoolLevel,
-            },
-          );
+          schoolLevel = personalizationData.classe || bodySchoolLevel || "COLLEGE";
+          logger.log("[QUIZ-GENERATE] 👤 Personnalisation récupérée depuis DB:", {
+            classe: personalizationData.classe,
+            etude: personalizationData.etude,
+            filiere: personalizationData.filiere,
+            resolvedSchoolLevel: schoolLevel,
+          });
         } else {
           logger.log(
             "[QUIZ-GENERATE] ⚠️ Aucune personnalisation trouvée, utilisation du bodySchoolLevel",
@@ -132,17 +128,13 @@ export class QuizController {
             reasoning: preprocessorResult.reasoning,
           });
         } catch (error) {
-          logger.error(
-            "❌ [PREPROCESSOR] Erreur, fallback sur params manuels:",
-            error,
-          );
+          logger.error("❌ [PREPROCESSOR] Erreur, fallback sur params manuels:", error);
           // Si le preprocessor échoue, utiliser les params par défaut ou retourner erreur
           if (!questionTypes || !questionCount) {
             res.status(400).json({
               error:
                 "Impossible d'analyser les sources automatiquement. Veuillez sélectionner manuellement les paramètres.",
-              details:
-                error instanceof Error ? error.message : "Erreur inconnue",
+              details: error instanceof Error ? error.message : "Erreur inconnue",
             });
             return;
           }
@@ -152,8 +144,7 @@ export class QuizController {
       // Validation des paramètres requis (après preprocessor)
       if (!schoolLevel || !finalQuestionTypes || !finalQuestionCount) {
         res.status(400).json({
-          error:
-            "Paramètres manquants: schoolLevel, questionTypes et questionCount sont requis",
+          error: "Paramètres manquants: schoolLevel, questionTypes et questionCount sont requis",
         });
         return;
       }
@@ -166,18 +157,14 @@ export class QuizController {
 
       if (
         !Array.isArray(finalQuestionTypes) ||
-        !finalQuestionTypes.every((type) =>
-          Object.values(QuestionType).includes(type),
-        )
+        !finalQuestionTypes.every((type) => Object.values(QuestionType).includes(type))
       ) {
         res.status(400).json({ error: "Types de questions invalides" });
         return;
       }
 
       if (finalQuestionCount < 1 || finalQuestionCount > 100) {
-        res
-          .status(400)
-          .json({ error: "Le nombre de questions doit être entre 1 et 100" });
+        res.status(400).json({ error: "Le nombre de questions doit être entre 1 et 100" });
         return;
       }
 
@@ -233,9 +220,7 @@ export class QuizController {
             },
           });
 
-          logger.log(
-            `🔍 [QUIZ-RAG] Pages trouvées: ${pages.length}/${pageProjectIds.length}`,
-          );
+          logger.log(`🔍 [QUIZ-RAG] Pages trouvées: ${pages.length}/${pageProjectIds.length}`);
 
           // Système d'embedding automatique pour chaque page
           if (pages.length > 0) {
@@ -243,8 +228,7 @@ export class QuizController {
               `🚀 [QUIZ-RAG] Démarrage embedding automatique pour ${pages.length} page(s)`,
             );
 
-            const { userPagesRAG } =
-              await import("../../../services/rag/userPages.js");
+            const { userPagesRAG } = await import("../../../services/rag/userPages.js");
 
             let alreadyEmbedded = 0;
             let newlyProcessed = 0;
@@ -259,9 +243,7 @@ export class QuizController {
               }
 
               try {
-                logger.log(
-                  `🔥 [QUIZ-RAG] Vérification et traitement page: "${page.title}"`,
-                );
+                logger.log(`🔥 [QUIZ-RAG] Vérification et traitement page: "${page.title}"`);
 
                 // 🔍 1. Vérification d'existence comme dans AssistantInput.tsx
                 const existingSource = await userPagesRAG.findExistingSource(
@@ -277,9 +259,7 @@ export class QuizController {
                   new Date(existingSource.updatedAt) < new Date(page.updatedAt);
 
                 if (!needsEmbedding) {
-                  logger.log(
-                    `✅ [QUIZ-RAG] Page "${page.title}" déjà embedée et à jour → Skip`,
-                  );
+                  logger.log(`✅ [QUIZ-RAG] Page "${page.title}" déjà embedée et à jour → Skip`);
                   alreadyEmbedded++;
                   continue;
                 }
@@ -289,13 +269,9 @@ export class QuizController {
                     `🔄 [QUIZ-RAG] Page "${page.title}" précédemment échouée → Re-traitement`,
                   );
                 } else if (existingSource) {
-                  logger.log(
-                    `🔄 [QUIZ-RAG] Page "${page.title}" obsolète → Mise à jour`,
-                  );
+                  logger.log(`🔄 [QUIZ-RAG] Page "${page.title}" obsolète → Mise à jour`);
                 } else {
-                  logger.log(
-                    `🆕 [QUIZ-RAG] Nouvelle page "${page.title}" → Premier embedding`,
-                  );
+                  logger.log(`🆕 [QUIZ-RAG] Nouvelle page "${page.title}" → Premier embedding`);
                 }
 
                 // 📦 3. Extraction du contenu (logique améliorée)
@@ -309,23 +285,19 @@ export class QuizController {
                   if (content && Array.isArray(content)) {
                     const textParts = (content as BlockNoteBlock[])
                       .filter(
-                        (block: BlockNoteBlock) =>
-                          block?.type === "paragraph" && block?.content,
+                        (block: BlockNoteBlock) => block?.type === "paragraph" && block?.content,
                       )
                       .map((block: BlockNoteBlock) =>
                         Array.isArray(block.content)
                           ? block.content
-                              .map(
-                                (item: { text?: string }) => item?.text || "",
-                              )
+                              .map((item: { text?: string }) => item?.text || "")
                               .join("")
                           : "",
                       )
                       .filter(Boolean);
 
                     if (textParts.length > 0) {
-                      textContent =
-                        page.title + "\n\n" + textParts.join("\n\n");
+                      textContent = page.title + "\n\n" + textParts.join("\n\n");
                     }
                   }
                 } catch (error) {
@@ -358,29 +330,20 @@ export class QuizController {
                 });
 
                 if (sourceId) {
-                  logger.log(
-                    `✅ [QUIZ-RAG] Page "${page.title}" → RAG sourceId: ${sourceId}`,
-                  );
+                  logger.log(`✅ [QUIZ-RAG] Page "${page.title}" → RAG sourceId: ${sourceId}`);
                   newlyProcessed++;
 
                   // 🔍 Vérifier immédiatement que des chunks ont été créés
                   const chunkCount = await prismaEmbeddings.rAGChunk.count({
                     where: { sourceId },
                   });
-                  logger.log(
-                    `📊 [QUIZ-RAG] Chunks générés pour "${page.title}": ${chunkCount}`,
-                  );
+                  logger.log(`📊 [QUIZ-RAG] Chunks générés pour "${page.title}": ${chunkCount}`);
                 } else {
-                  logger.warn(
-                    `⚠️ [QUIZ-RAG] Échec embedding pour page "${page.title}"`,
-                  );
+                  logger.warn(`⚠️ [QUIZ-RAG] Échec embedding pour page "${page.title}"`);
                   embeddingErrors++;
                 }
               } catch (error) {
-                logger.error(
-                  `❌ [QUIZ-RAG] Erreur embedding page "${page.title}":`,
-                  error,
-                );
+                logger.error(`❌ [QUIZ-RAG] Erreur embedding page "${page.title}":`, error);
                 embeddingErrors++;
               }
             }
@@ -392,9 +355,7 @@ export class QuizController {
 
             // 🎯 Attendre un court délai pour que les embeddings soient disponibles
             if (newlyProcessed > 0) {
-              logger.log(
-                `⏱️ [QUIZ-RAG] Attente 2s pour stabilisation des embeddings...`,
-              );
+              logger.log(`⏱️ [QUIZ-RAG] Attente 2s pour stabilisation des embeddings...`);
               await new Promise((resolve) => setTimeout(resolve, 2000));
             }
           }
@@ -497,9 +458,7 @@ export class QuizController {
       }
 
       if (!answers || !Array.isArray(answers)) {
-        res
-          .status(400)
-          .json({ error: "Réponses requises sous forme de tableau" });
+        res.status(400).json({ error: "Réponses requises sous forme de tableau" });
         return;
       }
 
@@ -543,9 +502,7 @@ export class QuizController {
         // Utiliser les sourceDocuments du quiz pour la cohérence
         hasDocuments: quiz.hasDocuments || hasDocuments || false,
         sourceDocuments:
-          (quiz.sourceDocuments as unknown as DocumentChunk[]) ||
-          sourceDocuments ||
-          [],
+          (quiz.sourceDocuments as unknown as DocumentChunk[]) || sourceDocuments || [],
         coursesOnly: false,
         workspaceContent: [] as WorkspaceAnalysisResult[],
         userAnswers: answers as UserAnswer[],
@@ -566,9 +523,7 @@ export class QuizController {
 
         // Quand la correction est terminée, marquer le quiz comme complété
         if (event.type === "completion" && event.finalResult) {
-          logger.log(
-            "✅ [SUBMIT-QUIZ] Correction complétée, marquage du quiz comme isCompleted",
-          );
+          logger.log("✅ [SUBMIT-QUIZ] Correction complétée, marquage du quiz comme isCompleted");
           await prisma.quiz.update({
             where: { id: quizId },
             data: {
@@ -584,10 +539,7 @@ export class QuizController {
       logger.error("Erreur soumission quiz:", error);
       if (error instanceof Error && error.message.includes("not found")) {
         res.status(404).json({ error: "Quiz non trouvé" });
-      } else if (
-        error instanceof Error &&
-        error.message.includes("already submitted")
-      ) {
+      } else if (error instanceof Error && error.message.includes("already submitted")) {
         res.status(409).json({ error: "Quiz déjà soumis" });
       } else {
         res.status(500).json({
@@ -625,13 +577,8 @@ export class QuizController {
       }
 
       // 🚀 Essayer de récupérer depuis le cache Redis
-      const { cacheQuizHistory, saveQuizHistoryCache } =
-        await import("../../../lib/redis.js");
-      const cachedHistory = await cacheQuizHistory(
-        userId,
-        parsedLimit,
-        parsedOffset,
-      );
+      const { cacheQuizHistory, saveQuizHistoryCache } = await import("../../../lib/redis.js");
+      const cachedHistory = await cacheQuizHistory(userId, parsedLimit, parsedOffset);
 
       if (cachedHistory) {
         logger.log("✅ [QUIZ-HISTORY] Retour depuis cache Redis");
@@ -650,15 +597,11 @@ export class QuizController {
 
       // ❌ Pas de cache : récupérer depuis la DB
       logger.log("❌ [QUIZ-HISTORY] Cache MISS - récupération DB");
-      const history = await QuizService.getQuizHistory(
-        userId,
-        parsedLimit,
-        parsedOffset,
-      );
+      const history = await QuizService.getQuizHistory(userId, parsedLimit, parsedOffset);
 
       // 💾 Sauvegarder dans le cache pour les prochaines requêtes
-      saveQuizHistoryCache(userId, parsedLimit, parsedOffset, history).catch(
-        (err) => logger.warn("⚠️ [QUIZ-HISTORY] Échec sauvegarde cache:", err),
+      saveQuizHistoryCache(userId, parsedLimit, parsedOffset, history).catch((err) =>
+        logger.warn("⚠️ [QUIZ-HISTORY] Échec sauvegarde cache:", err),
       );
 
       res.status(200).json({

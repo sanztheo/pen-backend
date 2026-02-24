@@ -52,15 +52,11 @@ export async function mapRagSourcesToRealUUIDs(
   const titles = ragSources.map((s) => s.title).filter(Boolean);
 
   if (titles.length === 0) {
-    logger.log(
-      `⚠️ [SOURCE-MAPPING] Aucun titre valide trouvé dans ragSources`,
-    );
+    logger.log(`⚠️ [SOURCE-MAPPING] Aucun titre valide trouvé dans ragSources`);
     return [];
   }
 
-  logger.log(
-    `🔍 [SOURCE-MAPPING] Recherche de ${titles.length} sources en DB par titre...`,
-  );
+  logger.log(`🔍 [SOURCE-MAPPING] Recherche de ${titles.length} sources en DB par titre...`);
 
   // Rechercher les sources dans la DB par titre
   const dbSources = await prismaEmbeddings.rAGSource.findMany({
@@ -76,17 +72,13 @@ export async function mapRagSourcesToRealUUIDs(
     },
   });
 
-  logger.log(
-    `✅ [SOURCE-MAPPING] ${dbSources.length}/${titles.length} sources trouvées en DB`,
-  );
+  logger.log(`✅ [SOURCE-MAPPING] ${dbSources.length}/${titles.length} sources trouvées en DB`);
 
   // Logger les sources non trouvées pour debug
   if (dbSources.length < titles.length) {
     const foundTitles = new Set(dbSources.map((s) => s.title));
     const notFound = titles.filter((t) => !foundTitles.has(t));
-    logger.log(
-      `⚠️ [SOURCE-MAPPING] Sources non trouvées: ${notFound.join(", ")}`,
-    );
+    logger.log(`⚠️ [SOURCE-MAPPING] Sources non trouvées: ${notFound.join(", ")}`);
   }
 
   // Mapper vers le format attendu avec vrais UUIDs
@@ -115,9 +107,7 @@ export async function mapAllSourcesToRealUUIDs(
   if (ragSources.length > 0) {
     const wikipediaSources = await mapRagSourcesToRealUUIDs(ragSources);
     mappedSources.push(...wikipediaSources);
-    logger.log(
-      `✅ [SOURCE-MAPPING] ${wikipediaSources.length} Wikipedia sources mappées`,
-    );
+    logger.log(`✅ [SOURCE-MAPPING] ${wikipediaSources.length} Wikipedia sources mappées`);
   }
 
   // 2. Pages workspace (déjà avec vrais UUIDs)
@@ -128,9 +118,7 @@ export async function mapAllSourcesToRealUUIDs(
       type: "PAGE",
     }));
     mappedSources.push(...pageSources);
-    logger.log(
-      `✅ [SOURCE-MAPPING] ${pageSources.length} pages workspace ajoutées`,
-    );
+    logger.log(`✅ [SOURCE-MAPPING] ${pageSources.length} pages workspace ajoutées`);
   }
 
   // 3. Pièces jointes (déjà avec vrais UUIDs si indexées)
@@ -146,13 +134,9 @@ export async function mapAllSourcesToRealUUIDs(
         type: "FILE",
       }));
     mappedSources.push(...attachmentSources);
-    logger.log(
-      `✅ [SOURCE-MAPPING] ${attachmentSources.length} pièces jointes ajoutées`,
-    );
+    logger.log(`✅ [SOURCE-MAPPING] ${attachmentSources.length} pièces jointes ajoutées`);
   }
 
-  logger.log(
-    `📊 [SOURCE-MAPPING] Total: ${mappedSources.length} sources mappées`,
-  );
+  logger.log(`📊 [SOURCE-MAPPING] Total: ${mappedSources.length} sources mappées`);
   return mappedSources;
 }

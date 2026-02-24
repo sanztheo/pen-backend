@@ -1,9 +1,5 @@
 // 🚀 RAG System - Service Principal
-import {
-  prismaEmbeddings,
-  type RAGSourceType,
-  type Prisma,
-} from "../../lib/prismaEmbeddings.js";
+import { prismaEmbeddings, type RAGSourceType, type Prisma } from "../../lib/prismaEmbeddings.js";
 import { logger } from "../../utils/logger.js";
 
 // Type pour la réponse de l'API OpenAI
@@ -20,9 +16,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isNumberArray(value: unknown): value is number[] {
-  return (
-    Array.isArray(value) && value.every((item) => typeof item === "number")
-  );
+  return Array.isArray(value) && value.every((item) => typeof item === "number");
 }
 
 function isOpenAIChatCompletion(value: unknown): value is OpenAIChatCompletion {
@@ -274,9 +268,7 @@ Requête: "${query}"`;
 
       // 🎯 NOUVEAU: Si des sources sont disponibles, vérifier leur pertinence
       if (availableSources && availableSources.length > 0) {
-        const sourcesList = availableSources
-          .map((s) => `- ${s.title} (${s.type})`)
-          .join("\n");
+        const sourcesList = availableSources.map((s) => `- ${s.title} (${s.type})`).join("\n");
         prompt += `
 
 Sources disponibles dans la session active:
@@ -288,40 +280,33 @@ Si AUCUNE source n'est pertinente (ex: sources sur "Caca" pour une question sur 
 
       prompt += `\n\nRéponds uniquement "OUI" ou "NON"`;
 
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: process.env.OPENAI_DETECTION_MODEL || "gpt-4o-mini",
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0,
-            max_tokens: 10,
-          }),
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          model: process.env.OPENAI_DETECTION_MODEL || "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0,
+          max_tokens: 10,
+        }),
+      });
 
       const raw: unknown = await response.json();
       if (!isOpenAIChatCompletion(raw)) {
         throw new Error("Réponse OpenAI invalide (chat/completions)");
       }
       const result = raw;
-      const decision = result.choices?.[0]?.message?.content
-        ?.trim()
-        ?.toUpperCase();
+      const decision = result.choices?.[0]?.message?.content?.trim()?.toUpperCase();
 
       if (availableSources && availableSources.length > 0) {
         logger.log(
           `🧠 [RAG-DETECTION-SMART] Query: "${query}" | Sources: [${availableSources.map((s) => s.title).join(", ")}] → Decision: ${decision}`,
         );
       } else {
-        logger.log(
-          `🧠 [RAG-DETECTION] Query: "${query}" → Decision: ${decision}`,
-        );
+        logger.log(`🧠 [RAG-DETECTION] Query: "${query}" → Decision: ${decision}`);
       }
 
       return decision === "OUI";
@@ -338,15 +323,11 @@ Si AUCUNE source n'est pertinente (ex: sources sur "Caca" pour une question sur 
   ): Promise<RAGSearchResult[]> {
     try {
       const questionType = await this.detectQuestionType(query);
-      logger.log(
-        `🔍 [RAG-NOTEBOOKLM] Type de question détecté: ${questionType}`,
-      );
+      logger.log(`🔍 [RAG-NOTEBOOKLM] Type de question détecté: ${questionType}`);
 
       switch (questionType) {
         case "RESUME":
-          logger.log(
-            `🔍 [RAG-NOTEBOOKLM] Question de résumé → meilleurs chunks par qualité`,
-          );
+          logger.log(`🔍 [RAG-NOTEBOOKLM] Question de résumé → meilleurs chunks par qualité`);
           return await this.getBestQualityChunks(options);
 
         case "EXPLICATION":
@@ -361,24 +342,17 @@ Si AUCUNE source n'est pertinente (ex: sources sur "Caca" pour une question sur 
 
         case "FACTUELLE":
         default:
-          logger.log(
-            `🔍 [RAG-NOTEBOOKLM] Question factuelle → recherche vectorielle standard`,
-          );
+          logger.log(`🔍 [RAG-NOTEBOOKLM] Question factuelle → recherche vectorielle standard`);
           return await this.search(query, options);
       }
     } catch (error) {
-      logger.error(
-        "Erreur détection type question, fallback recherche standard:",
-        error,
-      );
+      logger.error("Erreur détection type question, fallback recherche standard:", error);
       return await this.search(query, options);
     }
   }
 
   // 🎯 Détection du type de question avec GPT-4.1-nano
-  private async detectQuestionType(
-    query: string,
-  ): Promise<"RESUME" | "EXPLICATION" | "FACTUELLE"> {
+  private async detectQuestionType(query: string): Promise<"RESUME" | "EXPLICATION" | "FACTUELLE"> {
     try {
       const prompt = `Classe cette question RAG selon les exemples. Réponds UNIQUEMENT avec le JSON demandé.
 
@@ -400,49 +374,39 @@ QUESTION : "${query}"
 Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU {"type": "FACTUELLE"}`;
 
       // 🔍 Debug complet de l'appel OpenAI
-      const isGpt5Nano =
-        process.env.OPENAI_DETECTION_MODEL?.includes("gpt-5-nano");
-      logger.log(
-        `🔑 [API-DEBUG] OPENAI_API_KEY présente: ${!!process.env.OPENAI_API_KEY}`,
-      );
+      const isGpt5Nano = process.env.OPENAI_DETECTION_MODEL?.includes("gpt-5-nano");
+      logger.log(`🔑 [API-DEBUG] OPENAI_API_KEY présente: ${!!process.env.OPENAI_API_KEY}`);
       logger.log(
         `🤖 [API-DEBUG] Model utilisé: ${process.env.OPENAI_DETECTION_MODEL || "gpt-4o-mini"}`,
       );
       logger.log(`⚙️ [API-DEBUG] Mode gpt-5-nano détecté: ${isGpt5Nano}`);
 
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: process.env.OPENAI_DETECTION_MODEL || "gpt-4o-mini",
-            messages: [{ role: "user", content: prompt }],
-            // 🔧 Fix température pour gpt-5-nano-2025-08-07 (seul default=1 supporté)
-            ...(process.env.OPENAI_DETECTION_MODEL?.includes("gpt-5-nano")
-              ? {} // Pas de température pour gpt-5-nano (utilise default=1)
-              : { temperature: 0 }), // temperature=0 pour autres modèles
-            // 🔧 Fix max_tokens pour gpt-5-nano-2025-08-07
-            ...(process.env.OPENAI_DETECTION_MODEL?.includes("gpt-5-nano")
-              ? { max_completion_tokens: 30 }
-              : { max_tokens: 30 }),
-            response_format: { type: "json_object" }, // 🚀 Force JSON strict
-          }),
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          model: process.env.OPENAI_DETECTION_MODEL || "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          // 🔧 Fix température pour gpt-5-nano-2025-08-07 (seul default=1 supporté)
+          ...(process.env.OPENAI_DETECTION_MODEL?.includes("gpt-5-nano")
+            ? {} // Pas de température pour gpt-5-nano (utilise default=1)
+            : { temperature: 0 }), // temperature=0 pour autres modèles
+          // 🔧 Fix max_tokens pour gpt-5-nano-2025-08-07
+          ...(process.env.OPENAI_DETECTION_MODEL?.includes("gpt-5-nano")
+            ? { max_completion_tokens: 30 }
+            : { max_tokens: 30 }),
+          response_format: { type: "json_object" }, // 🚀 Force JSON strict
+        }),
+      });
 
-      logger.log(
-        `🌐 [API-DEBUG] Response status: ${response.status} ${response.statusText}`,
-      );
+      logger.log(`🌐 [API-DEBUG] Response status: ${response.status} ${response.statusText}`);
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.error(
-          `❌ [API-ERROR] OpenAI API Error: ${response.status} - ${errorText}`,
-        );
+        logger.error(`❌ [API-ERROR] OpenAI API Error: ${response.status} - ${errorText}`);
         return "RESUME"; // Fallback intelligent pour "Résumé"
       }
 
@@ -475,14 +439,9 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
           return questionType;
         }
 
-        logger.warn(
-          `⚠️ [JSON-ERROR] Type invalide dans JSON: "${questionType}"`,
-        );
+        logger.warn(`⚠️ [JSON-ERROR] Type invalide dans JSON: "${questionType}"`);
       } catch (parseError) {
-        logger.error(
-          `❌ [JSON-PARSE-ERROR] JSON invalide: "${rawResponse}"`,
-          parseError,
-        );
+        logger.error(`❌ [JSON-PARSE-ERROR] JSON invalide: "${rawResponse}"`, parseError);
       }
 
       // Fallback intelligent si JSON échoue
@@ -496,9 +455,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 
   // 🔄 Fallback déterministe pour détection de type question (si OpenAI échoue)
-  private detectQuestionTypeFallback(
-    query: string,
-  ): "RESUME" | "EXPLICATION" | "FACTUELLE" {
+  private detectQuestionTypeFallback(query: string): "RESUME" | "EXPLICATION" | "FACTUELLE" {
     const queryLower = query.toLowerCase().trim();
 
     // Mots-clés RESUME (requêtes de synthèse)
@@ -543,9 +500,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 
   // 📊 Récupération des chunks de meilleure qualité avec diversification (pour questions générales)
-  private async getBestQualityChunks(
-    options: RAGSearchOptions = {},
-  ): Promise<RAGSearchResult[]> {
+  private async getBestQualityChunks(options: RAGSearchOptions = {}): Promise<RAGSearchResult[]> {
     const {
       limit = 10, // Augmenté pour avoir plus de variété
       workspaceId,
@@ -599,11 +554,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
               ...(userId && workspaceId
                 ? [
                     {
-                      AND: [
-                        { userId: userId },
-                        { workspaceId: workspaceId },
-                        { isGlobal: false },
-                      ],
+                      AND: [{ userId: userId }, { workspaceId: workspaceId }, { isGlobal: false }],
                     },
                   ]
                 : []),
@@ -616,9 +567,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       // 1. Récupérer plus de chunks par source
       // 2. Appliquer un algorithme de diversification
 
-      logger.log(
-        "📊 [RAG-QUALITY] Stratégie de diversification pour résumé...",
-      );
+      logger.log("📊 [RAG-QUALITY] Stratégie de diversification pour résumé...");
 
       // Récupération d'un pool plus large de chunks de qualité
       const allChunks = await prismaEmbeddings.rAGChunk.findMany({
@@ -639,9 +588,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
       // 🔥 EARLY RETURN: Si aucun chunk trouvé, retourner immédiatement
       if (allChunks.length === 0) {
-        logger.log(
-          `⚠️ [RAG-QUALITY] Aucun chunk trouvé pour les critères donnés`,
-        );
+        logger.log(`⚠️ [RAG-QUALITY] Aucun chunk trouvé pour les critères donnés`);
         return [];
       }
 
@@ -705,27 +652,19 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
     // 🔥 SAFETY CHECK: Si aucune source, retourner immédiatement (évite division par zéro)
     if (chunksBySource.size === 0) {
-      logger.log(
-        `⚠️ [DIVERSIFICATION] Aucune source disponible après groupement`,
-      );
+      logger.log(`⚠️ [DIVERSIFICATION] Aucune source disponible après groupement`);
       return [];
     }
 
     // Stratégie : maximum 2-3 chunks par source pour équilibrer
-    const maxChunksPerSource = Math.max(
-      2,
-      Math.floor(targetLimit / chunksBySource.size) + 1,
-    );
+    const maxChunksPerSource = Math.max(2, Math.floor(targetLimit / chunksBySource.size) + 1);
     const diversifiedChunks: PrismaChunkWithPartialSource[] = [];
 
     // Round-robin pour équilibrer les sources
     let round = 0;
     const sourceEntries = Array.from(chunksBySource.entries());
 
-    while (
-      diversifiedChunks.length < targetLimit &&
-      round < maxChunksPerSource
-    ) {
+    while (diversifiedChunks.length < targetLimit && round < maxChunksPerSource) {
       sourceEntries.forEach(([, sourceChunks]) => {
         if (diversifiedChunks.length >= targetLimit) return;
         if (sourceChunks[round]) {
@@ -739,9 +678,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 
   // 📊 Stats des sources pour debugging
-  private getSourceStats(
-    chunks: PrismaChunkWithPartialSource[],
-  ): Record<string, number> {
+  private getSourceStats(chunks: PrismaChunkWithPartialSource[]): Record<string, number> {
     const stats: Record<string, number> = {};
     chunks.forEach((chunk) => {
       const title = chunk.source.title;
@@ -751,10 +688,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 
   // 🔍 Recherche vectorielle intelligente
-  async search(
-    query: string,
-    options: RAGSearchOptions = {},
-  ): Promise<RAGSearchResult[]> {
+  async search(query: string, options: RAGSearchOptions = {}): Promise<RAGSearchResult[]> {
     const {
       limit = 10,
       threshold = 0.2, // Threshold plus réaliste pour RAG
@@ -771,8 +705,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       );
 
       // 1. Génération embedding de la question
-      const queryEmbedding =
-        await this.embeddingService.generateEmbedding(query);
+      const queryEmbedding = await this.embeddingService.generateEmbedding(query);
       logger.log(
         `🔍 [RAG-SEARCH] Embedding généré: ${JSON.stringify(queryEmbedding).length} chars`,
       );
@@ -794,9 +727,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       }
       // 🆕 Sinon, si des pages spécifiques sont demandées, filtrer par ces pages
       else if (specificPageIds && specificPageIds.length > 0) {
-        logger.log(
-          `🔍 [RAG-SEARCH] Filtrage par pages spécifiques: ${specificPageIds.join(", ")}`,
-        );
+        logger.log(`🔍 [RAG-SEARCH] Filtrage par pages spécifiques: ${specificPageIds.join(", ")}`);
         whereClause = {
           sourceId: { in: specificPageIds },
           source: {
@@ -817,11 +748,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
               ...(userId && workspaceId
                 ? [
                     {
-                      AND: [
-                        { userId: userId },
-                        { workspaceId: workspaceId },
-                        { isGlobal: false },
-                      ],
+                      AND: [{ userId: userId }, { workspaceId: workspaceId }, { isGlobal: false }],
                     },
                   ]
                 : []),
@@ -840,10 +767,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         (whereClause.source as Record<string, unknown>).id = { in: sources };
       }
 
-      logger.log(
-        `🔍 [RAG-SEARCH] WhereClause:`,
-        JSON.stringify(whereClause, null, 2),
-      );
+      logger.log(`🔍 [RAG-SEARCH] WhereClause:`, JSON.stringify(whereClause, null, 2));
 
       // 3. 🚀 Recherche vectorielle avec pgvector (native PostgreSQL)
       // Construire la clause WHERE SQL à partir du whereClause
@@ -864,10 +788,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
         }
       }
 
-      if (
-        sources.length > 0 &&
-        !(specificPageIds && specificPageIds.length > 0)
-      ) {
+      if (sources.length > 0 && !(specificPageIds && specificPageIds.length > 0)) {
         sqlWhere += ` AND s.id IN (${sources.map((id) => `'${id}'`).join(",")})`;
       }
 
@@ -893,14 +814,11 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       `;
 
       logger.log(`🚀 [PGVECTOR] Executing vector similarity search...`);
-      const rawResults =
-        await prismaEmbeddings.$queryRawUnsafe<PgVectorSearchResult[]>(sql);
+      const rawResults = await prismaEmbeddings.$queryRawUnsafe<PgVectorSearchResult[]>(sql);
 
       logger.log(
         `🚀 [PGVECTOR] Found ${rawResults.length} chunks (top 3 similarities):`,
-        rawResults
-          .slice(0, 3)
-          .map((r) => ({ similarity: r.similarity, threshold })),
+        rawResults.slice(0, 3).map((r) => ({ similarity: r.similarity, threshold })),
       );
 
       // 4. Filtrer par threshold et formater les résultats
@@ -943,10 +861,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
               await userPagesRAG.updateLastUsed(userPageSourceIds, userId);
             }
           } catch (error) {
-            logger.error(
-              "🔄 [RAG] Erreur mise à jour pages utilisateur:",
-              error,
-            );
+            logger.error("🔄 [RAG] Erreur mise à jour pages utilisateur:", error);
           }
         }
       }
@@ -961,10 +876,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 
   // 🎯 Construction du contexte optimisé
-  async buildOptimizedContext(
-    query: string,
-    searchResults: RAGSearchResult[],
-  ): Promise<string> {
+  async buildOptimizedContext(query: string, searchResults: RAGSearchResult[]): Promise<string> {
     const contextParts = [`Question: ${query}`, "", "Sources pertinentes:"];
 
     searchResults.forEach((result, index) => {
@@ -1045,50 +957,32 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     return chunks;
   }
 
-  private async processChunks(
-    sourceId: string,
-    chunks: RAGChunkInput[],
-  ): Promise<void> {
-    const { mapWithConcurrency, chunkArray } =
-      await import("../../utils/concurrency.js");
-    const concurrency = Math.max(
-      1,
-      parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "10", 10),
-    );
-    const batchSize = Math.max(
-      1,
-      parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10),
-    );
+  private async processChunks(sourceId: string, chunks: RAGChunkInput[]): Promise<void> {
+    const { mapWithConcurrency, chunkArray } = await import("../../utils/concurrency.js");
+    const concurrency = Math.max(1, parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "10", 10));
+    const batchSize = Math.max(1, parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10));
 
     const t0 = Date.now();
-    logger.log(
-      `⚙️  [RAG] Embedding ${chunks.length} chunks avec parallélisation x${concurrency}…`,
-    );
+    logger.log(`⚙️  [RAG] Embedding ${chunks.length} chunks avec parallélisation x${concurrency}…`);
 
     // Calculer les embeddings en parallèle (limité)
-    const prepared = await mapWithConcurrency(
-      chunks,
-      concurrency,
-      async (chunk, i) => {
-        const embedding = await this.embeddingService.generateEmbedding(
-          chunk.content,
-        );
-        const preparedChunk: PreparedChunkData = {
-          sourceId,
-          chunkIndex: i,
-          content: chunk.content,
-          cleanContent: this.cleanContent(chunk.content),
-          embedding: `[${embedding.join(",")}]`, // Format pgvector: '[0.1, 0.2, ...]'
-          tokenCount: this.countTokens(chunk.content),
-          pageNumber: chunk.pageNumber,
-          sectionTitle: chunk.sectionTitle,
-          startOffset: chunk.startOffset,
-          endOffset: chunk.endOffset,
-          quality: chunk.quality ?? 1.0,
-        };
-        return preparedChunk;
-      },
-    );
+    const prepared = await mapWithConcurrency(chunks, concurrency, async (chunk, i) => {
+      const embedding = await this.embeddingService.generateEmbedding(chunk.content);
+      const preparedChunk: PreparedChunkData = {
+        sourceId,
+        chunkIndex: i,
+        content: chunk.content,
+        cleanContent: this.cleanContent(chunk.content),
+        embedding: `[${embedding.join(",")}]`, // Format pgvector: '[0.1, 0.2, ...]'
+        tokenCount: this.countTokens(chunk.content),
+        pageNumber: chunk.pageNumber,
+        sectionTitle: chunk.sectionTitle,
+        startOffset: chunk.startOffset,
+        endOffset: chunk.endOffset,
+        quality: chunk.quality ?? 1.0,
+      };
+      return preparedChunk;
+    });
 
     // Insérer en batch pour réduire les allers-retours DB
     let inserted = 0;
@@ -1123,9 +1017,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       logger.log(`💾 [RAG] Inséré ${inserted}/${prepared.length} chunks…`);
     }
 
-    logger.log(
-      `✅ [RAG] Embedding + insertion terminés en ${Date.now() - t0} ms`,
-    );
+    logger.log(`✅ [RAG] Embedding + insertion terminés en ${Date.now() - t0} ms`);
   }
 
   private cleanContent(content: string): string {
@@ -1148,9 +1040,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
     }
 
     // Bonus pour les chunks avec des phrases complètes
-    const sentences = content
-      .split(/[.!?]+/)
-      .filter((s) => s.trim().length > 20);
+    const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 20);
     if (sentences.length >= 2) quality *= 1.2;
 
     return Math.min(quality, 1.0);
@@ -1170,9 +1060,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
     try {
       // 🚀 FIX: Support both array and string embeddings
-      const vec1 = Array.isArray(embedding1)
-        ? embedding1
-        : JSON.parse(embedding1);
+      const vec1 = Array.isArray(embedding1) ? embedding1 : JSON.parse(embedding1);
       const vec2 = JSON.parse(embedding2);
 
       // Similarité cosinus simple
@@ -1191,9 +1079,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       const norm2Sqrt = Math.sqrt(norm2);
 
       if (norm1Sqrt === 0 || norm2Sqrt === 0) {
-        logger.log(
-          `⚠️ [SIMILARITY] Vector normalization is zero - returning 0`,
-        );
+        logger.log(`⚠️ [SIMILARITY] Vector normalization is zero - returning 0`);
         return 0;
       }
 
@@ -1218,8 +1104,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 // 🚀 Service d'embeddings optimisé - OpenAI text-embedding-3-small
 class EmbeddingService {
   private static readonly OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
-  private static readonly OPENAI_API_URL =
-    "https://api.openai.com/v1/embeddings";
+  private static readonly OPENAI_API_URL = "https://api.openai.com/v1/embeddings";
 
   constructor() {
     // Vérifier que la clé API OpenAI est configurée
@@ -1230,9 +1115,7 @@ class EmbeddingService {
 
   async generateEmbedding(text: string): Promise<number[]> {
     try {
-      logger.log(
-        `🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${text.slice(0, 50)}..."`,
-      );
+      logger.log(`🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${text.slice(0, 50)}..."`);
       const startTime = Date.now();
 
       const response = await fetch(EmbeddingService.OPENAI_API_URL, {
@@ -1275,9 +1158,7 @@ class EmbeddingService {
   // 🚀 BONUS: Méthode batch pour traiter plusieurs chunks d'un coup (future optimisation)
   async generateBatchEmbeddings(texts: string[]): Promise<number[][]> {
     try {
-      logger.log(
-        `🚀 [EMBEDDING-BATCH] Génération batch de ${texts.length} embeddings...`,
-      );
+      logger.log(`🚀 [EMBEDDING-BATCH] Génération batch de ${texts.length} embeddings...`);
       const startTime = Date.now();
 
       const response = await fetch(EmbeddingService.OPENAI_API_URL, {

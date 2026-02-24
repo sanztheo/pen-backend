@@ -165,14 +165,9 @@ export class StatsService {
       };
     }
 
-    const scores = completedQuizzes
-      .map((q) => q.result?.percentage || 0)
-      .filter((s) => s > 0);
+    const scores = completedQuizzes.map((q) => q.result?.percentage || 0).filter((s) => s > 0);
 
-    const totalTimeSpent = completedQuizzes.reduce(
-      (sum, q) => sum + (q.timeSpent || 0),
-      0,
-    );
+    const totalTimeSpent = completedQuizzes.reduce((sum, q) => sum + (q.timeSpent || 0), 0);
 
     const totalQuestions = completedQuizzes.reduce((sum, q) => {
       const questions = (q.questions as unknown[]) || [];
@@ -180,26 +175,19 @@ export class StatsService {
     }, 0);
 
     // Calculer les streaks
-    const { currentStreak, longestStreak } =
-      this.calculateStreaks(completedQuizzes);
+    const { currentStreak, longestStreak } = this.calculateStreaks(completedQuizzes);
 
     return {
       userId,
       totalQuizzes: allQuizzes.length,
       completedQuizzes: completedQuizzes.length,
-      averageScore:
-        scores.length > 0
-          ? scores.reduce((sum, s) => sum + s, 0) / scores.length
-          : 0,
+      averageScore: scores.length > 0 ? scores.reduce((sum, s) => sum + s, 0) / scores.length : 0,
       bestScore: scores.length > 0 ? Math.max(...scores) : 0,
       worstScore: scores.length > 0 ? Math.min(...scores) : 0,
       totalTimeSpent: Math.round(totalTimeSpent / 60), // convertir en minutes
       averageTimePerQuiz:
-        completedQuizzes.length > 0
-          ? Math.round(totalTimeSpent / completedQuizzes.length / 60)
-          : 0,
-      averageTimePerQuestion:
-        totalQuestions > 0 ? Math.round(totalTimeSpent / totalQuestions) : 0,
+        completedQuizzes.length > 0 ? Math.round(totalTimeSpent / completedQuizzes.length / 60) : 0,
+      averageTimePerQuestion: totalQuestions > 0 ? Math.round(totalTimeSpent / totalQuestions) : 0,
       lastQuizDate: completedQuizzes[0]?.completedAt?.toISOString() || null,
       currentStreak,
       longestStreak,
@@ -289,9 +277,7 @@ export class StatsService {
     const subjectPerformances: SubjectPerformance[] = [];
 
     subjectMap.forEach((quizzes, subject) => {
-      const scores = quizzes
-        .map((q) => q.result?.percentage || 0)
-        .filter((s) => s > 0);
+      const scores = quizzes.map((q) => q.result?.percentage || 0).filter((s) => s > 0);
 
       const totalTime = quizzes.reduce((sum, q) => sum + (q.timeSpent || 0), 0);
 
@@ -300,18 +286,14 @@ export class StatsService {
 
       subjectPerformances.push({
         subject,
-        averageScore:
-          scores.length > 0
-            ? scores.reduce((sum, s) => sum + s, 0) / scores.length
-            : 0,
+        averageScore: scores.length > 0 ? scores.reduce((sum, s) => sum + s, 0) / scores.length : 0,
         quizCount: quizzes.length,
         totalTimeSpent: Math.round(totalTime / 60),
         bestScore: scores.length > 0 ? Math.max(...scores) : 0,
         worstScore: scores.length > 0 ? Math.min(...scores) : 0,
         trend,
         lastAttemptDate:
-          quizzes[0]?.completedAt?.toISOString() ||
-          quizzes[0]?.createdAt.toISOString(),
+          quizzes[0]?.completedAt?.toISOString() || quizzes[0]?.createdAt.toISOString(),
       });
     });
 
@@ -369,39 +351,25 @@ export class StatsService {
       include: { result: true },
     });
 
-    const totalTimeSpent = quizzes.reduce(
-      (sum, q) => sum + (q.timeSpent || 0),
-      0,
-    );
+    const totalTimeSpent = quizzes.reduce((sum, q) => sum + (q.timeSpent || 0), 0);
 
     const totalQuestions = quizzes.reduce((sum, q) => {
       const questions = (q.questions as unknown[]) || [];
       return sum + questions.length;
     }, 0);
 
-    const scores = quizzes
-      .map((q) => q.result?.percentage || 0)
-      .filter((s) => s > 0);
+    const scores = quizzes.map((q) => q.result?.percentage || 0).filter((s) => s > 0);
 
     const averageScore =
-      scores.length > 0
-        ? scores.reduce((sum, s) => sum + s, 0) / scores.length
-        : 0;
+      scores.length > 0 ? scores.reduce((sum, s) => sum + s, 0) / scores.length : 0;
 
-    const averageQuizTime =
-      quizzes.length > 0 ? totalTimeSpent / quizzes.length : 0;
+    const averageQuizTime = quizzes.length > 0 ? totalTimeSpent / quizzes.length : 0;
 
     // Temps par difficulté
     const timeByDifficulty = {
-      facile: this.calculateAverageTime(
-        quizzes.filter((q) => q.difficulty === "facile"),
-      ),
-      moyen: this.calculateAverageTime(
-        quizzes.filter((q) => q.difficulty === "moyen"),
-      ),
-      difficile: this.calculateAverageTime(
-        quizzes.filter((q) => q.difficulty === "difficile"),
-      ),
+      facile: this.calculateAverageTime(quizzes.filter((q) => q.difficulty === "facile")),
+      moyen: this.calculateAverageTime(quizzes.filter((q) => q.difficulty === "moyen")),
+      difficile: this.calculateAverageTime(quizzes.filter((q) => q.difficulty === "difficile")),
     };
 
     // Temps par niveau scolaire
@@ -416,20 +384,15 @@ export class StatsService {
     return {
       totalTimeSpent: Math.round(totalTimeSpent / 60),
       averageQuizTime: Math.round(averageQuizTime / 60),
-      averageTimePerQuestion:
-        totalQuestions > 0 ? Math.round(totalTimeSpent / totalQuestions) : 0,
-      efficiency:
-        averageQuizTime > 0 ? averageScore / (averageQuizTime / 60) : 0,
+      averageTimePerQuestion: totalQuestions > 0 ? Math.round(totalTimeSpent / totalQuestions) : 0,
+      efficiency: averageQuizTime > 0 ? averageScore / (averageQuizTime / 60) : 0,
       timeByDifficulty: {
         facile: Math.round(timeByDifficulty.facile / 60),
         moyen: Math.round(timeByDifficulty.moyen / 60),
         difficile: Math.round(timeByDifficulty.difficile / 60),
       },
       timeBySchoolLevel: Object.fromEntries(
-        Object.entries(timeBySchoolLevel).map(([k, v]) => [
-          k,
-          Math.round(v / 60),
-        ]),
+        Object.entries(timeBySchoolLevel).map(([k, v]) => [k, Math.round(v / 60)]),
       ),
     };
   }
@@ -489,9 +452,7 @@ export class StatsService {
     const pageUsages: PageSourceUsage[] = [];
 
     pageUsageMap.forEach((items, pageId) => {
-      const scores = items
-        .map((item) => item.quiz.result?.percentage || 0)
-        .filter((s) => s > 0);
+      const scores = items.map((item) => item.quiz.result?.percentage || 0).filter((s) => s > 0);
 
       const lastUsed = items[items.length - 1];
 
@@ -499,13 +460,9 @@ export class StatsService {
         pageId,
         pageTitle: items[0].pageTitle,
         usageCount: items.length,
-        averageScore:
-          scores.length > 0
-            ? scores.reduce((sum, s) => sum + s, 0) / scores.length
-            : 0,
+        averageScore: scores.length > 0 ? scores.reduce((sum, s) => sum + s, 0) / scores.length : 0,
         lastUsedDate:
-          lastUsed.quiz.completedAt?.toISOString() ||
-          lastUsed.quiz.createdAt.toISOString(),
+          lastUsed.quiz.completedAt?.toISOString() || lastUsed.quiz.createdAt.toISOString(),
       });
     });
 
@@ -547,9 +504,7 @@ export class StatsService {
       questions.forEach((question, index) => {
         const q = question as Record<string, unknown>;
         const type = String(q.type || "UNKNOWN");
-        const scoring = detailedScoring[index] as
-          | Record<string, unknown>
-          | undefined;
+        const scoring = detailedScoring[index] as Record<string, unknown> | undefined;
 
         if (!typeMap.has(type)) {
           typeMap.set(type, {
@@ -578,8 +533,7 @@ export class StatsService {
         type,
         count: stats.count,
         totalQuestions: stats.totalQuestions,
-        averageScore:
-          stats.maxScore > 0 ? (stats.totalScore / stats.maxScore) * 100 : 0,
+        averageScore: stats.maxScore > 0 ? (stats.totalScore / stats.maxScore) * 100 : 0,
       });
     });
 
@@ -589,20 +543,14 @@ export class StatsService {
   // ===== Méthodes utilitaires privées =====
 
   private static analyzeDifficultyGroup(quizzes: QuizWithResult[]) {
-    const scores = quizzes
-      .map((q) => q.result?.percentage || 0)
-      .filter((s) => s > 0);
+    const scores = quizzes.map((q) => q.result?.percentage || 0).filter((s) => s > 0);
 
     const totalTime = quizzes.reduce((sum, q) => sum + (q.timeSpent || 0), 0);
 
     return {
-      averageScore:
-        scores.length > 0
-          ? scores.reduce((sum, s) => sum + s, 0) / scores.length
-          : 0,
+      averageScore: scores.length > 0 ? scores.reduce((sum, s) => sum + s, 0) / scores.length : 0,
       count: quizzes.length,
-      averageTime:
-        quizzes.length > 0 ? Math.round(totalTime / quizzes.length / 60) : 0,
+      averageTime: quizzes.length > 0 ? Math.round(totalTime / quizzes.length / 60) : 0,
     };
   }
 
@@ -612,15 +560,11 @@ export class StatsService {
     return totalTime / quizzes.length;
   }
 
-  private static calculateTrend(
-    quizzes: QuizWithResult[],
-  ): "improving" | "stable" | "declining" {
+  private static calculateTrend(quizzes: QuizWithResult[]): "improving" | "stable" | "declining" {
     if (quizzes.length < 3) return "stable";
 
     const recentQuizzes = quizzes.slice(0, Math.min(5, quizzes.length));
-    const scores = recentQuizzes
-      .map((q) => q.result?.percentage || 0)
-      .filter((s) => s > 0);
+    const scores = recentQuizzes.map((q) => q.result?.percentage || 0).filter((s) => s > 0);
 
     if (scores.length < 2) return "stable";
 
@@ -657,9 +601,7 @@ export class StatsService {
     let tempStreak = 1;
 
     const today = new Date().toISOString().split("T")[0];
-    const yesterday = new Date(Date.now() - 86400000)
-      .toISOString()
-      .split("T")[0];
+    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 
     // Calculer le streak actuel
     if (uniqueDates[0] !== today && uniqueDates[0] !== yesterday) {
@@ -668,9 +610,7 @@ export class StatsService {
       for (let i = 0; i < uniqueDates.length - 1; i++) {
         const date1 = new Date(uniqueDates[i]);
         const date2 = new Date(uniqueDates[i + 1]);
-        const diffDays = Math.floor(
-          (date1.getTime() - date2.getTime()) / 86400000,
-        );
+        const diffDays = Math.floor((date1.getTime() - date2.getTime()) / 86400000);
 
         if (diffDays === 1) {
           currentStreak++;
@@ -684,9 +624,7 @@ export class StatsService {
     for (let i = 0; i < uniqueDates.length - 1; i++) {
       const date1 = new Date(uniqueDates[i]);
       const date2 = new Date(uniqueDates[i + 1]);
-      const diffDays = Math.floor(
-        (date1.getTime() - date2.getTime()) / 86400000,
-      );
+      const diffDays = Math.floor((date1.getTime() - date2.getTime()) / 86400000);
 
       if (diffDays === 1) {
         tempStreak++;

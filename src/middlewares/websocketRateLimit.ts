@@ -144,9 +144,7 @@ export const cleanupStaleTrackers = () => {
 export const startWebSocketCleanup = () => {
   // Nettoyer toutes les 5 minutes
   setInterval(cleanupStaleTrackers, 5 * 60 * 1000);
-  logger.log(
-    "🧹 [WS-RATE-LIMIT] Nettoyage automatique activé (toutes les 5 minutes)",
-  );
+  logger.log("🧹 [WS-RATE-LIMIT] Nettoyage automatique activé (toutes les 5 minutes)");
 };
 
 /**
@@ -165,10 +163,6 @@ export const getWebSocketRateLimitStats = () => {
  */
 export const logWebSocketRateLimitConfig = () => {
   logger.log("🛡️  WebSocket Rate Limiting ACTIVÉ:");
-  logger.log(
-    `   - Connexions: ${WS_RATE_LIMIT.connectionsPerMinute} par minute par IP`,
-  );
-  logger.log(
-    `   - Messages:   ${WS_RATE_LIMIT.messagesPerMinute} par minute par connexion`,
-  );
+  logger.log(`   - Connexions: ${WS_RATE_LIMIT.connectionsPerMinute} par minute par IP`);
+  logger.log(`   - Messages:   ${WS_RATE_LIMIT.messagesPerMinute} par minute par connexion`);
 };

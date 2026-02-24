@@ -35,11 +35,7 @@ export const validateSourceDocuments = (
   for (const doc of sourceDocuments) {
     if (typeof doc === "string") {
       totalSize += doc.length;
-    } else if (
-      doc &&
-      typeof doc === "object" &&
-      typeof doc.content === "string"
-    ) {
+    } else if (doc && typeof doc === "object" && typeof doc.content === "string") {
       totalSize += doc.content.length;
     } else if (doc && typeof doc === "object" && typeof doc.text === "string") {
       totalSize += doc.text.length;
@@ -47,9 +43,7 @@ export const validateSourceDocuments = (
 
     // Limite par document individuel (500KB)
     const docSize =
-      typeof doc === "string"
-        ? doc.length
-        : doc?.content?.length || doc?.text?.length || 0;
+      typeof doc === "string" ? doc.length : doc?.content?.length || doc?.text?.length || 0;
     if (docSize > 500000) {
       return {
         valid: false,

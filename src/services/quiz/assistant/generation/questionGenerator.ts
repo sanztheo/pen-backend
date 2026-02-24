@@ -39,9 +39,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function isSingleQuestionGenerationResult(
-  value: unknown,
-): value is SingleQuestionGenerationResult {
+function isSingleQuestionGenerationResult(value: unknown): value is SingleQuestionGenerationResult {
   return isRecord(value) && Array.isArray(value.questions);
 }
 
@@ -89,19 +87,14 @@ export class QuestionGenerator {
       let personalization: PersonalizationContext | undefined;
       if (request.userId && typeof request.userId === "string") {
         try {
-          personalization = await getPersonalizationContextForUser(
-            request.userId,
-          );
+          personalization = await getPersonalizationContextForUser(request.userId);
           if (personalization?.hasPersonalization) {
             logger.log(
               `👤 [PERSONALIZATION] Contexte utilisateur chargé: ${personalization.classe || "N/A"}, ${personalization.domaine || "N/A"}`,
             );
           }
         } catch (error) {
-          logger.warn(
-            "⚠️ [PERSONALIZATION] Impossible de charger la personnalisation:",
-            error,
-          );
+          logger.warn("⚠️ [PERSONALIZATION] Impossible de charger la personnalisation:", error);
         }
       }
 
@@ -111,9 +104,7 @@ export class QuestionGenerator {
         request.existingQuestions,
       )
         ? request.existingQuestions.flatMap((q) =>
-            isRecord(q) && typeof q.question === "string"
-              ? [{ question: q.question }]
-              : [],
+            isRecord(q) && typeof q.question === "string" ? [{ question: q.question }] : [],
           )
         : [];
 
@@ -176,20 +167,12 @@ export class QuestionGenerator {
       // Parser la réponse JSON
       const result: unknown = JSON.parse(responseContent);
 
-      if (
-        isSingleQuestionGenerationResult(result) &&
-        result.questions.length > 0
-      ) {
-        logger.log(
-          "✅ [STREAMING] Question générée avec succès via chat completion",
-        );
+      if (isSingleQuestionGenerationResult(result) && result.questions.length > 0) {
+        logger.log("✅ [STREAMING] Question générée avec succès via chat completion");
         return result;
       }
 
-      logger.error(
-        "❌ [STREAMING] Réponse inattendue du chat completion:",
-        result,
-      );
+      logger.error("❌ [STREAMING] Réponse inattendue du chat completion:", result);
       throw new Error("Aucune question valide générée");
     } catch (error) {
       logger.error("❌ [STREAMING] Erreur génération question:", error);

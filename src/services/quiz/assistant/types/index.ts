@@ -20,11 +20,7 @@ export type ChartType =
   | "heatmap";
 
 // Types de correction
-export type CorrectionType =
-  | "standard"
-  | "with_graphics"
-  | "with_documents"
-  | "complete";
+export type CorrectionType = "standard" | "with_graphics" | "with_documents" | "complete";
 export type SourceType = "graphic" | "document" | "mixed" | "knowledge";
 
 // Interface pour les options de génération de quiz

@@ -1,12 +1,11 @@
-import { Request, Response } from 'express';
-import { prisma } from '../../../lib/prisma.js';
+import { Request, Response } from "express";
+import { prisma } from "../../../lib/prisma.js";
 import { logger } from "../../../utils/logger.js";
 
 /**
  * Contrôleur pour la gestion des pages et projets
  */
 export class PagesProjectsController {
-
   /**
    * GET /api/quiz/pages-projects - Récupère les pages et projets disponibles
    */
@@ -14,7 +13,7 @@ export class PagesProjectsController {
     try {
       const userId = req.user?.id;
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
@@ -23,14 +22,14 @@ export class PagesProjectsController {
         where: {
           members: {
             some: {
-              userId: userId
-            }
-          }
+              userId: userId,
+            },
+          },
         },
         include: {
           pages: {
             where: {
-              isArchived: false
+              isArchived: false,
             },
             select: {
               id: true,
@@ -42,28 +41,28 @@ export class PagesProjectsController {
               project: {
                 select: {
                   id: true,
-                  name: true
-                }
-              }
-            }
+                  name: true,
+                },
+              },
+            },
           },
           projects: {
             where: {
-              isArchived: false
+              isArchived: false,
             },
             include: {
               _count: {
                 select: {
                   pages: {
                     where: {
-                      isArchived: false
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+                      isArchived: false,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       });
 
       // Formater les données pour le frontend
@@ -78,7 +77,7 @@ export class PagesProjectsController {
           items.push({
             id: page.id,
             title: page.title,
-            type: 'page' as const,
+            type: "page" as const,
             workspaceId: workspace.id,
             workspaceName: workspace.name,
             workspaceColor: workspace.color,
@@ -86,7 +85,7 @@ export class PagesProjectsController {
             estimatedQuestions: Math.max(1, Math.floor(estimatedWordCount / 200)), // ~1 question par 200 mots
             project: page.project,
             icon: page.icon,
-            iconColor: page.iconColor
+            iconColor: page.iconColor,
           });
         }
 
@@ -99,7 +98,7 @@ export class PagesProjectsController {
           items.push({
             id: project.id,
             title: project.name,
-            type: 'project' as const,
+            type: "project" as const,
             workspaceId: workspace.id,
             workspaceName: workspace.name,
             workspaceColor: workspace.color,
@@ -107,7 +106,7 @@ export class PagesProjectsController {
             lastModified: project.updatedAt.toISOString(),
             wordCount: totalWords,
             estimatedQuestions: Math.max(1, Math.floor(totalWords / 150)), // ~1 question par 150 mots pour les projets
-            pageCount: project._count.pages
+            pageCount: project._count.pages,
           });
         }
       }
@@ -117,14 +116,13 @@ export class PagesProjectsController {
 
       res.status(200).json({
         success: true,
-        items
+        items,
       });
-
     } catch (error) {
-      logger.error('Erreur récupération pages/projets:', error);
+      logger.error("Erreur récupération pages/projets:", error);
       res.status(500).json({
-        error: 'Erreur lors de la récupération des pages et projets',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de la récupération des pages et projets",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }
@@ -138,12 +136,12 @@ export class PagesProjectsController {
       const { itemIds } = req.body;
 
       if (!userId) {
-        res.status(401).json({ error: 'Utilisateur non authentifié' });
+        res.status(401).json({ error: "Utilisateur non authentifié" });
         return;
       }
 
       if (!itemIds || !Array.isArray(itemIds)) {
-        res.status(400).json({ error: 'Liste des IDs requise' });
+        res.status(400).json({ error: "Liste des IDs requise" });
         return;
       }
 
@@ -151,18 +149,18 @@ export class PagesProjectsController {
 
       for (const itemId of itemIds) {
         // Essayer de trouver l'élément comme une page d'abord
-        let page = await prisma.page.findFirst({
+        const page = await prisma.page.findFirst({
           where: {
             id: itemId,
             isArchived: false,
             workspace: {
               members: {
                 some: {
-                  userId: userId
-                }
-              }
-            }
-          }
+                  userId: userId,
+                },
+              },
+            },
+          },
         });
 
         if (page) {
@@ -172,37 +170,37 @@ export class PagesProjectsController {
           analysisResults.push({
             id: page.id,
             title: page.title,
-            type: 'page',
+            type: "page",
             estimatedQuestions: Math.max(1, Math.floor(estimatedWordCount / 200)),
-            lastActivity: page.updatedAt.toISOString()
+            lastActivity: page.updatedAt.toISOString(),
           });
           continue;
         }
 
         // Sinon, essayer comme un projet
-        let project = await prisma.project.findFirst({
+        const project = await prisma.project.findFirst({
           where: {
             id: itemId,
             isArchived: false,
             workspace: {
               members: {
                 some: {
-                  userId: userId
-                }
-              }
-            }
+                  userId: userId,
+                },
+              },
+            },
           },
           include: {
             _count: {
               select: {
                 pages: {
                   where: {
-                    isArchived: false
-                  }
-                }
-              }
-            }
-          }
+                    isArchived: false,
+                  },
+                },
+              },
+            },
+          },
         });
 
         if (project) {
@@ -213,24 +211,23 @@ export class PagesProjectsController {
           analysisResults.push({
             id: project.id,
             title: project.name,
-            type: 'project',
+            type: "project",
             pageCount: project._count.pages,
             estimatedQuestions: Math.max(1, Math.floor(totalWords / 150)),
-            lastActivity: project.updatedAt.toISOString()
+            lastActivity: project.updatedAt.toISOString(),
           });
         }
       }
 
       res.status(200).json({
         success: true,
-        items: analysisResults
+        items: analysisResults,
       });
-
     } catch (error) {
-      logger.error('Erreur analyse pages/projets:', error);
+      logger.error("Erreur analyse pages/projets:", error);
       res.status(500).json({
-        error: 'Erreur lors de l\'analyse des pages et projets',
-        details: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: "Erreur lors de l'analyse des pages et projets",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
       });
     }
   }

@@ -19,8 +19,7 @@ export async function withRetry<T>(
 
       return await operation();
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       const errorCode =
         error !== null && typeof error === "object" && "code" in error
           ? String((error as { code: unknown }).code)
@@ -34,10 +33,7 @@ export async function withRetry<T>(
         errorCode === "P1017"; // Neon cold start
 
       if (attempt === maxRetries || !isConnectionError) {
-        logger.error(
-          `❌ Échec final après ${attempt} tentatives:`,
-          errorMessage,
-        );
+        logger.error(`❌ Échec final après ${attempt} tentatives:`, errorMessage);
         throw error;
       }
 

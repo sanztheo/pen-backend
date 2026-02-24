@@ -86,14 +86,12 @@ logger.log("   - admin-export (priorité: 2)");
 
 // 🔧 Fonctions utilitaires pour monitoring
 export const getQueueStats = async () => {
-  const [genCounts, quizCounts, futuraCounts, exportCounts] = await Promise.all(
-    [
-      aiGenerationQueue.getJobCounts(),
-      aiQuizQueue.getJobCounts(),
-      futuraQueue.getJobCounts(),
-      adminExportQueue.getJobCounts(),
-    ],
-  );
+  const [genCounts, quizCounts, futuraCounts, exportCounts] = await Promise.all([
+    aiGenerationQueue.getJobCounts(),
+    aiQuizQueue.getJobCounts(),
+    futuraQueue.getJobCounts(),
+    adminExportQueue.getJobCounts(),
+  ]);
 
   return {
     aiGeneration: genCounts,

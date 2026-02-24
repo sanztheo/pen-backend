@@ -5,10 +5,7 @@ import {
   type RAGSource,
 } from "../../lib/prismaEmbeddings.js";
 import { logger } from "../../utils/logger.js";
-import {
-  cacheActiveRAGSession,
-  invalidateRAGSessionCache,
-} from "../../lib/redis.js";
+import { cacheActiveRAGSession, invalidateRAGSessionCache } from "../../lib/redis.js";
 import type { RAGSearchResult } from "./index.js";
 
 // Type pour les résultats de recherche compressés stockés dans le contexte
@@ -133,12 +130,11 @@ export class SessionMemorySystem {
       );
 
       // Appliquer les limites et la compression si nécessaire
-      const { queries, responses, context } =
-        await this.applyLimitsAndCompression(
-          updatedQueries,
-          updatedResponses,
-          newContext,
-        );
+      const { queries, responses, context } = await this.applyLimitsAndCompression(
+        updatedQueries,
+        updatedResponses,
+        newContext,
+      );
 
       // Mettre à jour la session
       const updatedSession = await prisma.rAGSession.update({
@@ -157,11 +153,8 @@ export class SessionMemorySystem {
       });
 
       // 🗑️ INVALIDER CACHE REDIS après sauvegarde interaction
-      invalidateRAGSessionCache(
-        updatedSession.userId,
-        updatedSession.workspaceId || "",
-      ).catch((err) =>
-        logger.error("⚠️ [REDIS] Erreur invalidation cache RAG:", err),
+      invalidateRAGSessionCache(updatedSession.userId, updatedSession.workspaceId || "").catch(
+        (err) => logger.error("⚠️ [REDIS] Erreur invalidation cache RAG:", err),
       );
     } catch (error) {
       logger.error("Erreur sauvegarde interaction:", error);
@@ -170,10 +163,7 @@ export class SessionMemorySystem {
   }
 
   // 🔍 Récupération de la mémoire récente
-  async getRecentMemory(
-    sessionId: string,
-    maxInteractions: number = 5,
-  ): Promise<string> {
+  async getRecentMemory(sessionId: string, maxInteractions: number = 5): Promise<string> {
     try {
       const session = await prisma.rAGSession.findUnique({
         where: { id: sessionId },
@@ -183,22 +173,14 @@ export class SessionMemorySystem {
         return "";
       }
 
-      const queries = Array.isArray(session.queries)
-        ? (session.queries as string[])
-        : [];
-      const responses = Array.isArray(session.responses)
-        ? (session.responses as string[])
-        : [];
+      const queries = Array.isArray(session.queries) ? (session.queries as string[]) : [];
+      const responses = Array.isArray(session.responses) ? (session.responses as string[]) : [];
 
       const recentQueries = queries.slice(-maxInteractions);
       const recentResponses = responses.slice(-maxInteractions);
 
       let memoryText = "";
-      for (
-        let i = 0;
-        i < Math.min(recentQueries.length, recentResponses.length);
-        i++
-      ) {
+      for (let i = 0; i < Math.min(recentQueries.length, recentResponses.length); i++) {
         memoryText += `Q: ${recentQueries[i]}\nR: ${recentResponses[i]}\n\n`;
       }
 
@@ -232,12 +214,8 @@ export class SessionMemorySystem {
       };
     }
 
-    const queries = Array.isArray(session.queries)
-      ? (session.queries as string[])
-      : [];
-    const responses = Array.isArray(session.responses)
-      ? (session.responses as string[])
-      : [];
+    const queries = Array.isArray(session.queries) ? (session.queries as string[]) : [];
+    const responses = Array.isArray(session.responses) ? (session.responses as string[]) : [];
     const context: SessionContextData =
       typeof session.context === "object" && session.context !== null
         ? (session.context as SessionContextData)
@@ -268,8 +246,7 @@ export class SessionMemorySystem {
         : "",
 
       // 2. Dernière interaction si pertinente
-      this.isQueryRelatedToPrevious(newQuery, sessionContext.lastQuery) &&
-      sessionContext.lastQuery
+      this.isQueryRelatedToPrevious(newQuery, sessionContext.lastQuery) && sessionContext.lastQuery
         ? `## Dernière question\n${sessionContext.lastQuery}\n${sessionContext.lastResponse || ""}\n`
         : "",
 
@@ -319,8 +296,7 @@ export class SessionMemorySystem {
 
     const activeSessions = sessions.filter(
       (s: RAGSessionWithPartialSources) =>
-        s.lastQueryAt !== null &&
-        s.lastQueryAt > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        s.lastQueryAt !== null && s.lastQueryAt > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     );
 
     const totalQueries = sessions.reduce(
@@ -349,8 +325,7 @@ export class SessionMemorySystem {
       totalSessions: sessions.length,
       activeSessions: activeSessions.length,
       totalQueries,
-      averageQueriesPerSession:
-        sessions.length > 0 ? totalQueries / sessions.length : 0,
+      averageQueriesPerSession: sessions.length > 0 ? totalQueries / sessions.length : 0,
       mostUsedSources,
     };
   }
@@ -371,15 +346,11 @@ export class SessionMemorySystem {
     const recentResponses = responses.slice(-5);
 
     const summary = recentQueries
-      .map(
-        (query, index) =>
-          `Q: ${query}\nR: ${recentResponses[index] || "Pas de réponse"}`,
-      )
+      .map((query, index) => `Q: ${query}\nR: ${recentResponses[index] || "Pas de réponse"}`)
       .join("\n\n");
 
     return {
-      summary:
-        summary.length > 2000 ? this.summarizeText(summary, 2000) : summary,
+      summary: summary.length > 2000 ? this.summarizeText(summary, 2000) : summary,
       keyTopics: this.extractKeyTopics(queries),
       lastSearchResults:
         searchResults?.slice(0, 3).map((r) => ({
@@ -424,10 +395,7 @@ export class SessionMemorySystem {
 
     // Résumer le summary s'il est trop long
     if (compressed.summary && compressed.summary.length > maxLength * 0.7) {
-      compressed.summary = this.summarizeText(
-        compressed.summary,
-        Math.floor(maxLength * 0.7),
-      );
+      compressed.summary = this.summarizeText(compressed.summary, Math.floor(maxLength * 0.7));
     }
 
     // Garder seulement les topics les plus importants
@@ -436,10 +404,7 @@ export class SessionMemorySystem {
     }
 
     // Limiter les résultats de recherche
-    if (
-      compressed.lastSearchResults &&
-      compressed.lastSearchResults.length > 2
-    ) {
+    if (compressed.lastSearchResults && compressed.lastSearchResults.length > 2) {
       compressed.lastSearchResults = compressed.lastSearchResults.slice(0, 2);
     }
 
@@ -458,9 +423,7 @@ export class SessionMemorySystem {
 
     const summary = `${firstSentence}\n[...résumé...]\n${lastSentence}`;
 
-    return summary.length <= maxLength
-      ? summary
-      : text.slice(0, maxLength) + "...";
+    return summary.length <= maxLength ? summary : text.slice(0, maxLength) + "...";
   }
 
   private extractKeyTopics(queries: string[]): string[] {
@@ -498,19 +461,14 @@ export class SessionMemorySystem {
       .map(([word]) => word);
   }
 
-  private isQueryRelatedToPrevious(
-    newQuery: string,
-    previousQuery?: string,
-  ): boolean {
+  private isQueryRelatedToPrevious(newQuery: string, previousQuery?: string): boolean {
     if (!previousQuery) return false;
 
     // Analyse simple de similarité (à améliorer)
     const newWords = new Set(newQuery.toLowerCase().split(/\s+/));
     const prevWords = new Set(previousQuery.toLowerCase().split(/\s+/));
 
-    const intersection = new Set(
-      [...newWords].filter((word) => prevWords.has(word)),
-    );
+    const intersection = new Set([...newWords].filter((word) => prevWords.has(word)));
     const union = new Set([...newWords, ...prevWords]);
 
     return intersection.size / union.size > 0.3; // 30% de similarité
@@ -537,9 +495,7 @@ export class SessionMemorySystem {
         `🔍 [SESSION-DEBUG] Recherche session active - userId: ${userId}, workspaceId: ${workspaceId}`,
       );
       const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      logger.log(
-        `🔍 [SESSION-DEBUG] Seuil de temps (dernières 24h): ${cutoffTime.toISOString()}`,
-      );
+      logger.log(`🔍 [SESSION-DEBUG] Seuil de temps (dernières 24h): ${cutoffTime.toISOString()}`);
 
       // 🚀 REDIS CACHE: Récupérer depuis cache (5min TTL)
       const session = await cacheActiveRAGSession(userId, workspaceId);
@@ -557,9 +513,7 @@ export class SessionMemorySystem {
           `✅ [SESSION-DEBUG] Session active trouvée: ${session.id}, sources: ${session.sourcesUsed?.length || 0}, lastQueryAt: ${lastQueryAtStr}`,
         );
       } else {
-        logger.log(
-          `❌ [SESSION-DEBUG] Aucune session active trouvée dans les dernières 24h`,
-        );
+        logger.log(`❌ [SESSION-DEBUG] Aucune session active trouvée dans les dernières 24h`);
       }
 
       return session;
@@ -623,9 +577,7 @@ export class SessionMemorySystem {
       });
 
       if (!existingSession) {
-        logger.error(
-          `🔍 [SESSION-DEBUG] ❌ Session ${sessionId} n'existe pas!`,
-        );
+        logger.error(`🔍 [SESSION-DEBUG] ❌ Session ${sessionId} n'existe pas!`);
         return false;
       }
 
@@ -662,10 +614,7 @@ export class SessionMemorySystem {
 
       // Ensuite, ajouter les nouvelles sources
       const sourceConnections = sources.map((source) => ({ id: source.id }));
-      logger.log(
-        `🔍 [SESSION-DEBUG] Connexion des nouvelles sources:`,
-        sourceConnections,
-      );
+      logger.log(`🔍 [SESSION-DEBUG] Connexion des nouvelles sources:`, sourceConnections);
 
       const savedSession = await prisma.rAGSession.update({
         where: { id: sessionId },
@@ -681,10 +630,7 @@ export class SessionMemorySystem {
       );
 
       // 🗑️ INVALIDER CACHE REDIS après sauvegarde sources
-      invalidateRAGSessionCache(
-        savedSession.userId,
-        savedSession.workspaceId || "",
-      ).catch((err) =>
+      invalidateRAGSessionCache(savedSession.userId, savedSession.workspaceId || "").catch((err) =>
         logger.error("⚠️ [REDIS] Erreur invalidation cache RAG:", err),
       );
 
@@ -699,10 +645,7 @@ export class SessionMemorySystem {
       );
       return true;
     } catch (error) {
-      logger.error(
-        "🔍 [SESSION-DEBUG] ❌ Erreur sauvegarde sources session:",
-        error,
-      );
+      logger.error("🔍 [SESSION-DEBUG] ❌ Erreur sauvegarde sources session:", error);
       return false;
     }
   }

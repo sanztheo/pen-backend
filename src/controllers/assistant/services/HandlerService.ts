@@ -13,14 +13,18 @@ import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
 
 // Stub pour WebSearchService (le streaming utilise maintenant l'agent Pennote)
 const WebSearchService = {
-  async searchWithRefs(_query: string): Promise<{ text: string; refs: Array<{ title?: string; url?: string }> }> {
-    DebugLogger.web("[DEPRECATED] WebSearchService.searchWithRefs appelé - utiliser l'agent Pennote");
+  async searchWithRefs(
+    _query: string,
+  ): Promise<{ text: string; refs: Array<{ title?: string; url?: string }> }> {
+    DebugLogger.web(
+      "[DEPRECATED] WebSearchService.searchWithRefs appelé - utiliser l'agent Pennote",
+    );
     return { text: "", refs: [] };
   },
   async simpleSearch(_query: string, _limit: number): Promise<string> {
     DebugLogger.web("[DEPRECATED] WebSearchService.simpleSearch appelé - utiliser l'agent Pennote");
     return "";
-  }
+  },
 };
 
 export interface HandlerRequest {
@@ -45,10 +49,7 @@ export class AssistantHandlerService {
    * Trace les paramètres web de manière unifiée
    * FIXE: Code debug identique dans les 3 handlers
    */
-  static traceWebParams(
-    mode: "ASK" | "SEARCH" | "CREATE",
-    params: HandlerRequest,
-  ) {
+  static traceWebParams(mode: "ASK" | "SEARCH" | "CREATE", params: HandlerRequest) {
     DebugLogger.web(
       `[${mode}] Paramètre useWeb reçu: ${params.useWeb} (type: ${typeof params.useWeb})`,
     );
@@ -74,9 +75,7 @@ export class AssistantHandlerService {
   ): Promise<ContextResult> {
     const { query, workspaceId, pageIds, useWeb, ragSources, userId } = request;
 
-    DebugLogger.performance(
-      `[${mode.toUpperCase()}] Construction contexte - début`,
-    );
+    DebugLogger.performance(`[${mode.toUpperCase()}] Construction contexte - début`);
     const startTime = Date.now();
 
     // 🧠 RAG: Si sources RAG externes, les utiliser prioritairement
@@ -90,30 +89,16 @@ export class AssistantHandlerService {
       effectivePageIds = []; // Pas de pages workspace en mode RAG externe
 
       try {
-        ragContext = await this.buildRAGContext(
-          query,
-          ragSources,
-          workspaceId,
-          userId,
-        );
+        ragContext = await this.buildRAGContext(query, ragSources, workspaceId, userId);
       } catch (error) {
-        DebugLogger.rag(
-          `[${mode.toUpperCase()}] Erreur construction contexte RAG:`,
-          error,
-        );
+        DebugLogger.rag(`[${mode.toUpperCase()}] Erreur construction contexte RAG:`, error);
       }
     }
 
     // Construction du contexte des pages workspace
     const pageContext =
       effectivePageIds.length > 0
-        ? await buildPagesContextChunked(
-            workspaceId,
-            effectivePageIds,
-            10,
-            query,
-            12,
-          )
+        ? await buildPagesContextChunked(workspaceId, effectivePageIds, 10, query, 12)
         : "";
 
     // 🆕 Récupérer les objets Page réels pour la conversion RAG
@@ -130,10 +115,7 @@ export class AssistantHandlerService {
         });
         pageObjects = pages;
       } catch (error) {
-        DebugLogger.rag(
-          `[${mode.toUpperCase()}] Erreur récupération objets pages:`,
-          error,
-        );
+        DebugLogger.rag(`[${mode.toUpperCase()}] Erreur récupération objets pages:`, error);
       }
     }
 
@@ -141,9 +123,7 @@ export class AssistantHandlerService {
     let webContext = "";
     let webRefs: Array<{ title?: string; url?: string }> = [];
 
-    DebugLogger.web(
-      `[${mode.toUpperCase()}] Avant recherche web - useWeb: ${useWeb}`,
-    );
+    DebugLogger.web(`[${mode.toUpperCase()}] Avant recherche web - useWeb: ${useWeb}`);
 
     if (useWeb) {
       if (mode === "search") {
@@ -156,21 +136,15 @@ export class AssistantHandlerService {
     }
 
     // Validation des résultats web
-    DebugLogger.web(
-      `[${mode.toUpperCase()}] Après recherche web - useWeb: ${useWeb}`,
-    );
-    DebugLogger.web(
-      `[${mode.toUpperCase()}] - Web text length: ${webContext.length}`,
-    );
+    DebugLogger.web(`[${mode.toUpperCase()}] Après recherche web - useWeb: ${useWeb}`);
+    DebugLogger.web(`[${mode.toUpperCase()}] - Web text length: ${webContext.length}`);
     if (useWeb && webContext.length === 0) {
       DebugLogger.web(
         `[${mode.toUpperCase()}] ⚠️ ATTENTION: Web activé mais aucun contenu trouvé!`,
       );
     }
     if (!useWeb && webContext.length > 0) {
-      DebugLogger.web(
-        `[${mode.toUpperCase()}] 🚨 ERREUR: Web désactivé mais contenu présent!`,
-      );
+      DebugLogger.web(`[${mode.toUpperCase()}] 🚨 ERREUR: Web désactivé mais contenu présent!`);
     }
 
     const endTime = Date.now();
@@ -274,18 +248,13 @@ Réponds UNIQUEMENT par "OUI" si au moins une source est pertinente, ou "NON" si
         maxTokens: 10,
       });
 
-      const isRelevant = relevanceCheck.content
-        ?.trim()
-        .toUpperCase()
-        .includes("OUI");
+      const isRelevant = relevanceCheck.content?.trim().toUpperCase().includes("OUI");
       DebugLogger.rag(
         `🤖 Vérification pertinence: ${isRelevant ? "PERTINENTES ✅" : "NON PERTINENTES ❌"}`,
       );
 
       if (!isRelevant) {
-        DebugLogger.rag(
-          `⏭️ Sources ignorées car non pertinentes pour: "${query}"`,
-        );
+        DebugLogger.rag(`⏭️ Sources ignorées car non pertinentes pour: "${query}"`);
         return "";
       }
 
@@ -302,13 +271,8 @@ Réponds UNIQUEMENT par "OUI" si au moins une source est pertinente, ou "NON" si
         return "";
       }
 
-      const ragContext = await ragSystem.buildOptimizedContext(
-        query,
-        ragResults,
-      );
-      DebugLogger.rag(
-        `Contexte RAG construit: ${ragContext.length} caractères`,
-      );
+      const ragContext = await ragSystem.buildOptimizedContext(query, ragResults);
+      DebugLogger.rag(`Contexte RAG construit: ${ragContext.length} caractères`);
 
       return ragContext;
     } catch (error) {

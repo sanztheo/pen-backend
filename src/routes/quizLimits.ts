@@ -4,11 +4,11 @@
  */
 
 import { logger } from "../utils/logger.js";
-import express from 'express';
-import { authenticateToken } from '../middlewares/auth.js';
-import { Request } from 'express';
-import { AuthUser } from '../services/auth.js';
-import { QuizLimitsService } from '../services/credits/quizLimitsService.js';
+import express from "express";
+import { authenticateToken } from "../middlewares/auth.js";
+import { Request } from "express";
+import { AuthUser } from "../services/auth.js";
+import { QuizLimitsService } from "../services/credits/quizLimitsService.js";
 
 const router = express.Router();
 
@@ -21,7 +21,7 @@ interface AuthRequest extends Request {
  * GET /api/quiz-limits/custom/check
  * Vérifier les limites de quiz personnalisés
  */
-router.get('/custom/check', authenticateToken, async (req: AuthRequest, res) => {
+router.get("/custom/check", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const result = await QuizLimitsService.canCreateCustomQuiz(userId);
@@ -32,15 +32,15 @@ router.get('/custom/check', authenticateToken, async (req: AuthRequest, res) => 
       remainingQuizzes: result.remainingQuizzes,
       limitReached: result.limitReached,
       message: result.message,
-      limitType: 'quiz-custom'
+      limitType: "quiz-custom",
     });
   } catch (error) {
-    logger.error('Erreur vérification limites quiz personnalisés:', error);
+    logger.error("Erreur vérification limites quiz personnalisés:", error);
     res.status(500).json({
       success: false,
-      error: 'Erreur serveur lors de la vérification des limites',
+      error: "Erreur serveur lors de la vérification des limites",
       canCreate: false,
-      remainingQuizzes: 0
+      remainingQuizzes: 0,
     });
   }
 });
@@ -49,11 +49,11 @@ router.get('/custom/check', authenticateToken, async (req: AuthRequest, res) => 
  * GET /api/quiz-limits/preset/check/:preset
  * Vérifier les limites de séquences preset
  */
-router.get('/preset/check/:preset', authenticateToken, async (req: AuthRequest, res) => {
+router.get("/preset/check/:preset", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const { preset } = req.params;
-    
+
     const result = await QuizLimitsService.canCreatePresetSequence(userId, preset);
 
     res.json({
@@ -61,15 +61,15 @@ router.get('/preset/check/:preset', authenticateToken, async (req: AuthRequest, 
       canCreate: result.success,
       limitReached: result.limitReached,
       message: result.message,
-      limitType: 'quiz-preset',
-      existingSequence: result.existingSequence
+      limitType: "quiz-preset",
+      existingSequence: result.existingSequence,
     });
   } catch (error) {
-    logger.error('Erreur vérification limites séquences preset:', error);
+    logger.error("Erreur vérification limites séquences preset:", error);
     res.status(500).json({
       success: false,
-      error: 'Erreur serveur lors de la vérification des limites',
-      canCreate: false
+      error: "Erreur serveur lors de la vérification des limites",
+      canCreate: false,
     });
   }
 });
@@ -78,7 +78,7 @@ router.get('/preset/check/:preset', authenticateToken, async (req: AuthRequest, 
  * POST /api/quiz-limits/custom/deduct
  * Déduire un quota de quiz personnalisé
  */
-router.post('/custom/deduct', authenticateToken, async (req: AuthRequest, res) => {
+router.post("/custom/deduct", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const result = await QuizLimitsService.deductCustomQuiz(userId);
@@ -87,24 +87,24 @@ router.post('/custom/deduct', authenticateToken, async (req: AuthRequest, res) =
       res.json({
         success: true,
         remainingQuizzes: result.remainingQuizzes,
-        message: result.message
+        message: result.message,
       });
     } else {
       res.status(403).json({
         success: false,
-        error: 'CUSTOM_QUIZ_LIMIT_REACHED',
+        error: "CUSTOM_QUIZ_LIMIT_REACHED",
         remainingQuizzes: result.remainingQuizzes,
         limitReached: result.limitReached,
         message: result.message,
-        limitType: 'quiz-custom'
+        limitType: "quiz-custom",
       });
     }
   } catch (error) {
-    logger.error('Erreur déduction quiz personnalisé:', error);
+    logger.error("Erreur déduction quiz personnalisé:", error);
     res.status(500).json({
       success: false,
-      error: 'Erreur serveur lors de la déduction',
-      remainingQuizzes: 0
+      error: "Erreur serveur lors de la déduction",
+      remainingQuizzes: 0,
     });
   }
 });
@@ -113,30 +113,31 @@ router.post('/custom/deduct', authenticateToken, async (req: AuthRequest, res) =
  * POST /api/quiz-limits/preset/start
  * Démarrer une nouvelle séquence de preset
  */
-router.post('/preset/start', authenticateToken, async (req: AuthRequest, res) => {
+router.post("/preset/start", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
-    const { preset, subjects, totalSubjects, specialties, higherEdField, workspaceIds, metadata } = req.body;
+    const { preset, subjects, totalSubjects, specialties, higherEdField, workspaceIds, metadata } =
+      req.body;
 
     // Validation des données requises
     if (!preset || !subjects || !totalSubjects) {
       return res.status(400).json({
         success: false,
-        error: 'MISSING_REQUIRED_FIELDS',
-        message: 'Les champs preset, subjects et totalSubjects sont requis'
+        error: "MISSING_REQUIRED_FIELDS",
+        message: "Les champs preset, subjects et totalSubjects sont requis",
       });
     }
 
     // Vérifier les limites
     const canCreate = await QuizLimitsService.canCreatePresetSequence(userId, preset);
-    
+
     if (!canCreate.success) {
       return res.status(403).json({
         success: false,
-        error: 'PRESET_SEQUENCE_LIMIT_REACHED',
+        error: "PRESET_SEQUENCE_LIMIT_REACHED",
         message: canCreate.message,
-        limitType: 'quiz-preset',
-        existingSequence: canCreate.existingSequence
+        limitType: "quiz-preset",
+        existingSequence: canCreate.existingSequence,
       });
     }
 
@@ -147,7 +148,7 @@ router.post('/preset/start', authenticateToken, async (req: AuthRequest, res) =>
       specialties: specialties || [],
       higherEdField,
       workspaceIds: workspaceIds || [],
-      metadata: metadata || {}
+      metadata: metadata || {},
     };
 
     const result = await QuizLimitsService.startPresetSequence(userId, preset, sequenceData);
@@ -156,21 +157,21 @@ router.post('/preset/start', authenticateToken, async (req: AuthRequest, res) =>
       res.json({
         success: true,
         sequenceId: result.sequenceId,
-        message: result.message
+        message: result.message,
       });
     } else {
       res.status(403).json({
         success: false,
-        error: 'PRESET_SEQUENCE_START_FAILED',
+        error: "PRESET_SEQUENCE_START_FAILED",
         message: result.message,
-        limitType: 'quiz-preset'
+        limitType: "quiz-preset",
       });
     }
   } catch (error) {
-    logger.error('Erreur démarrage séquence preset:', error);
+    logger.error("Erreur démarrage séquence preset:", error);
     res.status(500).json({
       success: false,
-      error: 'Erreur serveur lors du démarrage de la séquence'
+      error: "Erreur serveur lors du démarrage de la séquence",
     });
   }
 });
@@ -179,17 +180,17 @@ router.post('/preset/start', authenticateToken, async (req: AuthRequest, res) =>
  * POST /api/quiz-limits/refund
  * Rembourser un quota de quiz en cas d'erreur
  */
-router.post('/refund', authenticateToken, async (req: AuthRequest, res) => {
+router.post("/refund", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
     const { type, reason } = req.body;
 
     // Validation du type
-    if (!type || !['custom', 'preset'].includes(type)) {
+    if (!type || !["custom", "preset"].includes(type)) {
       return res.status(400).json({
         success: false,
-        error: 'INVALID_REFUND_TYPE',
-        message: 'Le type doit être "custom" ou "preset"'
+        error: "INVALID_REFUND_TYPE",
+        message: 'Le type doit être "custom" ou "preset"',
       });
     }
 
@@ -200,20 +201,20 @@ router.post('/refund', authenticateToken, async (req: AuthRequest, res) => {
         success: true,
         message: result.message,
         refundType: type,
-        reason: reason || 'manual_refund'
+        reason: reason || "manual_refund",
       });
     } else {
       res.status(400).json({
         success: false,
-        error: 'REFUND_FAILED',
-        message: result.message
+        error: "REFUND_FAILED",
+        message: result.message,
       });
     }
   } catch (error) {
-    logger.error('Erreur remboursement quota quiz:', error);
+    logger.error("Erreur remboursement quota quiz:", error);
     res.status(500).json({
       success: false,
-      error: 'Erreur serveur lors du remboursement'
+      error: "Erreur serveur lors du remboursement",
     });
   }
 });
@@ -222,43 +223,43 @@ router.post('/refund', authenticateToken, async (req: AuthRequest, res) => {
  * GET /api/quiz-limits/status
  * Obtenir le statut complet des limites de quiz pour l'utilisateur
  */
-router.get('/status', authenticateToken, async (req: AuthRequest, res) => {
+router.get("/status", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.user!.id;
 
     // Vérifier les limites des quiz personnalisés
     const customResult = await QuizLimitsService.canCreateCustomQuiz(userId);
-    
+
     // Vérifier les séquences preset existantes
     const presetResults = await Promise.all([
-      QuizLimitsService.canCreatePresetSequence(userId, 'BREVET'),
-      QuizLimitsService.canCreatePresetSequence(userId, 'BAC'),
-      QuizLimitsService.canCreatePresetSequence(userId, 'PARTIELS')
+      QuizLimitsService.canCreatePresetSequence(userId, "BREVET"),
+      QuizLimitsService.canCreatePresetSequence(userId, "BAC"),
+      QuizLimitsService.canCreatePresetSequence(userId, "PARTIELS"),
     ]);
 
     // Extraire les séquences existantes
     const existingSequences = presetResults
-      .filter(result => result.existingSequence)
-      .map(result => result.existingSequence);
+      .filter((result) => result.existingSequence)
+      .map((result) => result.existingSequence);
 
     res.json({
       success: true,
       customQuizzes: {
         canCreate: customResult.success,
         remainingQuizzes: customResult.remainingQuizzes,
-        limitReached: customResult.limitReached
+        limitReached: customResult.limitReached,
       },
       presetSequences: {
-        canCreate: presetResults.some(result => result.success),
+        canCreate: presetResults.some((result) => result.success),
         existingSequences,
-        hasActiveSequence: existingSequences.length > 0
-      }
+        hasActiveSequence: existingSequences.length > 0,
+      },
     });
   } catch (error) {
-    logger.error('Erreur récupération statut limites quiz:', error);
+    logger.error("Erreur récupération statut limites quiz:", error);
     res.status(500).json({
       success: false,
-      error: 'Erreur serveur lors de la récupération du statut'
+      error: "Erreur serveur lors de la récupération du statut",
     });
   }
 });

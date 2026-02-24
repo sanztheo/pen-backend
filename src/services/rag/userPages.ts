@@ -64,10 +64,7 @@ export class UserPagesRAGSystem {
 
       return existingSource;
     } catch (error) {
-      logger.error(
-        `❌ [USER-PAGE] Erreur recherche source existante pour page ${pageId}:`,
-        error,
-      );
+      logger.error(`❌ [USER-PAGE] Erreur recherche source existante pour page ${pageId}:`, error);
       return null;
     }
   }
@@ -104,14 +101,9 @@ export class UserPagesRAGSystem {
             ? existingSource.metadata["lastModified"]
             : undefined;
 
-        if (
-          existingLastModified === pageLastModified &&
-          existingSource.status === "COMPLETED"
-        ) {
+        if (existingLastModified === pageLastModified && existingSource.status === "COMPLETED") {
           // ✅ Page déjà à jour, juste marquer comme utilisée
-          logger.log(
-            `✅ [USER-PAGE] Page "${page.title}" déjà à jour, pas de retraitement`,
-          );
+          logger.log(`✅ [USER-PAGE] Page "${page.title}" déjà à jour, pas de retraitement`);
 
           await prisma.rAGSource.update({
             where: { id: existingSource.id },
@@ -196,9 +188,7 @@ export class UserPagesRAGSystem {
         },
       });
 
-      logger.log(
-        `✅ [USER-PAGE] Terminé: "${page.title}" (${chunks.length} chunks)`,
-      );
+      logger.log(`✅ [USER-PAGE] Terminé: "${page.title}" (${chunks.length} chunks)`);
       return source.id;
     } catch (error) {
       logger.error(`❌ [USER-PAGE] Erreur traitement "${page.title}":`, error);
@@ -212,11 +202,7 @@ export class UserPagesRAGSystem {
    * @param userId - ID du propriétaire
    * @param workspaceId - ID du workspace
    */
-  async removeUserPage(
-    pageId: string,
-    userId: string,
-    workspaceId: string,
-  ): Promise<boolean> {
+  async removeUserPage(pageId: string, userId: string, workspaceId: string): Promise<boolean> {
     try {
       logger.log(`🗑️ [USER-PAGE] Suppression RAG pour page: ${pageId}`);
 
@@ -233,9 +219,7 @@ export class UserPagesRAGSystem {
         },
       });
 
-      logger.log(
-        `✅ [USER-PAGE] Sources RAG supprimées pour page ${pageId}: ${result.count}`,
-      );
+      logger.log(`✅ [USER-PAGE] Sources RAG supprimées pour page ${pageId}: ${result.count}`);
       return true;
     } catch (error) {
       logger.error(`❌ [USER-PAGE] Erreur suppression:`, error);
@@ -266,9 +250,7 @@ export class UserPagesRAGSystem {
   }
 
   // 📦 Chunking intelligent du contenu utilisateur
-  private async chunkUserPageContent(
-    page: UserPageContent,
-  ): Promise<RAGChunkInput[]> {
+  private async chunkUserPageContent(page: UserPageContent): Promise<RAGChunkInput[]> {
     const chunks: RAGChunkInput[] = [];
 
     // Nettoyer le contenu (markdown → texte)
@@ -343,9 +325,7 @@ export class UserPagesRAGSystem {
   }
 
   // 📚 Extraction des sections depuis markdown
-  private extractSections(
-    content: string,
-  ): Array<{ title: string; content: string }> {
+  private extractSections(content: string): Array<{ title: string; content: string }> {
     const sections: Array<{ title: string; content: string }> = [];
     const lines = content.split("\n");
 
@@ -430,62 +410,42 @@ export class UserPagesRAGSystem {
     if (content.length > 2000) quality *= 0.8;
 
     // Bonus phrases complètes
-    const sentences = content
-      .split(/[.!?]+/)
-      .filter((s) => s.trim().length > 10);
+    const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 10);
     if (sentences.length >= 3) quality *= 1.05;
 
     return Math.min(quality, 1.0);
   }
 
   // 🧠 Traitement des chunks avec embeddings
-  private async processUserPageChunks(
-    sourceId: string,
-    chunks: RAGChunkInput[],
-  ): Promise<void> {
-    const { mapWithConcurrency, chunkArray } =
-      await import("../../utils/concurrency.js");
-    const concurrency = Math.max(
-      1,
-      parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10),
-    );
-    const batchSize = Math.max(
-      1,
-      parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10),
-    );
+  private async processUserPageChunks(sourceId: string, chunks: RAGChunkInput[]): Promise<void> {
+    const { mapWithConcurrency, chunkArray } = await import("../../utils/concurrency.js");
+    const concurrency = Math.max(1, parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10));
+    const batchSize = Math.max(1, parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10));
 
     const t0 = Date.now();
-    logger.log(
-      `⚙️  [USER-PAGE] Embedding ${chunks.length} chunks (x${concurrency})…`,
-    );
+    logger.log(`⚙️  [USER-PAGE] Embedding ${chunks.length} chunks (x${concurrency})…`);
 
-    const prepared = await mapWithConcurrency(
-      chunks,
-      concurrency,
-      async (chunk, i) => {
-        try {
-          const embedding = await this.generateEmbedding(chunk.content);
-          return {
-            sourceId,
-            chunkIndex: i,
-            content: chunk.content,
-            cleanContent: this.cleanContent(chunk.content),
-            embedding: JSON.stringify(embedding),
-            tokenCount: this.estimateTokens(chunk.content),
-            sectionTitle: chunk.sectionTitle ?? null,
-            quality: chunk.quality ?? 1.0,
-          } satisfies PreparedRAGChunkRow;
-        } catch (error) {
-          logger.error(`❌ [USER-PAGE] Erreur embedding chunk ${i}:`, error);
-          // On ignore ce chunk en cas d'erreur individuelle
-          return null;
-        }
-      },
-    );
+    const prepared = await mapWithConcurrency(chunks, concurrency, async (chunk, i) => {
+      try {
+        const embedding = await this.generateEmbedding(chunk.content);
+        return {
+          sourceId,
+          chunkIndex: i,
+          content: chunk.content,
+          cleanContent: this.cleanContent(chunk.content),
+          embedding: JSON.stringify(embedding),
+          tokenCount: this.estimateTokens(chunk.content),
+          sectionTitle: chunk.sectionTitle ?? null,
+          quality: chunk.quality ?? 1.0,
+        } satisfies PreparedRAGChunkRow;
+      } catch (error) {
+        logger.error(`❌ [USER-PAGE] Erreur embedding chunk ${i}:`, error);
+        // On ignore ce chunk en cas d'erreur individuelle
+        return null;
+      }
+    });
 
-    const filtered = prepared.filter(
-      (row): row is PreparedRAGChunkRow => row !== null,
-    );
+    const filtered = prepared.filter((row): row is PreparedRAGChunkRow => row !== null);
     let inserted = 0;
     for (const batch of chunkArray(filtered, batchSize)) {
       // Utiliser SQL brut pour insérer les embeddings (Prisma ne supporte pas vector nativement)
@@ -512,9 +472,7 @@ export class UserPagesRAGSystem {
         `;
         inserted++;
       }
-      logger.log(
-        `💾 [USER-PAGE] Inséré ${inserted}/${filtered.length} chunks…`,
-      );
+      logger.log(`💾 [USER-PAGE] Inséré ${inserted}/${filtered.length} chunks…`);
     }
 
     logger.log(`✅ [USER-PAGE] Terminé en ${Date.now() - t0} ms`);

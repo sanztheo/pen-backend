@@ -4,8 +4,8 @@
  */
 
 import { logger } from "../utils/logger.js";
-import { prisma } from '../lib/prisma.js';
-import { AuthUser } from './auth.js';
+import { prisma } from "../lib/prisma.js";
+import { AuthUser } from "./auth.js";
 
 export class DefaultWorkspaceService {
   /**
@@ -18,22 +18,22 @@ export class DefaultWorkspaceService {
         where: {
           ownerId_name: {
             ownerId: userId,
-            name: 'Mon Espace'
-          }
+            name: "Mon Espace",
+          },
         },
         update: {},
         create: {
-          name: 'Mon Espace',
-          description: 'Votre espace personnel de travail',
-          color: '#3B82F6',
-          ownerId: userId
+          name: "Mon Espace",
+          description: "Votre espace personnel de travail",
+          color: "#3B82F6",
+          ownerId: userId,
         },
-        select: { id: true } // On ne récupère que l'ID
+        select: { id: true }, // On ne récupère que l'ID
       });
 
       // 2. Vérifier si le membre propriétaire existe
       const member = await prisma.workspaceMember.findUnique({
-        where: { workspaceId_userId: { workspaceId: workspace.id, userId: userId } }
+        where: { workspaceId_userId: { workspaceId: workspace.id, userId: userId } },
       });
 
       // 3. Si le membre n'existe pas, c'est une nouvelle création
@@ -47,27 +47,30 @@ export class DefaultWorkspaceService {
               data: {
                 workspaceId: workspace.id,
                 userId: userId,
-                role: 'owner',
-                joinedAt: new Date()
-              }
+                role: "owner",
+                joinedAt: new Date(),
+              },
             });
 
             // Incrémenter le compteur d'usage
             await tx.userLimits.upsert({
               where: { userId },
               update: {
-                workspacesUsed: { increment: 1 }
+                workspacesUsed: { increment: 1 },
               },
               create: {
                 userId: userId,
                 workspacesUsed: 1,
                 projectsUsed: 0,
-                pagesUsed: 0
-              }
+                pagesUsed: 0,
+              },
             });
           });
         } catch (e) {
-          logger.error('❌ [DEFAULT-WS] Erreur transactionnelle lors de la création du membre/limite:', e);
+          logger.error(
+            "❌ [DEFAULT-WS] Erreur transactionnelle lors de la création du membre/limite:",
+            e,
+          );
           // Si la transaction échoue, il faut une stratégie de rollback ou de compensation.
           // Pour l'instant, on log l'erreur. Le workspace existe mais sans membre.
           throw e; // Propage l'erreur pour que l'appelant sache que l'opération a échoué.
@@ -83,8 +86,8 @@ export class DefaultWorkspaceService {
               id: true,
               firstName: true,
               lastName: true,
-              email: true
-            }
+              email: true,
+            },
           },
           members: {
             include: {
@@ -93,22 +96,24 @@ export class DefaultWorkspaceService {
                   id: true,
                   firstName: true,
                   lastName: true,
-                  email: true
-                }
-              }
-            }
+                  email: true,
+                },
+              },
+            },
           },
           _count: {
             select: {
               projects: true,
-              members: true
-            }
-          }
-        }
+              members: true,
+            },
+          },
+        },
       });
-
     } catch (error) {
-      logger.error('❌ [DEFAULT-WS] Erreur lors de la récupération/création du workspace par défaut:', error);
+      logger.error(
+        "❌ [DEFAULT-WS] Erreur lors de la récupération/création du workspace par défaut:",
+        error,
+      );
       throw error;
     }
   }
@@ -119,7 +124,7 @@ export class DefaultWorkspaceService {
   static async getDefaultWorkspaceId(userId: string): Promise<string> {
     const workspace = await this.getOrCreateDefaultWorkspace(userId);
     if (!workspace) {
-      throw new Error('Impossible de récupérer ou créer le workspace par défaut.');
+      throw new Error("Impossible de récupérer ou créer le workspace par défaut.");
     }
     return workspace.id;
   }
@@ -132,8 +137,8 @@ export class DefaultWorkspaceService {
       where: {
         id: workspaceId,
         ownerId: userId,
-        name: 'Mon Espace'
-      }
+        name: "Mon Espace",
+      },
     });
     return !!workspace;
   }
@@ -142,8 +147,10 @@ export class DefaultWorkspaceService {
    * Initialise le workspace par défaut pour les utilisateurs existants (migration)
    */
   static async initializeForExistingUsers() {
-    logger.log('🔄 [DEFAULT-WS] Initialisation des workspaces par défaut pour utilisateurs existants...');
-    
+    logger.log(
+      "🔄 [DEFAULT-WS] Initialisation des workspaces par défaut pour utilisateurs existants...",
+    );
+
     try {
       // Récupérer tous les utilisateurs sans workspace "Mon Espace"
       const usersWithoutDefault = await prisma.user.findMany({
@@ -151,16 +158,16 @@ export class DefaultWorkspaceService {
           NOT: {
             ownedWorkspaces: {
               some: {
-                name: 'Mon Espace'
-              }
-            }
-          }
+                name: "Mon Espace",
+              },
+            },
+          },
         },
         select: {
           id: true,
           firstName: true,
-          lastName: true
-        }
+          lastName: true,
+        },
       });
 
       logger.log(`🔄 [DEFAULT-WS] ${usersWithoutDefault.length} utilisateurs à traiter`);
@@ -174,9 +181,9 @@ export class DefaultWorkspaceService {
         }
       }
 
-      logger.log('✅ [DEFAULT-WS] Initialisation terminée');
+      logger.log("✅ [DEFAULT-WS] Initialisation terminée");
     } catch (error) {
-      logger.error('❌ [DEFAULT-WS] Erreur lors de l\'initialisation:', error);
+      logger.error("❌ [DEFAULT-WS] Erreur lors de l'initialisation:", error);
       throw error;
     }
   }

@@ -22,9 +22,7 @@ function getOpenAI(): OpenAI {
   if (!openaiClient) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error(
-        "OPENAI_API_KEY manquant dans les variables d'environnement",
-      );
+      throw new Error("OPENAI_API_KEY manquant dans les variables d'environnement");
     }
     openaiClient = new OpenAI({ apiKey });
   }
@@ -122,9 +120,7 @@ export class ThematicClustererService {
       generateNames = true,
     } = options;
 
-    logger.log(
-      `🎯 [ThematicClusterer] Clustering de ${pageIds.length} pages...`,
-    );
+    logger.log(`🎯 [ThematicClusterer] Clustering de ${pageIds.length} pages...`);
 
     // 1. Récupérer les concepts des pages
     const pagesWithConcepts = await this.getPagesWithConcepts(pageIds);
@@ -160,10 +156,7 @@ export class ThematicClustererService {
     }
 
     // 3. Déterminer l'algorithme optimal
-    const selectedAlgorithm = this.selectAlgorithm(
-      pagesWithConcepts.length,
-      algorithm,
-    );
+    const selectedAlgorithm = this.selectAlgorithm(pagesWithConcepts.length, algorithm);
     logger.log(`🔧 [ThematicClusterer] Algorithme: ${selectedAlgorithm}`);
 
     // 4. Exécuter le clustering
@@ -173,23 +166,16 @@ export class ThematicClustererService {
     if (selectedAlgorithm === "kmeans") {
       // Calcul de k optimisé pour petits datasets
       // Pour 2-3 pages: k=2, 4-7 pages: k=3, 8-11: k=4, etc.
-      const k = Math.min(
-        maxClusters,
-        Math.max(2, Math.ceil(pagesWithConcepts.length / 2.5)),
-      );
+      const k = Math.min(maxClusters, Math.max(2, Math.ceil(pagesWithConcepts.length / 2.5)));
       const result = kMeans(validEmbeddings, k);
-      clusterIndices = result.clusters.filter(
-        (c) => c.length >= minClusterSize,
-      );
+      clusterIndices = result.clusters.filter((c) => c.length >= minClusterSize);
       usedAlgorithm = `kmeans (k=${k})`;
     } else {
       const result = dbscan(validEmbeddings, {
         autoEps: true,
         minPts: minClusterSize,
       });
-      clusterIndices = result.clusters.filter(
-        (c) => c.length >= minClusterSize,
-      );
+      clusterIndices = result.clusters.filter((c) => c.length >= minClusterSize);
       // Ajouter les points de bruit comme cluster séparé si nécessaire
       if (result.noise.length >= minClusterSize) {
         clusterIndices.push(result.noise);
@@ -205,26 +191,16 @@ export class ThematicClustererService {
       const clusterPages = indices.map((idx) => pagesWithConcepts[idx]);
       const clusterEmbeddings = indices.map((idx) => validEmbeddings[idx]);
 
-      const cluster = await this.buildCluster(
-        `cluster-${i + 1}`,
-        clusterPages,
-        clusterEmbeddings,
-      );
+      const cluster = await this.buildCluster(`cluster-${i + 1}`, clusterPages, clusterEmbeddings);
       clusters.push(cluster);
     }
 
     // Gérer les pages orphelines (non clusterisées)
     const clusteredIndices = new Set(clusterIndices.flat());
-    const orphanPages = pagesWithConcepts.filter(
-      (_, idx) => !clusteredIndices.has(idx),
-    );
+    const orphanPages = pagesWithConcepts.filter((_, idx) => !clusteredIndices.has(idx));
     if (orphanPages.length > 0) {
       const orphanEmbeddings = orphanPages.map((p) => p.embedding);
-      const orphanCluster = await this.buildCluster(
-        "cluster-misc",
-        orphanPages,
-        orphanEmbeddings,
-      );
+      const orphanCluster = await this.buildCluster("cluster-misc", orphanPages, orphanEmbeddings);
       orphanCluster.name = "Divers";
       orphanCluster.description = "Pages diverses non regroupées par thème";
       clusters.push(orphanCluster);
@@ -240,14 +216,10 @@ export class ThematicClustererService {
 
     // 8. Calculer le silhouette score
     const silhouette =
-      clusterIndices.length > 1
-        ? silhouetteScore(validEmbeddings, clusterIndices)
-        : 0;
+      clusterIndices.length > 1 ? silhouetteScore(validEmbeddings, clusterIndices) : 0;
 
     const processingTimeMs = Date.now() - startTime;
-    logger.log(
-      `✅ [ThematicClusterer] ${clusters.length} clusters créés en ${processingTimeMs}ms`,
-    );
+    logger.log(`✅ [ThematicClusterer] ${clusters.length} clusters créés en ${processingTimeMs}ms`);
     logger.log(`   📊 Silhouette score: ${silhouette.toFixed(3)}`);
 
     return {
@@ -262,9 +234,7 @@ export class ThematicClustererService {
   /**
    * Récupère les pages avec leurs concepts depuis la base
    */
-  private static async getPagesWithConcepts(
-    pageIds: string[],
-  ): Promise<PageWithConcepts[]> {
+  private static async getPagesWithConcepts(pageIds: string[]): Promise<PageWithConcepts[]> {
     // D'abord, s'assurer que les concepts sont extraits
     const existingConcepts = await prisma.pageConcepts.findMany({
       where: { pageId: { in: pageIds } },
@@ -348,17 +318,14 @@ export class ThematicClustererService {
 
     // Calculer l'importance (basée sur le volume et la densité)
     const totalWords = pages.reduce((sum, p) => sum + p.wordCount, 0);
-    const avgDensity =
-      pages.reduce((sum, p) => sum + p.keywords.length, 0) / pages.length;
+    const avgDensity = pages.reduce((sum, p) => sum + p.keywords.length, 0) / pages.length;
     const importance = Math.min(1, (totalWords / 5000) * (avgDensity / 10));
 
     // Déterminer la difficulté moyenne
     const difficultyMap = { easy: 1, medium: 2, hard: 3 };
     const avgDifficulty =
       pages.reduce(
-        (sum, p) =>
-          sum +
-          (difficultyMap[p.difficulty as keyof typeof difficultyMap] || 2),
+        (sum, p) => sum + (difficultyMap[p.difficulty as keyof typeof difficultyMap] || 2),
         0,
       ) / pages.length;
     const difficulty: "easy" | "medium" | "hard" =
@@ -380,12 +347,8 @@ export class ThematicClustererService {
   /**
    * Crée un cluster unique pour toutes les pages
    */
-  private static async createSingleCluster(
-    pages: PageWithConcepts[],
-  ): Promise<ThematicCluster> {
-    const embeddings = pages
-      .filter((p) => p.embedding.length > 0)
-      .map((p) => p.embedding);
+  private static async createSingleCluster(pages: PageWithConcepts[]): Promise<ThematicCluster> {
+    const embeddings = pages.filter((p) => p.embedding.length > 0).map((p) => p.embedding);
 
     const cluster = await this.buildCluster("cluster-1", pages, embeddings);
     cluster.name = "Contenu principal";
@@ -400,9 +363,7 @@ export class ThematicClustererService {
   private static async generateClusterNames(
     clusters: ThematicCluster[],
   ): Promise<ThematicCluster[]> {
-    logger.log(
-      `🏷️ [ThematicClusterer] Génération des noms pour ${clusters.length} clusters...`,
-    );
+    logger.log(`🏷️ [ThematicClusterer] Génération des noms pour ${clusters.length} clusters...`);
 
     const openai = getOpenAI();
 
@@ -435,10 +396,7 @@ Page titles: ${cluster.pages
           cluster.description = parsed.description || cluster.description;
         }
       } catch (error) {
-        logger.warn(
-          `⚠️ [ThematicClusterer] Erreur naming cluster ${cluster.id}:`,
-          error,
-        );
+        logger.warn(`⚠️ [ThematicClusterer] Erreur naming cluster ${cluster.id}:`, error);
       }
 
       // Pause pour éviter le rate limiting
@@ -465,9 +423,7 @@ Page titles: ${cluster.pages
     for (let i = 0; i < clusters.length; i++) {
       const cluster = clusters[i];
       const ratio =
-        totalImportance > 0
-          ? cluster.importance / totalImportance
-          : 1 / clusters.length;
+        totalImportance > 0 ? cluster.importance / totalImportance : 1 / clusters.length;
 
       // Minimum 2 questions par cluster
       const quota = Math.max(2, Math.round(totalQuestions * ratio));
@@ -532,9 +488,7 @@ Page titles: ${cluster.pages
     workspaceId: string,
     options: ClusterOptions = {},
   ): Promise<ClusterResult> {
-    logger.log(
-      `🎯 [ThematicClusterer] Clustering du workspace ${workspaceId}...`,
-    );
+    logger.log(`🎯 [ThematicClusterer] Clustering du workspace ${workspaceId}...`);
 
     // Récupérer toutes les pages du workspace
     const pages = await prisma.page.findMany({

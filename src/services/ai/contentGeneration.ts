@@ -36,10 +36,7 @@ interface ChatCompletionStreamPayload extends Omit<
 /**
  * Payload for non-streaming chat completions (supports both standard and reasoning models)
  */
-interface ChatCompletionPayload extends Omit<
-  ChatCompletionCreateParamsNonStreaming,
-  "max_tokens"
-> {
+interface ChatCompletionPayload extends Omit<ChatCompletionCreateParamsNonStreaming, "max_tokens"> {
   max_tokens?: number;
   max_completion_tokens?: number;
   reasoning_effort?: "low" | "medium" | "high";
@@ -114,9 +111,7 @@ export class ContentGenerationService {
   /**
    * Générer du contenu avec l'IA - SUPPORT STREAMING
    */
-  static async generateContent(
-    options: AIGenerationOptions,
-  ): Promise<AIGenerationResult> {
+  static async generateContent(options: AIGenerationOptions): Promise<AIGenerationResult> {
     if (!AIService.isConfigured()) {
       throw new Error("Service IA non configuré - OPENAI_API_KEY manquante");
     }
@@ -164,9 +159,7 @@ export class ContentGenerationService {
       const MIN_COMPLETION_TOKENS = isNanoModel ? 5000 : 2000;
       // Cap dur côté provider ~32768 tokens de complétion → garder une marge de sécurité
       const PROVIDER_HARD_CAP = 32768;
-      const MAX_COMPLETION_TOKENS = isNanoModel
-        ? Math.min(32000, PROVIDER_HARD_CAP)
-        : 6000;
+      const MAX_COMPLETION_TOKENS = isNanoModel ? Math.min(32000, PROVIDER_HARD_CAP) : 6000;
       const targetTokens = Math.min(
         Math.max(options.maxTokens || 0, MIN_COMPLETION_TOKENS),
         MAX_COMPLETION_TOKENS,
@@ -174,8 +167,7 @@ export class ContentGenerationService {
 
       // 🧠 SÉLECTION DU CLIENT (OpenAI vs Grok)
       let client: OpenAI;
-      const isGrok =
-        typeof model === "string" && model.toLowerCase().includes("grok");
+      const isGrok = typeof model === "string" && model.toLowerCase().includes("grok");
 
       if (isGrok) {
         logger.log("🧠 [PROVIDER] Utilisation de xAI (Grok)");
@@ -185,9 +177,7 @@ export class ContentGenerationService {
       }
 
       const messages = [
-        ...(options.context
-          ? [{ role: "system" as const, content: options.context }]
-          : []),
+        ...(options.context ? [{ role: "system" as const, content: options.context }] : []),
         { role: "user" as const, content: options.prompt },
       ];
 
@@ -238,22 +228,18 @@ export class ContentGenerationService {
 
         let fullContent = "";
         let accumulatedReasoning = ""; // 🆕 Accumulateur de raisonnement
-        let usage: CompletionUsage | undefined = undefined;
+        const usage: CompletionUsage | undefined = undefined;
         let finishReason = "unknown";
 
         try {
           for await (const chunk of stream) {
             // 🚫 Vérifier annulation pendant le streaming
             if (options.signal?.aborted || controller.signal.aborted) {
-              logger.log(
-                "🚫 [STREAMING] Annulation détectée, arrêt du streaming",
-              );
+              logger.log("🚫 [STREAMING] Annulation détectée, arrêt du streaming");
               throw new Error("Requête annulée");
             }
 
-            const delta = chunk.choices[0]?.delta as
-              | ExtendedChatCompletionDelta
-              | undefined;
+            const delta = chunk.choices[0]?.delta as ExtendedChatCompletionDelta | undefined;
             const content = delta?.content || "";
             const reasoning = delta?.reasoning_content || ""; // 🧠 Capture Grok/OpenAI reasoning
 
@@ -320,9 +306,7 @@ export class ContentGenerationService {
         // 🧠 Log complet du thinking si existant (DEMANDE UTILISATEUR)
         if (accumulatedReasoning.length > 0) {
           logger.log(
-            "\n🧠 [COMPLETE THINKING]:\n" +
-              accumulatedReasoning +
-              "\n-------------------\n",
+            "\n🧠 [COMPLETE THINKING]:\n" + accumulatedReasoning + "\n-------------------\n",
           );
         }
 
@@ -330,9 +314,7 @@ export class ContentGenerationService {
         if (finishReason === "length" && (options.maxTokens || 0) > 0) {
           try {
             const followupMessages = [
-              ...(options.context
-                ? [{ role: "system" as const, content: options.context }]
-                : []),
+              ...(options.context ? [{ role: "system" as const, content: options.context }] : []),
               {
                 role: "user" as const,
                 content: "Continue la réponse précédente.",
@@ -401,16 +383,13 @@ export class ContentGenerationService {
       // Si le signal externe est annulé, annuler notre controller
       if (combinedSignal) {
         combinedSignal.addEventListener("abort", () => {
-          logger.log(
-            "🚫 [CLASSIC] Signal externe annulé, annulation de la requête OpenAI",
-          );
+          logger.log("🚫 [CLASSIC] Signal externe annulé, annulation de la requête OpenAI");
           controller.abort();
         });
       }
 
       // Adapter la charge utile pour les modèles o1/o3/nano/gpt-5 (température fixe et champ max_completion_tokens)
-      const isFixedTempModel =
-        typeof model === "string" && /(o1|o3|nano|gpt-5)/i.test(model);
+      const isFixedTempModel = typeof model === "string" && /(o1|o3|nano|gpt-5)/i.test(model);
       const payload: ChatCompletionPayload = { model, messages };
       if (isFixedTempModel) {
         payload.max_completion_tokens = targetTokens;
@@ -487,18 +466,14 @@ export class ContentGenerationService {
       }
 
       let finalContent = content;
-      let finalUsage = data.usage;
+      const finalUsage = data.usage;
 
       // 🔄 RETRY AUTOMATIQUE si tronqué (finishReason === 'length')
       if (finishReason === "length" && (options.maxTokens || 0) > 0) {
-        logger.log(
-          "⚠️ [RETRY] Réponse tronquée détectée, continuation automatique...",
-        );
+        logger.log("⚠️ [RETRY] Réponse tronquée détectée, continuation automatique...");
         try {
           const continuationMessages = [
-            ...(options.context
-              ? [{ role: "system" as const, content: options.context }]
-              : []),
+            ...(options.context ? [{ role: "system" as const, content: options.context }] : []),
             { role: "user" as const, content: options.prompt },
             { role: "assistant" as const, content: finalContent },
             {
@@ -522,25 +497,20 @@ export class ContentGenerationService {
             continuationPayload.temperature = options.temperature ?? 0.7;
           }
 
-          const continuationResponse = await fetch(
-            "https://api.openai.com/v1/chat/completions",
-            {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(continuationPayload),
-              signal: controller.signal,
+          const continuationResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+              "Content-Type": "application/json",
             },
-          );
+            body: JSON.stringify(continuationPayload),
+            signal: controller.signal,
+          });
 
           if (continuationResponse.ok) {
             const continuationRaw: unknown = await continuationResponse.json();
-            const continuationData =
-              parseChatCompletionResponse(continuationRaw);
-            const continuationContent =
-              continuationData.choices?.[0]?.message?.content || "";
+            const continuationData = parseChatCompletionResponse(continuationRaw);
+            const continuationContent = continuationData.choices?.[0]?.message?.content || "";
             finalContent += continuationContent;
 
             logger.log("✅ [RETRY] Continuation réussie", {
@@ -550,12 +520,9 @@ export class ContentGenerationService {
 
             // Mettre à jour l'usage total
             if (finalUsage && continuationData.usage) {
-              finalUsage.prompt_tokens +=
-                continuationData.usage.prompt_tokens || 0;
-              finalUsage.completion_tokens +=
-                continuationData.usage.completion_tokens || 0;
-              finalUsage.total_tokens +=
-                continuationData.usage.total_tokens || 0;
+              finalUsage.prompt_tokens += continuationData.usage.prompt_tokens || 0;
+              finalUsage.completion_tokens += continuationData.usage.completion_tokens || 0;
+              finalUsage.total_tokens += continuationData.usage.total_tokens || 0;
             }
 
             // Enregistrer l'usage de la continuation
@@ -567,12 +534,7 @@ export class ContentGenerationService {
                 continuationData.model,
                 continuationData.usage.prompt_tokens,
                 continuationData.usage.completion_tokens,
-              ).catch((err) =>
-                logger.warn(
-                  "⚠️ Erreur enregistrement quota continuation:",
-                  err,
-                ),
-              );
+              ).catch((err) => logger.warn("⚠️ Erreur enregistrement quota continuation:", err));
             }
           }
         } catch (retryError) {
@@ -641,11 +603,8 @@ print("Bonjour, monde!")
 `,
     };
 
-    const systemPrompt =
-      systemPrompts[type as keyof typeof systemPrompts] || systemPrompts.text;
-    const fullContext = context
-      ? `${systemPrompt}\n\nContexte: ${context}`
-      : systemPrompt;
+    const systemPrompt = systemPrompts[type as keyof typeof systemPrompts] || systemPrompts.text;
+    const fullContext = context ? `${systemPrompt}\n\nContexte: ${context}` : systemPrompt;
 
     // Tokens équilibrés pour nano : contenu de qualité sans excès
     const nanoTokens = {
@@ -687,10 +646,7 @@ print("Bonjour, monde!")
   /**
    * Améliorer/réecrire un contenu existant
    */
-  static async improveContent(
-    content: string,
-    instructions?: string,
-  ): Promise<AIGenerationResult> {
+  static async improveContent(content: string, instructions?: string): Promise<AIGenerationResult> {
     const prompt = instructions
       ? `Améliore selon: "${instructions}"\n\nTexte:\n${content}`
       : `Améliore ce texte:\n\n${content}`;
@@ -749,15 +705,11 @@ print("Bonjour, monde!")
   /**
    * Générer des idées/suggestions
    */
-  static async generateIdeas(
-    topic: string,
-    count: number = 5,
-  ): Promise<AIGenerationResult> {
+  static async generateIdeas(topic: string, count: number = 5): Promise<AIGenerationResult> {
     const limitedCount = Math.min(count, 5); // Max 5 idées pour limiter les tokens
     return this.generateContent({
       prompt: `${limitedCount} idées sur: "${topic}". Liste à puces.`,
-      context:
-        "Idées courtes et créatives. FORMATAGE: \\n entre puces. Réponds directement.",
+      context: "Idées courtes et créatives. FORMATAGE: \\n entre puces. Réponds directement.",
       maxTokens: 600, // ~120 tokens par idée (5 idées max)
       temperature: 0.8,
     });

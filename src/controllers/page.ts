@@ -125,20 +125,15 @@ export const createPage = async (req: Request, res: Response) => {
           })
         : Promise.resolve(null),
     ]);
-    logger.log(
-      `⏱️  [PERF] Queries parallèles: ${Date.now() - beforeValidations}ms`,
-    );
+    logger.log(`⏱️  [PERF] Queries parallèles: ${Date.now() - beforeValidations}ms`);
 
     // Validations après parallélisation
     if (!userLimits) {
-      return res
-        .status(404)
-        .json({ error: "Limitations utilisateur non trouvées" });
+      return res.status(404).json({ error: "Limitations utilisateur non trouvées" });
     }
 
     const canCreatePage =
-      userLimits.pagesLimit === -1 ||
-      userLimits.pagesUsed < userLimits.pagesLimit;
+      userLimits.pagesLimit === -1 || userLimits.pagesUsed < userLimits.pagesLimit;
     if (!canCreatePage) {
       return res.status(403).json({
         error: "Limite de pages atteinte",
@@ -151,20 +146,15 @@ export const createPage = async (req: Request, res: Response) => {
     }
 
     if (!workspace) {
-      return res
-        .status(404)
-        .json({ error: "Workspace non trouvé ou accès refusé" });
+      return res.status(404).json({ error: "Workspace non trouvé ou accès refusé" });
     }
 
     if (validatedData.parentId && !parentPage) {
-      return res
-        .status(404)
-        .json({ error: "Page parent non trouvée dans le même workspace" });
+      return res.status(404).json({ error: "Page parent non trouvée dans le même workspace" });
     }
 
     // Calculer la position finale
-    const position =
-      validatedData.position ?? (lastPage ? lastPage.position + 1 : 0);
+    const position = validatedData.position ?? (lastPage ? lastPage.position + 1 : 0);
 
     // 🚀 PHASE 1 OPTIMIZATION: Simplifier génération de slug (sortir de la transaction)
     const baseSlug = validatedData.title
@@ -186,9 +176,7 @@ export const createPage = async (req: Request, res: Response) => {
         workspaceId: finalWorkspaceId,
         parentId: validatedData.parentId,
         createdBy: req.user!.id,
-        blockNoteContent: validatedData.blockNoteContent as
-          | Prisma.InputJsonValue
-          | undefined,
+        blockNoteContent: validatedData.blockNoteContent as Prisma.InputJsonValue | undefined,
       },
       include: {
         author: {
@@ -245,10 +233,7 @@ export const createPage = async (req: Request, res: Response) => {
             updatedAt: page.updatedAt,
           })
           .catch((error) => {
-            logger.error(
-              `🧠 [RAG] Erreur traitement page "${page.title}":`,
-              error,
-            );
+            logger.error(`🧠 [RAG] Erreur traitement page "${page.title}":`, error);
           });
       }
     } catch (error) {
@@ -261,9 +246,7 @@ export const createPage = async (req: Request, res: Response) => {
         await redisCache.invalidatePattern(`recent-pages:${req.user!.id}:*`, {
           namespace: "pages",
         });
-        logger.log(
-          `🗑️ [Cache] Pages récentes invalidées pour user ${req.user!.id}`,
-        );
+        logger.log(`🗑️ [Cache] Pages récentes invalidées pour user ${req.user!.id}`);
       } catch (error) {
         logger.warn("⚠️ [Cache] Échec invalidation:", error);
       }
@@ -298,14 +281,10 @@ export const getPage = async (req: Request, res: Response) => {
     // 🚫 BLOQUER les IDs temporaires (optimistic UI)
     if (id.startsWith("temp-")) {
       logger.log(`⏭️  [GET-PAGE] ID temporaire ignoré: "${id}"`);
-      return res
-        .status(404)
-        .json({ error: "Page temporaire, en cours de création" });
+      return res.status(404).json({ error: "Page temporaire, en cours de création" });
     }
 
-    logger.log(
-      `🔍 [GET-PAGE] ID reçu: "${id}" (type: ${typeof id}, length: ${id?.length})`,
-    );
+    logger.log(`🔍 [GET-PAGE] ID reçu: "${id}" (type: ${typeof id}, length: ${id?.length})`);
 
     const page = await prisma.page.findFirst({
       where: {
@@ -362,9 +341,7 @@ export const getWorkspaceRootPages = async (req: Request, res: Response) => {
     });
 
     if (!workspace) {
-      return res
-        .status(404)
-        .json({ error: "Workspace non trouvé ou accès refusé" });
+      return res.status(404).json({ error: "Workspace non trouvé ou accès refusé" });
     }
 
     const pages = await prisma.page.findMany({
@@ -404,19 +381,19 @@ export const getRecentPages = async (req: Request, res: Response) => {
     const cacheKey = `recent-pages:${req.user.id}:page${page}:limit${limit}`;
 
     const RecentPagesSchema = z.array(
-      z.object({
-        id: z.string(),
-        title: z.string(),
-      }).passthrough(),
+      z
+        .object({
+          id: z.string(),
+          title: z.string(),
+        })
+        .passthrough(),
     );
 
     // 🚀 INSTANT RESPONSE: Utiliser getOrSet pour cache-aside pattern
     const recentPages = await redisCache.getOrSet(
       cacheKey,
       async () => {
-        logger.log(
-          `🔄 [Cache MISS] Fetching pages from DB for user ${req.user!.id}`,
-        );
+        logger.log(`🔄 [Cache MISS] Fetching pages from DB for user ${req.user!.id}`);
         const pages = await prisma.page.findMany({
           where: {
             isArchived: false,
@@ -512,9 +489,7 @@ export const getProjectPages = async (req: Request, res: Response) => {
     });
 
     if (!project) {
-      return res
-        .status(404)
-        .json({ error: "Projet non trouvé ou accès refusé" });
+      return res.status(404).json({ error: "Projet non trouvé ou accès refusé" });
     }
 
     // Récupération paginée et optimisée
@@ -582,9 +557,7 @@ export const getProjectPages = async (req: Request, res: Response) => {
       totalPages: pages.length,
       rootPages: rootPages.length,
       maxDepth: Math.max(
-        ...Array.from(pageMap.values()).map(
-          (p: ProjectPageWithChildren) => p.depth,
-        ),
+        ...Array.from(pageMap.values()).map((p: ProjectPageWithChildren) => p.depth),
         0,
       ),
     };
@@ -631,9 +604,7 @@ export const updatePage = async (req: Request, res: Response) => {
     });
 
     if (!page) {
-      return res
-        .status(404)
-        .json({ error: "Page non trouvée ou permissions insuffisantes" });
+      return res.status(404).json({ error: "Page non trouvée ou permissions insuffisantes" });
     }
 
     const updateData: PageUpdateData = { ...validatedData };
@@ -725,10 +696,7 @@ export const updatePage = async (req: Request, res: Response) => {
             updatedAt: updatedPage.updatedAt,
           })
           .catch((error) => {
-            logger.error(
-              `🧠 [RAG] Erreur re-traitement page "${updatedPage.title}":`,
-              error,
-            );
+            logger.error(`🧠 [RAG] Erreur re-traitement page "${updatedPage.title}":`, error);
           });
       }
     } catch (error) {
@@ -767,10 +735,7 @@ export const updatePage = async (req: Request, res: Response) => {
         );
       }
     } catch (cacheError) {
-      logger.warn(
-        "⚠️ [Cache Invalidation] Échec invalidation cache (non bloquant):",
-        cacheError,
-      );
+      logger.warn("⚠️ [Cache Invalidation] Échec invalidation cache (non bloquant):", cacheError);
     }
 
     res.json({
@@ -852,9 +817,7 @@ export const deletePage = async (req: Request, res: Response) => {
     });
 
     if (!page) {
-      return res
-        .status(404)
-        .json({ error: "Page non trouvée ou permissions insuffisantes" });
+      return res.status(404).json({ error: "Page non trouvée ou permissions insuffisantes" });
     }
 
     // Compter le nombre de pages qui seront supprimées (page + descendants)
@@ -866,12 +829,7 @@ export const deletePage = async (req: Request, res: Response) => {
       async (
         tx: Omit<
           PrismaClient,
-          | "$connect"
-          | "$disconnect"
-          | "$on"
-          | "$transaction"
-          | "$use"
-          | "$extends"
+          "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
         >,
       ) => {
         // 🧠 RAG: supprimer la/les sources liées à la page (et descendants) AVANT la suppression
@@ -880,17 +838,10 @@ export const deletePage = async (req: Request, res: Response) => {
           // Racine + descendants (même workspace)
           const allIds = [id, ...allDescendantIds];
           for (const pid of allIds) {
-            await userPagesRAG.removeUserPage(
-              pid,
-              req.user!.id,
-              page.workspace.id,
-            );
+            await userPagesRAG.removeUserPage(pid, req.user!.id, page.workspace.id);
           }
         } catch (e) {
-          logger.warn(
-            "🧠 [RAG] Échec suppression sources liées à la page (continuation):",
-            e,
-          );
+          logger.warn("🧠 [RAG] Échec suppression sources liées à la page (continuation):", e);
         }
 
         // Supprimer la page (suppression en cascade des enfants grâce au schéma)
@@ -911,10 +862,7 @@ export const deletePage = async (req: Request, res: Response) => {
     const allDeletedIds = [id, ...allDescendantIds];
     for (const pageId of allDeletedIds) {
       invalidateBlockNoteCache(pageId).catch((err) =>
-        logger.warn(
-          `⚠️ [REDIS] Erreur invalidation cache page ${pageId}:`,
-          err,
-        ),
+        logger.warn(`⚠️ [REDIS] Erreur invalidation cache page ${pageId}:`, err),
       );
     }
 
@@ -923,9 +871,7 @@ export const deletePage = async (req: Request, res: Response) => {
       .invalidatePattern(`recent-pages:${req.user!.id}:*`, {
         namespace: "pages",
       })
-      .catch((err) =>
-        logger.warn("⚠️ [Cache] Échec invalidation pages récentes:", err),
-      );
+      .catch((err) => logger.warn("⚠️ [Cache] Échec invalidation pages récentes:", err));
 
     // 🗑️ REDIS CACHE INVALIDATION: Invalider le cache Sidebar
     const { invalidateSidebarCache } = await import("../lib/redis.js");
@@ -933,9 +879,7 @@ export const deletePage = async (req: Request, res: Response) => {
       logger.warn("⚠️ [Cache] Échec invalidation cache sidebar:", err),
     );
 
-    logger.log(
-      `🗑️ [DELETE] ${allDeletedIds.length} page(s) supprimée(s) et cache invalidé`,
-    );
+    logger.log(`🗑️ [DELETE] ${allDeletedIds.length} page(s) supprimée(s) et cache invalidé`);
 
     res.json({
       message: `Page et ses descendants supprimés avec succès`,
@@ -990,11 +934,7 @@ export const cleanupArchivedPages = async (req: Request, res: Response) => {
       const { userPagesRAG } = await import("../services/rag/userPages.js");
 
       for (const page of archivedPages) {
-        await userPagesRAG.removeUserPage(
-          page.id,
-          req.user!.id,
-          page.workspaceId,
-        );
+        await userPagesRAG.removeUserPage(page.id, req.user!.id, page.workspaceId);
       }
     } catch (error) {
       logger.error("🧠 [RAG] Erreur suppression sources:", error);

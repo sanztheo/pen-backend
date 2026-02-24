@@ -1,6 +1,6 @@
-import { AIService } from '../../ai/base.js';
-import { SchoolLevel } from '../types.js';
-import { JsonUtils } from '../utils/jsonUtils.js';
+import { AIService } from "../../ai/base.js";
+import { SchoolLevel } from "../types.js";
+import { JsonUtils } from "../utils/jsonUtils.js";
 import { logger } from "../../../utils/logger.js";
 
 /**
@@ -13,10 +13,10 @@ export class WorkspaceAnalyzer {
   static async analyzeWorkspaceContent(
     workspaceContent: string,
     workspaceName: string,
-    schoolLevel: SchoolLevel
+    schoolLevel: SchoolLevel,
   ): Promise<{
     mainTopics: string[];
-    complexity: 'basique' | 'intermédiaire' | 'avancé';
+    complexity: "basique" | "intermédiaire" | "avancé";
     suggestedQuestionCount: number;
     relevanceScore: number;
   }> {
@@ -48,7 +48,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide, sans texte explicatif :
         prompt,
         maxTokens: 2000,
         temperature: 0.5,
-        model: AIService.getDefaultModel()
+        model: AIService.getDefaultModel(),
       });
 
       try {
@@ -63,20 +63,19 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide, sans texte explicatif :
             throw error;
           }
         } catch (secondError) {
-          logger.error('❌ Erreur parsing analyse workspace:', result.content.substring(0, 300));
+          logger.error("❌ Erreur parsing analyse workspace:", result.content.substring(0, 300));
           throw error;
         }
       }
-
     } catch (error) {
-      logger.error('Erreur analyse workspace IA:', error);
+      logger.error("Erreur analyse workspace IA:", error);
       // Retour par défaut en cas d'erreur
       return {
-        mainTopics: ['Contenu général'],
-        complexity: 'intermédiaire',
+        mainTopics: ["Contenu général"],
+        complexity: "intermédiaire",
         suggestedQuestionCount: 10,
-        relevanceScore: 50
+        relevanceScore: 50,
       };
     }
   }
-} 
+}

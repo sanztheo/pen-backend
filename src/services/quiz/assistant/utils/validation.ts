@@ -30,9 +30,7 @@ interface AssistantResponseWithToolCalls {
 /**
  * Type guard pour vérifier si l'objet a des tool_calls
  */
-function hasToolCalls(
-  response: unknown,
-): response is AssistantResponseWithToolCalls {
+function hasToolCalls(response: unknown): response is AssistantResponseWithToolCalls {
   return (
     typeof response === "object" &&
     response !== null &&
@@ -90,9 +88,7 @@ interface ResponseWithQuestions {
 /**
  * Type guard pour vérifier si l'objet a des questions
  */
-function isResponseWithQuestions(
-  response: unknown,
-): response is ResponseWithQuestions {
+function isResponseWithQuestions(response: unknown): response is ResponseWithQuestions {
   return (
     typeof response === "object" &&
     response !== null &&
@@ -118,9 +114,7 @@ interface ResponseWithCorrections {
 /**
  * Type guard pour vérifier si l'objet a des corrections
  */
-function isResponseWithCorrections(
-  response: unknown,
-): response is ResponseWithCorrections {
+function isResponseWithCorrections(response: unknown): response is ResponseWithCorrections {
   return (
     typeof response === "object" &&
     response !== null &&

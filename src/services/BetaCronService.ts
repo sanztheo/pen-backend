@@ -27,9 +27,7 @@ export class BetaCronService {
    * Runs hourly.
    */
   static async checkInactiveUsers(): Promise<CronJobResult> {
-    const thresholdDate = new Date(
-      Date.now() - INACTIVITY_THRESHOLD_DAYS * 24 * 60 * 60 * 1000,
-    );
+    const thresholdDate = new Date(Date.now() - INACTIVITY_THRESHOLD_DAYS * 24 * 60 * 60 * 1000);
     const now = new Date();
     const reactivationDeadline = new Date(
       now.getTime() + REACTIVATION_WINDOW_DAYS * 24 * 60 * 60 * 1000,
@@ -78,10 +76,7 @@ export class BetaCronService {
     });
 
     await redis.del(STATUS_CACHE_KEY).catch((err: unknown) => {
-      logger.warn(
-        "[BETA_CRON] Redis cache invalidation failed after deactivation:",
-        err,
-      );
+      logger.warn("[BETA_CRON] Redis cache invalidation failed after deactivation:", err);
     });
 
     for (const user of inactiveUsers) {
@@ -90,9 +85,7 @@ export class BetaCronService {
       );
     }
 
-    logger.log(
-      `[BETA_CRON] checkInactiveUsers: ${result.count} users deactivated`,
-    );
+    logger.log(`[BETA_CRON] checkInactiveUsers: ${result.count} users deactivated`);
 
     return { processed: result.count, errors: 0 };
   }
@@ -160,30 +153,21 @@ export class BetaCronService {
         const message = error instanceof Error ? error.message : String(error);
 
         if (message === "NO_SPOTS_AVAILABLE") {
-          logger.warn(
-            "[BETA_CRON] processWaitlist: spots filled during promotion, stopping",
-          );
+          logger.warn("[BETA_CRON] processWaitlist: spots filled during promotion, stopping");
           break;
         }
 
-        logger.error(
-          `[BETA_CRON] Failed to promote user ${entry.userId}: ${message}`,
-        );
+        logger.error(`[BETA_CRON] Failed to promote user ${entry.userId}: ${message}`);
       }
     }
 
     if (promoted > 0) {
       await redis.del(STATUS_CACHE_KEY).catch((err: unknown) => {
-        logger.warn(
-          "[BETA_CRON] Redis cache invalidation failed after promotion:",
-          err,
-        );
+        logger.warn("[BETA_CRON] Redis cache invalidation failed after promotion:", err);
       });
     }
 
-    logger.log(
-      `[BETA_CRON] processWaitlist: ${promoted} promoted, ${errors} errors`,
-    );
+    logger.log(`[BETA_CRON] processWaitlist: ${promoted} promoted, ${errors} errors`);
 
     return { processed: promoted, errors };
   }
@@ -222,10 +206,7 @@ export class BetaCronService {
     ]);
 
     await redis.del(STATUS_CACHE_KEY).catch((err: unknown) => {
-      logger.warn(
-        "[BETA_CRON] Redis cache invalidation failed after expiration cleanup:",
-        err,
-      );
+      logger.warn("[BETA_CRON] Redis cache invalidation failed after expiration cleanup:", err);
     });
 
     for (const user of expiredUsers) {
@@ -234,9 +215,7 @@ export class BetaCronService {
       );
     }
 
-    logger.log(
-      `[BETA_CRON] cleanupExpiredAccounts: ${updateResult.count} accounts expired`,
-    );
+    logger.log(`[BETA_CRON] cleanupExpiredAccounts: ${updateResult.count} accounts expired`);
 
     return { processed: updateResult.count, errors: 0 };
   }
@@ -290,8 +269,7 @@ export class BetaCronService {
         }
 
         const isSerializationError =
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2034";
+          error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
 
         if (!isSerializationError || attempt === SERIALIZATION_MAX_RETRIES) {
           logger.error(

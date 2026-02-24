@@ -1,7 +1,7 @@
 // Minimal typings for pdf-parse to silence TS7016 and provide useful types
 // Source shape based on runtime usage (text extraction only)
 
-declare module 'pdf-parse' {
+declare module "pdf-parse" {
   export interface PDFParseResult {
     text: string;
     info?: Record<string, any>;
@@ -13,15 +13,14 @@ declare module 'pdf-parse' {
 
   function pdfParse(
     data: Buffer | Uint8Array | ArrayBuffer,
-    options?: Record<string, any>
+    options?: Record<string, any>,
   ): Promise<PDFParseResult>;
 
   export default pdfParse;
 }
 
-declare module 'pdf-parse/lib/pdf-parse.js' {
-  import pdfParse, { PDFParseResult } from 'pdf-parse';
+declare module "pdf-parse/lib/pdf-parse.js" {
+  import pdfParse, { PDFParseResult } from "pdf-parse";
   export type { PDFParseResult };
   export default pdfParse;
 }
-

@@ -151,10 +151,7 @@ router.post(
         });
       }
       for (const msg of messages) {
-        const content =
-          typeof msg.content === "string"
-            ? msg.content
-            : JSON.stringify(msg.content);
+        const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
         if (content && content.length > MAX_MESSAGE_LENGTH) {
           return res.status(400).json({
             error: "VALIDATION_ERROR",
@@ -171,12 +168,7 @@ router.post(
       }
 
       // Valider le mode
-      const validModes: AgentMode[] = [
-        "ask",
-        "search",
-        "create-quick",
-        "create-deep",
-      ];
+      const validModes: AgentMode[] = ["ask", "search", "create-quick", "create-deep"];
       if (!validModes.includes(mode)) {
         return res.status(400).json({
           error: "VALIDATION_ERROR",
@@ -197,9 +189,7 @@ router.post(
               `${s.type || "unknown"}:${s.title}`,
           ) || [],
         hasPersonalization: !!personalization,
-        personalizationKeys: personalization
-          ? Object.keys(personalization)
-          : [],
+        personalizationKeys: personalization ? Object.keys(personalization) : [],
       });
 
       // 🛡️ Vérification quota par utilisateur (protection anti-spam)
@@ -254,9 +244,7 @@ router.post(
 
       // Log de la consommation
       const cost = req.aiCredits?.cost ?? calculateDynamicCost(req);
-      logger.log(
-        `✅ [AUDIT] Agent chat: userId=${userId}, mode=${mode}, cost=${cost}`,
-      );
+      logger.log(`✅ [AUDIT] Agent chat: userId=${userId}, mode=${mode}, cost=${cost}`);
 
       // 🔥 Vercel AI SDK v5: pipeUIMessageStreamToResponse avec onFinish pour persister
       // C'est la méthode recommandée pour Express - gère automatiquement le streaming
@@ -265,9 +253,7 @@ router.post(
         sendReasoning: true,
         // 💾 Sauvegarder la conversation après la fin du stream
         onFinish: async ({ messages: allMessages }) => {
-          logger.log(
-            `💾 [AGENT-CHAT] onFinish - Sauvegarde de ${allMessages.length} messages`,
-          );
+          logger.log(`💾 [AGENT-CHAT] onFinish - Sauvegarde de ${allMessages.length} messages`);
           if (conversationId) {
             await saveConversation({
               conversationId,
@@ -280,9 +266,7 @@ router.post(
 
           // 📊 Enregistrer l'usage des tokens pour le quota par utilisateur
           try {
-            const outputTokens = Math.ceil(
-              JSON.stringify(allMessages).length / 4,
-            );
+            const outputTokens = Math.ceil(JSON.stringify(allMessages).length / 4);
 
             await OpenAIQuotaManager.recordUsage(
               "gemini-3-flash",
@@ -294,10 +278,7 @@ router.post(
               `📊 [QUOTA] Usage enregistré pour ${userId}: ~${estimatedTokens + outputTokens} tokens`,
             );
           } catch (quotaError) {
-            logger.error(
-              "⚠️ [QUOTA] Erreur enregistrement usage:",
-              quotaError,
-            );
+            logger.error("⚠️ [QUOTA] Erreur enregistrement usage:", quotaError);
           }
         },
       });
@@ -308,19 +289,14 @@ router.post(
       // NE PAS await - cela bloque sans backpressure en arrière-plan
       result.consumeStream();
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error("❌ [AGENT-CHAT] Erreur:", error);
 
       const creditsCost = req.aiCredits?.cost;
       const refundUserId = req.user?.id;
       if (creditsCost && refundUserId) {
-        AICreditsService.refundCredits(
-          refundUserId,
-          creditsCost,
-          "agent_chat_error",
-        ).catch((err: unknown) =>
-          logger.error("[REFUND] Erreur refund agent/chat:", err),
+        AICreditsService.refundCredits(refundUserId, creditsCost, "agent_chat_error").catch(
+          (err: unknown) => logger.error("[REFUND] Erreur refund agent/chat:", err),
         );
       }
 
@@ -385,8 +361,7 @@ router.post(
       });
 
       // Import dynamique pour éviter les problèmes de compilation
-      const { runPennoteAgentSimple } =
-        await import("../services/agent/index.js");
+      const { runPennoteAgentSimple } = await import("../services/agent/index.js");
 
       // Convertir UIMessage[] vers ModelMessage[]
       const modelMessages = convertToModelMessages(messages as UIMessage[]);
@@ -409,19 +384,14 @@ router.post(
         usage: result.usage,
       });
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error("❌ [AGENT-SIMPLE] Erreur:", error);
 
       const creditsCost = req.aiCredits?.cost;
       const refundUserId = req.user?.id;
       if (creditsCost && refundUserId) {
-        AICreditsService.refundCredits(
-          refundUserId,
-          creditsCost,
-          "agent_simple_error",
-        ).catch((err: unknown) =>
-          logger.error("[REFUND] Erreur refund agent/simple:", err),
+        AICreditsService.refundCredits(refundUserId, creditsCost, "agent_simple_error").catch(
+          (err: unknown) => logger.error("[REFUND] Erreur refund agent/simple:", err),
         );
       }
 
@@ -463,8 +433,7 @@ router.post(
         return res.status(401).json({ error: "Utilisateur non authentifié" });
       }
 
-      const { prompt, mode, workspaceId, ragSources, personalization } =
-        req.body;
+      const { prompt, mode, workspaceId, ragSources, personalization } = req.body;
 
       // Validation
       if (!prompt || !workspaceId) {
@@ -612,19 +581,14 @@ router.post(
 
       return res.status(400).json({ error: "Mode non supporté" });
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error("❌ [WORKFLOW] Erreur:", error);
 
       const creditsCost = req.aiCredits?.cost;
       const refundUserId = req.user?.id;
       if (creditsCost && refundUserId) {
-        AICreditsService.refundCredits(
-          refundUserId,
-          creditsCost,
-          "workflow_error",
-        ).catch((err: unknown) =>
-          logger.error("[REFUND] Erreur refund workflow:", err),
+        AICreditsService.refundCredits(refundUserId, creditsCost, "workflow_error").catch(
+          (err: unknown) => logger.error("[REFUND] Erreur refund workflow:", err),
         );
       }
 

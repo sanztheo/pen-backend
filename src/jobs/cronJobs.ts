@@ -41,10 +41,7 @@ export function startCronJobs() {
           `✅ [CRON] Base de données saine - Pages: ${pageCount}, Workspaces: ${workspaceCount}`,
         );
       } catch (error) {
-        logger.error(
-          "❌ [CRON] Erreur lors de la vérification de santé:",
-          error,
-        );
+        logger.error("❌ [CRON] Erreur lors de la vérification de santé:", error);
       }
     },
     {
@@ -100,9 +97,7 @@ export function startCronJobs() {
     },
   );
 
-  logger.log(
-    `✅ Tâche de nettoyage RAG programmée: ${RAG_CLEANUP_SCHEDULE} (Europe/Paris)`,
-  );
+  logger.log(`✅ Tâche de nettoyage RAG programmée: ${RAG_CLEANUP_SCHEDULE} (Europe/Paris)`);
 
   // 📰 Fetch de l'article scientifique du jour (Futura Sciences)
   const dailyArticleTask = cron.schedule(
@@ -110,15 +105,13 @@ export function startCronJobs() {
     async () => {
       logger.log("\n📰 [CRON] Fetch de l'article scientifique du jour...");
       try {
-        const { FuturaRssService } =
-          await import("../services/futuraRss.service.js");
+        const { FuturaRssService } = await import("../services/futuraRss.service.js");
 
         // Récupérer et sauvegarder l'article de la semaine
         const latestArticle = await FuturaRssService.fetchLatestArticle();
 
         if (latestArticle) {
-          const savedArticle =
-            await FuturaRssService.saveWeeklyArticle(latestArticle);
+          const savedArticle = await FuturaRssService.saveWeeklyArticle(latestArticle);
 
           if (savedArticle) {
             logger.log(
@@ -127,22 +120,15 @@ export function startCronJobs() {
 
             // Nettoyer les anciens articles (garder seulement 7 jours)
             const deletedCount = await FuturaRssService.cleanupOldArticles();
-            logger.log(
-              `🗑️ [CRON] ${deletedCount} ancien(s) article(s) supprimé(s)`,
-            );
+            logger.log(`🗑️ [CRON] ${deletedCount} ancien(s) article(s) supprimé(s)`);
           } else {
             logger.warn("⚠️ [CRON] Article déjà existant pour cette semaine");
           }
         } else {
-          logger.error(
-            "❌ [CRON] Aucun article récupéré depuis Futura Sciences",
-          );
+          logger.error("❌ [CRON] Aucun article récupéré depuis Futura Sciences");
         }
       } catch (error) {
-        logger.error(
-          "❌ [CRON] Erreur lors du fetch de l'article quotidien:",
-          error,
-        );
+        logger.error("❌ [CRON] Erreur lors du fetch de l'article quotidien:", error);
       }
     },
     {
@@ -150,9 +136,7 @@ export function startCronJobs() {
     },
   );
 
-  logger.log(
-    `✅ Tâche article quotidien programmée: ${DAILY_ARTICLE_SCHEDULE} (Europe/Paris)`,
-  );
+  logger.log(`✅ Tâche article quotidien programmée: ${DAILY_ARTICLE_SCHEDULE} (Europe/Paris)`);
 
   // 🔄 Reset mensuel des limitations pour les users gratuits
   const monthlyResetTask = cron.schedule(
@@ -177,27 +161,20 @@ export function startCronJobs() {
     },
   );
 
-  logger.log(
-    `✅ Tâche de reset mensuel programmée: ${MONTHLY_RESET_SCHEDULE} (Europe/Paris)`,
-  );
+  logger.log(`✅ Tâche de reset mensuel programmée: ${MONTHLY_RESET_SCHEDULE} (Europe/Paris)`);
 
   // 🔄 Reset automatique quotidien des limites quiz avancés (24h)
   const dailyLimitsResetTask = cron.schedule(
     DAILY_LIMITS_RESET_SCHEDULE,
     async () => {
-      logger.log(
-        "\n🔄 [CRON] Démarrage du reset quotidien des limites quiz avancés...",
-      );
+      logger.log("\n🔄 [CRON] Démarrage du reset quotidien des limites quiz avancés...");
       try {
-        const { startDailyLimitsReset } =
-          await import("../services/cron/resetLimitsCron.js");
+        const { startDailyLimitsReset } = await import("../services/cron/resetLimitsCron.js");
 
         // Exécuter le reset immédiatement
         const { prisma } = await import("../lib/prisma.js");
         const now = new Date();
-        const twentyFourHoursAgo = new Date(
-          now.getTime() - 24 * 60 * 60 * 1000,
-        );
+        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
         const result = await prisma.userLimits.updateMany({
           where: {
@@ -242,18 +219,13 @@ export function startCronJobs() {
     betaCheckInactiveTask = cron.schedule(
       BETA_CHECK_INACTIVE_SCHEDULE,
       async () => {
-        logger.log(
-          "\n🔍 [CRON] Beta: vérification des utilisateurs inactifs...",
-        );
+        logger.log("\n🔍 [CRON] Beta: vérification des utilisateurs inactifs...");
         try {
-          const { BetaCronService } =
-            await import("../services/BetaCronService.js");
+          const { BetaCronService } = await import("../services/BetaCronService.js");
 
           const result = await BetaCronService.checkInactiveUsers();
 
-          logger.log(
-            `✅ [CRON] Beta inactive check: ${result.processed} désactivés`,
-          );
+          logger.log(`✅ [CRON] Beta inactive check: ${result.processed} désactivés`);
         } catch (error) {
           logger.error("❌ [CRON] Erreur beta inactive check:", error);
         }
@@ -263,9 +235,7 @@ export function startCronJobs() {
       },
     );
 
-    logger.log(
-      `✅ Tâche beta inactive check programmée: ${BETA_CHECK_INACTIVE_SCHEDULE} (UTC)`,
-    );
+    logger.log(`✅ Tâche beta inactive check programmée: ${BETA_CHECK_INACTIVE_SCHEDULE} (UTC)`);
 
     // 🔄 Reset hebdomadaire des compteurs beta (lundi 00:00 UTC)
     betaWeeklyResetTask = cron.schedule(
@@ -273,14 +243,11 @@ export function startCronJobs() {
       async () => {
         logger.log("\n🔄 [CRON] Beta: reset hebdomadaire des compteurs...");
         try {
-          const { BetaCronService } =
-            await import("../services/BetaCronService.js");
+          const { BetaCronService } = await import("../services/BetaCronService.js");
 
           const result = await BetaCronService.resetWeeklyCounters();
 
-          logger.log(
-            `✅ [CRON] Beta weekly reset: ${result.processed} users reset`,
-          );
+          logger.log(`✅ [CRON] Beta weekly reset: ${result.processed} users reset`);
         } catch (error) {
           logger.error("❌ [CRON] Erreur beta weekly reset:", error);
         }
@@ -290,9 +257,7 @@ export function startCronJobs() {
       },
     );
 
-    logger.log(
-      `✅ Tâche beta weekly reset programmée: ${BETA_WEEKLY_RESET_SCHEDULE} (UTC)`,
-    );
+    logger.log(`✅ Tâche beta weekly reset programmée: ${BETA_WEEKLY_RESET_SCHEDULE} (UTC)`);
 
     // 📋 Promotion automatique depuis la waitlist
     betaProcessWaitlistTask = cron.schedule(
@@ -300,8 +265,7 @@ export function startCronJobs() {
       async () => {
         logger.log("\n📋 [CRON] Beta: traitement de la waitlist...");
         try {
-          const { BetaCronService } =
-            await import("../services/BetaCronService.js");
+          const { BetaCronService } = await import("../services/BetaCronService.js");
 
           const result = await BetaCronService.processWaitlist();
 
@@ -327,14 +291,11 @@ export function startCronJobs() {
       async () => {
         logger.log("\n🗑️ [CRON] Beta: nettoyage des comptes expirés...");
         try {
-          const { BetaCronService } =
-            await import("../services/BetaCronService.js");
+          const { BetaCronService } = await import("../services/BetaCronService.js");
 
           const result = await BetaCronService.cleanupExpiredAccounts();
 
-          logger.log(
-            `✅ [CRON] Beta cleanup: ${result.processed} comptes expirés`,
-          );
+          logger.log(`✅ [CRON] Beta cleanup: ${result.processed} comptes expirés`);
         } catch (error) {
           logger.error("❌ [CRON] Erreur beta cleanup:", error);
         }
@@ -344,9 +305,7 @@ export function startCronJobs() {
       },
     );
 
-    logger.log(
-      `✅ Tâche beta cleanup programmée: ${BETA_CLEANUP_EXPIRED_SCHEDULE} (UTC)`,
-    );
+    logger.log(`✅ Tâche beta cleanup programmée: ${BETA_CLEANUP_EXPIRED_SCHEDULE} (UTC)`);
   } else {
     logger.log("⏸️ Beta management cron jobs désactivés (BETA_LIVE = false)");
   }

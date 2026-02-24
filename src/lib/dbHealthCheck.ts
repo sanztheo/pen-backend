@@ -50,12 +50,8 @@ export class DatabaseHealthCheck {
           await prisma.$queryRaw`SELECT version() as version, current_database() as database, current_user as user`;
         result.details.serverInfo = serverInfo;
       } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        logger.warn(
-          "⚠️ Impossible de récupérer les infos serveur:",
-          errorMessage,
-        );
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.warn("⚠️ Impossible de récupérer les infos serveur:", errorMessage);
       }
 
       // Évaluation de la santé
@@ -68,17 +64,12 @@ export class DatabaseHealthCheck {
         );
       } else {
         result.status = "warning";
-        result.recommendations.push(
-          "Latence très élevée (>5s), problème de réseau probable",
-        );
+        result.recommendations.push("Latence très élevée (>5s), problème de réseau probable");
       }
 
-      logger.log(
-        `✅ [DB-HEALTH] Connexion OK - Latence: ${result.details.latency}ms`,
-      );
+      logger.log(`✅ [DB-HEALTH] Connexion OK - Latence: ${result.details.latency}ms`);
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error("❌ [DB-HEALTH] Connexion échouée:", errorMessage);
       result.status = "error";
       result.details.connection = false;
@@ -99,10 +90,7 @@ export class DatabaseHealthCheck {
           "3. Attendre quelques minutes (réveil Neon)",
         );
       } else {
-        result.recommendations.push(
-          "Erreur de connexion inconnue:",
-          errorMessage,
-        );
+        result.recommendations.push("Erreur de connexion inconnue:", errorMessage);
       }
     }
 
@@ -110,18 +98,14 @@ export class DatabaseHealthCheck {
   }
 
   // 🔄 Test de connexion avec retry
-  static async testConnectionWithRetry(
-    maxRetries: number = 3,
-  ): Promise<boolean> {
+  static async testConnectionWithRetry(maxRetries: number = 3): Promise<boolean> {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         logger.log(`🔄 [DB-HEALTH] Tentative ${attempt}/${maxRetries}...`);
         const diagnostic = await this.runDiagnostic();
 
         if (diagnostic.status !== "error") {
-          logger.log(
-            `✅ [DB-HEALTH] Connexion établie en ${attempt} tentative(s)`,
-          );
+          logger.log(`✅ [DB-HEALTH] Connexion établie en ${attempt} tentative(s)`);
           return true;
         }
 
@@ -131,12 +115,8 @@ export class DatabaseHealthCheck {
           await new Promise((resolve) => setTimeout(resolve, delay));
         }
       } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        logger.error(
-          `❌ [DB-HEALTH] Tentative ${attempt} échouée:`,
-          errorMessage,
-        );
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error(`❌ [DB-HEALTH] Tentative ${attempt} échouée:`, errorMessage);
       }
     }
 
@@ -151,26 +131,16 @@ export class DatabaseHealthCheck {
     const diagnostic = await this.runDiagnostic();
 
     logger.log(`📋 Statut: ${diagnostic.status.toUpperCase()}`);
-    logger.log(
-      `🔗 Connexion: ${diagnostic.details.connection ? "✅ OK" : "❌ Échec"}`,
-    );
+    logger.log(`🔗 Connexion: ${diagnostic.details.connection ? "✅ OK" : "❌ Échec"}`);
 
     if (diagnostic.details.latency) {
       const latencyIcon =
-        diagnostic.details.latency < 1000
-          ? "🟢"
-          : diagnostic.details.latency < 5000
-            ? "🟡"
-            : "🔴";
-      logger.log(
-        `⏱️  Latence: ${latencyIcon} ${diagnostic.details.latency}ms`,
-      );
+        diagnostic.details.latency < 1000 ? "🟢" : diagnostic.details.latency < 5000 ? "🟡" : "🔴";
+      logger.log(`⏱️  Latence: ${latencyIcon} ${diagnostic.details.latency}ms`);
     }
 
     if (diagnostic.details.serverInfo) {
-      logger.log(
-        `🖥️  Serveur: ${JSON.stringify(diagnostic.details.serverInfo)}`,
-      );
+      logger.log(`🖥️  Serveur: ${JSON.stringify(diagnostic.details.serverInfo)}`);
     }
 
     if (diagnostic.recommendations && diagnostic.recommendations.length > 0) {

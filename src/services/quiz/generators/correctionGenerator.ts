@@ -374,10 +374,7 @@ export class CorrectionGenerator {
     explanation: string;
   }> {
     const closedQuestions = questions.filter(
-      (q) =>
-        q.type === "MULTIPLE_CHOICE" ||
-        q.type === "TRUE_FALSE" ||
-        q.type === "MATCHING",
+      (q) => q.type === "MULTIPLE_CHOICE" || q.type === "TRUE_FALSE" || q.type === "MATCHING",
     );
 
     logger.log(
@@ -385,9 +382,7 @@ export class CorrectionGenerator {
     );
 
     return closedQuestions.map((question) => {
-      const userAnswer = userAnswers.find(
-        (ua) => ua.questionId === question.id,
-      );
+      const userAnswer = userAnswers.find((ua) => ua.questionId === question.id);
       const formattedUserAnswer = this.formatUserAnswer(question, userAnswer);
       const correctAnswer = this.extractCorrectAnswer(question);
       const maxScore = question.points || 1;
@@ -399,9 +394,7 @@ export class CorrectionGenerator {
       switch (question.type) {
         case "MULTIPLE_CHOICE":
           const mcQ = question as MultipleChoiceQuestion;
-          const selectedOption = mcQ.options?.find(
-            (opt) => opt.id === userAnswer?.answer,
-          );
+          const selectedOption = mcQ.options?.find((opt) => opt.id === userAnswer?.answer);
 
           if (selectedOption && selectedOption.isCorrect) {
             score = maxScore;
@@ -410,8 +403,7 @@ export class CorrectionGenerator {
           } else if (selectedOption) {
             score = 0;
             isCorrect = false;
-            const correctOptions =
-              mcQ.options?.filter((opt) => opt.isCorrect) || [];
+            const correctOptions = mcQ.options?.filter((opt) => opt.isCorrect) || [];
             explanation = `Réponse incorrecte. La bonne réponse était : ${correctOptions.map((opt) => `"${opt.text}"`).join(" ou ")}.`;
           } else {
             score = 0;
@@ -464,9 +456,7 @@ export class CorrectionGenerator {
 
           // Vérifier chaque paire correcte
           correctPairs.forEach((correctPair) => {
-            const userMatch = userPairs.find(
-              (up) => up.leftId === correctPair.leftId,
-            );
+            const userMatch = userPairs.find((up) => up.leftId === correctPair.leftId);
             if (userMatch && userMatch.rightId === correctPair.rightId) {
               correctMatches++;
             }
@@ -474,9 +464,7 @@ export class CorrectionGenerator {
 
           // Score proportionnel basé sur le nombre d'associations correctes
           if (totalMatches > 0) {
-            score =
-              Math.round((correctMatches / totalMatches) * maxScore * 100) /
-              100;
+            score = Math.round((correctMatches / totalMatches) * maxScore * 100) / 100;
             isCorrect = correctMatches === totalMatches;
 
             if (isCorrect) {
@@ -526,45 +514,33 @@ export class CorrectionGenerator {
       let personalization: PersonalizationContext | undefined;
       if (request.userId) {
         try {
-          personalization = await getPersonalizationContextForUser(
-            request.userId,
-          );
+          personalization = await getPersonalizationContextForUser(request.userId);
           if (personalization?.hasPersonalization) {
             logger.log(
               `👤 [PERSONALIZATION] Contexte correction chargé: ${personalization.classe || "N/A"}, ${personalization.domaine || "N/A"}`,
             );
           }
         } catch (error) {
-          logger.warn(
-            "⚠️ [PERSONALIZATION] Impossible de charger la personnalisation:",
-            error,
-          );
+          logger.warn("⚠️ [PERSONALIZATION] Impossible de charger la personnalisation:", error);
         }
       }
 
       // 🚀 ÉTAPE 1 : Correction automatique des questions fermées (QCM, Vrai/Faux, Matching)
-      const autoCorrections = this.correctClosedQuestions(
-        questions,
-        userAnswers,
-      );
+      const autoCorrections = this.correctClosedQuestions(questions, userAnswers);
       logger.log(
         `⚡ [HYBRID] Correction automatique : ${autoCorrections.length} questions traitées instantanément`,
       );
 
       // 🧠 ÉTAPE 2 : Identifier les questions ouvertes qui nécessitent l'IA
       const openQuestions = questions.filter((q) => q.type === "OPEN_QUESTION");
-      logger.log(
-        `🤖 [HYBRID] Questions ouvertes nécessitant l'IA : ${openQuestions.length}`,
-      );
+      logger.log(`🤖 [HYBRID] Questions ouvertes nécessitant l'IA : ${openQuestions.length}`);
 
       let aiCorrections: QuestionCorrectionResult[] = [];
       let maxTokens = 0; // Déclarer ici pour l'accès dans les métadonnées
 
       // Si on a des questions ouvertes, utiliser l'IA seulement pour elles
       if (openQuestions.length > 0) {
-        logger.log(
-          `🧠 [IA] Correction de ${openQuestions.length} questions ouvertes avec IA...`,
-        );
+        logger.log(`🧠 [IA] Correction de ${openQuestions.length} questions ouvertes avec IA...`);
 
         // Réduire considérablement les tokens car on a moins de questions à traiter
         const baseTokens = openQuestions.length * 800; // ~800 tokens par question ouverte
@@ -655,11 +631,7 @@ Les QCM, Vrai/Faux et Matching sont déjà corrigés automatiquement.`;
 
         // Intégration des documents Wikipedia pour les questions ouvertes
         let documentsSection = "";
-        if (
-          request.hasDocuments &&
-          request.sourceDocuments &&
-          request.sourceDocuments.length > 0
-        ) {
+        if (request.hasDocuments && request.sourceDocuments && request.sourceDocuments.length > 0) {
           logger.log(
             `📚 [IA-OPEN] Intégration de ${request.sourceDocuments.length} document(s) Wikipedia pour questions ouvertes`,
           );
@@ -690,14 +662,9 @@ CONSIGNES POUR LES QUESTIONS OUVERTES DOCUMENTAIRES :
 
         // 🎯 Intégrer la personnalisation dans le prompt de correction
         let personalizationSection = "";
-        if (
-          personalization?.hasPersonalization &&
-          personalization.correctionPromptSection
-        ) {
+        if (personalization?.hasPersonalization && personalization.correctionPromptSection) {
           personalizationSection = `\n${personalization.correctionPromptSection}\n`;
-          logger.log(
-            `👤 [PERSONALIZATION] Section de correction personnalisée ajoutée`,
-          );
+          logger.log(`👤 [PERSONALIZATION] Section de correction personnalisée ajoutée`);
         }
 
         const optimizedPrompt = `
@@ -742,12 +709,7 @@ STRUCTURE JSON REQUISE - Questions ouvertes seulement :
 IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} questions ouvertes.`;
 
         // 🐛 [DEBUG] Sauvegarder les données AVANT l'appel à l'IA (questions ouvertes seulement)
-        this.saveDebugData(
-          openQuestions,
-          userAnswers,
-          request,
-          optimizedPrompt,
-        );
+        this.saveDebugData(openQuestions, userAnswers, request, optimizedPrompt);
 
         const result = await AIService.generateContent({
           prompt: optimizedPrompt,
@@ -761,11 +723,8 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
           result.content.substring(0, 300) + "...",
         );
 
-        const aiCorrectionRaw: unknown = JsonUtils.extractJsonFromText(
-          result.content,
-        );
-        const aiCorrectionParsed =
-          AICorrectionResponseSchema.safeParse(aiCorrectionRaw);
+        const aiCorrectionRaw: unknown = JsonUtils.extractJsonFromText(result.content);
+        const aiCorrectionParsed = AICorrectionResponseSchema.safeParse(aiCorrectionRaw);
         if (!aiCorrectionParsed.success) {
           logger.warn("⚠️ Réponse IA invalide (questions ouvertes)");
         }
@@ -779,13 +738,9 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
           openQuestions,
         );
 
-        logger.log(
-          `✅ [IA] ${aiCorrections.length} questions ouvertes corrigées par l'IA`,
-        );
+        logger.log(`✅ [IA] ${aiCorrections.length} questions ouvertes corrigées par l'IA`);
       } else {
-        logger.log(
-          `⚡ [HYBRID] Aucune question ouverte - correction 100% automatique !`,
-        );
+        logger.log(`⚡ [HYBRID] Aucune question ouverte - correction 100% automatique !`);
       }
 
       // 🔗 ÉTAPE 3 : Combiner les corrections automatiques + IA
@@ -821,8 +776,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         adaptedGrade: Math.round(realAdaptedGrade * 100) / 100,
         gradeScale: "20",
         // Cast: QuestionCorrectionResult is runtime-compatible with QuestionResult
-        questionResults:
-          sortedCorrections as unknown as QuizCorrectionResult["questionResults"],
+        questionResults: sortedCorrections as unknown as QuizCorrectionResult["questionResults"],
         aiCorrection: {
           globalFeedback:
             aiCorrections.length > 0
@@ -830,30 +784,19 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
               : `Correction 100% automatique pour ${autoCorrections.length} questions fermées. Performance: ${realPercentage.toFixed(1)}%`,
           strengths: this.extractStrengthsFromCorrections(sortedCorrections),
           weaknesses: this.extractWeaknessesFromCorrections(sortedCorrections),
-          recommendations: this.generateRecommendations(
-            sortedCorrections,
-            realPercentage,
-          ),
+          recommendations: this.generateRecommendations(sortedCorrections, realPercentage),
         },
         metadata: {
           correctedAt: new Date(),
           aiModel:
-            (aiCorrections.length > 0
-              ? AIService.getQuizCorrectionModel()
-              : "Auto-correction") || "unknown",
+            (aiCorrections.length > 0 ? AIService.getQuizCorrectionModel() : "Auto-correction") ||
+            "unknown",
           correctionTime: Date.now() - startTime,
         },
       };
 
       // 🐛 [DEBUG] Sauvegarder le résultat final complet
-      this.saveDebugData(
-        questions,
-        userAnswers,
-        request,
-        "",
-        "",
-        correctionResult,
-      );
+      this.saveDebugData(questions, userAnswers, request, "", "", correctionResult);
 
       return correctionResult;
     } catch (error) {
@@ -883,21 +826,17 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
 
     try {
       // 🚀 ÉTAPE 1 : Correction automatique des questions fermées (QCM, Vrai/Faux, Matching)
-      const autoCorrections = this.correctClosedQuestions(
-        questions,
-        userAnswers,
-      );
+      const autoCorrections = this.correctClosedQuestions(questions, userAnswers);
       logger.log(
         `⚡ [HYBRID-STREAMING] Correction automatique : ${autoCorrections.length} questions fermées traitées`,
       );
 
       // Générer les suggestions IA pour les questions fermées qui ont des points partiels/zéro
-      const closedWithSuggestions =
-        await this.generateSuggestionsForClosedQuestions(
-          autoCorrections,
-          questions,
-          request,
-        );
+      const closedWithSuggestions = await this.generateSuggestionsForClosedQuestions(
+        autoCorrections,
+        questions,
+        request,
+      );
 
       // Yielder toutes les questions fermées d'un coup
       yield {
@@ -911,28 +850,25 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         `🤖 [HYBRID-STREAMING] Questions ouvertes nécessitant l'IA : ${openQuestions.length}`,
       );
 
-      let aiCorrections: QuestionCorrectionResult[] = [];
+      const aiCorrections: QuestionCorrectionResult[] = [];
 
       // Si on a des questions ouvertes, corriger une par une
       if (openQuestions.length > 0) {
         for (let i = 0; i < openQuestions.length; i++) {
           try {
             const openQuestion = openQuestions[i];
-            const userAnswer = userAnswers.find(
-              (ua) => ua.questionId === openQuestion.id,
-            );
+            const userAnswer = userAnswers.find((ua) => ua.questionId === openQuestion.id);
 
             logger.log(
               `🧠 [STREAMING] Correction question ouverte ${i + 1}/${openQuestions.length}`,
             );
 
             // Corriger cette question ouverte spécifique
-            const singleQuestionCorrection =
-              await this.correctSingleOpenQuestion(
-                openQuestion,
-                userAnswer,
-                request,
-              );
+            const singleQuestionCorrection = await this.correctSingleOpenQuestion(
+              openQuestion,
+              userAnswer,
+              request,
+            );
 
             aiCorrections.push(singleQuestionCorrection);
 
@@ -944,21 +880,14 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
               correction: singleQuestionCorrection,
             };
 
-            logger.log(
-              `✅ [STREAMING] Question ouverte ${i + 1} corrigée et envoyée`,
-            );
+            logger.log(`✅ [STREAMING] Question ouverte ${i + 1} corrigée et envoyée`);
           } catch (error) {
-            logger.error(
-              `❌ [STREAMING] Erreur correction question ouverte ${i + 1}:`,
-              error,
-            );
+            logger.error(`❌ [STREAMING] Erreur correction question ouverte ${i + 1}:`, error);
             // Continuer avec la question suivante
           }
         }
       } else {
-        logger.log(
-          `⚡ [HYBRID-STREAMING] Aucune question ouverte - correction 100% automatique !`,
-        );
+        logger.log(`⚡ [HYBRID-STREAMING] Aucune question ouverte - correction 100% automatique !`);
       }
 
       // 🔗 ÉTAPE 3 : Combiner les corrections automatiques + IA
@@ -1005,8 +934,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         adaptedGrade: Math.round(realAdaptedGrade * 100) / 100,
         gradeScale: "20",
         // Cast: QuestionCorrectionResult is runtime-compatible with QuestionResult
-        questionResults:
-          sortedCorrections as unknown as QuizCorrectionResult["questionResults"],
+        questionResults: sortedCorrections as unknown as QuizCorrectionResult["questionResults"],
         aiCorrection: {
           globalFeedback: detailedAnalysis.summary,
           strengths: detailedAnalysis.strengths,
@@ -1028,14 +956,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
       };
 
       // 🐛 [DEBUG] Sauvegarder le résultat final complet
-      this.saveDebugData(
-        questions,
-        userAnswers,
-        request,
-        "",
-        "",
-        correctionResult,
-      );
+      this.saveDebugData(questions, userAnswers, request, "", "", correctionResult);
     } catch (error) {
       logger.error("Erreur correction quiz streaming:", error);
       throw new Error(
@@ -1047,25 +968,17 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
   /**
    * Helper : Extrait les points forts depuis les corrections
    */
-  private static extractStrengthsFromCorrections(
-    corrections: BaseCorrectionResult[],
-  ): string[] {
+  private static extractStrengthsFromCorrections(corrections: BaseCorrectionResult[]): string[] {
     const strengths = [];
     const correctAnswers = corrections.filter((c) => c.isCorrect);
 
     if (correctAnswers.length > 0) {
-      strengths.push(
-        `${correctAnswers.length} réponse(s) parfaitement correcte(s)`,
-      );
+      strengths.push(`${correctAnswers.length} réponse(s) parfaitement correcte(s)`);
     }
 
-    const partialScores = corrections.filter(
-      (c) => c.score > 0 && !c.isCorrect,
-    );
+    const partialScores = corrections.filter((c) => c.score > 0 && !c.isCorrect);
     if (partialScores.length > 0) {
-      strengths.push(
-        `Compréhension partielle sur ${partialScores.length} question(s)`,
-      );
+      strengths.push(`Compréhension partielle sur ${partialScores.length} question(s)`);
     }
 
     return strengths.length > 0 ? strengths : ["Continuez vos efforts"];
@@ -1074,9 +987,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
   /**
    * Helper : Extrait les faiblesses depuis les corrections
    */
-  private static extractWeaknessesFromCorrections(
-    corrections: BaseCorrectionResult[],
-  ): string[] {
+  private static extractWeaknessesFromCorrections(corrections: BaseCorrectionResult[]): string[] {
     const weaknesses = [];
     const incorrectAnswers = corrections.filter((c) => c.score === 0);
 
@@ -1084,13 +995,9 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
       weaknesses.push(`${incorrectAnswers.length} réponse(s) à retravailler`);
     }
 
-    const partialScores = corrections.filter(
-      (c) => c.score > 0 && !c.isCorrect,
-    );
+    const partialScores = corrections.filter((c) => c.score > 0 && !c.isCorrect);
     if (partialScores.length > 0) {
-      weaknesses.push(
-        `Approfondissement nécessaire sur ${partialScores.length} point(s)`,
-      );
+      weaknesses.push(`Approfondissement nécessaire sur ${partialScores.length} point(s)`);
     }
 
     return weaknesses.length > 0 ? weaknesses : [];
@@ -1113,9 +1020,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
       recommendations.push("Approfondir les sujets les plus complexes");
     } else {
       recommendations.push("Excellent travail ! Continuer sur cette lancée");
-      recommendations.push(
-        "Approfondir les sujets avancés pour aller plus loin",
-      );
+      recommendations.push("Approfondir les sujets avancés pour aller plus loin");
     }
 
     const incorrectAnswers = corrections.filter((c) => c.score === 0);
@@ -1171,8 +1076,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
         );
       case "MULTIPLE_CHOICE":
         const mcQ = question as MultipleChoiceQuestion;
-        const correctOptions =
-          mcQ.options?.filter((opt) => opt.isCorrect) || [];
+        const correctOptions = mcQ.options?.filter((opt) => opt.isCorrect) || [];
         return correctOptions.map((opt) => opt.text).join(", ");
       case "TRUE_FALSE":
         const tfQ = question as TrueFalseQuestion;
@@ -1180,9 +1084,8 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
       case "MATCHING":
         const matchQ = question as MatchingQuestion;
         return (
-          matchQ.correctMatches
-            ?.map((match) => `${match.leftId} → ${match.rightId}`)
-            .join(", ") || "Associations attendues"
+          matchQ.correctMatches?.map((match) => `${match.leftId} → ${match.rightId}`).join(", ") ||
+          "Associations attendues"
         );
       default:
         return "Réponse attendue non définie";
@@ -1192,10 +1095,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
   /**
    * Formate la réponse utilisateur selon le type de question
    */
-  private static formatUserAnswer(
-    question: Question,
-    userAnswer?: UserAnswer,
-  ): string {
+  private static formatUserAnswer(question: Question, userAnswer?: UserAnswer): string {
     if (!userAnswer?.answer) {
       return "Pas de réponse";
     }
@@ -1208,9 +1108,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
             leftId: string;
             rightId: string;
           }>;
-          return pairs
-            .map((pair) => `${pair.leftId} → ${pair.rightId}`)
-            .join(", ");
+          return pairs.map((pair) => `${pair.leftId} → ${pair.rightId}`).join(", ");
         } else {
           return "Aucune association";
         }
@@ -1233,9 +1131,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
       case "MULTIPLE_CHOICE":
         // Pour les QCM, afficher l'ID et le texte de l'option choisie si possible
         const mcQ = question as MultipleChoiceQuestion;
-        const selectedOption = mcQ.options?.find(
-          (opt) => opt.id === userAnswer.answer,
-        );
+        const selectedOption = mcQ.options?.find((opt) => opt.id === userAnswer.answer);
         if (selectedOption) {
           return `${selectedOption.id}: ${selectedOption.text}`;
         } else {
@@ -1262,9 +1158,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
       questionResults?.map((qr: AIQuestionResult) => {
         // Trouver la vraie question pour récupérer le maxScore correct
         const actualQuestion = questions.find((q) => q.id === qr.questionId);
-        const actualMaxScore = actualQuestion
-          ? actualQuestion.points
-          : Number(qr.maxScore) || 1;
+        const actualMaxScore = actualQuestion ? actualQuestion.points : Number(qr.maxScore) || 1;
 
         // S'assurer que le score est un nombre valide
         const cleanScore = isNaN(Number(qr.score)) ? 0 : Number(qr.score);
@@ -1313,34 +1207,25 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
   /**
    * Recalcule les scores pour garantir la cohérence
    */
-  private static recalculateScores(
-    detailedScoring: QuestionCorrectionResult[],
-  ): {
+  private static recalculateScores(detailedScoring: QuestionCorrectionResult[]): {
     realTotalScore: number;
     realMaxScore: number;
     realPercentage: number;
     realAdaptedGrade: number;
   } {
     // Calculer le score total réel à partir des questions individuelles
-    const realTotalScore = detailedScoring.reduce(
-      (sum: number, qr: QuestionCorrectionResult) => {
-        const score = isNaN(qr.score) ? 0 : Number(qr.score);
-        return sum + score;
-      },
-      0,
-    );
+    const realTotalScore = detailedScoring.reduce((sum: number, qr: QuestionCorrectionResult) => {
+      const score = isNaN(qr.score) ? 0 : Number(qr.score);
+      return sum + score;
+    }, 0);
 
-    const realMaxScore = detailedScoring.reduce(
-      (sum: number, qr: QuestionCorrectionResult) => {
-        const maxScore = isNaN(qr.maxScore) ? 0 : Number(qr.maxScore);
-        return sum + maxScore;
-      },
-      0,
-    );
+    const realMaxScore = detailedScoring.reduce((sum: number, qr: QuestionCorrectionResult) => {
+      const maxScore = isNaN(qr.maxScore) ? 0 : Number(qr.maxScore);
+      return sum + maxScore;
+    }, 0);
 
     // Calculer le pourcentage réel avec protection contre division par zéro
-    const realPercentage =
-      realMaxScore > 0 ? (realTotalScore / realMaxScore) * 100 : 0;
+    const realPercentage = realMaxScore > 0 ? (realTotalScore / realMaxScore) * 100 : 0;
 
     // Calculer la note adaptée sur 20 (système français standard)
     const realAdaptedGrade = (realPercentage * 20) / 100;
@@ -1365,18 +1250,11 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
     const startTime = Date.now();
 
     try {
-      logger.log(
-        `🎯 [SUBJECT-CORRECTION] Correction hybride du sujet: ${request.subjectTitle}`,
-      );
-      logger.log(
-        `📝 [SUBJECT-CORRECTION] ${exercises.length} exercices à corriger`,
-      );
+      logger.log(`🎯 [SUBJECT-CORRECTION] Correction hybride du sujet: ${request.subjectTitle}`);
+      logger.log(`📝 [SUBJECT-CORRECTION] ${exercises.length} exercices à corriger`);
 
       // 🚀 ÉTAPE 1 : Correction automatique des exercices fermés (QCM, Vrai/Faux)
-      const autoCorrections = this.correctClosedSubjectExercises(
-        exercises,
-        userAnswers,
-      );
+      const autoCorrections = this.correctClosedSubjectExercises(exercises, userAnswers);
       logger.log(
         `⚡ [SUBJECT-HYBRID] Correction automatique : ${autoCorrections.length} exercices traités instantanément`,
       );
@@ -1470,11 +1348,8 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
           `🐛 [DEBUG] Réponse IA pour exercices ouverts du sujet (${result.content.length} caractères)`,
         );
 
-        const aiCorrectionRaw: unknown = JsonUtils.extractJsonFromText(
-          result.content,
-        );
-        const aiCorrectionParsed =
-          AICorrectionResponseSchema.safeParse(aiCorrectionRaw);
+        const aiCorrectionRaw: unknown = JsonUtils.extractJsonFromText(result.content);
+        const aiCorrectionParsed = AICorrectionResponseSchema.safeParse(aiCorrectionRaw);
         if (!aiCorrectionParsed.success) {
           logger.warn("⚠️ Réponse IA invalide (exercices ouverts)");
         }
@@ -1488,13 +1363,9 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
           openExercises,
         );
 
-        logger.log(
-          `✅ [SUBJECT-IA] ${aiCorrections.length} exercices ouverts corrigés par l'IA`,
-        );
+        logger.log(`✅ [SUBJECT-IA] ${aiCorrections.length} exercices ouverts corrigés par l'IA`);
       } else {
-        logger.log(
-          `⚡ [SUBJECT-HYBRID] Aucun exercice ouvert - correction 100% automatique !`,
-        );
+        logger.log(`⚡ [SUBJECT-HYBRID] Aucun exercice ouvert - correction 100% automatique !`);
       }
 
       // 🔗 ÉTAPE 3 : Combiner les corrections automatiques + IA
@@ -1536,16 +1407,12 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
             : `Correction 100% automatique pour ${autoCorrections.length} exercices fermés. Performance: ${realPercentage.toFixed(1)}%`,
         strengths: this.extractStrengthsFromCorrections(sortedCorrections),
         weaknesses: this.extractWeaknessesFromCorrections(sortedCorrections),
-        recommendations: this.generateRecommendations(
-          sortedCorrections,
-          realPercentage,
-        ),
+        recommendations: this.generateRecommendations(sortedCorrections, realPercentage),
         metadata: {
           correctedAt: new Date(),
           aiModel:
-            (aiCorrections.length > 0
-              ? AIService.getQuizCorrectionModel()
-              : "Auto-correction") || "unknown",
+            (aiCorrections.length > 0 ? AIService.getQuizCorrectionModel() : "Auto-correction") ||
+            "unknown",
           correctionTime: Date.now() - startTime,
         },
       };
@@ -1567,37 +1434,27 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
     exercises: SubjectExercise[],
     userAnswers: SubjectExerciseAnswer[],
   ): SubjectExerciseResult[] {
-    const closedExercises = exercises.filter(
-      (ex) => ex.type === "QCM" || ex.type === "VRAI_FAUX",
-    );
+    const closedExercises = exercises.filter((ex) => ex.type === "QCM" || ex.type === "VRAI_FAUX");
 
     logger.log(
       `🤖 [SUBJECT-AUTO-CORRECTION] Correction automatique de ${closedExercises.length} exercices fermés`,
     );
 
     return closedExercises.map((exercise) => {
-      const userAnswer = userAnswers.find(
-        (ua) => ua.exerciseId === exercise.id,
-      );
+      const userAnswer = userAnswers.find((ua) => ua.exerciseId === exercise.id);
       const maxScore = exercise.points || 1;
 
       let score = 0;
       let isCorrect = false;
       let explanation = "";
       let correctAnswer = "";
-      let formattedUserAnswer = userAnswer?.answer
-        ? String(userAnswer.answer)
-        : "Pas de réponse";
+      let formattedUserAnswer = userAnswer?.answer ? String(userAnswer.answer) : "Pas de réponse";
 
       switch (exercise.type) {
         case "QCM":
           if (exercise.options) {
-            const selectedOption = exercise.options.find(
-              (opt) => opt.id === userAnswer?.answer,
-            );
-            const correctOptions = exercise.options.filter(
-              (opt) => opt.isCorrect,
-            );
+            const selectedOption = exercise.options.find((opt) => opt.id === userAnswer?.answer);
+            const correctOptions = exercise.options.filter((opt) => opt.isCorrect);
             correctAnswer = correctOptions.map((opt) => opt.text).join(", ");
 
             if (selectedOption && selectedOption.isCorrect) {
@@ -1621,9 +1478,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
           break;
 
         case "VRAI_FAUX":
-          const userBoolAnswer = this.normalizeVraiFauxAnswer(
-            userAnswer?.answer,
-          );
+          const userBoolAnswer = this.normalizeVraiFauxAnswer(userAnswer?.answer);
           const correctBoolAnswer = exercise.correctAnswer;
           correctAnswer = correctBoolAnswer ? "Vrai" : "Faux";
 
@@ -1660,9 +1515,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
   /**
    * Helpers pour la correction de sujets
    */
-  private static normalizeVraiFauxAnswer(
-    answer: string | boolean | undefined,
-  ): boolean {
+  private static normalizeVraiFauxAnswer(answer: string | boolean | undefined): boolean {
     if (typeof answer === "boolean") return answer;
     if (typeof answer === "string") {
       const normalized = answer.toLowerCase().trim();
@@ -1676,9 +1529,7 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openExercises.length} 
     return false; // Valeur par défaut
   }
 
-  private static buildSubjectCorrectionPrompt(
-    request: SubjectCorrectionRequest,
-  ): string {
+  private static buildSubjectCorrectionPrompt(request: SubjectCorrectionRequest): string {
     let basePrompt = `Tu es un correcteur expert pour la matière ${request.subject || "générale"} niveau ${request.schoolLevel || "non spécifié"}.
 
 CORRECTION D'EXERCICES OUVERTS DE SUJET :
@@ -1687,11 +1538,7 @@ CORRECTION D'EXERCICES OUVERTS DE SUJET :
 - Explications pédagogiques détaillées`;
 
     // Ajouter le contenu des cours si disponible
-    if (
-      request.coursesOnly &&
-      request.workspaceContent &&
-      request.workspaceContent.length > 0
-    ) {
+    if (request.coursesOnly && request.workspaceContent && request.workspaceContent.length > 0) {
       const workspaceInfo = request.workspaceContent.map((ws) => ({
         workspace: ws.workspaceName,
         topics: ws.contentSummary.mainTopics.join(", "),
@@ -1719,11 +1566,7 @@ CONSIGNES : Base ta correction STRICTEMENT sur le contenu des cours fourni ci-de
     }
 
     // Ajouter les documents de référence si disponibles
-    if (
-      request.hasDocuments &&
-      request.sourceDocuments &&
-      request.sourceDocuments.length > 0
-    ) {
+    if (request.hasDocuments && request.sourceDocuments && request.sourceDocuments.length > 0) {
       basePrompt += `
 
 DOCUMENTS DE RÉFÉRENCE :
@@ -1780,9 +1623,7 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Con
     return (
       exerciseResults?.map((er: AIExerciseResult) => {
         const actualExercise = exercises.find((ex) => ex.id === er.exerciseId);
-        const actualMaxScore = actualExercise
-          ? actualExercise.points
-          : Number(er.maxScore) || 1;
+        const actualMaxScore = actualExercise ? actualExercise.points : Number(er.maxScore) || 1;
 
         const cleanScore = isNaN(Number(er.score)) ? 0 : Number(er.score);
 
@@ -1825,32 +1666,23 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Con
     );
   }
 
-  private static recalculateSubjectScores(
-    detailedScoring: SubjectExerciseResult[],
-  ): {
+  private static recalculateSubjectScores(detailedScoring: SubjectExerciseResult[]): {
     realTotalScore: number;
     realMaxScore: number;
     realPercentage: number;
     realAdaptedGrade: number;
   } {
-    const realTotalScore = detailedScoring.reduce(
-      (sum: number, er: SubjectExerciseResult) => {
-        const score = isNaN(er.score) ? 0 : Number(er.score);
-        return sum + score;
-      },
-      0,
-    );
+    const realTotalScore = detailedScoring.reduce((sum: number, er: SubjectExerciseResult) => {
+      const score = isNaN(er.score) ? 0 : Number(er.score);
+      return sum + score;
+    }, 0);
 
-    const realMaxScore = detailedScoring.reduce(
-      (sum: number, er: SubjectExerciseResult) => {
-        const maxScore = isNaN(er.maxScore) ? 0 : Number(er.maxScore);
-        return sum + maxScore;
-      },
-      0,
-    );
+    const realMaxScore = detailedScoring.reduce((sum: number, er: SubjectExerciseResult) => {
+      const maxScore = isNaN(er.maxScore) ? 0 : Number(er.maxScore);
+      return sum + maxScore;
+    }, 0);
 
-    const realPercentage =
-      realMaxScore > 0 ? (realTotalScore / realMaxScore) * 100 : 0;
+    const realPercentage = realMaxScore > 0 ? (realTotalScore / realMaxScore) * 100 : 0;
     const realAdaptedGrade = (realPercentage * 20) / 100;
 
     return {
@@ -1870,9 +1702,7 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Con
     request: QuizCorrectionRequest,
   ): Promise<QuestionCorrectionResult[]> {
     // Questions qui nécessitent une suggestion (pas parfait)
-    const questionsNeedingSuggestions = autoCorrections.filter(
-      (c) => c.score < c.maxScore,
-    );
+    const questionsNeedingSuggestions = autoCorrections.filter((c) => c.score < c.maxScore);
 
     if (questionsNeedingSuggestions.length === 0) {
       return autoCorrections; // Toutes les réponses sont parfaites
@@ -1939,11 +1769,7 @@ Réponds UNIQUEMENT en JSON array valide.`;
     userAnswer: UserAnswer | undefined,
     request: QuizCorrectionRequest,
   ): Promise<QuestionCorrectionResult> {
-    const basePrompt = this.buildSingleOpenQuestionPrompt(
-      question,
-      userAnswer,
-      request,
-    );
+    const basePrompt = this.buildSingleOpenQuestionPrompt(question, userAnswer, request);
 
     const result = await AIService.generateContent({
       prompt: basePrompt,
@@ -1953,8 +1779,7 @@ Réponds UNIQUEMENT en JSON array valide.`;
     });
 
     const correctionRaw: unknown = JsonUtils.extractJsonFromText(result.content);
-    const correctionParsed =
-      OpenQuestionCorrectionDataSchema.safeParse(correctionRaw);
+    const correctionParsed = OpenQuestionCorrectionDataSchema.safeParse(correctionRaw);
     if (!correctionParsed.success) {
       throw new Error("Réponse IA invalide (correction question ouverte)");
     }
@@ -1999,9 +1824,7 @@ Réponds UNIQUEMENT en JSON array valide.`;
     request: QuizCorrectionRequest,
   ): string {
     // Obtenir les directives adaptées au niveau
-    const levelDirectives = this.getLevelSpecificDirectives(
-      request.schoolLevel,
-    );
+    const levelDirectives = this.getLevelSpecificDirectives(request.schoolLevel);
 
     let basePrompt = `Tu es un correcteur expert adapté au niveau ${request.schoolLevel}. Corrige cette question ouverte avec rigueur académique.
 
@@ -2022,11 +1845,7 @@ RÉPONSE DE L'ÉLÈVE :
 ${userAnswer?.answer || "Pas de réponse fournie"}`;
 
     // Ajouter le contexte des cours si disponible
-    if (
-      request.coursesOnly &&
-      request.workspaceContent &&
-      request.workspaceContent.length > 0
-    ) {
+    if (request.coursesOnly && request.workspaceContent && request.workspaceContent.length > 0) {
       const workspaceInfo = request.workspaceContent.map((ws) => ({
         workspace: ws.workspaceName,
         topics: ws.contentSummary.mainTopics.join(", "),
@@ -2088,21 +1907,13 @@ Réponds UNIQUEMENT en JSON valide.`;
     try {
       logger.log("🧠 [ANALYSIS] Génération analyse IA détaillée...");
 
-      const correctAnswers = corrections.filter(
-        (c) => c.score === c.maxScore,
-      ).length;
-      const partialAnswers = corrections.filter(
-        (c) => c.score > 0 && c.score < c.maxScore,
-      ).length;
+      const correctAnswers = corrections.filter((c) => c.score === c.maxScore).length;
+      const partialAnswers = corrections.filter((c) => c.score > 0 && c.score < c.maxScore).length;
       const incorrectAnswers = corrections.filter((c) => c.score === 0).length;
 
       // Obtenir les directives et le contexte adaptés au niveau
-      const levelDirectives = this.getLevelSpecificDirectives(
-        request.schoolLevel,
-      );
-      const analysisContext = this.getAnalysisContextForLevel(
-        request.schoolLevel,
-      );
+      const levelDirectives = this.getLevelSpecificDirectives(request.schoolLevel);
+      const analysisContext = this.getAnalysisContextForLevel(request.schoolLevel);
 
       const analysisPrompt = `Tu es un tuteur pédagogue expert. Génère une analyse détaillée et personnalisée du quiz basée sur les résultats suivants:
 
@@ -2156,12 +1967,8 @@ Format JSON STRICT requis.`;
 
       return {
         summary: analysisData.summary || "Analyse non disponible",
-        strengths: Array.isArray(analysisData.strengths)
-          ? analysisData.strengths
-          : [],
-        weaknesses: Array.isArray(analysisData.weaknesses)
-          ? analysisData.weaknesses
-          : [],
+        strengths: Array.isArray(analysisData.strengths) ? analysisData.strengths : [],
+        weaknesses: Array.isArray(analysisData.weaknesses) ? analysisData.weaknesses : [],
         recommendations: Array.isArray(analysisData.recommendations)
           ? analysisData.recommendations
           : [],

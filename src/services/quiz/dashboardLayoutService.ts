@@ -53,8 +53,7 @@ export class DashboardLayoutService {
           data: {
             userId,
             layout: DEFAULT_LAYOUT.layout as unknown as Prisma.InputJsonValue,
-            visibleCharts:
-              DEFAULT_LAYOUT.visibleCharts as unknown as Prisma.InputJsonValue,
+            visibleCharts: DEFAULT_LAYOUT.visibleCharts as unknown as Prisma.InputJsonValue,
           },
         });
       }
@@ -64,10 +63,7 @@ export class DashboardLayoutService {
         visibleCharts: userLayout.visibleCharts as unknown as string[],
       };
     } catch (error) {
-      logger.error(
-        "❌ [DashboardLayoutService] Erreur récupération layout:",
-        error,
-      );
+      logger.error("❌ [DashboardLayoutService] Erreur récupération layout:", error);
       // En cas d'erreur, retourner le layout par défaut
       return DEFAULT_LAYOUT;
     }
@@ -95,19 +91,14 @@ export class DashboardLayoutService {
         },
       });
 
-      logger.log(
-        `✅ [DashboardLayoutService] Layout sauvegardé pour user ${userId}`,
-      );
+      logger.log(`✅ [DashboardLayoutService] Layout sauvegardé pour user ${userId}`);
 
       return {
         layout: userLayout.layout as unknown as LayoutItem[],
         visibleCharts: userLayout.visibleCharts as unknown as string[],
       };
     } catch (error) {
-      logger.error(
-        "❌ [DashboardLayoutService] Erreur sauvegarde layout:",
-        error,
-      );
+      logger.error("❌ [DashboardLayoutService] Erreur sauvegarde layout:", error);
       throw new Error("Impossible de sauvegarder le layout");
     }
   }
@@ -122,26 +113,19 @@ export class DashboardLayoutService {
         create: {
           userId,
           layout: DEFAULT_LAYOUT.layout as unknown as Prisma.InputJsonValue,
-          visibleCharts:
-            DEFAULT_LAYOUT.visibleCharts as unknown as Prisma.InputJsonValue,
+          visibleCharts: DEFAULT_LAYOUT.visibleCharts as unknown as Prisma.InputJsonValue,
         },
         update: {
           layout: DEFAULT_LAYOUT.layout as unknown as Prisma.InputJsonValue,
-          visibleCharts:
-            DEFAULT_LAYOUT.visibleCharts as unknown as Prisma.InputJsonValue,
+          visibleCharts: DEFAULT_LAYOUT.visibleCharts as unknown as Prisma.InputJsonValue,
         },
       });
 
-      logger.log(
-        `✅ [DashboardLayoutService] Layout réinitialisé pour user ${userId}`,
-      );
+      logger.log(`✅ [DashboardLayoutService] Layout réinitialisé pour user ${userId}`);
 
       return DEFAULT_LAYOUT;
     } catch (error) {
-      logger.error(
-        "❌ [DashboardLayoutService] Erreur réinitialisation layout:",
-        error,
-      );
+      logger.error("❌ [DashboardLayoutService] Erreur réinitialisation layout:", error);
       throw new Error("Impossible de réinitialiser le layout");
     }
   }
@@ -180,16 +164,9 @@ export class DashboardLayoutService {
       const updatedLayout = [...currentLayout.layout, newLayoutItem];
       const updatedVisibleCharts = [...currentLayout.visibleCharts, chartId];
 
-      return await this.saveUserLayout(
-        userId,
-        updatedLayout,
-        updatedVisibleCharts,
-      );
+      return await this.saveUserLayout(userId, updatedLayout, updatedVisibleCharts);
     } catch (error) {
-      logger.error(
-        "❌ [DashboardLayoutService] Erreur ajout graphique:",
-        error,
-      );
+      logger.error("❌ [DashboardLayoutService] Erreur ajout graphique:", error);
       throw new Error("Impossible d'ajouter le graphique");
     }
   }
@@ -197,30 +174,16 @@ export class DashboardLayoutService {
   /**
    * Retire un graphique du layout
    */
-  static async removeChart(
-    userId: string,
-    chartId: string,
-  ): Promise<DashboardLayout> {
+  static async removeChart(userId: string, chartId: string): Promise<DashboardLayout> {
     try {
       const currentLayout = await this.getUserLayout(userId);
 
-      const updatedLayout = currentLayout.layout.filter(
-        (item) => item.i !== chartId,
-      );
-      const updatedVisibleCharts = currentLayout.visibleCharts.filter(
-        (id) => id !== chartId,
-      );
+      const updatedLayout = currentLayout.layout.filter((item) => item.i !== chartId);
+      const updatedVisibleCharts = currentLayout.visibleCharts.filter((id) => id !== chartId);
 
-      return await this.saveUserLayout(
-        userId,
-        updatedLayout,
-        updatedVisibleCharts,
-      );
+      return await this.saveUserLayout(userId, updatedLayout, updatedVisibleCharts);
     } catch (error) {
-      logger.error(
-        "❌ [DashboardLayoutService] Erreur suppression graphique:",
-        error,
-      );
+      logger.error("❌ [DashboardLayoutService] Erreur suppression graphique:", error);
       throw new Error("Impossible de retirer le graphique");
     }
   }

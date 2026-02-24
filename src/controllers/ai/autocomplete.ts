@@ -27,9 +27,7 @@ interface AutocompleteStreamResult {
 const autocompleteSchema = z.object({
   content: z.string().min(1, "Le contenu est requis"),
   cursorPosition: z.number().int().min(0),
-  blockType: z
-    .enum(["text", "heading2", "heading3", "list", "quote", "code"])
-    .optional(),
+  blockType: z.enum(["text", "heading2", "heading3", "list", "quote", "code"]).optional(),
   maxSuggestions: z.number().int().min(1).max(5).optional().default(3),
 });
 
@@ -45,10 +43,7 @@ const checkAutocompletionEnabled = async (userId: string): Promise<boolean> => {
 
     return isEnabled;
   } catch (error) {
-    logger.error(
-      "❌ Erreur lors de la vérification des préférences utilisateur:",
-      error,
-    );
+    logger.error("❌ Erreur lors de la vérification des préférences utilisateur:", error);
     // En cas d'erreur, autoriser par défaut
     return true;
   }
@@ -66,8 +61,7 @@ export const autocomplete = async (req: Request, res: Response) => {
     if (!isEnabled) {
       return res.status(403).json({
         error: "Autocomplétion désactivée",
-        message:
-          "L'autocomplétion est désactivée dans vos préférences utilisateur",
+        message: "L'autocomplétion est désactivée dans vos préférences utilisateur",
         code: "AUTOCOMPLETION_DISABLED",
       });
     }
@@ -80,9 +74,7 @@ export const autocomplete = async (req: Request, res: Response) => {
     // 🚫 Annuler la requête si la connexion client se ferme
     req.on("close", () => {
       if (!abortController.signal.aborted) {
-        logger.log(
-          "🚫 [AUTOCOMPLETE] Connexion client fermée, annulation de la requête",
-        );
+        logger.log("🚫 [AUTOCOMPLETE] Connexion client fermée, annulation de la requête");
         abortController.abort();
       }
     });
@@ -135,10 +127,7 @@ export const autocomplete = async (req: Request, res: Response) => {
 };
 
 // 🚀 NOUVEAU : Gestionnaire WebSocket pour l'autocomplétion en streaming
-export const handleAutocompleteWebSocket = (
-  ws: AuthenticatedWebSocket,
-  req: IncomingMessage,
-) => {
+export const handleAutocompleteWebSocket = (ws: AuthenticatedWebSocket, req: IncomingMessage) => {
   logger.log("🔌 [WS-AUTOCOMPLETE] Nouvelle connexion WebSocket");
 
   let currentAbortController: AbortController | null = null;
@@ -171,10 +160,7 @@ export const handleAutocompleteWebSocket = (
       } catch (parseError) {
         logger.error("❌ [WS-AUTOCOMPLETE] Message JSON invalide:", {
           message: message.substring(0, 100),
-          error:
-            parseError instanceof Error
-              ? parseError.message
-              : "Erreur de parsing inconnue",
+          error: parseError instanceof Error ? parseError.message : "Erreur de parsing inconnue",
           userId: user.id,
         });
 
@@ -210,8 +196,7 @@ export const handleAutocompleteWebSocket = (
             ws.send(
               JSON.stringify({
                 type: "error",
-                error:
-                  "Autocomplétion désactivée dans vos préférences utilisateur",
+                error: "Autocomplétion désactivée dans vos préférences utilisateur",
                 code: "AUTOCOMPLETION_DISABLED",
                 timestamp: Date.now(),
               }),
@@ -221,9 +206,7 @@ export const handleAutocompleteWebSocket = (
         }
 
         // Annuler toute requête précédente immédiatement
-        cancelCurrentRequest(
-          "Nouvelle requête reçue, annulation de la précédente",
-        );
+        cancelCurrentRequest("Nouvelle requête reçue, annulation de la précédente");
 
         // Valider les données
         const validatedData = autocompleteSchema.parse(data);
@@ -246,13 +229,8 @@ export const handleAutocompleteWebSocket = (
             validatedData.maxSuggestions || 3,
             (streamResult: AutocompleteStreamResult) => {
               // 🚫 Vérifier que cette requête n'a pas été annulée
-              if (
-                currentAbortController?.signal.aborted ||
-                lastRequestId !== requestId
-              ) {
-                logger.log(
-                  `🚫 [WS-AUTOCOMPLETE] Chunk ignoré - requête [${requestId}] annulée`,
-                );
+              if (currentAbortController?.signal.aborted || lastRequestId !== requestId) {
+                logger.log(`🚫 [WS-AUTOCOMPLETE] Chunk ignoré - requête [${requestId}] annulée`);
                 return;
               }
 
@@ -272,13 +250,8 @@ export const handleAutocompleteWebSocket = (
           );
 
           // 🚫 Vérifier une dernière fois que la requête n'a pas été annulée
-          if (
-            !currentAbortController?.signal.aborted &&
-            lastRequestId === requestId
-          ) {
-            logger.log(
-              `✅ [WS-AUTOCOMPLETE] Autocomplétion terminée [${requestId}]`,
-            );
+          if (!currentAbortController?.signal.aborted && lastRequestId === requestId) {
+            logger.log(`✅ [WS-AUTOCOMPLETE] Autocomplétion terminée [${requestId}]`);
             currentAbortController = null;
             lastRequestId = null;
           }
@@ -290,9 +263,7 @@ export const handleAutocompleteWebSocket = (
               error.name === "AbortError" ||
               currentAbortController?.signal.aborted)
           ) {
-            logger.log(
-              `🚫 [WS-AUTOCOMPLETE] Requête [${requestId}] annulée avec succès`,
-            );
+            logger.log(`🚫 [WS-AUTOCOMPLETE] Requête [${requestId}] annulée avec succès`);
 
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(
@@ -304,17 +275,13 @@ export const handleAutocompleteWebSocket = (
               );
             }
           } else {
-            logger.error(
-              `❌ [WS-AUTOCOMPLETE] Erreur requête [${requestId}]:`,
-              error,
-            );
+            logger.error(`❌ [WS-AUTOCOMPLETE] Erreur requête [${requestId}]:`, error);
 
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(
                 JSON.stringify({
                   type: "error",
-                  error:
-                    error instanceof Error ? error.message : "Erreur inconnue",
+                  error: error instanceof Error ? error.message : "Erreur inconnue",
                   requestId: requestId,
                   timestamp: Date.now(),
                 }),
@@ -360,9 +327,7 @@ export const handleAutocompleteWebSocket = (
   });
 
   ws.on("close", () => {
-    logger.log(
-      `🔌 [WS-AUTOCOMPLETE] Connexion fermée pour utilisateur ${user.id}`,
-    );
+    logger.log(`🔌 [WS-AUTOCOMPLETE] Connexion fermée pour utilisateur ${user.id}`);
     // Annuler toute requête en cours
     if (currentAbortController) {
       currentAbortController.abort();
@@ -370,10 +335,7 @@ export const handleAutocompleteWebSocket = (
   });
 
   ws.on("error", (error) => {
-    logger.error(
-      `❌ [WS-AUTOCOMPLETE] Erreur WebSocket pour utilisateur ${user.id}:`,
-      error,
-    );
+    logger.error(`❌ [WS-AUTOCOMPLETE] Erreur WebSocket pour utilisateur ${user.id}:`, error);
     // Annuler toute requête en cours
     if (currentAbortController) {
       currentAbortController.abort();

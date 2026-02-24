@@ -45,11 +45,8 @@ export interface QuizJobResult {
 }
 
 // 🔧 Processeur de jobs Quiz
-const processQuizJob = async (
-  job: Job<QuizJobData>,
-): Promise<QuizJobResult> => {
-  const { type, userId, request, sequenceOptions, correctionRequest } =
-    job.data;
+const processQuizJob = async (job: Job<QuizJobData>): Promise<QuizJobResult> => {
+  const { type, userId, request, sequenceOptions, correctionRequest } = job.data;
 
   logger.log(`📝 [QUIZ-WORKER] Traitement job ${type} pour user ${userId}`);
 
@@ -63,9 +60,7 @@ const processQuizJob = async (
           throw new Error("QuizGenerationRequest manquant");
         }
 
-        logger.log(
-          `📝 [QUIZ-WORKER] Génération quiz: ${request.title || "Sans titre"}`,
-        );
+        logger.log(`📝 [QUIZ-WORKER] Génération quiz: ${request.title || "Sans titre"}`);
 
         // Générer le quiz
         const quizId = await QuizService.generateQuiz(request, sequenceOptions);
@@ -108,9 +103,7 @@ const processQuizJob = async (
           throw new Error("QuizCorrectionRequest manquant");
         }
 
-        logger.log(
-          `📝 [QUIZ-WORKER] Correction quiz ${correctionRequest.quizId}`,
-        );
+        logger.log(`📝 [QUIZ-WORKER] Correction quiz ${correctionRequest.quizId}`);
 
         // Récupérer le quiz depuis la DB pour obtenir les questions
         const quiz = await prisma.quiz.findUnique({
@@ -152,18 +145,14 @@ const processQuizJob = async (
 };
 
 // 🚀 Créer et démarrer le worker
-export const quizWorker = new Worker<QuizJobData, QuizJobResult>(
-  "ai-quiz",
-  processQuizJob,
-  {
-    connection: redis as unknown as import("bullmq").ConnectionOptions,
-    concurrency: 3, // Traiter max 3 quiz en parallèle (génération longue)
-    limiter: {
-      max: 50, // Max 50 quiz par fenêtre
-      duration: 60000, // Fenêtre de 1 minute
-    },
+export const quizWorker = new Worker<QuizJobData, QuizJobResult>("ai-quiz", processQuizJob, {
+  connection: redis as unknown as import("bullmq").ConnectionOptions,
+  concurrency: 3, // Traiter max 3 quiz en parallèle (génération longue)
+  limiter: {
+    max: 50, // Max 50 quiz par fenêtre
+    duration: 60000, // Fenêtre de 1 minute
   },
-);
+});
 
 // 📊 Event listeners pour logging et stockage des résultats
 quizWorker.on("completed", async (job, result) => {
@@ -177,10 +166,7 @@ quizWorker.on("completed", async (job, result) => {
 });
 
 quizWorker.on("failed", async (job, error) => {
-  logger.error(
-    `❌ [QUIZ-WORKER] Job ${job?.id} échoué (${job?.data.type}):`,
-    error.message,
-  );
+  logger.error(`❌ [QUIZ-WORKER] Job ${job?.id} échoué (${job?.data.type}):`, error.message);
 
   // 🛡️ Stocker l'erreur dans Redis avec userId pour ownership
   if (job?.id && job?.data.userId) {

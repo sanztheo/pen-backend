@@ -31,24 +31,17 @@ export class ProgressService {
   }
 
   registerConnection(processId: string, ws: WebSocket): void {
-    logger.log(
-      `[ProgressService] ✅ Connexion enregistrée pour processus: ${processId}`,
-    );
+    logger.log(`[ProgressService] ✅ Connexion enregistrée pour processus: ${processId}`);
     this.connections.set(processId, ws);
 
     ws.on("close", () => {
       this.connections.delete(processId);
       this.processOwners.delete(processId);
-      logger.log(
-        `[ProgressService] 🔌 Connexion fermée pour processus: ${processId}`,
-      );
+      logger.log(`[ProgressService] 🔌 Connexion fermée pour processus: ${processId}`);
     });
 
     ws.on("error", (error) => {
-      logger.error(
-        `[ProgressService] ❌ Erreur WebSocket pour ${processId}:`,
-        error,
-      );
+      logger.error(`[ProgressService] ❌ Erreur WebSocket pour ${processId}:`, error);
       this.connections.delete(processId);
       this.processOwners.delete(processId);
     });
@@ -69,9 +62,7 @@ export class ProgressService {
     const ws = this.connections.get(processId);
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      logger.warn(
-        `[ProgressService] ⚠️ Connexion fermée ou indisponible pour: ${processId}`,
-      );
+      logger.warn(`[ProgressService] ⚠️ Connexion fermée ou indisponible pour: ${processId}`);
       this.connections.delete(processId);
       return;
     }
@@ -84,16 +75,10 @@ export class ProgressService {
         ...data,
       };
 
-      logger.log(
-        `[ProgressService] 📊 Progression envoyée pour ${processId}:`,
-        progressUpdate,
-      );
+      logger.log(`[ProgressService] 📊 Progression envoyée pour ${processId}:`, progressUpdate);
       ws.send(JSON.stringify(progressUpdate));
     } catch (error) {
-      logger.error(
-        `[ProgressService] ❌ Erreur envoi progression pour ${processId}:`,
-        error,
-      );
+      logger.error(`[ProgressService] ❌ Erreur envoi progression pour ${processId}:`, error);
       this.connections.delete(processId);
     }
   }
@@ -105,9 +90,7 @@ export class ProgressService {
     const ws = this.connections.get(processId);
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      logger.warn(
-        `[ProgressService] ⚠️ Connexion fermée pour succès: ${processId}`,
-      );
+      logger.warn(`[ProgressService] ⚠️ Connexion fermée pour succès: ${processId}`);
       this.connections.delete(processId);
       return;
     }
@@ -132,10 +115,7 @@ export class ProgressService {
         }
       }, 2000);
     } catch (error) {
-      logger.error(
-        `[ProgressService] ❌ Erreur envoi succès pour ${processId}:`,
-        error,
-      );
+      logger.error(`[ProgressService] ❌ Erreur envoi succès pour ${processId}:`, error);
       this.connections.delete(processId);
     }
   }
@@ -147,9 +127,7 @@ export class ProgressService {
     const ws = this.connections.get(processId);
 
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-      logger.warn(
-        `[ProgressService] ⚠️ Connexion fermée pour erreur: ${processId}`,
-      );
+      logger.warn(`[ProgressService] ⚠️ Connexion fermée pour erreur: ${processId}`);
       this.connections.delete(processId);
       return;
     }
@@ -163,10 +141,7 @@ export class ProgressService {
         error,
       };
 
-      logger.log(
-        `[ProgressService] ❌ Erreur envoyée pour ${processId}:`,
-        error,
-      );
+      logger.log(`[ProgressService] ❌ Erreur envoyée pour ${processId}:`, error);
       ws.send(JSON.stringify(errorUpdate));
 
       // Fermer la connexion après un délai
@@ -177,10 +152,7 @@ export class ProgressService {
         }
       }, 2000);
     } catch (error) {
-      logger.error(
-        `[ProgressService] ❌ Erreur envoi erreur pour ${processId}:`,
-        error,
-      );
+      logger.error(`[ProgressService] ❌ Erreur envoi erreur pour ${processId}:`, error);
       this.connections.delete(processId);
     }
   }
@@ -197,9 +169,7 @@ export class ProgressService {
    * Ferme toutes les connexions actives
    */
   closeAllConnections(): void {
-    logger.log(
-      `[ProgressService] 🔌 Fermeture de ${this.connections.size} connexions...`,
-    );
+    logger.log(`[ProgressService] 🔌 Fermeture de ${this.connections.size} connexions...`);
 
     for (const [processId, ws] of this.connections.entries()) {
       try {
@@ -207,10 +177,7 @@ export class ProgressService {
           ws.close();
         }
       } catch (error) {
-        logger.error(
-          `[ProgressService] ❌ Erreur fermeture connexion ${processId}:`,
-          error,
-        );
+        logger.error(`[ProgressService] ❌ Erreur fermeture connexion ${processId}:`, error);
       }
     }
 

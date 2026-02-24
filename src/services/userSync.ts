@@ -44,8 +44,7 @@ export class UserSyncService {
                   firstName: clerkUser.user_metadata?.firstName || "",
                   lastName: clerkUser.user_metadata?.lastName || "",
                   avatarUrl: clerkUser.user_metadata?.avatar,
-                  autocompletionEnabled:
-                    clerkUser.user_metadata?.autocompletionEnabled ?? true,
+                  autocompletionEnabled: clerkUser.user_metadata?.autocompletionEnabled ?? true,
                   updatedAt: new Date(),
                 },
               });
@@ -68,8 +67,7 @@ export class UserSyncService {
                 firstName: clerkUser.user_metadata?.firstName || "",
                 lastName: clerkUser.user_metadata?.lastName || "",
                 avatarUrl: clerkUser.user_metadata?.avatar,
-                autocompletionEnabled:
-                  clerkUser.user_metadata?.autocompletionEnabled ?? true,
+                autocompletionEnabled: clerkUser.user_metadata?.autocompletionEnabled ?? true,
                 updatedAt: new Date(),
               },
               create: {
@@ -78,8 +76,7 @@ export class UserSyncService {
                 firstName: clerkUser.user_metadata?.firstName || "",
                 lastName: clerkUser.user_metadata?.lastName || "",
                 avatarUrl: clerkUser.user_metadata?.avatar,
-                autocompletionEnabled:
-                  clerkUser.user_metadata?.autocompletionEnabled ?? true,
+                autocompletionEnabled: clerkUser.user_metadata?.autocompletionEnabled ?? true,
               },
             });
           }
@@ -88,17 +85,12 @@ export class UserSyncService {
           // 🎁 Beta users get premium automatically
           if (isNewUser) {
             try {
-              await DefaultWorkspaceService.getOrCreateDefaultWorkspace(
-                user.id,
-              );
+              await DefaultWorkspaceService.getOrCreateDefaultWorkspace(user.id);
               logger.log(
                 `🏠 [USER-SYNC] Workspace par défaut créé pour le nouvel utilisateur ${user.firstName} ${user.lastName}`,
               );
             } catch (error) {
-              logger.error(
-                "❌ [USER-SYNC] Erreur création workspace par défaut:",
-                error,
-              );
+              logger.error("❌ [USER-SYNC] Erreur création workspace par défaut:", error);
             }
 
             // Beta: activate premium for all new signups (atomic transaction)
@@ -113,19 +105,13 @@ export class UserSyncService {
                     status: "active",
                   },
                 });
-                await PaddleBillingService.syncUserLimitsAfterPlanChange(
-                  user.id,
-                  "premium",
-                );
+                await PaddleBillingService.syncUserLimitsAfterPlanChange(user.id, "premium");
               });
               logger.log(
                 `[USER-SYNC] Premium beta activated for ${user.firstName} ${user.lastName}`,
               );
             } catch (error) {
-              logger.error(
-                "[USER-SYNC] Failed to activate beta premium (rolled back):",
-                error,
-              );
+              logger.error("[USER-SYNC] Failed to activate beta premium (rolled back):", error);
             }
           }
 
@@ -215,15 +201,11 @@ export class UserSyncService {
           autocompletionEnabled?: boolean;
         } = {};
 
-        if (metadata.firstName !== undefined)
-          updateData.firstName = metadata.firstName;
-        if (metadata.lastName !== undefined)
-          updateData.lastName = metadata.lastName;
-        if (metadata.avatarUrl !== undefined)
-          updateData.avatarUrl = metadata.avatarUrl;
+        if (metadata.firstName !== undefined) updateData.firstName = metadata.firstName;
+        if (metadata.lastName !== undefined) updateData.lastName = metadata.lastName;
+        if (metadata.avatarUrl !== undefined) updateData.avatarUrl = metadata.avatarUrl;
         // Support front qui enverrait 'avatar' (URL) côté updateProfile
-        if (metadata.avatar !== undefined)
-          updateData.avatarUrl = metadata.avatar;
+        if (metadata.avatar !== undefined) updateData.avatarUrl = metadata.avatar;
 
         // 🚀 NOUVEAU : Gérer le paramètre d'autocomplétion
         if (metadata.autocompletionEnabled !== undefined)

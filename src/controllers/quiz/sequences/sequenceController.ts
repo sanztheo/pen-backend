@@ -33,8 +33,7 @@ export class SequenceController {
         res.status(400).json({ error: "Données invalides", details: parsedBody.error.errors });
         return;
       }
-      const { preset, selectedSpecialties, higherEdField, workspaceIds } =
-        parsedBody.data;
+      const { preset, selectedSpecialties, higherEdField, workspaceIds } = parsedBody.data;
 
       if (!preset) {
         res.status(400).json({ error: "Type de preset requis" });
@@ -42,20 +41,13 @@ export class SequenceController {
       }
 
       // Validation spécifique par preset
-      if (
-        preset === "BAC" &&
-        (!selectedSpecialties || selectedSpecialties.length !== 2)
-      ) {
-        res
-          .status(400)
-          .json({ error: "Exactement 2 spécialités requises pour le Bac" });
+      if (preset === "BAC" && (!selectedSpecialties || selectedSpecialties.length !== 2)) {
+        res.status(400).json({ error: "Exactement 2 spécialités requises pour le Bac" });
         return;
       }
 
       if (preset === "PARTIELS" && !higherEdField) {
-        res
-          .status(400)
-          .json({ error: "Filière d'études requise pour les Partiels" });
+        res.status(400).json({ error: "Filière d'études requise pour les Partiels" });
         return;
       }
 
@@ -176,10 +168,7 @@ export class SequenceController {
       }
 
       // Génération du quiz suivant dans la séquence
-      const result = await QuizService.generateNextQuizInSequence(
-        sequenceId,
-        userId,
-      );
+      const result = await QuizService.generateNextQuizInSequence(sequenceId, userId);
 
       res.status(201).json({
         success: true,
@@ -237,10 +226,7 @@ export class SequenceController {
   /**
    * POST /api/quiz/sequence/:sequenceId/quiz/:quizId/submit - Soumet un quiz séquentiel
    */
-  static async submitSequentialQuiz(
-    req: Request,
-    res: Response,
-  ): Promise<void> {
+  static async submitSequentialQuiz(req: Request, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       const { sequenceId, quizId } = req.params;
@@ -257,9 +243,7 @@ export class SequenceController {
       }
 
       if (!answers || !Array.isArray(answers)) {
-        res
-          .status(400)
-          .json({ error: "Réponses requises sous forme de tableau" });
+        res.status(400).json({ error: "Réponses requises sous forme de tableau" });
         return;
       }
 
@@ -322,9 +306,7 @@ export class SequenceController {
       const quiz = await QuizService.getQuiz(quizId, userId);
 
       if (!quiz.result) {
-        res
-          .status(404)
-          .json({ error: "Correction non disponible pour ce quiz" });
+        res.status(404).json({ error: "Correction non disponible pour ce quiz" });
         return;
       }
 

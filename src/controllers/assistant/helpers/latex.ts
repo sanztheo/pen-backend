@@ -1,9 +1,22 @@
 export function isMathLatexIntent(query: string): boolean {
-  const q = String(query || '').toLowerCase();
+  const q = String(query || "").toLowerCase();
   const keywords = [
-    'latex','laTeX','équation','equation','formule','formules','math','maths','mathématiques','mathematics','écrire en latex','ecrire en latex','notation latex','notation math'
+    "latex",
+    "laTeX",
+    "équation",
+    "equation",
+    "formule",
+    "formules",
+    "math",
+    "maths",
+    "mathématiques",
+    "mathematics",
+    "écrire en latex",
+    "ecrire en latex",
+    "notation latex",
+    "notation math",
   ];
-  return keywords.some(k => q.includes(k));
+  return keywords.some((k) => q.includes(k));
 }
 
 export const LATEX_STRICT_RULES = `

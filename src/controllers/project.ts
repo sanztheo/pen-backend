@@ -54,20 +54,15 @@ export const createProject = async (req: Request, res: Response) => {
         },
       }),
     ]);
-    logger.log(
-      `⏱️  [PERF] Queries parallèles projet: ${Date.now() - beforeValidations}ms`,
-    );
+    logger.log(`⏱️  [PERF] Queries parallèles projet: ${Date.now() - beforeValidations}ms`);
 
     // Validations après parallélisation
     if (!userLimits) {
-      return res
-        .status(404)
-        .json({ error: "Limitations utilisateur non trouvées" });
+      return res.status(404).json({ error: "Limitations utilisateur non trouvées" });
     }
 
     const canCreateProject =
-      userLimits.projectsLimit === -1 ||
-      userLimits.projectsUsed < userLimits.projectsLimit;
+      userLimits.projectsLimit === -1 || userLimits.projectsUsed < userLimits.projectsLimit;
     if (!canCreateProject) {
       return res.status(403).json({
         error: "Limite de projets atteinte",
@@ -80,9 +75,7 @@ export const createProject = async (req: Request, res: Response) => {
     }
 
     if (!workspace) {
-      return res
-        .status(404)
-        .json({ error: "Workspace non trouvé ou accès refusé" });
+      return res.status(404).json({ error: "Workspace non trouvé ou accès refusé" });
     }
 
     const beforeCreate = Date.now();
@@ -117,9 +110,7 @@ export const createProject = async (req: Request, res: Response) => {
         },
       },
     });
-    logger.log(
-      `⏱️  [PERF] Création projet DB: ${Date.now() - beforeCreate}ms`,
-    );
+    logger.log(`⏱️  [PERF] Création projet DB: ${Date.now() - beforeCreate}ms`);
 
     // 🚀 PHASE 1 OPTIMIZATION: Updates asynchrones (non-bloquant)
     Promise.all([
@@ -203,9 +194,7 @@ export const getWorkspaceProjects = async (req: Request, res: Response) => {
     });
 
     if (!workspace) {
-      return res
-        .status(404)
-        .json({ error: "Workspace non trouvé ou accès refusé" });
+      return res.status(404).json({ error: "Workspace non trouvé ou accès refusé" });
     }
 
     const projects = await prisma.project.findMany({
@@ -285,31 +274,21 @@ export const getProject = async (req: Request, res: Response) => {
     });
 
     if (!project) {
-      logger.warn(
-        `⚠️ [PROJECT-CTRL] Projet non trouvé ou accès refusé pour ID: ${id}`,
-      );
-      return res
-        .status(404)
-        .json({ error: "Projet non trouvé ou accès refusé" });
+      logger.warn(`⚠️ [PROJECT-CTRL] Projet non trouvé ou accès refusé pour ID: ${id}`);
+      return res.status(404).json({ error: "Projet non trouvé ou accès refusé" });
     }
 
     logger.log(`✅ [PROJECT-CTRL] Projet trouvé: "${project.name}"`);
     res.json({ project });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.error(
-        "❌ [PROJECT-CTRL] Erreur de validation Zod:",
-        error.errors,
-      );
+      logger.error("❌ [PROJECT-CTRL] Erreur de validation Zod:", error.errors);
       return res.status(400).json({
         error: "Données invalides",
         details: error.errors,
       });
     }
-    logger.error(
-      "❌ [PROJECT-CTRL] Erreur interne lors de la récupération du projet:",
-      error,
-    );
+    logger.error("❌ [PROJECT-CTRL] Erreur interne lors de la récupération du projet:", error);
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
@@ -346,9 +325,7 @@ export const updateProject = async (req: Request, res: Response) => {
     });
 
     if (!project) {
-      return res
-        .status(404)
-        .json({ error: "Projet non trouvé ou permissions insuffisantes" });
+      return res.status(404).json({ error: "Projet non trouvé ou permissions insuffisantes" });
     }
 
     const updatedProject = await prisma.project.update({
@@ -438,9 +415,7 @@ export const deleteProject = async (req: Request, res: Response) => {
     });
 
     if (!project) {
-      return res
-        .status(404)
-        .json({ error: "Projet non trouvé ou permissions insuffisantes" });
+      return res.status(404).json({ error: "Projet non trouvé ou permissions insuffisantes" });
     }
 
     // Compter les pages avant suppression pour ajuster les compteurs

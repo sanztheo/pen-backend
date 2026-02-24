@@ -111,9 +111,7 @@ export async function enqueueConceptExtractionBatch(
     ),
   );
 
-  logger.log(
-    `📋 [ConceptQueue] Batch de ${jobs.length} jobs ajoutés pour ${pageIds.length} pages`,
-  );
+  logger.log(`📋 [ConceptQueue] Batch de ${jobs.length} jobs ajoutés pour ${pageIds.length} pages`);
   return jobs;
 }
 

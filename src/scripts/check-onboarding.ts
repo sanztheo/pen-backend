@@ -30,9 +30,7 @@ async function checkOnboarding() {
       logger.log(`   Type: ${typeof user.onboardingCompleted}`);
 
       if (user.onboardingCompleted === false) {
-        logger.log(
-          "   ⚠️  ONBOARDING NON COMPLÉTÉ - Cet utilisateur verra la page onboarding",
-        );
+        logger.log("   ⚠️  ONBOARDING NON COMPLÉTÉ - Cet utilisateur verra la page onboarding");
       } else if (user.onboardingCompleted === true) {
         logger.log(
           "   ✅ ONBOARDING COMPLÉTÉ - Cet utilisateur ne devrait PAS voir la page onboarding",

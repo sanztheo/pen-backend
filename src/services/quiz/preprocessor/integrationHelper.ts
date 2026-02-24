@@ -24,10 +24,7 @@ const MAX_TOPICS_COUNT = 15; // Max nombre de topics
  * SÉCURITÉ: Sanitize le contenu avant envoi dans un prompt XML
  * Prévient les attaques par injection de prompt
  */
-function sanitizeForPrompt(
-  content: string,
-  maxLength: number = MAX_SUMMARY_LENGTH,
-): string {
+function sanitizeForPrompt(content: string, maxLength: number = MAX_SUMMARY_LENGTH): string {
   if (!content || typeof content !== "string") return "";
 
   return (
@@ -119,10 +116,7 @@ export async function runPreprocessorForGeneration(
     studyLevel: mapSchoolLevelToStudyLevel(params.schoolLevel),
     quizType: params.quizType || "ENTRAINEMENT",
     // SÉCURITÉ: Sanitize le contenu utilisateur avant envoi à l'IA
-    sourceSummary: sanitizeForPrompt(
-      sourceAnalysis.summary,
-      MAX_SUMMARY_LENGTH,
-    ),
+    sourceSummary: sanitizeForPrompt(sourceAnalysis.summary, MAX_SUMMARY_LENGTH),
     sourceTopics: sourceAnalysis.topics
       .slice(0, MAX_TOPICS_COUNT)
       .map(sanitizeTopic)
@@ -283,18 +277,14 @@ function extractBlockNoteContent(blockNoteContent: unknown): {
 
   try {
     const content: unknown =
-      typeof blockNoteContent === "string"
-        ? JSON.parse(blockNoteContent)
-        : blockNoteContent;
+      typeof blockNoteContent === "string" ? JSON.parse(blockNoteContent) : blockNoteContent;
 
     if (content && Array.isArray(content)) {
       for (const block of content as BlockNoteBlock[]) {
         // Texte de paragraphes
         if (block?.type === "paragraph" && block?.content) {
           const blockText = Array.isArray(block.content)
-            ? block.content
-                .map((item: BlockNoteInlineItem) => item?.text || "")
-                .join("")
+            ? block.content.map((item: BlockNoteInlineItem) => item?.text || "").join("")
             : "";
           text += blockText + "\n";
         }

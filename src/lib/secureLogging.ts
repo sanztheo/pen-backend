@@ -38,18 +38,12 @@ export const sanitizeLogMessage = (message: unknown): string => {
 
   // Appliquer les patterns de masquage
   for (const pattern of SENSITIVE_PATTERNS) {
-    sanitized = sanitized.replace(
-      pattern,
-      (match: string, captured: string) => {
-        if (captured && captured.length > 10) {
-          return match.replace(
-            captured,
-            `${captured.substring(0, 4)}...**MASKED**`,
-          );
-        }
-        return match.replace(captured || match, "**MASKED**");
-      },
-    );
+    sanitized = sanitized.replace(pattern, (match: string, captured: string) => {
+      if (captured && captured.length > 10) {
+        return match.replace(captured, `${captured.substring(0, 4)}...**MASKED**`);
+      }
+      return match.replace(captured || match, "**MASKED**");
+    });
   }
 
   // Limiter la longueur totale du message
@@ -73,8 +67,7 @@ export const secureError = (message: string, error?: unknown): void => {
     if (error instanceof Error) {
       errorInfo.name = error.name;
       errorInfo.message = sanitizeLogMessage(error.message);
-      errorInfo.stack =
-        process.env.NODE_ENV === "development" ? error.stack : undefined;
+      errorInfo.stack = process.env.NODE_ENV === "development" ? error.stack : undefined;
     }
 
     // Extraire code/status si présents (erreurs HTTP)
@@ -153,12 +146,10 @@ export const extractSafeMetadata = (obj: unknown): Record<string, unknown> => {
   }
 
   // Ajouter des longueurs de champs sensibles sans exposer le contenu
-  if (objRecord.content)
-    metadata.contentLength = String(objRecord.content).length;
+  if (objRecord.content) metadata.contentLength = String(objRecord.content).length;
   if (objRecord.prompt) metadata.promptLength = String(objRecord.prompt).length;
   if (objRecord.text) metadata.textLength = String(objRecord.text).length;
-  if (objRecord.message)
-    metadata.messageLength = String(objRecord.message).length;
+  if (objRecord.message) metadata.messageLength = String(objRecord.message).length;
 
   return metadata;
 };

@@ -19,9 +19,7 @@ interface BlockNoteBlock {
 /**
  * Type guard for BlockNote block with paragraph content
  */
-function isParagraphBlockWithContent(
-  block: unknown,
-): block is BlockNoteBlock & {
+function isParagraphBlockWithContent(block: unknown): block is BlockNoteBlock & {
   type: "paragraph";
   content: BlockNoteTextItem[];
 } {
@@ -71,14 +69,11 @@ export async function indexAndPreparePagesForAI(
                 const textParts = content
                   .filter(isParagraphBlockWithContent)
                   .map((block) =>
-                    block.content
-                      .map((item: BlockNoteTextItem) => item.text || "")
-                      .join(""),
+                    block.content.map((item: BlockNoteTextItem) => item.text || "").join(""),
                   )
                   .filter(Boolean);
                 if (textParts.length > 0) {
-                  textContent =
-                    (pageData.title || "") + "\n\n" + textParts.join("\n\n");
+                  textContent = (pageData.title || "") + "\n\n" + textParts.join("\n\n");
                 }
               }
             }

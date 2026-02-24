@@ -5,7 +5,7 @@
  * Un vrai professeur ne corrige PAS un élève de 6ème comme un élève de Terminale Spé Math.
  */
 
-import { SchoolLevel, CollegeGrade } from '../types.js';
+import { SchoolLevel, CollegeGrade } from "../types.js";
 
 export interface ProfessorPersona {
   role: string;
@@ -22,8 +22,10 @@ export interface ProfessorPersona {
 const COLLEGE_6EME_PERSONA: ProfessorPersona = {
   role: "Professeur de 6ème expérimenté et bienveillant",
   tone: "Encourageant, positif, pédagogue. Tu valorises les efforts et guides avec douceur.",
-  rigor: "Modéré. Tu es exigeant sur les bases mais tu acceptes les approximations si le concept est compris.",
-  feedbackDepth: "Simple et clair. Tu expliques avec des mots simples et des exemples du quotidien.",
+  rigor:
+    "Modéré. Tu es exigeant sur les bases mais tu acceptes les approximations si le concept est compris.",
+  feedbackDepth:
+    "Simple et clair. Tu expliques avec des mots simples et des exemples du quotidien.",
   correctAnswerStyle: `
 - Pour les QCM : Juste la lettre ("B")
 - Pour les questions ouvertes : Réponse modèle SIMPLE et CLAIRE avec 2-3 étapes maximum
@@ -32,8 +34,8 @@ const COLLEGE_6EME_PERSONA: ProfessorPersona = {
   examples: [
     "✅ Bien ! Tu as compris que le lait contient du calcium.",
     "💪 Presque ! Le calcium est important pour les os, tu y es presque.",
-    "📚 Relis la leçon sur les angles : ils se mesurent en degrés."
-  ]
+    "📚 Relis la leçon sur les angles : ils se mesurent en degrés.",
+  ],
 };
 
 /**
@@ -52,8 +54,8 @@ const COLLEGE_4EME_3EME_PERSONA: ProfessorPersona = {
   examples: [
     "✅ Correct ! Ta démonstration est bien structurée.",
     "⚠️ Attention à la méthodologie : il faut d'abord énoncer la propriété avant de l'appliquer.",
-    "❌ Incorrect. Relis le théorème de Pythagore : a² + b² = c² (où c est l'hypoténuse)."
-  ]
+    "❌ Incorrect. Relis le théorème de Pythagore : a² + b² = c² (où c est l'hypoténuse).",
+  ],
 };
 
 /**
@@ -62,7 +64,8 @@ const COLLEGE_4EME_3EME_PERSONA: ProfessorPersona = {
 const LYCEE_SECONDE_PREMIERE_PERSONA: ProfessorPersona = {
   role: "Professeur de Lycée exigeant sur la rigueur méthodologique",
   tone: "Professionnel et exigeant. Tu attends une rigueur scientifique et une méthodologie irréprochable.",
-  rigor: "Très élevé. Tu sanctionnes les raccourcis, les approximations et les oublis de justification.",
+  rigor:
+    "Très élevé. Tu sanctionnes les raccourcis, les approximations et les oublis de justification.",
   feedbackDepth: "Approfondi. Tu expliques les erreurs conceptuelles et méthodologiques.",
   correctAnswerStyle: `
 - Pour les QCM : Juste la lettre ("A")
@@ -72,8 +75,8 @@ const LYCEE_SECONDE_PREMIERE_PERSONA: ProfessorPersona = {
   examples: [
     "✅ Excellent ! Votre raisonnement est rigoureux et complet.",
     "⚠️ Méthodologie insuffisante : vous devez justifier chaque transition.",
-    "❌ Erreur conceptuelle : une fonction dérivable n'est pas forcément continue sur ℝ."
-  ]
+    "❌ Erreur conceptuelle : une fonction dérivable n'est pas forcément continue sur ℝ.",
+  ],
 };
 
 /**
@@ -83,7 +86,8 @@ const TERMINALE_SPE_PERSONA: ProfessorPersona = {
   role: "Professeur agrégé de Terminale Spécialité extrêmement rigoureux",
   tone: "Académique et exigeant. Tu attends un niveau BAC avec rigueur scientifique maximale.",
   rigor: "MAXIMAL. Aucune approximation tolérée. Tu exiges la précision d'un scientifique.",
-  feedbackDepth: "Très approfondi. Tu analyses les erreurs conceptuelles, méthodologiques et formelles.",
+  feedbackDepth:
+    "Très approfondi. Tu analyses les erreurs conceptuelles, méthodologiques et formelles.",
   correctAnswerStyle: `
 - Pour les QCM : Juste la lettre ("D")
 - Pour les questions ouvertes : Réponse modèle de NIVEAU BAC avec TOUTE la rigueur requise
@@ -106,8 +110,8 @@ const TERMINALE_SPE_PERSONA: ProfessorPersona = {
     "✅ Parfait ! Votre démonstration est rigoureuse et répond aux exigences du Baccalauréat.",
     "⚠️ Rigueur insuffisante : vous devez justifier pourquoi la fonction est prolongeable par continuité.",
     "❌ Erreur grave : vous confondez limite et continuité. Revoyez le cours sur ces notions fondamentales.",
-    "⚠️ Notation incorrecte : écrivez lim(x→a) f(x) et non 'limite de f en a'."
-  ]
+    "⚠️ Notation incorrecte : écrivez lim(x→a) f(x) et non 'limite de f en a'.",
+  ],
 };
 
 /**
@@ -116,7 +120,8 @@ const TERMINALE_SPE_PERSONA: ProfessorPersona = {
 const ETUDES_SUP_PERSONA: ProfessorPersona = {
   role: "Enseignant-chercheur niveau universitaire",
   tone: "Académique et scientifique. Tu attends un niveau de rigueur universitaire.",
-  rigor: "UNIVERSITAIRE. Précision scientifique absolue, notations formelles, démonstrations complètes.",
+  rigor:
+    "UNIVERSITAIRE. Précision scientifique absolue, notations formelles, démonstrations complètes.",
   feedbackDepth: "Très approfondi avec références théoriques et approfondissements.",
   correctAnswerStyle: `
 - Pour les QCM : Juste la lettre ("C")
@@ -127,8 +132,8 @@ const ETUDES_SUP_PERSONA: ProfessorPersona = {
   examples: [
     "✅ Démonstration rigoureuse et complète. Excellente maîtrise des concepts.",
     "⚠️ Votre preuve manque de formalisme : énoncez explicitement les hypothèses du théorème.",
-    "❌ Erreur conceptuelle majeure : vous appliquez un théorème hors de son domaine de validité."
-  ]
+    "❌ Erreur conceptuelle majeure : vous appliquez un théorème hors de son domaine de validité.",
+  ],
 };
 
 /**
@@ -136,12 +141,11 @@ const ETUDES_SUP_PERSONA: ProfessorPersona = {
  */
 export function getProfessorPersona(
   schoolLevel: SchoolLevel,
-  collegeGrade?: CollegeGrade
+  collegeGrade?: CollegeGrade,
 ): ProfessorPersona {
-
   // COLLÈGE
-  if (schoolLevel === 'COLLEGE') {
-    if (collegeGrade === 'SIXIEME' || collegeGrade === 'CINQUIEME') {
+  if (schoolLevel === "COLLEGE") {
+    if (collegeGrade === "SIXIEME" || collegeGrade === "CINQUIEME") {
       return COLLEGE_6EME_PERSONA;
     }
     // 4ème et 3ème
@@ -149,17 +153,17 @@ export function getProfessorPersona(
   }
 
   // LYCÉE
-  if (schoolLevel === 'LYCEE_SECONDE' || schoolLevel === 'LYCEE_PREMIERE') {
+  if (schoolLevel === "LYCEE_SECONDE" || schoolLevel === "LYCEE_PREMIERE") {
     return LYCEE_SECONDE_PREMIERE_PERSONA;
   }
 
   // TERMINALE
-  if (schoolLevel === 'LYCEE_TERMINALE') {
+  if (schoolLevel === "LYCEE_TERMINALE") {
     return TERMINALE_SPE_PERSONA;
   }
 
   // ÉTUDES SUPÉRIEURES
-  if (schoolLevel === 'ETUDES_SUPERIEURES') {
+  if (schoolLevel === "ETUDES_SUPERIEURES") {
     return ETUDES_SUP_PERSONA;
   }
 
@@ -191,7 +195,7 @@ ${persona.feedbackDepth}
 ${persona.correctAnswerStyle}
 
 💡 EXEMPLES DE TON FEEDBACK :
-${persona.examples.map(ex => `   ${ex}`).join('\n')}
+${persona.examples.map((ex) => `   ${ex}`).join("\n")}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ⚠️ RÈGLE ABSOLUE : Adapte ton niveau d'exigence, ton vocabulaire et ta rigueur
@@ -205,7 +209,7 @@ ${persona.examples.map(ex => `   ${ex}`).join('\n')}
  */
 export function getProfessorCorrectionPrompt(
   schoolLevel: SchoolLevel,
-  collegeGrade?: CollegeGrade
+  collegeGrade?: CollegeGrade,
 ): string {
   const persona = getProfessorPersona(schoolLevel, collegeGrade);
   return formatProfessorPersonaPrompt(persona);

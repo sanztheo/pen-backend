@@ -11,22 +11,15 @@ export const QUIZ_QUESTION_SCHEMA = {
         properties: {
           id: {
             type: "string",
-            description:
-              "Identifiant unique de la question (format: q_timestamp_index)",
+            description: "Identifiant unique de la question (format: q_timestamp_index)",
           },
           question: {
             type: "string",
-            description:
-              "Énoncé de la question en français, adapté au niveau éducatif",
+            description: "Énoncé de la question en français, adapté au niveau éducatif",
           },
           type: {
             type: "string",
-            enum: [
-              "MULTIPLE_CHOICE",
-              "TRUE_FALSE",
-              "OPEN_QUESTION",
-              "MATCHING",
-            ],
+            enum: ["MULTIPLE_CHOICE", "TRUE_FALSE", "OPEN_QUESTION", "MATCHING"],
             description: "Type de question selon les standards français",
           },
           difficulty: {
@@ -65,8 +58,7 @@ export const QUIZ_QUESTION_SCHEMA = {
               properties: {
                 id: {
                   type: "string",
-                  description:
-                    "Identifiant de l'élément de gauche (1, 2, 3, 4...)",
+                  description: "Identifiant de l'élément de gauche (1, 2, 3, 4...)",
                 },
                 text: {
                   type: "string",
@@ -86,8 +78,7 @@ export const QUIZ_QUESTION_SCHEMA = {
               properties: {
                 id: {
                   type: "string",
-                  description:
-                    "Identifiant de l'élément de droite (A, B, C, D...)",
+                  description: "Identifiant de l'élément de droite (A, B, C, D...)",
                 },
                 text: {
                   type: "string",
@@ -131,8 +122,7 @@ export const QUIZ_QUESTION_SCHEMA = {
           },
           points: {
             type: "integer",
-            description:
-              "Points attribués à cette question (toujours 1 pour quiz personnalisés)",
+            description: "Points attribués à cette question (toujours 1 pour quiz personnalisés)",
             minimum: 1,
             maximum: 1,
           },
@@ -164,13 +154,11 @@ export const QUIZ_QUESTION_SCHEMA = {
           },
           basedOnDocument: {
             type: "boolean",
-            description:
-              "Indique si la question est basée sur un document Wikipedia",
+            description: "Indique si la question est basée sur un document Wikipedia",
           },
           documentReference: {
             type: "string",
-            description:
-              "Référence au document Wikipedia utilisé (si basedOnDocument = true)",
+            description: "Référence au document Wikipedia utilisé (si basedOnDocument = true)",
           },
         },
         required: [
@@ -222,8 +210,7 @@ export const QUIZ_CORRECTION_STANDARD_SCHEMA = {
           },
           pointsObtained: {
             type: "number",
-            description:
-              "Points obtenus pour cette question (peut être partiel)",
+            description: "Points obtenus pour cette question (peut être partiel)",
           },
           pointsTotal: {
             type: "number",
@@ -271,8 +258,7 @@ export const QUIZ_CORRECTION_STANDARD_SCHEMA = {
         },
         grade: {
           type: "string",
-          description:
-            "Appréciation globale française (Très bien, Bien, Assez bien, etc.)",
+          description: "Appréciation globale française (Très bien, Bien, Assez bien, etc.)",
         },
       },
       required: ["pointsObtained", "pointsTotal", "percentage", "grade"],
@@ -439,11 +425,6 @@ export const QUIZ_CORRECTION_COMPLETE_SCHEMA = {
       },
     },
   },
-  required: [
-    "corrections",
-    "globalCompetencies",
-    "globalScore",
-    "learningPath",
-  ],
+  required: ["corrections", "globalCompetencies", "globalScore", "learningPath"],
   additionalProperties: false,
 };

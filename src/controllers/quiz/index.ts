@@ -58,9 +58,7 @@ function copyStaticMethods<TTarget extends object, TSource extends object>(
 ) {
   Object.getOwnPropertyNames(source).forEach((key) => {
     if (key !== "prototype" && key !== "length" && key !== "name") {
-      (target as Record<string, unknown>)[key] = (
-        source as Record<string, unknown>
-      )[key];
+      (target as Record<string, unknown>)[key] = (source as Record<string, unknown>)[key];
     }
   });
 }

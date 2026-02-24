@@ -88,14 +88,10 @@ export class SimplifiedContentService {
 
   public static async getUserProjects(userId: string) {
     try {
-      const defaultWorkspaceId =
-        await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
+      const defaultWorkspaceId = await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
       return this._getUserProjects(userId, defaultWorkspaceId);
     } catch (error) {
-      logger.error(
-        "❌ [SIMPLIFIED-CONTENT] Erreur récupération projets:",
-        error,
-      );
+      logger.error("❌ [SIMPLIFIED-CONTENT] Erreur récupération projets:", error);
       // Si pas de workspace par défaut, retourner un tableau vide au lieu d'échouer
       return [];
     }
@@ -103,14 +99,10 @@ export class SimplifiedContentService {
 
   public static async getUserRootPages(userId: string) {
     try {
-      const defaultWorkspaceId =
-        await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
+      const defaultWorkspaceId = await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
       return this._getUserRootPages(userId, defaultWorkspaceId);
     } catch (error) {
-      logger.error(
-        "❌ [SIMPLIFIED-CONTENT] Erreur récupération pages racine:",
-        error,
-      );
+      logger.error("❌ [SIMPLIFIED-CONTENT] Erreur récupération pages racine:", error);
       // Si pas de workspace par défaut, retourner un tableau vide au lieu d'échouer
       return [];
     }
@@ -121,8 +113,7 @@ export class SimplifiedContentService {
    */
   static async getUserContent(userId: string) {
     try {
-      const defaultWorkspaceId =
-        await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
+      const defaultWorkspaceId = await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
       const [projects, rootPages] = await Promise.all([
         this._getUserProjects(userId, defaultWorkspaceId),
         this._getUserRootPages(userId, defaultWorkspaceId),
@@ -134,10 +125,7 @@ export class SimplifiedContentService {
         pages: rootPages,
       };
     } catch (error) {
-      logger.error(
-        "❌ [SIMPLIFIED-CONTENT] Erreur récupération contenu:",
-        error,
-      );
+      logger.error("❌ [SIMPLIFIED-CONTENT] Erreur récupération contenu:", error);
       // Si le workspace par défaut n'existe pas, on retourne un contenu vide
       return { success: true, projects: [], pages: [] };
     }
@@ -156,22 +144,19 @@ export class SimplifiedContentService {
 
       // 🚀 PHASE 2 OPTIMIZATION: Paralléliser avec REDIS CACHE
       const beforeValidations = Date.now();
-      const [defaultWorkspaceId, userLimits, parentProject] = await Promise.all(
-        [
-          cacheDefaultWorkspaceId(userId), // Redis cache (1h TTL)
-          cacheUserLimits(userId), // Redis cache (5min TTL)
-          data.parentId
-            ? cacheProject(data.parentId, userId) // Redis cache (10min TTL)
-            : Promise.resolve(null),
-        ],
-      );
+      const [defaultWorkspaceId, userLimits, parentProject] = await Promise.all([
+        cacheDefaultWorkspaceId(userId), // Redis cache (1h TTL)
+        cacheUserLimits(userId), // Redis cache (5min TTL)
+        data.parentId
+          ? cacheProject(data.parentId, userId) // Redis cache (10min TTL)
+          : Promise.resolve(null),
+      ]);
       logger.log(
         `⏱️  [SIMPLIFIED-PERF] Validations parallèles (REDIS): ${Date.now() - beforeValidations}ms`,
       );
 
       // Vérifications
-      if (!defaultWorkspaceId)
-        throw new Error("Workspace par défaut non trouvé");
+      if (!defaultWorkspaceId) throw new Error("Workspace par défaut non trouvé");
       if (!userLimits) throw new Error("Limitations utilisateur non trouvées");
 
       logger.log("🔍 [SIMPLIFIED-CONTENT] Debug limitations projet:", {
@@ -184,17 +169,13 @@ export class SimplifiedContentService {
       });
 
       const canCreateProject =
-        userLimits.projectsLimit === -1 ||
-        userLimits.projectsUsed < userLimits.projectsLimit;
+        userLimits.projectsLimit === -1 || userLimits.projectsUsed < userLimits.projectsLimit;
       if (!canCreateProject) {
-        logger.error(
-          "🚫 [SIMPLIFIED-CONTENT] Création bloquée par limitation:",
-          {
-            projectsUsed: userLimits.projectsUsed,
-            projectsLimit: userLimits.projectsLimit,
-            canCreate: canCreateProject,
-          },
-        );
+        logger.error("🚫 [SIMPLIFIED-CONTENT] Création bloquée par limitation:", {
+          projectsUsed: userLimits.projectsUsed,
+          projectsLimit: userLimits.projectsLimit,
+          canCreate: canCreateProject,
+        });
         throw new Error(
           `Limite de projets atteinte (${userLimits.projectsUsed}/${userLimits.projectsLimit})`,
         );
@@ -204,9 +185,7 @@ export class SimplifiedContentService {
         throw new Error("Parent project not found or access denied");
       }
       if (parentProject && parentProject.workspaceId !== defaultWorkspaceId) {
-        throw new Error(
-          "Le projet parent n'appartient pas au workspace par défaut.",
-        );
+        throw new Error("Le projet parent n'appartient pas au workspace par défaut.");
       }
 
       // 🚀 Création projet (sans transaction lourde)
@@ -226,9 +205,7 @@ export class SimplifiedContentService {
           _count: { select: { pages: true } },
         },
       });
-      logger.log(
-        `⏱️  [SIMPLIFIED-PERF] Création projet DB: ${Date.now() - beforeCreate}ms`,
-      );
+      logger.log(`⏱️  [SIMPLIFIED-PERF] Création projet DB: ${Date.now() - beforeCreate}ms`);
 
       // 🚀 Updates asynchrones (non-bloquant) + invalidation cache
       void (async () => {
@@ -251,9 +228,7 @@ export class SimplifiedContentService {
         }
       })();
 
-      logger.log(
-        `⏱️  [SIMPLIFIED-PERF] TOTAL createProject: ${Date.now() - startTime}ms`,
-      );
+      logger.log(`⏱️  [SIMPLIFIED-PERF] TOTAL createProject: ${Date.now() - startTime}ms`);
       return project;
     } catch (error) {
       logger.error("❌ [SIMPLIFIED-CONTENT] Erreur création projet:", error);
@@ -289,8 +264,7 @@ export class SimplifiedContentService {
       );
 
       // Vérifications sécurité
-      if (!defaultWorkspaceId)
-        throw new Error("Workspace par défaut non trouvé");
+      if (!defaultWorkspaceId) throw new Error("Workspace par défaut non trouvé");
       if (data.projectId && !project) {
         throw new Error("Projet non trouvé ou accès non autorisé.");
       }
@@ -319,9 +293,7 @@ export class SimplifiedContentService {
           updatedAt: true,
         },
       });
-      logger.log(
-        `⏱️  [SIMPLIFIED-PERF] Création page DB: ${Date.now() - beforeCreate}ms`,
-      );
+      logger.log(`⏱️  [SIMPLIFIED-PERF] Création page DB: ${Date.now() - beforeCreate}ms`);
 
       // 🚀 Update workspace asynchrone (non-bloquant)
       prisma.workspace
@@ -329,13 +301,9 @@ export class SimplifiedContentService {
           where: { id: defaultWorkspaceId },
           data: { lastActivityAt: new Date() },
         })
-        .catch((err) =>
-          logger.error("⚠️ [ASYNC] Erreur update workspace:", err),
-        );
+        .catch((err) => logger.error("⚠️ [ASYNC] Erreur update workspace:", err));
 
-      logger.log(
-        `⏱️  [SIMPLIFIED-PERF] TOTAL createPage: ${Date.now() - startTime}ms`,
-      );
+      logger.log(`⏱️  [SIMPLIFIED-PERF] TOTAL createPage: ${Date.now() - startTime}ms`);
       return page;
     } catch (error) {
       logger.error("❌ [SIMPLIFIED-CONTENT] Erreur création page:", error);
@@ -348,8 +316,7 @@ export class SimplifiedContentService {
    */
   static async deleteProject(userId: string, projectId: string) {
     try {
-      const defaultWorkspaceId =
-        await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
+      const defaultWorkspaceId = await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
 
       const project = await prisma.project.findFirst({
         where: {
@@ -374,10 +341,7 @@ export class SimplifiedContentService {
 
       return { success: true };
     } catch (error) {
-      logger.error(
-        "❌ [SIMPLIFIED-CONTENT] Erreur suppression projet:",
-        error,
-      );
+      logger.error("❌ [SIMPLIFIED-CONTENT] Erreur suppression projet:", error);
       throw error;
     }
   }
@@ -387,8 +351,7 @@ export class SimplifiedContentService {
    */
   static async deletePage(userId: string, pageId: string) {
     try {
-      const defaultWorkspaceId =
-        await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
+      const defaultWorkspaceId = await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
 
       const page = await prisma.page.findFirst({
         where: {

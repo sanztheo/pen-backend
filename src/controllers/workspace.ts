@@ -40,15 +40,12 @@ export const createWorkspace = async (req: Request, res: Response) => {
     });
 
     if (!userLimits) {
-      return res
-        .status(404)
-        .json({ error: "Limitations utilisateur non trouvées" });
+      return res.status(404).json({ error: "Limitations utilisateur non trouvées" });
     }
 
     // Vérifier si l'utilisateur peut créer un nouveau workspace
     const canCreateWorkspace =
-      userLimits.workspacesLimit === -1 ||
-      userLimits.workspacesUsed < userLimits.workspacesLimit;
+      userLimits.workspacesLimit === -1 || userLimits.workspacesUsed < userLimits.workspacesLimit;
 
     if (!canCreateWorkspace) {
       return res.status(403).json({
@@ -62,72 +59,70 @@ export const createWorkspace = async (req: Request, res: Response) => {
     }
 
     // Utiliser une transaction pour garantir la cohérence
-    const workspace = await prisma.$transaction(
-      async (tx: PrismaTransactionClient) => {
-        // Créer le workspace
-        const newWorkspace = await tx.workspace.create({
-          data: {
-            name: validatedData.name,
-            description: validatedData.description,
-            color: validatedData.color || "#3B82F6",
-            ownerId: req.user!.id,
-          },
-        });
+    const workspace = await prisma.$transaction(async (tx: PrismaTransactionClient) => {
+      // Créer le workspace
+      const newWorkspace = await tx.workspace.create({
+        data: {
+          name: validatedData.name,
+          description: validatedData.description,
+          color: validatedData.color || "#3B82F6",
+          ownerId: req.user!.id,
+        },
+      });
 
-        // Créer automatiquement le membre propriétaire
-        await tx.workspaceMember.create({
-          data: {
-            workspaceId: newWorkspace.id,
-            userId: req.user!.id,
-            role: "owner",
-            joinedAt: new Date(),
-          },
-        });
+      // Créer automatiquement le membre propriétaire
+      await tx.workspaceMember.create({
+        data: {
+          workspaceId: newWorkspace.id,
+          userId: req.user!.id,
+          role: "owner",
+          joinedAt: new Date(),
+        },
+      });
 
-        // Incrémenter le compteur d'usage des workspaces
-        await tx.userLimits.update({
-          where: { userId },
-          data: {
-            workspacesUsed: {
-              increment: 1,
+      // Incrémenter le compteur d'usage des workspaces
+      await tx.userLimits.update({
+        where: { userId },
+        data: {
+          workspacesUsed: {
+            increment: 1,
+          },
+        },
+      });
+
+      // Retourner le workspace avec tous les includes nécessaires
+      return await tx.workspace.findUnique({
+        where: { id: newWorkspace.id },
+        include: {
+          owner: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
             },
           },
-        });
-
-        // Retourner le workspace avec tous les includes nécessaires
-        return await tx.workspace.findUnique({
-          where: { id: newWorkspace.id },
-          include: {
-            owner: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
-            members: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    email: true,
-                  },
+          members: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
                 },
               },
             },
-            _count: {
-              select: {
-                projects: true,
-                members: true,
-              },
+          },
+          _count: {
+            select: {
+              projects: true,
+              members: true,
             },
           },
-        });
-      },
-    );
+        },
+      });
+    });
 
     // ❌ LOGS D'ACTIVITÉ DÉSACTIVÉS pour économiser l'espace
     // await prisma.activityLog.create({
@@ -443,9 +438,7 @@ export const updateWorkspace = async (req: Request, res: Response) => {
     });
 
     if (!workspace) {
-      return res
-        .status(404)
-        .json({ error: "Workspace non trouvé ou permissions insuffisantes" });
+      return res.status(404).json({ error: "Workspace non trouvé ou permissions insuffisantes" });
     }
 
     const updatedWorkspace = await prisma.workspace.update({

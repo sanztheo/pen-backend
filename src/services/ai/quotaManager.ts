@@ -1,5 +1,5 @@
-import { prisma } from '../../lib/prisma.js';
-import { cacheQuotaUsage, invalidateQuotaUsageCache } from '../../lib/redis.js';
+import { prisma } from "../../lib/prisma.js";
+import { cacheQuotaUsage, invalidateQuotaUsageCache } from "../../lib/redis.js";
 import { logger } from "../../utils/logger.js";
 
 // Types pour le gestionnaire de quotas
@@ -22,42 +22,47 @@ interface QuotaLimits {
  */
 export class OpenAIQuotaManager {
   private static quotaCache = new Map<string, QuotaUsage>();
-  
 
   /**
    * Obtenir les limites configurées pour l'environnement
    */
   private static getLimits(): QuotaLimits {
     return {
-      maxRequests: parseInt(process.env.OPENAI_MAX_REQUESTS_PER_HOUR || '1000'),
-      maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS_PER_HOUR || '500000'),
-      maxCost: parseFloat(process.env.OPENAI_MAX_COST_PER_HOUR || '10.0'),
-      windowDurationMs: parseInt(process.env.OPENAI_QUOTA_WINDOW_MS || '3600000') // 1h
+      maxRequests: parseInt(process.env.OPENAI_MAX_REQUESTS_PER_HOUR || "1000"),
+      maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS_PER_HOUR || "500000"),
+      maxCost: parseFloat(process.env.OPENAI_MAX_COST_PER_HOUR || "10.0"),
+      windowDurationMs: parseInt(process.env.OPENAI_QUOTA_WINDOW_MS || "3600000"), // 1h
     };
   }
 
   /**
    * Calculer le coût approximatif d'une requête
    */
-  private static calculateCost(model: string, promptTokens: number, completionTokens: number): number {
+  private static calculateCost(
+    model: string,
+    promptTokens: number,
+    completionTokens: number,
+  ): number {
     // Prix approximatifs par 1K tokens (à jour 2024)
     const pricing: Record<string, { input: number; output: number }> = {
-      'gpt-4o': { input: 0.0025, output: 0.01 },
-      'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
-      'gpt-4-turbo': { input: 0.01, output: 0.03 },
-      'gpt-4': { input: 0.03, output: 0.06 },
-      'gpt-3.5-turbo': { input: 0.0005, output: 0.0015 },
-      'gpt-3.5-turbo-16k': { input: 0.003, output: 0.004 }
+      "gpt-4o": { input: 0.0025, output: 0.01 },
+      "gpt-4o-mini": { input: 0.00015, output: 0.0006 },
+      "gpt-4-turbo": { input: 0.01, output: 0.03 },
+      "gpt-4": { input: 0.03, output: 0.06 },
+      "gpt-3.5-turbo": { input: 0.0005, output: 0.0015 },
+      "gpt-3.5-turbo-16k": { input: 0.003, output: 0.004 },
     };
 
-    const modelPricing = pricing[model] || pricing['gpt-3.5-turbo']; // fallback
-    return (promptTokens / 1000 * modelPricing.input) + (completionTokens / 1000 * modelPricing.output);
+    const modelPricing = pricing[model] || pricing["gpt-3.5-turbo"]; // fallback
+    return (
+      (promptTokens / 1000) * modelPricing.input + (completionTokens / 1000) * modelPricing.output
+    );
   }
 
   /**
    * Obtenir l'usage actuel depuis Redis cache ou la DB
    */
-  private static async getCurrentUsage(key: string = 'global'): Promise<QuotaUsage> {
+  private static async getCurrentUsage(key: string = "global"): Promise<QuotaUsage> {
     const now = new Date();
     const limits = this.getLimits();
 
@@ -70,7 +75,7 @@ export class OpenAIQuotaManager {
 
     // Vérifier le cache mémoire si Redis échoue
     const cached = this.quotaCache.get(key);
-    if (cached && (now.getTime() - cached.windowStart.getTime()) < limits.windowDurationMs) {
+    if (cached && now.getTime() - cached.windowStart.getTime() < limits.windowDurationMs) {
       return cached;
     }
 
@@ -83,36 +88,40 @@ export class OpenAIQuotaManager {
         where: {
           quotaKey: key,
           createdAt: {
-            gte: windowStart
-          }
+            gte: windowStart,
+          },
         },
         select: {
           promptTokens: true,
           completionTokens: true,
-          estimatedCost: true
-        }
+          estimatedCost: true,
+        },
       });
 
       const result: QuotaUsage = {
         requests: usageRecords.length,
-        tokens: usageRecords.reduce((sum, record) => sum + record.promptTokens + record.completionTokens, 0),
+        tokens: usageRecords.reduce(
+          (sum, record) => sum + record.promptTokens + record.completionTokens,
+          0,
+        ),
         cost: usageRecords.reduce((sum, record) => sum + record.estimatedCost, 0),
-        windowStart: windowStart
+        windowStart: windowStart,
       };
 
       this.quotaCache.set(key, result);
-      logger.log(`📊 [QUOTA] Usage depuis DB: ${result.requests} requêtes, ${result.tokens} tokens, $${result.cost.toFixed(4)}`);
+      logger.log(
+        `📊 [QUOTA] Usage depuis DB: ${result.requests} requêtes, ${result.tokens} tokens, $${result.cost.toFixed(4)}`,
+      );
       return result;
-
     } catch (error) {
       // Si la table n'existe pas, utiliser cache en mémoire uniquement
-      logger.warn('⚠️ Table openai_usage_log introuvable, utilisation cache mémoire:', error);
+      logger.warn("⚠️ Table openai_usage_log introuvable, utilisation cache mémoire:", error);
 
       const result: QuotaUsage = {
         requests: 0,
         tokens: 0,
         cost: 0,
-        windowStart: windowStart
+        windowStart: windowStart,
       };
 
       this.quotaCache.set(key, result);
@@ -124,16 +133,19 @@ export class OpenAIQuotaManager {
    * Vérifier si une requête est autorisée
    */
   static async checkQuota(
-    model: string, 
-    estimatedPromptTokens: number, 
+    model: string,
+    estimatedPromptTokens: number,
     estimatedCompletionTokens: number,
-    quotaKey: string = 'global'
+    quotaKey: string = "global",
   ): Promise<{ allowed: boolean; reason?: string; usage?: QuotaUsage; limits?: QuotaLimits }> {
-    
     const limits = this.getLimits();
     const usage = await this.getCurrentUsage(quotaKey);
-    
-    const estimatedCost = this.calculateCost(model, estimatedPromptTokens, estimatedCompletionTokens);
+
+    const estimatedCost = this.calculateCost(
+      model,
+      estimatedPromptTokens,
+      estimatedCompletionTokens,
+    );
 
     // Vérifications des limites
     if (usage.requests >= limits.maxRequests) {
@@ -141,7 +153,7 @@ export class OpenAIQuotaManager {
         allowed: false,
         reason: `Limite de requêtes atteinte (${usage.requests}/${limits.maxRequests} par heure)`,
         usage,
-        limits
+        limits,
       };
     }
 
@@ -150,7 +162,7 @@ export class OpenAIQuotaManager {
         allowed: false,
         reason: `Limite de tokens atteinte (${usage.tokens + estimatedPromptTokens + estimatedCompletionTokens}/${limits.maxTokens} par heure)`,
         usage,
-        limits
+        limits,
       };
     }
 
@@ -159,7 +171,7 @@ export class OpenAIQuotaManager {
         allowed: false,
         reason: `Limite de coût atteinte ($${(usage.cost + estimatedCost).toFixed(4)}/$${limits.maxCost} par heure)`,
         usage,
-        limits
+        limits,
       };
     }
 
@@ -173,15 +185,15 @@ export class OpenAIQuotaManager {
     model: string,
     promptTokens: number,
     completionTokens: number,
-    quotaKey: string = 'global'
+    quotaKey: string = "global",
   ): Promise<void> {
     logger.log(`📝 [QUOTA] recordUsage() appelée:`, {
       model,
       promptTokens,
       completionTokens,
-      quotaKey
+      quotaKey,
     });
-    
+
     const cost = this.calculateCost(model, promptTokens, completionTokens);
     const totalTokens = promptTokens + completionTokens;
 
@@ -199,14 +211,16 @@ export class OpenAIQuotaManager {
         model,
         promptTokens,
         completionTokens,
-        estimatedCost: cost
+        estimatedCost: cost,
       });
-      
+
       // Vérifier si le modèle openaiUsageLog existe
       if (!prisma.openaiUsageLog) {
-        throw new Error('Modèle openaiUsageLog non trouvé dans le client Prisma - régénération requise');
+        throw new Error(
+          "Modèle openaiUsageLog non trouvé dans le client Prisma - régénération requise",
+        );
       }
-      
+
       await prisma.openaiUsageLog.create({
         data: {
           quotaKey,
@@ -214,25 +228,29 @@ export class OpenAIQuotaManager {
           promptTokens,
           completionTokens,
           estimatedCost: cost,
-          createdAt: new Date()
-        }
+          createdAt: new Date(),
+        },
       });
-      logger.log(`✅ [QUOTA] Usage enregistré en DB: ${model} - ${totalTokens} tokens - $${cost.toFixed(4)}`);
+      logger.log(
+        `✅ [QUOTA] Usage enregistré en DB: ${model} - ${totalTokens} tokens - $${cost.toFixed(4)}`,
+      );
 
       // 🗑️ INVALIDER CACHE REDIS après enregistrement
-      invalidateQuotaUsageCache(quotaKey).catch(err =>
-        logger.error('⚠️ [REDIS] Erreur invalidation cache Quota:', err)
+      invalidateQuotaUsageCache(quotaKey).catch((err) =>
+        logger.error("⚠️ [REDIS] Erreur invalidation cache Quota:", err),
       );
     } catch (error) {
-      logger.error('❌ [QUOTA] Erreur enregistrement DB:', error);
-      logger.log('💾 Cache mémoire utilisé pour l\'usage OpenAI - Client Prisma doit être régénéré !');
+      logger.error("❌ [QUOTA] Erreur enregistrement DB:", error);
+      logger.log(
+        "💾 Cache mémoire utilisé pour l'usage OpenAI - Client Prisma doit être régénéré !",
+      );
     }
   }
 
   /**
    * Obtenir les statistiques d'usage actuelles
    */
-  static async getUsageStats(quotaKey: string = 'global'): Promise<{
+  static async getUsageStats(quotaKey: string = "global"): Promise<{
     usage: QuotaUsage;
     limits: QuotaLimits;
     percentages: { requests: number; tokens: number; cost: number };
@@ -240,16 +258,16 @@ export class OpenAIQuotaManager {
   }> {
     const usage = await this.getCurrentUsage(quotaKey);
     const limits = this.getLimits();
-    
+
     return {
       usage,
       limits,
       percentages: {
         requests: Math.round((usage.requests / limits.maxRequests) * 100),
         tokens: Math.round((usage.tokens / limits.maxTokens) * 100),
-        cost: Math.round((usage.cost / limits.maxCost) * 100)
+        cost: Math.round((usage.cost / limits.maxCost) * 100),
       },
-      remainingTime: limits.windowDurationMs - (Date.now() - usage.windowStart.getTime())
+      remainingTime: limits.windowDurationMs - (Date.now() - usage.windowStart.getTime()),
     };
   }
 

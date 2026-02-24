@@ -4,8 +4,4 @@
 export { OpenAIAssistantService } from "./service.js";
 
 // Types
-export type {
-  QuizAnswer,
-  LegacyQuizAnswer,
-  CorrectQuizOptions,
-} from "./types/index.js";
+export type { QuizAnswer, LegacyQuizAnswer, CorrectQuizOptions } from "./types/index.js";

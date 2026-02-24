@@ -3,14 +3,7 @@
  * Covers: checkInactiveUsers, resetWeeklyCounters, processWaitlist, cleanupExpiredAccounts
  */
 
-import {
-  afterAll,
-  describe,
-  expect,
-  it,
-  jest,
-  beforeEach,
-} from "@jest/globals";
+import { afterAll, describe, expect, it, jest, beforeEach } from "@jest/globals";
 import { BetaCronService } from "../BetaCronService.js";
 import { prisma } from "../../lib/prisma.js";
 import { redis } from "../../lib/redis.js";
@@ -27,17 +20,12 @@ const mockWaitlistDeleteMany = jest.fn();
 const mockTransaction = jest.fn();
 
 (prisma.user as unknown as Record<string, jest.Mock>).count = mockUserCount;
-(prisma.user as unknown as Record<string, jest.Mock>).findMany =
-  mockUserFindMany;
-(prisma.user as unknown as Record<string, jest.Mock>).updateMany =
-  mockUserUpdateMany;
+(prisma.user as unknown as Record<string, jest.Mock>).findMany = mockUserFindMany;
+(prisma.user as unknown as Record<string, jest.Mock>).updateMany = mockUserUpdateMany;
 (prisma.user as unknown as Record<string, jest.Mock>).update = mockUserUpdate;
-(prisma.betaWaitlist as unknown as Record<string, jest.Mock>).findMany =
-  mockWaitlistFindMany;
-(prisma.betaWaitlist as unknown as Record<string, jest.Mock>).delete =
-  mockWaitlistDelete;
-(prisma.betaWaitlist as unknown as Record<string, jest.Mock>).deleteMany =
-  mockWaitlistDeleteMany;
+(prisma.betaWaitlist as unknown as Record<string, jest.Mock>).findMany = mockWaitlistFindMany;
+(prisma.betaWaitlist as unknown as Record<string, jest.Mock>).delete = mockWaitlistDelete;
+(prisma.betaWaitlist as unknown as Record<string, jest.Mock>).deleteMany = mockWaitlistDeleteMany;
 (prisma as unknown as Record<string, jest.Mock>).$transaction = mockTransaction;
 
 // ─── Redis Mocks ────────────────────────────────────────────────
@@ -278,9 +266,7 @@ describe("BetaCronService.processWaitlist", () => {
 
   it("should take only available spots from waitlist (FIFO)", async () => {
     mockUserCount.mockResolvedValue(98);
-    mockWaitlistFindMany.mockResolvedValue([
-      { id: "wl-1", userId: "user-1", email: "a@test.com" },
-    ]);
+    mockWaitlistFindMany.mockResolvedValue([{ id: "wl-1", userId: "user-1", email: "a@test.com" }]);
     mockTransaction.mockResolvedValue(undefined);
 
     await BetaCronService.processWaitlist();
@@ -328,9 +314,7 @@ describe("BetaCronService.processWaitlist", () => {
 
   it("should invalidate Redis cache after promotions", async () => {
     mockUserCount.mockResolvedValue(99);
-    mockWaitlistFindMany.mockResolvedValue([
-      { id: "wl-1", userId: "user-1", email: "a@test.com" },
-    ]);
+    mockWaitlistFindMany.mockResolvedValue([{ id: "wl-1", userId: "user-1", email: "a@test.com" }]);
     mockTransaction.mockResolvedValue(undefined);
 
     await BetaCronService.processWaitlist();
@@ -364,9 +348,7 @@ describe("BetaCronService.processWaitlist", () => {
 
   it("should use Serializable isolation level in transaction", async () => {
     mockUserCount.mockResolvedValue(99);
-    mockWaitlistFindMany.mockResolvedValue([
-      { id: "wl-1", userId: "user-1", email: "a@test.com" },
-    ]);
+    mockWaitlistFindMany.mockResolvedValue([{ id: "wl-1", userId: "user-1", email: "a@test.com" }]);
     mockTransaction.mockResolvedValue(undefined);
 
     await BetaCronService.processWaitlist();

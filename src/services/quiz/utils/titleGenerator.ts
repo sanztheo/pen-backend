@@ -60,16 +60,8 @@ const TITLE_GENERATION_PROMPT = `<system>
 /**
  * Generate an intelligent quiz title using gpt-4.1-nano
  */
-export async function generateQuizTitle(
-  params: TitleGeneratorParams,
-): Promise<string> {
-  const {
-    schoolLevel,
-    pageNames = [],
-    subject,
-    questionCount,
-    difficulty,
-  } = params;
+export async function generateQuizTitle(params: TitleGeneratorParams): Promise<string> {
+  const { schoolLevel, pageNames = [], subject, questionCount, difficulty } = params;
 
   // Build context for the AI
   const contextParts: string[] = [];
@@ -106,14 +98,8 @@ export async function generateQuizTitle(
 
     const generatedTitle = response.choices[0]?.message?.content?.trim();
 
-    if (
-      generatedTitle &&
-      generatedTitle.length > 0 &&
-      generatedTitle.length <= 100
-    ) {
-      SecureLogger.log(
-        `[TITLE-GEN] Generated: "${generatedTitle}" from ${userMessage}`,
-      );
+    if (generatedTitle && generatedTitle.length > 0 && generatedTitle.length <= 100) {
+      SecureLogger.log(`[TITLE-GEN] Generated: "${generatedTitle}" from ${userMessage}`);
       return generatedTitle;
     }
 

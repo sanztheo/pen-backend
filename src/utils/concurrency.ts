@@ -3,9 +3,9 @@
 export async function mapWithConcurrency<T, R>(
   items: T[],
   limit: number,
-  iterator: (item: T, index: number) => Promise<R>
+  iterator: (item: T, index: number) => Promise<R>,
 ): Promise<R[]> {
-  if (limit <= 0) throw new Error('Concurrency limit must be >= 1');
+  if (limit <= 0) throw new Error("Concurrency limit must be >= 1");
   if (items.length === 0) return [];
 
   const results: R[] = new Array(items.length);
@@ -38,11 +38,10 @@ export async function mapWithConcurrency<T, R>(
 }
 
 export function chunkArray<T>(arr: T[], size: number): T[][] {
-  if (size <= 0) throw new Error('Chunk size must be >= 1');
+  if (size <= 0) throw new Error("Chunk size must be >= 1");
   const chunks: T[][] = [];
   for (let i = 0; i < arr.length; i += size) {
     chunks.push(arr.slice(i, i + size));
   }
   return chunks;
 }
-

@@ -1,4 +1,4 @@
-import { prisma } from './prisma.js';
+import { prisma } from "./prisma.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -6,26 +6,26 @@ import { logger } from "../utils/logger.js";
  * À exécuter via un CRON job quotidien
  */
 export async function processMonthlyResets() {
-  logger.log('🔄 [Monthly Reset] Démarrage du processus de reset mensuel...');
-  
+  logger.log("🔄 [Monthly Reset] Démarrage du processus de reset mensuel...");
+
   try {
     const now = new Date();
-    
+
     // Récupérer tous les utilisateurs avec un plan gratuit qui pourraient nécessiter un reset
     const usersToCheck = await prisma.user.findMany({
       where: {
         subscription: {
-          plan: 'free_user'
-        }
+          plan: "free_user",
+        },
       },
       include: {
         subscription: true,
-        userLimits: true
-      }
+        userLimits: true,
+      },
     });
 
     let resetCount = 0;
-    
+
     for (const user of usersToCheck) {
       if (!user.userLimits || !user.subscription) continue;
 
@@ -52,7 +52,7 @@ export async function processMonthlyResets() {
           lastReset: limits.lastResetAt,
           currentPeriodStart: subscription.currentPeriodStart?.toISOString(),
           nextReset: nextResetDate.toISOString(),
-          subscription: subscription.plan
+          subscription: subscription.plan,
         });
 
         // Calculer la nouvelle période
@@ -76,30 +76,31 @@ export async function processMonthlyResets() {
               customQuizzesUsed: 0,
               presetSequencesUsed: 0,
               lastResetAt: now,
-            }
+            },
           }),
           prisma.userSubscription.update({
             where: { userId: user.id },
             data: {
               currentPeriodStart: newPeriodStart,
               currentPeriodEnd: newPeriodEnd,
-            }
-          })
+            },
+          }),
         ]);
 
         resetCount++;
       }
     }
-    
+
     // Traitement des downgrades programmés (cancelAtPeriodEnd = true)
     const downgradeCount = await processScheduledDowngrades(now);
-    
-    logger.log(`✅ [Monthly Reset] Terminé: ${resetCount} resets effectués, ${downgradeCount} downgrades traités`);
-    
+
+    logger.log(
+      `✅ [Monthly Reset] Terminé: ${resetCount} resets effectués, ${downgradeCount} downgrades traités`,
+    );
+
     return { resetCount, downgradeCount };
-    
   } catch (error) {
-    logger.error('❌ [Monthly Reset] Erreur:', error);
+    logger.error("❌ [Monthly Reset] Erreur:", error);
     throw error;
   }
 }
@@ -112,32 +113,34 @@ async function processScheduledDowngrades(now: Date) {
     where: {
       cancelAtPeriodEnd: true,
       currentPeriodEnd: {
-        lte: now // Période terminée
-      }
-    }
+        lte: now, // Période terminée
+      },
+    },
   });
 
   let downgradeCount = 0;
-  
+
   for (const subscription of subscriptionsToDowngrade) {
-    logger.log(`📉 [Scheduled Downgrade] Downgrade utilisateur ${subscription.userId} vers free_user`);
-    
+    logger.log(
+      `📉 [Scheduled Downgrade] Downgrade utilisateur ${subscription.userId} vers free_user`,
+    );
+
     // Calculer la nouvelle période mensuelle
     const newPeriodStart = now;
     const newPeriodEnd = new Date(now);
     newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
-    
+
     // Downgrade vers free_user
     await prisma.userSubscription.update({
       where: { id: subscription.id },
       data: {
-        plan: 'free_user',
+        plan: "free_user",
         cancelAtPeriodEnd: false,
         currentPeriodStart: newPeriodStart,
         currentPeriodEnd: newPeriodEnd,
-      }
+      },
     });
-    
+
     // Réappliquer les limites FREE
     await prisma.userLimits.update({
       where: { userId: subscription.userId },
@@ -152,12 +155,12 @@ async function processScheduledDowngrades(now: Date) {
         customQuizzesUsed: 0,
         presetSequencesUsed: 0,
         lastResetAt: now,
-      }
+      },
     });
-    
+
     downgradeCount++;
   }
-  
+
   return downgradeCount;
 }
 
@@ -166,16 +169,16 @@ async function processScheduledDowngrades(now: Date) {
  */
 export async function testUserReset(userId: string) {
   logger.log(`🧪 [Test Reset] Test reset pour utilisateur ${userId}`);
-  
+
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { subscription: true, userLimits: true }
+    include: { subscription: true, userLimits: true },
   });
-  
+
   if (!user?.userLimits) {
-    throw new Error('Utilisateur ou limites non trouvés');
+    throw new Error("Utilisateur ou limites non trouvés");
   }
-  
+
   const now = new Date();
   await prisma.userLimits.update({
     where: { userId },
@@ -184,9 +187,9 @@ export async function testUserReset(userId: string) {
       customQuizzesUsed: 0,
       presetSequencesUsed: 0,
       lastResetAt: now,
-    }
+    },
   });
-  
+
   logger.log(`✅ [Test Reset] Reset effectué pour ${userId}`);
   return { success: true, resetAt: now };
 }

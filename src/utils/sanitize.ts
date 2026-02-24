@@ -25,9 +25,7 @@ export function stripHtmlTags(input: string): string {
  * Recursively remove dangerous keys from an object to prevent Prototype Pollution.
  * Filters out __proto__, constructor, and prototype keys at every nesting level.
  */
-export function sanitizeObjectKeys(
-  obj: Record<string, unknown>,
-): Record<string, unknown> {
+export function sanitizeObjectKeys(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const key of Object.keys(obj)) {
