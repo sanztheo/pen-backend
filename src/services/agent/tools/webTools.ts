@@ -29,21 +29,12 @@ const searchWebSchema = z.object({
 
 const searchWikipediaSchema = z.object({
   query: z.string().min(2).describe("Terme de recherche"),
-  limit: z
-    .number()
-    .min(1)
-    .max(10)
-    .optional()
-    .default(5)
-    .describe("Nombre max de résultats"),
+  limit: z.number().min(1).max(10).optional().default(5).describe("Nombre max de résultats"),
 });
 
 const getWikipediaArticleSchema = z.object({
   pageid: z.number().optional().describe("ID de la page Wikipedia"),
-  title: z
-    .string()
-    .optional()
-    .describe("Titre de l'article (si pas de pageid)"),
+  title: z.string().optional().describe("Titre de l'article (si pas de pageid)"),
 });
 
 const WikipediaSearchResponseSchema = z
@@ -101,9 +92,7 @@ Utilise OpenAI Web Search pour des résultats de qualité avec sources citées.
 Idéal pour des questions sur l'actualité, des faits récents, ou des informations non présentes dans les sources RAG.`,
       inputSchema: searchWebSchema,
       execute: async ({ query, searchContextSize }) => {
-        logger.log(
-          `🔍 [TOOL:searchWeb] query="${query}", contextSize=${searchContextSize}`,
-        );
+        logger.log(`🔍 [TOOL:searchWeb] query="${query}", contextSize=${searchContextSize}`);
 
         if (!process.env.OPENAI_API_KEY) {
           logger.warn(`⚠️ [TOOL:searchWeb] OPENAI_API_KEY non configurée`);
@@ -160,9 +149,7 @@ Idéal pour des questions sur l'actualité, des faits récents, ou des informati
             }
           }
 
-          logger.log(
-            `✅ [TOOL:searchWeb] Réponse obtenue avec ${sources.length} sources`,
-          );
+          logger.log(`✅ [TOOL:searchWeb] Réponse obtenue avec ${sources.length} sources`);
 
           return {
             count: sources.length,
@@ -193,9 +180,7 @@ Retourne les titres et extraits des articles correspondants.
 Utile pour des informations encyclopédiques de référence.`,
       inputSchema: searchWikipediaSchema,
       execute: async ({ query, limit }) => {
-        logger.log(
-          `🔍 [TOOL:searchWikipedia] query="${query}", limit=${limit}`,
-        );
+        logger.log(`🔍 [TOOL:searchWikipedia] query="${query}", limit=${limit}`);
 
         try {
           const searchUrl = `https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=${limit}&format=json&origin=*`;
@@ -210,9 +195,7 @@ Utile pour des informations encyclopédiques de référence.`,
 
           const results = data.query?.search || [];
 
-          logger.log(
-            `✅ [TOOL:searchWikipedia] ${results.length} articles trouvés`,
-          );
+          logger.log(`✅ [TOOL:searchWikipedia] ${results.length} articles trouvés`);
 
           return {
             count: results.length,
@@ -242,18 +225,14 @@ Utile pour des informations encyclopédiques de référence.`,
 Retourne l'extrait, les catégories, et l'URL de l'article.`,
       inputSchema: getWikipediaArticleSchema,
       execute: async ({ pageid, title }) => {
-        logger.log(
-          `🔍 [TOOL:getWikipediaArticle] pageid=${pageid}, title=${title}`,
-        );
+        logger.log(`🔍 [TOOL:getWikipediaArticle] pageid=${pageid}, title=${title}`);
 
         if (!pageid && !title) {
           return { error: "Fournir soit pageid soit title", article: null };
         }
 
         try {
-          const queryParam = pageid
-            ? `pageids=${pageid}`
-            : `titles=${encodeURIComponent(title!)}`;
+          const queryParam = pageid ? `pageids=${pageid}` : `titles=${encodeURIComponent(title!)}`;
 
           const url = `https://fr.wikipedia.org/w/api.php?action=query&${queryParam}&prop=extracts|categories|info&exintro=1&explaintext=1&inprop=url&cllimit=10&format=json&origin=*`;
 
@@ -277,9 +256,7 @@ Retourne l'extrait, les catégories, et l'URL de l'article.`,
             return { error: "Article non trouvé", article: null };
           }
 
-          logger.log(
-            `✅ [TOOL:getWikipediaArticle] Article "${page.title}" récupéré`,
-          );
+          logger.log(`✅ [TOOL:getWikipediaArticle] Article "${page.title}" récupéré`);
 
           return {
             article: {
@@ -289,9 +266,7 @@ Retourne l'extrait, les catégories, et l'URL de l'article.`,
               url:
                 page.fullurl ||
                 `https://fr.wikipedia.org/wiki/${encodeURIComponent(page.title.replace(/ /g, "_"))}`,
-              categories: (page.categories || []).map((c) =>
-                c.title.replace("Catégorie:", ""),
-              ),
+              categories: (page.categories || []).map((c) => c.title.replace("Catégorie:", "")),
             },
           };
         } catch (error) {

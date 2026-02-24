@@ -72,17 +72,14 @@ interface WikipediaCategoryMembersResponse {
   };
 }
 
-const WikipediaCategoryMembersResponseSchema: z.ZodType<WikipediaCategoryMembersResponse> =
-  z
-    .object({
-      query: z
-        .object({
-          categorymembers: z
-            .array(z.object({ pageid: z.number(), title: z.string() }))
-            .optional(),
-        })
-        .optional(),
-    })
+const WikipediaCategoryMembersResponseSchema: z.ZodType<WikipediaCategoryMembersResponse> = z
+  .object({
+    query: z
+      .object({
+        categorymembers: z.array(z.object({ pageid: z.number(), title: z.string() })).optional(),
+      })
+      .optional(),
+  })
   .passthrough();
 
 const WikipediaSearchResponseSchema: z.ZodType<WikipediaSearchResponse> = z
@@ -139,10 +136,7 @@ const WikipediaExtractResponseSchema: z.ZodType<WikipediaExtractResponse> = z
 /**
  * Recherche des articles sur Wikipedia via l'API MediaWiki
  */
-export const wikipediaSearch = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
+export const wikipediaSearch = async (req: Request, res: Response): Promise<void> => {
   try {
     const { q: query, lang = "fr", limit = 10 } = req.query;
 
@@ -157,9 +151,7 @@ export const wikipediaSearch = async (
       return;
     }
 
-    logger.log(
-      `🔍 [WikipediaSearch] Recherche: "${searchQuery}" (lang: ${lang})`,
-    );
+    logger.log(`🔍 [WikipediaSearch] Recherche: "${searchQuery}" (lang: ${lang})`);
 
     // Étape 1: Rechercher les articles
     const searchUrl =
@@ -194,17 +186,13 @@ export const wikipediaSearch = async (
     const searchData = searchParsed.data;
 
     if (!searchData.query?.search) {
-      logger.log(
-        `⚠️ [WikipediaSearch] Aucun résultat trouvé pour: "${searchQuery}"`,
-      );
+      logger.log(`⚠️ [WikipediaSearch] Aucun résultat trouvé pour: "${searchQuery}"`);
       res.json({ articles: [], totalFound: 0 });
       return;
     }
 
     const searchResults = searchData.query.search;
-    logger.log(
-      `📊 [WikipediaSearch] ${searchResults.length} résultats trouvés`,
-    );
+    logger.log(`📊 [WikipediaSearch] ${searchResults.length} résultats trouvés`);
 
     // Étape 2: Récupérer les extraits des articles les plus pertinents
     const pageIds = searchResults
@@ -235,9 +223,7 @@ export const wikipediaSearch = async (
     });
 
     if (!extractResponse.ok) {
-      throw new Error(
-        `Erreur API Wikipedia extraits: ${extractResponse.status}`,
-      );
+      throw new Error(`Erreur API Wikipedia extraits: ${extractResponse.status}`);
     }
 
     const extractRaw: unknown = await extractResponse.json();
@@ -258,10 +244,7 @@ export const wikipediaSearch = async (
         const article: WikipediaArticle = {
           title: pageData.title || searchResult.title,
           pageid: searchResult.pageid,
-          extract:
-            pageData.extract ||
-            searchResult.snippet?.replace(/<[^>]*>/g, "") ||
-            "",
+          extract: pageData.extract || searchResult.snippet?.replace(/<[^>]*>/g, "") || "",
           url:
             pageData.fullurl ||
             `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(pageData.title || searchResult.title)}`,
@@ -289,9 +272,7 @@ export const wikipediaSearch = async (
       totalFound: searchData.query?.searchinfo?.totalhits || articles.length,
     };
 
-    logger.log(
-      `🎯 [WikipediaSearch] Retour de ${articles.length} articles pour "${searchQuery}"`,
-    );
+    logger.log(`🎯 [WikipediaSearch] Retour de ${articles.length} articles pour "${searchQuery}"`);
     res.json(result);
   } catch (error) {
     logger.error("❌ [WikipediaSearch] Erreur:", error);
@@ -305,10 +286,7 @@ export const wikipediaSearch = async (
 /**
  * Récupère le contenu enrichi d'articles Wikipedia avec catégories et contenu selon le mode
  */
-export const wikipediaGetEnrichedArticles = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
+export const wikipediaGetEnrichedArticles = async (req: Request, res: Response): Promise<void> => {
   try {
     const { pageIds, mode = "ask", query, lang = "fr" } = req.body;
 
@@ -317,9 +295,7 @@ export const wikipediaGetEnrichedArticles = async (
       return;
     }
 
-    logger.log(
-      `🔍 [WikipediaEnriched] Mode: ${mode}, Pages: ${pageIds.length}, Query: "${query}"`,
-    );
+    logger.log(`🔍 [WikipediaEnriched] Mode: ${mode}, Pages: ${pageIds.length}, Query: "${query}"`);
 
     // Déterminer les limites de caractères selon le mode
     const limits = {
@@ -358,15 +334,12 @@ export const wikipediaGetEnrichedArticles = async (
 
       const contentResponse = await fetch(contentUrl, {
         headers: {
-          "User-Agent":
-            "PenSaaS/1.0 (https://example.com/contact) Research Tool",
+          "User-Agent": "PenSaaS/1.0 (https://example.com/contact) Research Tool",
         },
       });
 
       if (!contentResponse.ok) {
-        logger.error(
-          `❌ Erreur récupération article ${pageId}: ${contentResponse.status}`,
-        );
+        logger.error(`❌ Erreur récupération article ${pageId}: ${contentResponse.status}`);
         continue;
       }
 
@@ -399,14 +372,8 @@ export const wikipediaGetEnrichedArticles = async (
       let relevantCategories: string[] = [];
       let categoryContent = "";
 
-      if (
-        mode === "search" ||
-        (mode === "create" && req.body.reflection === "profond")
-      ) {
-        relevantCategories = await analyzeRelevantCategories(
-          categories,
-          query || "",
-        );
+      if (mode === "search" || (mode === "create" && req.body.reflection === "profond")) {
+        relevantCategories = await analyzeRelevantCategories(categories, query || "");
         logger.log(
           `🎯 [${pageData.title}] ${relevantCategories.length} catégories pertinentes sélectionnées`,
         );
@@ -443,10 +410,7 @@ export const wikipediaGetEnrichedArticles = async (
         url:
           pageData.fullurl ||
           `https://${lang}.wikipedia.org/wiki/${encodeURIComponent(pageData.title)}`,
-        categories:
-          relevantCategories.length > 0
-            ? relevantCategories
-            : categories.slice(0, 10),
+        categories: relevantCategories.length > 0 ? relevantCategories : categories.slice(0, 10),
         fullContent: categoryContent
           ? `${pageData.extract}\n\n=== Contenu des catégories pertinentes ===\n${categoryContent}`
           : pageData.extract,
@@ -471,10 +435,7 @@ export const wikipediaGetEnrichedArticles = async (
 /**
  * Analyse les catégories pertinentes par rapport à la query avec une IA simple
  */
-async function analyzeRelevantCategories(
-  categories: string[],
-  query: string,
-): Promise<string[]> {
+async function analyzeRelevantCategories(categories: string[], query: string): Promise<string[]> {
   if (categories.length === 0) return [];
 
   // Si pas de query, prendre les catégories les plus importantes
@@ -501,38 +462,15 @@ async function analyzeRelevantCategories(
     queryWords.forEach((word) => {
       if (categoryLower.includes(word)) {
         score += 5; // Correspondance directe
-      } else if (
-        categoryLower.includes(word.substring(0, Math.max(3, word.length - 1)))
-      ) {
+      } else if (categoryLower.includes(word.substring(0, Math.max(3, word.length - 1)))) {
         score += 2; // Correspondance partielle
       }
 
       // Synonymes et mots-clés liés
       const synonyms: { [key: string]: string[] } = {
-        guerre: [
-          "conflit",
-          "bataille",
-          "militaire",
-          "combat",
-          "armée",
-          "stratégie",
-        ],
-        physique: [
-          "science",
-          "théorie",
-          "loi",
-          "principe",
-          "quantum",
-          "relativité",
-        ],
-        histoire: [
-          "historique",
-          "chronologie",
-          "époque",
-          "siècle",
-          "ancien",
-          "événement",
-        ],
+        guerre: ["conflit", "bataille", "militaire", "combat", "armée", "stratégie"],
+        physique: ["science", "théorie", "loi", "principe", "quantum", "relativité"],
+        histoire: ["historique", "chronologie", "époque", "siècle", "ancien", "événement"],
         politique: ["gouvernement", "état", "pouvoir", "société", "social"],
       };
 
@@ -594,9 +532,7 @@ async function analyzeRelevantCategories(
       "utilisateur",
     ];
 
-    const shouldExclude = excludePatterns.some((pattern) =>
-      categoryLower.includes(pattern),
-    );
+    const shouldExclude = excludePatterns.some((pattern) => categoryLower.includes(pattern));
 
     if (!shouldExclude && score > 0) {
       relevantCategories.push({ category, score });
@@ -640,8 +576,7 @@ async function getCategoryContent(
       const url = `https://${lang}.wikipedia.org/w/api.php?${params}`;
       const response = await fetch(url, {
         headers: {
-          "User-Agent":
-            "PenSaaS/1.0 (https://example.com/contact) Research Tool",
+          "User-Agent": "PenSaaS/1.0 (https://example.com/contact) Research Tool",
         },
       });
 
@@ -676,10 +611,7 @@ async function getCategoryContent(
 /**
  * Récupère le contenu complet d'un article Wikipedia (fonction legacy)
  */
-export const wikipediaGetArticle = async (
-  req: Request,
-  res: Response,
-): Promise<void> => {
+export const wikipediaGetArticle = async (req: Request, res: Response): Promise<void> => {
   try {
     const { pageid, title, lang = "fr" } = req.query;
 
@@ -692,7 +624,7 @@ export const wikipediaGetArticle = async (
       `📄 [WikipediaGetArticle] Récupération: pageid=${pageid}, title=${title} (lang: ${lang})`,
     );
 
-    let params: Record<string, string> = {
+    const params: Record<string, string> = {
       action: "query",
       prop: "extracts|info",
       format: "json",
@@ -708,9 +640,7 @@ export const wikipediaGetArticle = async (
       params.titles = String(title);
     }
 
-    const url =
-      `https://${lang}.wikipedia.org/w/api.php?` +
-      new URLSearchParams(params).toString();
+    const url = `https://${lang}.wikipedia.org/w/api.php?` + new URLSearchParams(params).toString();
 
     const response = await fetch(url, {
       headers: {

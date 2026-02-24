@@ -23,9 +23,7 @@ export const initFuturaScheduler = async () => {
     const repeatableJobs = await futuraQueue.getRepeatableJobs();
     for (const job of repeatableJobs) {
       await futuraQueue.removeRepeatableByKey(job.key);
-      logger.log(
-        `🧹 [Futura Scheduler] Ancien job répétable supprimé: ${job.key}`,
-      );
+      logger.log(`🧹 [Futura Scheduler] Ancien job répétable supprimé: ${job.key}`);
     }
 
     // Créer un job répétable qui s'exécute chaque lundi à 8h00
@@ -43,17 +41,12 @@ export const initFuturaScheduler = async () => {
       jobId: "weekly-article-refresh", // ID unique pour éviter les doublons
     });
 
-    logger.log(
-      "✅ [Futura Scheduler] Job hebdomadaire configuré: chaque lundi à 8h00",
-    );
+    logger.log("✅ [Futura Scheduler] Job hebdomadaire configuré: chaque lundi à 8h00");
 
     // Vérifier si un article existe pour cette semaine, sinon en créer un immédiatement
     await checkAndCreateInitialArticle();
   } catch (error) {
-    logger.error(
-      "❌ [Futura Scheduler] Erreur lors de l'initialisation:",
-      error,
-    );
+    logger.error("❌ [Futura Scheduler] Erreur lors de l'initialisation:", error);
     throw error;
   }
 };
@@ -65,8 +58,7 @@ export const initFuturaScheduler = async () => {
 const checkAndCreateInitialArticle = async () => {
   try {
     // Importer dynamiquement pour éviter les dépendances circulaires
-    const { FuturaRssService } =
-      await import("../services/futuraRss.service.js");
+    const { FuturaRssService } = await import("../services/futuraRss.service.js");
 
     // Vérifier si un article existe déjà pour cette semaine
     const existingArticle = await FuturaRssService.getWeeklyArticle();
@@ -86,19 +78,12 @@ const checkAndCreateInitialArticle = async () => {
         priority: 1, // Priorité haute pour l'initialisation
       });
 
-      logger.log(
-        "✅ [Futura Scheduler] Job de création initial ajouté à la queue",
-      );
+      logger.log("✅ [Futura Scheduler] Job de création initial ajouté à la queue");
     } else {
-      logger.log(
-        `ℹ️ [Futura Scheduler] Article existant trouvé: "${existingArticle.title}"`,
-      );
+      logger.log(`ℹ️ [Futura Scheduler] Article existant trouvé: "${existingArticle.title}"`);
     }
   } catch (error) {
-    logger.error(
-      "❌ [Futura Scheduler] Erreur lors de la vérification initiale:",
-      error,
-    );
+    logger.error("❌ [Futura Scheduler] Erreur lors de la vérification initiale:", error);
   }
 };
 
@@ -126,30 +111,21 @@ export const stopFuturaScheduler = async () => {
  */
 export const triggerManualRefresh = async (forceNew: boolean = false) => {
   try {
-    logger.log(
-      "🔄 [Futura Scheduler] Déclenchement manuel du rafraîchissement...",
-    );
+    logger.log("🔄 [Futura Scheduler] Déclenchement manuel du rafraîchissement...");
 
     const jobData: FuturaJobData = {
       type: "refresh-weekly-article",
       forceNew,
     };
 
-    const job = await futuraQueue.add(
-      "refresh-weekly-article-manual",
-      jobData,
-      {
-        priority: 2, // Priorité élevée pour les actions manuelles
-      },
-    );
+    const job = await futuraQueue.add("refresh-weekly-article-manual", jobData, {
+      priority: 2, // Priorité élevée pour les actions manuelles
+    });
 
     logger.log(`✅ [Futura Scheduler] Job manuel créé avec l'ID: ${job.id}`);
     return job;
   } catch (error) {
-    logger.error(
-      "❌ [Futura Scheduler] Erreur lors du déclenchement manuel:",
-      error,
-    );
+    logger.error("❌ [Futura Scheduler] Erreur lors du déclenchement manuel:", error);
     throw error;
   }
 };

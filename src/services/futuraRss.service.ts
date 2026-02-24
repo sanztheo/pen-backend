@@ -53,9 +53,7 @@ export class FuturaRssService {
    * @param url URL de l'article
    * @returns Le contenu complet de l'article avec HTML formaté ou null
    */
-  private static async fetchFullArticleContent(
-    url: string,
-  ): Promise<string | null> {
+  private static async fetchFullArticleContent(url: string): Promise<string | null> {
     try {
       const response = await fetch(url);
       const html = await response.text();
@@ -76,9 +74,7 @@ export class FuturaRssService {
 
       // 2. Extraire le contenu principal de l'article
       // Trouver le début de la div principale
-      const startMatch = html.match(
-        /<div[^>]*id="article-anchor-article-main-content"[^>]*>/i,
-      );
+      const startMatch = html.match(/<div[^>]*id="article-anchor-article-main-content"[^>]*>/i);
       if (!startMatch) {
         logger.warn("⚠️ Could not find main article content div");
         return synopsis || null;
@@ -115,14 +111,8 @@ export class FuturaRssService {
       // 3. Supprimer le sommaire et autres éléments indésirables
       articleContent = articleContent
         // Supprimer le sommaire
-        .replace(
-          /<div[^>]*class="[^"]*article-summary[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-          "",
-        )
-        .replace(
-          /<div[^>]*class="[^"]*WrapperSummary[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-          "",
-        )
+        .replace(/<div[^>]*class="[^"]*article-summary[^"]*"[^>]*>[\s\S]*?<\/div>/gi, "")
+        .replace(/<div[^>]*class="[^"]*WrapperSummary[^"]*"[^>]*>[\s\S]*?<\/div>/gi, "")
         // Supprimer les séparateurs
         .replace(/<hr[^>]*>/gi, "")
         // Supprimer footer, aside, nav
@@ -135,50 +125,34 @@ export class FuturaRssService {
         .replace(/<button[^>]*>[\s\S]*?<\/button>/gi, "");
 
       // 4. Nettoyer le contenu en gardant les balises importantes
-      let cleanContent = articleContent
+      const cleanContent = articleContent
         // Supprimer les scripts et styles
         .replace(/<script[^>]*>.*?<\/script>/gi, "")
         .replace(/<style[^>]*>.*?<\/style>/gi, "")
         // Supprimer les noscript
         .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, "")
         // Convertir les blocs d'images fs-media en figures
-        .replace(
-          /<div[^>]*class="[^"]*fs-media[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-          (match) => {
-            // Extraire le contenu picture avec toutes ses sources
-            const pictureMatch = match.match(
-              /<picture[^>]*>([\s\S]*?)<\/picture>/i,
-            );
-            // Extraire la légende
-            const legendMatch = match.match(
-              /<span[^>]*class="[^"]*fs-legende[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
-            );
+        .replace(/<div[^>]*class="[^"]*fs-media[^"]*"[^>]*>([\s\S]*?)<\/div>/gi, (match) => {
+          // Extraire le contenu picture avec toutes ses sources
+          const pictureMatch = match.match(/<picture[^>]*>([\s\S]*?)<\/picture>/i);
+          // Extraire la légende
+          const legendMatch = match.match(
+            /<span[^>]*class="[^"]*fs-legende[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
+          );
 
-            if (pictureMatch) {
-              const picture = pictureMatch[0];
-              const legend = legendMatch
-                ? `<figcaption>${legendMatch[1]}</figcaption>`
-                : "";
-              return `<figure>${picture}${legend}</figure>`;
-            }
-            return "";
-          },
-        )
+          if (pictureMatch) {
+            const picture = pictureMatch[0];
+            const legend = legendMatch ? `<figcaption>${legendMatch[1]}</figcaption>` : "";
+            return `<figure>${picture}${legend}</figure>`;
+          }
+          return "";
+        })
         // Supprimer les div image-wrapper et open-icon-button restantes
         .replace(/<div[^>]*class="[^"]*image-wrapper[^"]*"[^>]*>/gi, "")
-        .replace(
-          /<div[^>]*class="[^"]*open-icon-button[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-          "",
-        )
+        .replace(/<div[^>]*class="[^"]*open-icon-button[^"]*"[^>]*>[\s\S]*?<\/div>/gi, "")
         // Garder les légendes mais supprimer les autres spans
-        .replace(
-          /<span[^>]*class="[^"]*tooltip[^"]*"[^>]*>[\s\S]*?<\/span>/gi,
-          "",
-        )
-        .replace(
-          /<span[^>]*class="[^"]*wrappers__Span[^"]*"[^>]*>([\s\S]*?)<\/span>/gi,
-          "$1",
-        )
+        .replace(/<span[^>]*class="[^"]*tooltip[^"]*"[^>]*>[\s\S]*?<\/span>/gi, "")
+        .replace(/<span[^>]*class="[^"]*wrappers__Span[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
         // Nettoyer les balises picture en gardant les sources
         .replace(/<picture([^>]*)>/gi, "<picture>")
         // Supprimer les attributs inutiles mais garder src/srcset/media pour images/vidéos et href pour liens
@@ -209,9 +183,7 @@ export class FuturaRssService {
                 : titleMatch
                   ? ` alt="${titleMatch[1]}"`
                   : "";
-              const loading = loadingMatch
-                ? ` loading="${loadingMatch[1]}"`
-                : ' loading="lazy"';
+              const loading = loadingMatch ? ` loading="${loadingMatch[1]}"` : ' loading="lazy"';
               return `<${tag}${src}${srcset}${alt}${loading}>`;
             }
             // Pour les vidéos et iframes, garder src et alt
@@ -276,9 +248,7 @@ export class FuturaRssService {
         .trim();
 
       // 5. Combiner synopsis et contenu
-      const fullContent = synopsis
-        ? `${synopsis}\n\n${cleanContent}`
-        : cleanContent;
+      const fullContent = synopsis ? `${synopsis}\n\n${cleanContent}` : cleanContent;
 
       logger.log(
         `📄 Extracted ${fullContent.length} characters from article (synopsis + main content)`,
@@ -304,9 +274,7 @@ export class FuturaRssService {
       if (cacheKey) {
         const cached = aiValidationCache.get(cacheKey);
         if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-          logger.log(
-            `📦 Cache hit pour validation éducative: ${cacheKey.substring(0, 50)}...`,
-          );
+          logger.log(`📦 Cache hit pour validation éducative: ${cacheKey.substring(0, 50)}...`);
           return {
             isValid: cached.isValid,
             score: cached.score,
@@ -325,9 +293,7 @@ export class FuturaRssService {
 
       // Vérifier la clé API
       if (!process.env.OPENAI_API_KEY) {
-        logger.warn(
-          "⚠️ OPENAI_API_KEY non configurée, acceptation par défaut avec score faible",
-        );
+        logger.warn("⚠️ OPENAI_API_KEY non configurée, acceptation par défaut avec score faible");
         return { isValid: true, score: 0.5, reason: "no_api_key" };
       }
 
@@ -400,9 +366,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
 
       // Log uniquement les articles validés (réduire le bruit)
       if (isValid) {
-        logger.log(
-          `🎓 Article validé: "${title.substring(0, 50)}..." (score: ${result.score}/10)`,
-        );
+        logger.log(`🎓 Article validé: "${title.substring(0, 50)}..." (score: ${result.score}/10)`);
       }
       return { isValid, score, reason };
     } catch (error) {
@@ -455,20 +419,13 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
       // Sélectionner un article au hasard parmi les validés (prioriser les meilleurs scores)
       let selectedArticle: RssItem;
       if (validatedArticles.length === 0) {
-        logger.warn(
-          "⚠️ Aucun article validé par l'AI, utilisation du premier article disponible",
-        );
+        logger.warn("⚠️ Aucun article validé par l'AI, utilisation du premier article disponible");
         selectedArticle = feed.items[0];
-        logger.log(
-          `🎲 Article de secours: "${selectedArticle.title?.substring(0, 80)}..."`,
-        );
+        logger.log(`🎲 Article de secours: "${selectedArticle.title?.substring(0, 80)}..."`);
       } else {
         // Trier par score décroissant et prendre un article au hasard parmi les 5 meilleurs
         validatedArticles.sort((a, b) => b.score - a.score);
-        const topArticles = validatedArticles.slice(
-          0,
-          Math.min(5, validatedArticles.length),
-        );
+        const topArticles = validatedArticles.slice(0, Math.min(5, validatedArticles.length));
         const randomIndex = Math.floor(Math.random() * topArticles.length);
         selectedArticle = topArticles[randomIndex].item;
         logger.log(
@@ -494,8 +451,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
       // Le RSS contient une description correcte et fiable (même si courte)
 
       logger.log("📝 Using RSS description (reliable source)");
-      let cleanContent =
-        latestItem.description || latestItem.contentSnippet || "";
+      let cleanContent = latestItem.description || latestItem.contentSnippet || "";
 
       // Nettoyer le contenu de la description
       cleanContent = cleanContent
@@ -518,9 +474,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         .replace(/\s+/g, " ")
         .trim();
 
-      logger.log(
-        `📊 RSS description length: ${cleanContent.length} characters`,
-      );
+      logger.log(`📊 RSS description length: ${cleanContent.length} characters`);
 
       const article: FuturaArticle = {
         title: latestItem.title || "Article sans titre",
@@ -548,10 +502,7 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
    * @param forceNew Si true, supprime l'article existant et en crée un nouveau
    * @returns L'article sauvegardé ou null en cas d'erreur
    */
-  static async saveWeeklyArticle(
-    article: FuturaArticle,
-    forceNew: boolean = false,
-  ) {
+  static async saveWeeklyArticle(article: FuturaArticle, forceNew: boolean = false) {
     try {
       // Vérifier si un article a déjà été sauvegardé cette semaine
       const startOfWeek = new Date();

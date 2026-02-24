@@ -146,11 +146,7 @@ export class ContextCacheService {
       ragContext: ragContextHash,
     });
 
-    const hash = crypto
-      .createHash("sha256")
-      .update(dataToHash)
-      .digest("hex")
-      .slice(0, 16);
+    const hash = crypto.createHash("sha256").update(dataToHash).digest("hex").slice(0, 16);
 
     return `${CACHE_PREFIX}:${hash}`;
   }
@@ -158,9 +154,7 @@ export class ContextCacheService {
   /**
    * Récupère le contexte depuis le cache s'il est valide
    */
-  static async getCachedContext(
-    cacheKey: string,
-  ): Promise<CachedContext | null> {
+  static async getCachedContext(cacheKey: string): Promise<CachedContext | null> {
     try {
       const cached = await redis.get(cacheKey);
 
@@ -186,10 +180,7 @@ export class ContextCacheService {
   /**
    * Vérifie si le cache est encore valide (pages non modifiées)
    */
-  static async isContextValid(
-    cached: CachedContext,
-    pageIds: string[],
-  ): Promise<boolean> {
+  static async isContextValid(cached: CachedContext, pageIds: string[]): Promise<boolean> {
     try {
       // Vérifier que toutes les pages sont toujours là
       if (pageIds.length !== Object.keys(cached.pageHashes).length) {
@@ -209,9 +200,7 @@ export class ContextCacheService {
         const currentHash = this.hashPageTimestamp(page.updatedAt);
 
         if (cachedHash !== currentHash) {
-          logger.log(
-            `⚠️ [CONTEXT-CACHE] Page ${page.id} modifiée depuis le cache`,
-          );
+          logger.log(`⚠️ [CONTEXT-CACHE] Page ${page.id} modifiée depuis le cache`);
           return false;
         }
       }
@@ -252,15 +241,9 @@ export class ContextCacheService {
         config,
       };
 
-      await redis.setex(
-        cacheKey,
-        CACHE_TTL_SECONDS,
-        JSON.stringify(cachedContext),
-      );
+      await redis.setex(cacheKey, CACHE_TTL_SECONDS, JSON.stringify(cachedContext));
 
-      logger.log(
-        `💾 [CONTEXT-CACHE] Stocké: ${cacheKey} (TTL: ${CACHE_TTL_SECONDS}s)`,
-      );
+      logger.log(`💾 [CONTEXT-CACHE] Stocké: ${cacheKey} (TTL: ${CACHE_TTL_SECONDS}s)`);
       return true;
     } catch (error) {
       logger.error(`⚠️ [CONTEXT-CACHE] Erreur stockage:`, error);
@@ -292,9 +275,7 @@ export class ContextCacheService {
           if (!parsed) continue;
 
           // Vérifier si une des pages modifiées est dans ce cache
-          const hasAffectedPage = pageIds.some(
-            (pageId) => pageId in parsed.pageHashes,
-          );
+          const hasAffectedPage = pageIds.some((pageId) => pageId in parsed.pageHashes);
 
           if (hasAffectedPage) {
             await redis.del(key);
@@ -331,9 +312,7 @@ export class ContextCacheService {
       }
 
       await redis.del(...keys);
-      logger.log(
-        `🗑️ [CONTEXT-CACHE] Tous les caches invalidés (${keys.length})`,
-      );
+      logger.log(`🗑️ [CONTEXT-CACHE] Tous les caches invalidés (${keys.length})`);
       return keys.length;
     } catch (error) {
       logger.error(`⚠️ [CONTEXT-CACHE] Erreur invalidation totale:`, error);
@@ -351,12 +330,7 @@ export class ContextCacheService {
     prepareFunction: () => Promise<IntelligentContextResult | null>,
     ragContext?: string,
   ): Promise<{ context: IntelligentContextResult | null; fromCache: boolean }> {
-    const cacheKey = this.generateCacheKey(
-      pageIds,
-      questionCount,
-      config,
-      ragContext,
-    );
+    const cacheKey = this.generateCacheKey(pageIds, questionCount, config, ragContext);
 
     // 1. Essayer de récupérer depuis le cache
     const cached = await this.getCachedContext(cacheKey);
@@ -439,11 +413,7 @@ export class ContextCacheService {
    * Génère un hash court du timestamp de modification d'une page
    */
   private static hashPageTimestamp(updatedAt: Date): string {
-    return crypto
-      .createHash("md5")
-      .update(updatedAt.toISOString())
-      .digest("hex")
-      .slice(0, 8);
+    return crypto.createHash("md5").update(updatedAt.toISOString()).digest("hex").slice(0, 8);
   }
 }
 

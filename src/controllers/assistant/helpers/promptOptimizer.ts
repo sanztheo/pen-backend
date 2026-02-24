@@ -15,7 +15,7 @@ export function sanitizeUserInput(input: string): string {
   let modificationCount = 0;
 
   // Nettoyer les tentatives d'injection courantes
-  let sanitized = input
+  const sanitized = input
     // Masquer les tentatives d'override d'instructions
     .replace(
       /(?:ignore|forget|disregard|override|replace|substitute).{0,30}(?:above|previous|prior|instructions|rules|system|prompt)/gi,
@@ -30,9 +30,7 @@ export function sanitizeUserInput(input: string): string {
       /(?:you are now|act as|pretend to be|roleplay as|simulate being).{0,50}/gi,
       (match) => {
         modificationCount++;
-        logger.log(
-          `🛡️ [SECURITY] Injection détectée - Role Change: "${match}"`,
-        );
+        logger.log(`🛡️ [SECURITY] Injection détectée - Role Change: "${match}"`);
         return "[FILTERED_ROLE_CHANGE]";
       },
     )
@@ -41,9 +39,7 @@ export function sanitizeUserInput(input: string): string {
       /(?:show|reveal|display|tell me|what are|what is).{0,20}(?:your|the).{0,20}(?:system|instruction|prompt|rule)/gi,
       (match) => {
         modificationCount++;
-        logger.log(
-          `🛡️ [SECURITY] Injection détectée - Prompt Access: "${match}"`,
-        );
+        logger.log(`🛡️ [SECURITY] Injection détectée - Prompt Access: "${match}"`);
         return "[FILTERED_PROMPT_ACCESS]";
       },
     )
@@ -57,16 +53,10 @@ export function sanitizeUserInput(input: string): string {
   const finalLength = sanitized.length;
 
   if (modificationCount > 0) {
-    logger.log(
-      `🛡️ [SECURITY] Sanitisation terminée - ${modificationCount} tentatives bloquées`,
-    );
-    logger.log(
-      `🛡️ [SECURITY] Taille: ${originalLength} → ${finalLength} caractères`,
-    );
+    logger.log(`🛡️ [SECURITY] Sanitisation terminée - ${modificationCount} tentatives bloquées`);
+    logger.log(`🛡️ [SECURITY] Taille: ${originalLength} → ${finalLength} caractères`);
   } else {
-    logger.log(
-      `🛡️ [SECURITY] Input propre - aucune injection détectée (${originalLength} chars)`,
-    );
+    logger.log(`🛡️ [SECURITY] Input propre - aucune injection détectée (${originalLength} chars)`);
   }
 
   return sanitized.trim();
@@ -74,13 +64,7 @@ export function sanitizeUserInput(input: string): string {
 
 // 🧠 INTELLIGENCE: Détection avancée du type de requête
 export interface QueryAnalysis {
-  type:
-    | "greeting"
-    | "question"
-    | "instruction"
-    | "creation"
-    | "analysis"
-    | "complex";
+  type: "greeting" | "question" | "instruction" | "creation" | "analysis" | "complex";
   mathIntent: boolean;
   language: string;
   responseLength: "brief" | "standard" | "detailed" | "comprehensive";
@@ -98,11 +82,7 @@ export function analyzeQuery(query: string, req: Request): QueryAnalysis {
 
   // Détection du type principal
   let type: QueryAnalysis["type"] = "question";
-  if (
-    /^(salut|bonjour|hello|hi|ça va|ok|merci|bonsoir)($|\s)/i.test(
-      normalizedQuery,
-    )
-  ) {
+  if (/^(salut|bonjour|hello|hi|ça va|ok|merci|bonsoir)($|\s)/i.test(normalizedQuery)) {
     type = "greeting";
     logger.log(`🧠 [INTELLIGENCE] Type détecté: GREETING`);
   } else if (
@@ -143,13 +123,11 @@ export function analyzeQuery(query: string, req: Request): QueryAnalysis {
   // Longueur de réponse adaptée
   let responseLength: QueryAnalysis["responseLength"] = "standard";
   if (type === "greeting") responseLength = "brief";
-  else if (type === "analysis" || type === "complex")
-    responseLength = "comprehensive";
+  else if (type === "analysis" || type === "complex") responseLength = "comprehensive";
   else if (type === "creation") responseLength = "detailed";
 
   // Reasoning chain nécessaire pour les tâches complexes
-  const reasoning =
-    type === "analysis" || type === "complex" || query.length > 150;
+  const reasoning = type === "analysis" || type === "complex" || query.length > 150;
 
   // 🧠 ULTRATHINK: Détection pour analyse critique de 32K tokens
   const ultraThink = detectUltraThinkNeed(normalizedQuery, query.length, type);
@@ -160,12 +138,8 @@ export function analyzeQuery(query: string, req: Request): QueryAnalysis {
   logger.log(`🧠 [INTELLIGENCE] Résultats de l'analyse:`);
   logger.log(`🧠 [INTELLIGENCE] - Type: ${type}`);
   logger.log(`🧠 [INTELLIGENCE] - Longueur réponse: ${responseLength}`);
-  logger.log(
-    `🧠 [INTELLIGENCE] - Thinking chain: ${reasoning ? "OUI" : "NON"}`,
-  );
-  logger.log(
-    `🧠 [INTELLIGENCE] - UltraThink 32K: ${ultraThink ? "OUI" : "NON"}`,
-  );
+  logger.log(`🧠 [INTELLIGENCE] - Thinking chain: ${reasoning ? "OUI" : "NON"}`);
+  logger.log(`🧠 [INTELLIGENCE] - UltraThink 32K: ${ultraThink ? "OUI" : "NON"}`);
   logger.log(`🧠 [INTELLIGENCE] - Math/LaTeX: ${mathIntent ? "OUI" : "NON"}`);
   logger.log(`🧠 [INTELLIGENCE] - Langue: ${language}`);
 
@@ -235,19 +209,14 @@ function detectUltraThinkNeed(
   ];
 
   // 📏 Facteurs de complexité
-  const hasCriticalKeywords = criticalKeywords.some((keyword) =>
-    normalizedQuery.includes(keyword),
-  );
+  const hasCriticalKeywords = criticalKeywords.some((keyword) => normalizedQuery.includes(keyword));
   const isVeryLong = queryLength > 1000; // Requêtes très détaillées
   const isSystemLevel =
     /(?:système|architecture|infrastructure|plateforme|entreprise|complet|global)/.test(
       normalizedQuery,
     );
   const hasMultipleDomains =
-    (
-      normalizedQuery.match(/(?:et|puis|ensuite|également|aussi|de plus)/g) ||
-      []
-    ).length >= 3;
+    (normalizedQuery.match(/(?:et|puis|ensuite|également|aussi|de plus)/g) || []).length >= 3;
 
   const ultraThinkScore =
     (hasCriticalKeywords ? 0.6 : 0) +
@@ -258,9 +227,7 @@ function detectUltraThinkNeed(
 
   const needsUltraThink = ultraThinkScore >= 0.7;
 
-  logger.log(
-    `🧠 [ULTRATHINK] Analyse critique - Score: ${ultraThinkScore.toFixed(2)}`,
-  );
+  logger.log(`🧠 [ULTRATHINK] Analyse critique - Score: ${ultraThinkScore.toFixed(2)}`);
   logger.log(`🧠 [ULTRATHINK] - Mots-clés critiques: ${hasCriticalKeywords}`);
   logger.log(`🧠 [ULTRATHINK] - Requête très longue (>1000): ${isVeryLong}`);
   logger.log(`🧠 [ULTRATHINK] - Niveau système: ${isSystemLevel}`);
@@ -287,24 +254,16 @@ export function buildOptimizedPrompt(
   history: string,
   analysis: QueryAnalysis,
 ): PromptStructure {
-  logger.log(
-    `🏗️ [STRUCTURE] Construction du prompt optimisé pour mode: ${mode.toUpperCase()}`,
-  );
+  logger.log(`🏗️ [STRUCTURE] Construction du prompt optimisé pour mode: ${mode.toUpperCase()}`);
 
   // 📋 SYSTÈME: Message système structuré avec XML
   const systemMessage = buildSystemMessage(mode, analysis);
-  logger.log(
-    `🏗️ [STRUCTURE] Message système créé (${systemMessage.length} chars)`,
-  );
+  logger.log(`🏗️ [STRUCTURE] Message système créé (${systemMessage.length} chars)`);
 
   // 👤 UTILISATEUR: Message utilisateur avec thinking chain
   const userMessage = buildUserMessage(query, context, history, analysis);
-  logger.log(
-    `🏗️ [STRUCTURE] Message utilisateur créé (${userMessage.length} chars)`,
-  );
-  logger.log(
-    `🏗️ [STRUCTURE] Thinking chain inclus: ${analysis.reasoning ? "OUI" : "NON"}`,
-  );
+  logger.log(`🏗️ [STRUCTURE] Message utilisateur créé (${userMessage.length} chars)`);
+  logger.log(`🏗️ [STRUCTURE] Thinking chain inclus: ${analysis.reasoning ? "OUI" : "NON"}`);
 
   // ⚙️ PARAMÈTRES: Ajustés selon le type de requête
   const temperature = getOptimalTemperature(mode, analysis.type);
@@ -318,9 +277,7 @@ export function buildOptimizedPrompt(
   logger.log(`🏗️ [STRUCTURE] - Température: ${temperature}`);
   logger.log(`🏗️ [STRUCTURE] - Max tokens: ${maxTokens}`);
   logger.log(`🏗️ [STRUCTURE] - Total système: ${systemMessage.length} chars`);
-  logger.log(
-    `🏗️ [STRUCTURE] - Total utilisateur: ${userMessage.length} chars`,
-  );
+  logger.log(`🏗️ [STRUCTURE] - Total utilisateur: ${userMessage.length} chars`);
 
   return {
     systemMessage,
@@ -330,13 +287,8 @@ export function buildOptimizedPrompt(
   };
 }
 
-function buildSystemMessage(
-  mode: "ask" | "search" | "create",
-  analysis: QueryAnalysis,
-): string {
-  logger.log(
-    `📋 [SYSTEM] Construction message système XML pour mode: ${mode}`,
-  );
+function buildSystemMessage(mode: "ask" | "search" | "create", analysis: QueryAnalysis): string {
+  logger.log(`📋 [SYSTEM] Construction message système XML pour mode: ${mode}`);
 
   const baseRole = getRoleDefinition(mode);
   const behaviorRules = getBehaviorRules(mode);
@@ -365,9 +317,7 @@ ${technicalRules}
 ${securityRules}
 </security_rules>`;
 
-  logger.log(
-    `📋 [SYSTEM] Message XML structuré créé (${systemMessage.length} chars total)`,
-  );
+  logger.log(`📋 [SYSTEM] Message XML structuré créé (${systemMessage.length} chars total)`);
   return systemMessage;
 }
 
@@ -379,9 +329,7 @@ function buildUserMessage(
 ): string {
   logger.log(`👤 [USER] Construction message utilisateur`);
 
-  const thinkingPrompt = analysis.reasoning
-    ? getThinkingPrompt(analysis.ultraThink)
-    : "";
+  const thinkingPrompt = analysis.reasoning ? getThinkingPrompt(analysis.ultraThink) : "";
   const contextSection = context ? `<context>\n${context}\n</context>\n\n` : "";
   const historySection = history
     ? `<conversation_history>\n${history}\n</conversation_history>\n\n`
@@ -392,12 +340,8 @@ function buildUserMessage(
   logger.log(
     `👤 [USER] - Thinking prompt: ${thinkingPrompt ? "OUI" : "NON"} (${thinkingPrompt.length} chars)`,
   );
-  logger.log(
-    `👤 [USER] - Context: ${context ? "OUI" : "NON"} (${context?.length || 0} chars)`,
-  );
-  logger.log(
-    `👤 [USER] - History: ${history ? "OUI" : "NON"} (${history?.length || 0} chars)`,
-  );
+  logger.log(`👤 [USER] - Context: ${context ? "OUI" : "NON"} (${context?.length || 0} chars)`);
+  logger.log(`👤 [USER] - History: ${history ? "OUI" : "NON"} (${history?.length || 0} chars)`);
   logger.log(`👤 [USER] - Query: ${query.length} chars`);
   logger.log(`👤 [USER] - Guidelines: ${responseGuidelines.length} chars`);
 
@@ -409,9 +353,7 @@ ${query}
 ${responseGuidelines}
 </response_guidelines>`;
 
-  logger.log(
-    `👤 [USER] Message structuré créé (${userMessage.length} chars total)`,
-  );
+  logger.log(`👤 [USER] Message structuré créé (${userMessage.length} chars total)`);
   return userMessage;
 }
 
@@ -543,9 +485,7 @@ Maintenant fournis une réponse conversationnelle complète qui intègre naturel
 
 `;
 
-    logger.log(
-      `🧠 [ULTRATHINK] Analyse critique 32K activée (${ultraThinkPrompt.length} chars)`,
-    );
+    logger.log(`🧠 [ULTRATHINK] Analyse critique 32K activée (${ultraThinkPrompt.length} chars)`);
     return ultraThinkPrompt;
   }
 
@@ -566,9 +506,7 @@ Maintenant réponds de manière conversationnelle et naturelle, en commençant d
 
 `;
 
-  logger.log(
-    `💭 [THINKING] Thinking chain activée (${thinkingPrompt.length} chars)`,
-  );
+  logger.log(`💭 [THINKING] Thinking chain activée (${thinkingPrompt.length} chars)`);
   return thinkingPrompt;
 }
 
@@ -623,12 +561,8 @@ function getOptimalMaxTokens(
 ): number {
   // 🚨 ULTRATHINK: Mode critique avec tokens élevés pour gpt-5-nano
   if (hasUltraThink) {
-    logger.log(
-      `🧠 [ULTRATHINK] Mode analyse critique activé: 50000 tokens alloués (gpt-5-nano)`,
-    );
-    logger.log(
-      `🧠 [ULTRATHINK] Capacité maximale pour analyse système complexe`,
-    );
+    logger.log(`🧠 [ULTRATHINK] Mode analyse critique activé: 50000 tokens alloués (gpt-5-nano)`);
+    logger.log(`🧠 [ULTRATHINK] Capacité maximale pour analyse système complexe`);
     return 50000;
   }
 
@@ -663,24 +597,16 @@ export function ensureResponseCapacity(
   logger.log(`🎯 [TRUNCATION] Vérification capacité de réponse`);
   logger.log(`🎯 [TRUNCATION] - Message: ${userMessage.length} chars`);
   logger.log(`🎯 [TRUNCATION] - Tokens réponse demandés: ${maxTokens}`);
-  logger.log(
-    `🎯 [TRUNCATION] - Limite contexte: ${contextWindowLimit} tokens`,
-  );
+  logger.log(`🎯 [TRUNCATION] - Limite contexte: ${contextWindowLimit} tokens`);
 
   // Estimation grossière: 1 token ≈ 4 caractères en français
   const estimatedInputTokens = Math.ceil(userMessage.length / 4);
   const reservedResponseTokens = Math.max(maxTokens, 8000); // Minimum 8k pour réponse
   const availableInputTokens = contextWindowLimit - reservedResponseTokens;
 
-  logger.log(
-    `🎯 [TRUNCATION] - Tokens estimés input: ${estimatedInputTokens}`,
-  );
-  logger.log(
-    `🎯 [TRUNCATION] - Tokens réservés réponse: ${reservedResponseTokens}`,
-  );
-  logger.log(
-    `🎯 [TRUNCATION] - Tokens disponibles input: ${availableInputTokens}`,
-  );
+  logger.log(`🎯 [TRUNCATION] - Tokens estimés input: ${estimatedInputTokens}`);
+  logger.log(`🎯 [TRUNCATION] - Tokens réservés réponse: ${reservedResponseTokens}`);
+  logger.log(`🎯 [TRUNCATION] - Tokens disponibles input: ${availableInputTokens}`);
 
   // Si le message dépasse la capacité, tronquer intelligemment
   if (estimatedInputTokens > availableInputTokens) {
@@ -689,16 +615,11 @@ export function ensureResponseCapacity(
     return intelligentTruncation(userMessage, availableInputTokens);
   }
 
-  logger.log(
-    `✅ [TRUNCATION] Message dans les limites - aucune troncature nécessaire`,
-  );
+  logger.log(`✅ [TRUNCATION] Message dans les limites - aucune troncature nécessaire`);
   return userMessage;
 }
 
-function intelligentTruncation(
-  userMessage: string,
-  maxInputTokens: number,
-): string {
+function intelligentTruncation(userMessage: string, maxInputTokens: number): string {
   logger.log(`✂️ [SMART-TRUNCATE] Début troncature intelligente`);
 
   const maxChars = maxInputTokens * 4; // Conversion approximative tokens → chars
@@ -747,17 +668,13 @@ function intelligentTruncation(
   let reconstructed = "";
   let remainingChars = maxChars;
 
-  logger.log(
-    `✂️ [SMART-TRUNCATE] Reconstruction par priorité (${maxChars} chars max)`,
-  );
+  logger.log(`✂️ [SMART-TRUNCATE] Reconstruction par priorité (${maxChars} chars max)`);
 
   for (const item of priorities.sort((a, b) => b.priority - a.priority)) {
     if (item.content && item.content.length <= remainingChars) {
       reconstructed += item.content;
       remainingChars -= item.content.length;
-      logger.log(
-        `✂️ [SMART-TRUNCATE] ✅ ${item.name}: ${item.content.length} chars ajoutés`,
-      );
+      logger.log(`✂️ [SMART-TRUNCATE] ✅ ${item.name}: ${item.content.length} chars ajoutés`);
     } else if (item.priority >= 80 && item.content) {
       // Sections critiques: forcer même si ça dépasse un peu
       reconstructed += item.content;
@@ -799,9 +716,7 @@ function extractMessageSections(userMessage: string): {
   logger.log(`🔍 [EXTRACT] Extraction des sections du message`);
 
   // Patterns pour extraire les sections XML
-  const userQueryMatch = userMessage.match(
-    /<user_query>([\s\S]*?)<\/user_query>/,
-  );
+  const userQueryMatch = userMessage.match(/<user_query>([\s\S]*?)<\/user_query>/);
   const contextMatch = userMessage.match(/<context>([\s\S]*?)<\/context>/);
   const historyMatch = userMessage.match(
     /<conversation_history>([\s\S]*?)<\/conversation_history>/,
@@ -858,25 +773,16 @@ export function optimizePrompt(
   const analysis = analyzeQuery(query, req);
 
   // Étape 2: Construction du prompt de base
-  const basePrompt = buildOptimizedPrompt(
-    mode,
-    query,
-    context,
-    history,
-    analysis,
-  );
+  const basePrompt = buildOptimizedPrompt(mode, query, context, history, analysis);
 
   // Étape 2.5: Injecter un bloc <user_profile> depuis les headers si présent (synchrone, sans accès DB)
   try {
-    const rawPersona =
-      (req?.headers?.["x-user-personalization"] as string) || "";
+    const rawPersona = (req?.headers?.["x-user-personalization"] as string) || "";
     if (rawPersona) {
       const p = JSON.parse(rawPersona);
       const rows: string[] = [];
-      if (typeof p?.classe === "string" && p.classe.trim())
-        rows.push(`classe: ${p.classe.trim()}`);
-      if (typeof p?.etude === "string" && p.etude.trim())
-        rows.push(`etude: ${p.etude.trim()}`);
+      if (typeof p?.classe === "string" && p.classe.trim()) rows.push(`classe: ${p.classe.trim()}`);
+      if (typeof p?.etude === "string" && p.etude.trim()) rows.push(`etude: ${p.etude.trim()}`);
       if (typeof p?.filiere === "string" && p.filiere.trim())
         rows.push(`filiere: ${p.filiere.trim()}`);
       if (typeof p?.presentation === "string" && p.presentation.trim())
@@ -891,15 +797,10 @@ export function optimizePrompt(
   }
 
   // Étape 3: Vérification et troncature intelligente si nécessaire
-  const optimizedUserMessage = ensureResponseCapacity(
-    basePrompt.userMessage,
-    basePrompt.maxTokens,
-  );
+  const optimizedUserMessage = ensureResponseCapacity(basePrompt.userMessage, basePrompt.maxTokens);
 
   logger.log(`🚀 [OPTIMIZER] Optimisation terminée:`);
-  logger.log(
-    `🚀 [OPTIMIZER] - Message utilisateur final: ${optimizedUserMessage.length} chars`,
-  );
+  logger.log(`🚀 [OPTIMIZER] - Message utilisateur final: ${optimizedUserMessage.length} chars`);
   logger.log(
     `🚀 [OPTIMIZER] - Troncature appliquée: ${optimizedUserMessage.length !== basePrompt.userMessage.length ? "OUI" : "NON"}`,
   );

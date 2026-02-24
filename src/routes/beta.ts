@@ -1,10 +1,7 @@
 import { Router } from "express";
 import type { RequestHandler } from "express";
 import { authenticateToken, optionalAuth } from "../middlewares/auth.js";
-import {
-  betaHeartbeatRateLimit,
-  betaWaitlistRateLimit,
-} from "../middlewares/rateLimiting.js";
+import { betaHeartbeatRateLimit, betaWaitlistRateLimit } from "../middlewares/rateLimiting.js";
 import {
   StatusController,
   HeartbeatController,
@@ -42,12 +39,7 @@ router.post(
 );
 
 // POST /api/beta/waitlist — public + IP rate limit anti-spam
-router.post(
-  "/waitlist",
-  betaWaitlistRateLimit,
-  optionalAuth,
-  WaitlistController.addToWaitlist,
-);
+router.post("/waitlist", betaWaitlistRateLimit, optionalAuth, WaitlistController.addToWaitlist);
 
 // POST /api/beta/reactivate — auth required
 router.post("/reactivate", authenticateToken, ReactivateController.reactivate);

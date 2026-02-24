@@ -32,19 +32,11 @@ const sanitize = (v: unknown, max = 700) => {
   return s.length > max ? s.slice(0, max) : s;
 };
 
-const VALID_NIVEAU_SCOLAIRE: NiveauScolaire[] = [
-  "college",
-  "lycee",
-  "etudes_superieures",
-  "autre",
-];
+const VALID_NIVEAU_SCOLAIRE: NiveauScolaire[] = ["college", "lycee", "etudes_superieures", "autre"];
 const VALID_CLASSE_COLLEGE: ClasseCollege[] = ["6eme", "5eme", "4eme", "3eme"];
 const VALID_CLASSE_LYCEE: ClasseLycee[] = ["seconde", "premiere", "terminale"];
 
-const sanitizeEnum = <T extends string>(
-  v: unknown,
-  validValues: T[],
-): T | undefined => {
+const sanitizeEnum = <T extends string>(v: unknown, validValues: T[]): T | undefined => {
   if (typeof v !== "string") return undefined;
   const normalized = v.toLowerCase().trim();
   return validValues.includes(normalized as T) ? (normalized as T) : undefined;
@@ -57,10 +49,7 @@ const normalizeInput = (body: unknown): Personalization => {
 
   // === Nouveau système en cascade ===
   if (input.niveauScolaire !== undefined) {
-    out.niveauScolaire = sanitizeEnum(
-      input.niveauScolaire,
-      VALID_NIVEAU_SCOLAIRE,
-    );
+    out.niveauScolaire = sanitizeEnum(input.niveauScolaire, VALID_NIVEAU_SCOLAIRE);
   }
   if (input.classeCollege !== undefined) {
     out.classeCollege = sanitizeEnum(input.classeCollege, VALID_CLASSE_COLLEGE);
@@ -83,8 +72,7 @@ const normalizeInput = (body: unknown): Personalization => {
   if (input.etude !== undefined) out.etude = sanitize(input.etude, 120);
   if (input.filiere !== undefined) out.filiere = sanitize(input.filiere, 120);
   if (input.langue !== undefined) out.langue = sanitize(input.langue, 10);
-  if (input.presentation !== undefined)
-    out.presentation = sanitize(input.presentation, 700);
+  if (input.presentation !== undefined) out.presentation = sanitize(input.presentation, 700);
   if (input.attente !== undefined) out.attente = sanitize(input.attente, 500);
   if (input.onboardingCompleted !== undefined)
     out.onboardingCompleted = Boolean(input.onboardingCompleted);
@@ -94,9 +82,7 @@ const normalizeInput = (body: unknown): Personalization => {
 export const getPersonalization = async (req: Request, res: Response) => {
   try {
     if (!req.user)
-      return res
-        .status(401)
-        .json({ success: false, error: "Utilisateur non authentifié" });
+      return res.status(401).json({ success: false, error: "Utilisateur non authentifié" });
 
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
@@ -105,15 +91,11 @@ export const getPersonalization = async (req: Request, res: Response) => {
 
     // 🐛 DEBUG: Log pour voir la valeur réelle
     logger.log("🔍 [DEBUG] User ID:", req.user.id);
-    logger.log(
-      "🔍 [DEBUG] user?.onboardingCompleted:",
-      user?.onboardingCompleted,
-    );
+    logger.log("🔍 [DEBUG] user?.onboardingCompleted:", user?.onboardingCompleted);
     logger.log("🔍 [DEBUG] Type:", typeof user?.onboardingCompleted);
 
     const settings = user?.settings as Record<string, unknown> | null;
-    const personalization =
-      (settings?.personalization as Personalization | undefined) || {};
+    const personalization = (settings?.personalization as Personalization | undefined) || {};
 
     // Ajouter onboardingCompleted depuis le champ User
     const result = {
@@ -121,26 +103,19 @@ export const getPersonalization = async (req: Request, res: Response) => {
       onboardingCompleted: user?.onboardingCompleted ?? false,
     };
 
-    logger.log(
-      "🔍 [DEBUG] Result onboardingCompleted:",
-      result.onboardingCompleted,
-    );
+    logger.log("🔍 [DEBUG] Result onboardingCompleted:", result.onboardingCompleted);
 
     return res.json({ success: true, data: result });
   } catch (error) {
     logger.error("❌ [USER] getPersonalization error:", error);
-    return res
-      .status(500)
-      .json({ success: false, error: "Erreur interne du serveur" });
+    return res.status(500).json({ success: false, error: "Erreur interne du serveur" });
   }
 };
 
 export const updatePersonalization = async (req: Request, res: Response) => {
   try {
     if (!req.user)
-      return res
-        .status(401)
-        .json({ success: false, error: "Utilisateur non authentifié" });
+      return res.status(401).json({ success: false, error: "Utilisateur non authentifié" });
 
     const incoming = normalizeInput(req.body);
 
@@ -152,10 +127,8 @@ export const updatePersonalization = async (req: Request, res: Response) => {
       select: { settings: true },
     });
 
-    const currentSettings =
-      (existing?.settings as Record<string, unknown> | null) || {};
-    const currentPersona =
-      (currentSettings.personalization as Personalization | undefined) || {};
+    const currentSettings = (existing?.settings as Record<string, unknown> | null) || {};
+    const currentPersona = (currentSettings.personalization as Personalization | undefined) || {};
 
     // Ne merger que les données de personnalisation (sans onboardingCompleted)
     const merged: Personalization = {
@@ -198,8 +171,6 @@ export const updatePersonalization = async (req: Request, res: Response) => {
     });
   } catch (error) {
     logger.error("❌ [USER] updatePersonalization error:", error);
-    return res
-      .status(500)
-      .json({ success: false, error: "Erreur interne du serveur" });
+    return res.status(500).json({ success: false, error: "Erreur interne du serveur" });
   }
 };

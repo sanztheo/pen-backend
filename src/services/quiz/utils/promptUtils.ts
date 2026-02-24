@@ -7,11 +7,7 @@ import {
   ExamSubject,
   QuizGenerationRequest,
 } from "../types.js";
-import {
-  CollegePrompts,
-  LyceePrompts,
-  SuperieurPrompts,
-} from "../levels/index.js";
+import { CollegePrompts, LyceePrompts, SuperieurPrompts } from "../levels/index.js";
 import { getBrevetPrompt } from "../presets/brevet/index.js";
 import { getBacPrompt } from "../presets/bac/index.js";
 import { getPartielsPrompt } from "../presets/partiels/index.js";
@@ -27,18 +23,12 @@ export class PromptUtils {
   static getGenerationPrompt(request: QuizGenerationRequest): string {
     // Si c'est un preset, utiliser le prompt spécialisé
     if (request.preset && request.preset !== QuizPreset.NONE) {
-      return this.getPresetPrompt(
-        request.preset,
-        request.specificSubject,
-        request,
-      );
+      return this.getPresetPrompt(request.preset, request.specificSubject, request);
     }
 
     // Pour les quiz personnalisés, construire un prompt adapté aux paramètres
     const specialtiesDebug =
-      request.specialties ||
-      request.lyceeSpecialties ||
-      request.selectedSpecialties;
+      request.specialties || request.lyceeSpecialties || request.selectedSpecialties;
     logger.log(
       `📚 [CUSTOM] Génération prompt personnalisé: ${request.schoolLevel} - Spécialités: ${specialtiesDebug?.join(", ") || "N/A"} - Types: ${request.questionTypes?.join(", ") || "N/A"}`,
     );
@@ -51,49 +41,32 @@ export class PromptUtils {
    */
   static getCustomPrompt(request: QuizGenerationRequest): string {
     // Base du prompt selon le niveau
-    let basePrompt = this.getGenerationPromptByLevel(
-      request.schoolLevel,
-      request.collegeGrade,
-    );
+    let basePrompt = this.getGenerationPromptByLevel(request.schoolLevel, request.collegeGrade);
 
     // 🎓 FEW-SHOT : Ajouter les exemples calibrés si PAS de RAG
     // Détection : ragContext vide → Few-Shot activé automatiquement
-    const ragContextProvided =
-      request.ragContext && request.ragContext.trim().length > 0;
+    const ragContextProvided = request.ragContext && request.ragContext.trim().length > 0;
     const shouldActivateFewShot = !ragContextProvided;
 
     if (shouldActivateFewShot) {
-      logger.log(
-        `🎓 [FEW-SHOT] Génération SANS RAG détectée - Ajout des exemples calibrés`,
-      );
+      logger.log(`🎓 [FEW-SHOT] Génération SANS RAG détectée - Ajout des exemples calibrés`);
       logger.log(
         `🎓 [FEW-SHOT] Contexte RAG: ${ragContextProvided ? "OUI" : "NON"} - Few-Shot: ACTIVÉ`,
       );
-      const fewShotPrompt = getFewShotPrompt(
-        request.schoolLevel,
-        request.collegeGrade,
-      );
+      const fewShotPrompt = getFewShotPrompt(request.schoolLevel, request.collegeGrade);
       basePrompt += "\n\n" + fewShotPrompt;
-      logger.log(
-        `🎓 [FEW-SHOT] Exemples intégrés pour améliorer la qualité sans documents`,
-      );
+      logger.log(`🎓 [FEW-SHOT] Exemples intégrés pour améliorer la qualité sans documents`);
     } else {
-      logger.log(
-        `📚 [RAG] Génération AVEC contexte RAG - Few-Shot désactivé (non nécessaire)`,
-      );
-      logger.log(
-        `📚 [RAG] Taille contexte: ${request.ragContext?.length || 0} caractères`,
-      );
+      logger.log(`📚 [RAG] Génération AVEC contexte RAG - Few-Shot désactivé (non nécessaire)`);
+      logger.log(`📚 [RAG] Taille contexte: ${request.ragContext?.length || 0} caractères`);
     }
 
     // Construire les spécifications personnalisées
-    let customizations = [];
+    const customizations = [];
 
     // Spécialités/matières (vérifier à la fois specialties, lyceeSpecialties et selectedSpecialties)
     const specialtiesList =
-      request.specialties ||
-      request.lyceeSpecialties ||
-      request.selectedSpecialties;
+      request.specialties || request.lyceeSpecialties || request.selectedSpecialties;
     if (specialtiesList && specialtiesList.length > 0) {
       const specialtiesStr = specialtiesList
         .map((s) => {
@@ -134,8 +107,7 @@ export class PromptUtils {
           DUT: "DUT / BUT (Bac+2/3 technologique)",
           Prépa: "Classes préparatoires (CPGE)",
         };
-        const levelLabel =
-          levelLabels[request.higherEdLevel] || request.higherEdLevel;
+        const levelLabel = levelLabels[request.higherEdLevel] || request.higherEdLevel;
         customizations.push(
           `- NIVEAU D'ÉTUDES : Adapte la complexité et les attentes au niveau ${levelLabel}`,
         );
@@ -163,8 +135,7 @@ export class PromptUtils {
 
       if (typeCount === 1) {
         // Un seul type : toutes les questions de ce type
-        const typeName =
-          typeNames[request.questionTypes[0]] || request.questionTypes[0];
+        const typeName = typeNames[request.questionTypes[0]] || request.questionTypes[0];
         customizations.push(
           `- TYPES DE QUESTIONS : Génère ${questionCount} questions EXCLUSIVEMENT de type ${typeName}`,
         );
@@ -173,13 +144,11 @@ export class PromptUtils {
         const basePerType = Math.floor(questionCount / typeCount);
         const remainder = questionCount % typeCount;
 
-        let distributionDetails: string[] = [];
+        const distributionDetails: string[] = [];
         request.questionTypes.forEach((type, index) => {
           const countForThisType = basePerType + (index < remainder ? 1 : 0);
           const typeName = typeNames[type] || type;
-          distributionDetails.push(
-            `${countForThisType} questions de type ${typeName}`,
-          );
+          distributionDetails.push(`${countForThisType} questions de type ${typeName}`);
         });
 
         customizations.push(
@@ -195,19 +164,14 @@ export class PromptUtils {
     }
 
     // Difficulté
-    const difficulty = (request as unknown as { difficulty?: unknown })
-      .difficulty;
+    const difficulty = (request as unknown as { difficulty?: unknown }).difficulty;
     if (typeof difficulty === "string" && difficulty !== "adaptatif") {
-      customizations.push(
-        `- NIVEAU DE DIFFICULTÉ : ${difficulty.toUpperCase()}`,
-      );
+      customizations.push(`- NIVEAU DE DIFFICULTÉ : ${difficulty.toUpperCase()}`);
     }
 
     // Note cible
     if (request.targetGrade) {
-      customizations.push(
-        `- OBJECTIF : Vise une note de ${request.targetGrade}/20`,
-      );
+      customizations.push(`- OBJECTIF : Vise une note de ${request.targetGrade}/20`);
     }
 
     // Construire le prompt final
@@ -272,10 +236,7 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
           logger.log(
             `📝 [BREVET] Génération prompt pour specificSubject: ${request.specificSubject}`,
           );
-          return getBrevetPrompt(
-            request.specificSubject,
-            request?.collegeGrade,
-          );
+          return getBrevetPrompt(request.specificSubject, request?.collegeGrade);
         }
         logger.log(`📝 [BREVET] Génération prompt par défaut: FRANCAIS`);
         return getBrevetPrompt(ExamSubject.FRANCAIS, request?.collegeGrade);
@@ -287,13 +248,8 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
         }
         // Vérifier s'il y a un specificSubject dans la requête
         if (request?.specificSubject) {
-          logger.log(
-            `🎓 [BAC] Génération prompt pour specificSubject: ${request.specificSubject}`,
-          );
-          return getBacPrompt(
-            request.specificSubject,
-            request?.lyceeSpecialties,
-          );
+          logger.log(`🎓 [BAC] Génération prompt pour specificSubject: ${request.specificSubject}`);
+          return getBacPrompt(request.specificSubject, request?.lyceeSpecialties);
         }
         logger.log(`🎓 [BAC] Génération prompt par défaut: PHILOSOPHIE`);
         return getBacPrompt(ExamSubject.PHILOSOPHIE, request?.lyceeSpecialties);
@@ -309,10 +265,7 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
         }
         // Vérifier s'il y a un specificSubject dans la requête
         if (request?.specificSubject && request?.higherEdField) {
-          const subjectName = this.getPartielsSubjectName(
-            request,
-            request.specificSubject,
-          );
+          const subjectName = this.getPartielsSubjectName(request, request.specificSubject);
           logger.log(
             `📚 [PARTIELS] Génération prompt pour specificSubject: ${request.higherEdField} - ${subjectName}`,
           );
@@ -321,15 +274,10 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
         logger.log(
           `📚 [PARTIELS] Génération prompt par défaut: ${request?.higherEdField || "Général"}`,
         );
-        return getPartielsPrompt(
-          request?.higherEdField || "Général",
-          "Matière générale",
-        );
+        return getPartielsPrompt(request?.higherEdField || "Général", "Matière générale");
 
       default:
-        logger.log(
-          `⚠️ [PRESET] Preset non reconnu: ${preset}, fallback vers prompt générique`,
-        );
+        logger.log(`⚠️ [PRESET] Preset non reconnu: ${preset}, fallback vers prompt générique`);
         // Fallback vers le prompt générique
         return this.getGenerationPromptByLevel(
           request?.schoolLevel || SchoolLevel.COLLEGE,
@@ -351,9 +299,7 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
       typeof request.sequentialConfig.currentSubjectIndex === "number"
     ) {
       const currentSubjectResult =
-        request.sequentialConfig.subjectResults?.[
-          request.sequentialConfig.currentSubjectIndex
-        ];
+        request.sequentialConfig.subjectResults?.[request.sequentialConfig.currentSubjectIndex];
 
       // Utiliser le nom personnalisé stocké si disponible
       if (currentSubjectResult?.subjectName) {
@@ -366,10 +312,7 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
   /**
    * Génère un prompt adapté au niveau scolaire et à la classe spécifique (méthode legacy)
    */
-  static getGenerationPromptByLevel(
-    level: SchoolLevel,
-    collegeGrade?: CollegeGrade,
-  ): string {
+  static getGenerationPromptByLevel(level: SchoolLevel, collegeGrade?: CollegeGrade): string {
     if (level === "COLLEGE" && collegeGrade) {
       return CollegePrompts.getPromptByGrade(collegeGrade);
     }

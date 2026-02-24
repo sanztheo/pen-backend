@@ -10,11 +10,7 @@ import { redis } from "../lib/redis.js";
 const MAX_CONCURRENT = 2;
 const SAFETY_TTL = 300; // 5 min TTL de securite en cas de crash
 
-export const aiConcurrencyLimit = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const aiConcurrencyLimit = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user?.id;
   if (!userId) return next();
 

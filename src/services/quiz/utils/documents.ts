@@ -4,29 +4,50 @@
  */
 
 export function shouldIncludeDocumentsForSubject(subject: string): boolean {
-  const normalized = String(subject || '')
+  const normalized = String(subject || "")
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z]/g, '');
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z]/g, "");
 
   // Matières où les documents n'apportent pas de valeur (calcul/logique)
   const disabled = [
-    'mathematiques', 'mathematique', 'maths', 'math', 'mathematiquesspecialite',
-    'physique', 'chimie', 'physiquechimie', 'physiquechimiespecialite',
-    'nsi', 'nsispecialite', 'si', 'sispecialite', 'informatique'
+    "mathematiques",
+    "mathematique",
+    "maths",
+    "math",
+    "mathematiquesspecialite",
+    "physique",
+    "chimie",
+    "physiquechimie",
+    "physiquechimiespecialite",
+    "nsi",
+    "nsispecialite",
+    "si",
+    "sispecialite",
+    "informatique",
   ];
   if (disabled.some((x) => normalized.includes(x))) return false;
 
   // Matières littéraires/historiques où des documents sont utiles
   const enabled = [
-    'francais', 'francais', 'litterature', 'litterature',
-    'histoire', 'geographie', 'histoiregeographie', 'histoiregeographieemc',
-    'philosophie', 'hggsp', 'hlp', 'humanites', 'humanites', 'sciences'
+    "francais",
+    "francais",
+    "litterature",
+    "litterature",
+    "histoire",
+    "geographie",
+    "histoiregeographie",
+    "histoiregeographieemc",
+    "philosophie",
+    "hggsp",
+    "hlp",
+    "humanites",
+    "humanites",
+    "sciences",
   ];
   if (enabled.some((x) => normalized.includes(x))) return true;
 
   // Par défaut, activer pour les sujets inconnus (comportement conservateur)
   return true;
 }
-

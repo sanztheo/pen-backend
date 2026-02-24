@@ -3,14 +3,7 @@
  * Covers: Stored XSS prevention, Prototype Pollution prevention
  */
 
-import {
-  afterAll,
-  describe,
-  expect,
-  it,
-  jest,
-  beforeEach,
-} from "@jest/globals";
+import { afterAll, describe, expect, it, jest, beforeEach } from "@jest/globals";
 import type { Request, Response } from "express";
 import { WaitlistController } from "../waitlistController.js";
 import { BetaService } from "../../../services/BetaService.js";
@@ -101,9 +94,7 @@ describe("stripHtmlTags — Unit", () => {
   });
 
   it("should preserve normal text with accents and special chars", () => {
-    expect(stripHtmlTags("Jean-François O'Brien")).toBe(
-      "Jean-François O'Brien",
-    );
+    expect(stripHtmlTags("Jean-François O'Brien")).toBe("Jean-François O'Brien");
   });
 
   it("should preserve text with no HTML", () => {
@@ -115,9 +106,7 @@ describe("stripHtmlTags — Unit", () => {
   });
 
   it("should strip multiple tags in sequence", () => {
-    expect(stripHtmlTags("<b>bold</b> and <i>italic</i>")).toBe(
-      "bold and italic",
-    );
+    expect(stripHtmlTags("<b>bold</b> and <i>italic</i>")).toBe("bold and italic");
   });
 
   it("should strip unclosed tags (missing closing bracket)", () => {
@@ -247,10 +236,7 @@ describe("WaitlistController — XSS Prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
     const storedName = mockAddToWaitlist.mock.calls[0]?.[0]?.name;
@@ -265,10 +251,7 @@ describe("WaitlistController — XSS Prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
     const storedName = mockAddToWaitlist.mock.calls[0]?.[0]?.name;
@@ -282,10 +265,7 @@ describe("WaitlistController — XSS Prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
     const storedName = mockAddToWaitlist.mock.calls[0]?.[0]?.name;
@@ -300,10 +280,7 @@ describe("WaitlistController — XSS Prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
     const storedName = mockAddToWaitlist.mock.calls[0]?.[0]?.name;
@@ -318,15 +295,10 @@ describe("WaitlistController — XSS Prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "INVALID_NAME_LENGTH" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "INVALID_NAME_LENGTH" }));
     expect(mockAddToWaitlist).not.toHaveBeenCalled();
   });
 
@@ -338,10 +310,7 @@ describe("WaitlistController — XSS Prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(mockAddToWaitlist).not.toHaveBeenCalled();
@@ -364,10 +333,7 @@ describe("WaitlistController — Prototype Pollution Prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
     const storedMetadata = mockAddToWaitlist.mock.calls[0]?.[0]?.metadata;
@@ -387,10 +353,7 @@ describe("WaitlistController — Prototype Pollution Prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
     const storedMetadata = mockAddToWaitlist.mock.calls[0]?.[0]?.metadata;
@@ -410,10 +373,7 @@ describe("WaitlistController — Prototype Pollution Prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
     const storedMetadata = mockAddToWaitlist.mock.calls[0]?.[0]?.metadata;
@@ -433,10 +393,7 @@ describe("WaitlistController — Prototype Pollution Prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
     const storedMetadata = mockAddToWaitlist.mock.calls[0]?.[0]?.metadata;
@@ -453,10 +410,7 @@ describe("WaitlistController — Prototype Pollution Prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
     const storedMetadata = mockAddToWaitlist.mock.calls[0]?.[0]?.metadata;
@@ -485,10 +439,7 @@ describe("WaitlistController — Combined XSS + Prototype Pollution", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
 

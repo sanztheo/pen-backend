@@ -36,8 +36,7 @@ export class SecureLogger {
   static error(message: string, error?: unknown) {
     if (this.isProduction) {
       // En production, logs minimaux
-      const errorMessage =
-        error instanceof Error ? error.message : "Erreur interne";
+      const errorMessage = error instanceof Error ? error.message : "Erreur interne";
       logger.error(message, errorMessage);
     } else {
       logger.error(message, error);
@@ -64,10 +63,7 @@ export class SecureLogger {
   /**
    * Audit log pour les actions critiques (toujours affiché)
    */
-  static audit(
-    message: string,
-    data?: { userId?: string; action?: string; resource?: string },
-  ) {
+  static audit(message: string, data?: { userId?: string; action?: string; resource?: string }) {
     const auditData = {
       timestamp: new Date().toISOString(),
       userId: data?.userId || "unknown",
@@ -80,10 +76,7 @@ export class SecureLogger {
   /**
    * Sanitise les données en supprimant les champs sensibles
    */
-  private static sanitizeData(
-    data: unknown,
-    options?: SecureLogOptions,
-  ): unknown {
+  private static sanitizeData(data: unknown, options?: SecureLogOptions): unknown {
     if (!data || typeof data !== "object") {
       return data;
     }
@@ -103,10 +96,7 @@ export class SecureLogger {
       "output",
     ];
 
-    const sensitiveFields = [
-      ...defaultSensitiveFields,
-      ...(options?.sensitiveFields || []),
-    ];
+    const sensitiveFields = [...defaultSensitiveFields, ...(options?.sensitiveFields || [])];
     const maxLength = options?.maxLength || 100;
 
     // Type guard: data is already verified as object above
@@ -115,9 +105,7 @@ export class SecureLogger {
 
     Object.keys(sanitized).forEach((key) => {
       const lowerKey = key.toLowerCase();
-      const isSensitive = sensitiveFields.some((field) =>
-        lowerKey.includes(field),
-      );
+      const isSensitive = sensitiveFields.some((field) => lowerKey.includes(field));
 
       if (isSensitive) {
         if (this.isProduction) {
@@ -139,11 +127,7 @@ export class SecureLogger {
 /**
  * Middleware Express pour logger les requêtes de manière sécurisée
  */
-export const secureRequestLogger = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const secureRequestLogger = (req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
 
   // Log seulement en développement ou pour les erreurs

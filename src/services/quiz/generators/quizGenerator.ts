@@ -124,9 +124,7 @@ export class QuizGenerator {
 
   private static toQuestionFromAI(q: QuizQuestionFromAI): Question {
     const difficulty: Difficulty =
-      typeof q.difficulty === "string" && isDifficulty(q.difficulty)
-        ? q.difficulty
-        : "moyen";
+      typeof q.difficulty === "string" && isDifficulty(q.difficulty) ? q.difficulty : "moyen";
 
     const graphicLibrary: GraphicLibrary | undefined =
       typeof q.graphicLibrary === "string" && isGraphicLibrary(q.graphicLibrary)
@@ -208,9 +206,7 @@ export class QuizGenerator {
   /**
    * Détermine si on doit utiliser le nouveau système de sujets
    */
-  private static shouldUseSubjectBasedGeneration(
-    request: QuizGenerationRequest,
-  ): boolean {
+  private static shouldUseSubjectBasedGeneration(request: QuizGenerationRequest): boolean {
     // Utiliser le système de sujets pour les presets officiels
     const officialPresets = ["BREVET", "BAC", "PARTIELS"];
     return officialPresets.includes(request.preset || "");
@@ -295,9 +291,7 @@ export class QuizGenerator {
   /**
    * Obtient la configuration graphique pour une matière donnée
    */
-  private static getGraphicConfigForSubject(
-    subject: string,
-  ): SubjectGraphicConfiguration {
+  private static getGraphicConfigForSubject(subject: string): SubjectGraphicConfiguration {
     const configs: Record<string, SubjectGraphicConfiguration> = {
       Physique: {
         enableAIGraphics: true,
@@ -338,9 +332,7 @@ export class QuizGenerator {
     subject: string,
     level: string,
   ): Promise<QuizQuestionFromAI[]> {
-    logger.log(
-      `🎨 [GRAPHICS] Enrichissement des questions pour ${subject} niveau ${level}`,
-    );
+    logger.log(`🎨 [GRAPHICS] Enrichissement des questions pour ${subject} niveau ${level}`);
 
     const enrichedQuestions = [];
 
@@ -355,10 +347,7 @@ export class QuizGenerator {
           );
 
           // Extraire le topic depuis la question ou utiliser un topic générique
-          const topic = this.extractTopicFromQuestion(
-            question.question || "",
-            subject,
-          );
+          const topic = this.extractTopicFromQuestion(question.question || "", subject);
 
           // Générer le graphique avec l'IA
           const graphic = await this.aiGraphicGenerator.generateGraphicWithAI({
@@ -403,10 +392,7 @@ export class QuizGenerator {
   /**
    * Extrait le topic principal d'une question pour la génération de graphique
    */
-  private static extractTopicFromQuestion(
-    questionText: string,
-    subject: string,
-  ): string {
+  private static extractTopicFromQuestion(questionText: string, subject: string): string {
     const lowerText = questionText.toLowerCase();
 
     // Mapping de mots-clés vers des topics spécifiques
@@ -455,9 +441,7 @@ export class QuizGenerator {
   /**
    * Génère un quiz complet basé sur les paramètres
    */
-  static async generateQuiz(
-    request: QuizGenerationRequest,
-  ): Promise<GeneratedQuiz> {
+  static async generateQuiz(request: QuizGenerationRequest): Promise<GeneratedQuiz> {
     const startTime = Date.now();
 
     // Décider quel système de génération utiliser
@@ -475,9 +459,7 @@ export class QuizGenerator {
     request: QuizGenerationRequest,
     startTime: number,
   ): Promise<GeneratedQuiz> {
-    logger.log(
-      "📚 [SUBJECT-GENERATION] Utilisation du système de sujets thématiques",
-    );
+    logger.log("📚 [SUBJECT-GENERATION] Utilisation du système de sujets thématiques");
 
     try {
       // Vérifier quel système utiliser : documents, graphiques, ou standard
@@ -485,25 +467,18 @@ export class QuizGenerator {
       const graphicConfig = this.getGraphicConfig(request);
       const subjectName = this.getCurrentSubjectName(request);
 
-      logger.log(
-        `📄 [DOCUMENTS] Configuration pour ${subjectName}:`,
-        documentConfig,
-      );
-      logger.log(
-        `🎨 [GRAPHICS] Configuration pour ${subjectName}:`,
-        graphicConfig,
-      );
+      logger.log(`📄 [DOCUMENTS] Configuration pour ${subjectName}:`, documentConfig);
+      logger.log(`🎨 [GRAPHICS] Configuration pour ${subjectName}:`, graphicConfig);
 
       // Priorité aux graphiques pour les matières scientifiques
       if (graphicConfig && graphicConfig.enableGraphics) {
         // Génération avec graphiques IA (workflow: graphique → questions)
         logger.log("🎨 [GRAPHICS] Génération quiz graphique activée");
-        const graphicResult =
-          await GraphicBasedQuizGenerator.generateGraphicBasedQuiz(
-            request,
-            subjectName,
-            request.questionCount || 3,
-          );
+        const graphicResult = await GraphicBasedQuizGenerator.generateGraphicBasedQuiz(
+          request,
+          subjectName,
+          request.questionCount || 3,
+        );
 
         // Ajouter les métadonnées graphiques au quiz
         const enhancedQuiz = {
@@ -525,12 +500,11 @@ export class QuizGenerator {
       if (documentConfig && documentConfig.enableDocuments) {
         // Génération avec documents
         logger.log("📚 [DOCUMENTS] Génération quiz documentaire activée");
-        const documentResult =
-          await documentBasedQuizGenerator.generateDocumentBasedQuiz(
-            request,
-            subjectName,
-            documentConfig,
-          );
+        const documentResult = await documentBasedQuizGenerator.generateDocumentBasedQuiz(
+          request,
+          subjectName,
+          documentConfig,
+        );
 
         // Ajouter les métadonnées documentaires au quiz
         const enhancedQuiz = {
@@ -559,9 +533,7 @@ export class QuizGenerator {
       }
 
       // Génération classique si pas de documents
-      logger.log(
-        "📝 [SUBJECT-GENERATION] Génération classique sans documents",
-      );
+      logger.log("📝 [SUBJECT-GENERATION] Génération classique sans documents");
 
       // Générer les sujets thématiques
       const subjects = await SubjectGenerator.generateSubjects(request);
@@ -570,19 +542,12 @@ export class QuizGenerator {
       // avec le workflow "graphique-d'abord"
 
       // Calculer les totaux
-      const totalQuestions = subjects.reduce(
-        (sum, subject) => sum + subject.questions.length,
-        0,
-      );
+      const totalQuestions = subjects.reduce((sum, subject) => sum + subject.questions.length, 0);
       const totalPoints = subjects.reduce(
-        (sum, subject) =>
-          sum + subject.questions.reduce((subSum, q) => subSum + q.points, 0),
+        (sum, subject) => sum + subject.questions.reduce((subSum, q) => subSum + q.points, 0),
         0,
       );
-      const estimatedTime = subjects.reduce(
-        (sum, subject) => sum + (subject.timeLimit || 0),
-        0,
-      );
+      const estimatedTime = subjects.reduce((sum, subject) => sum + (subject.timeLimit || 0), 0);
 
       return {
         id: `quiz_${Date.now()}`,
@@ -615,9 +580,7 @@ export class QuizGenerator {
     request: QuizGenerationRequest,
     startTime: number,
   ): Promise<GeneratedQuiz> {
-    logger.log(
-      "📝 [TRADITIONAL-GENERATION] Utilisation du système question par question",
-    );
+    logger.log("📝 [TRADITIONAL-GENERATION] Utilisation du système question par question");
 
     try {
       // Construction du prompt personnalisé (preset ou niveau générique)
@@ -693,10 +656,7 @@ IMPORTANT pour le titre IA :
         (q: QuizQuestionFromAI, index: number) => {
           // Supprimer les doublons dans les QCM
           if (q.type === "MULTIPLE_CHOICE" && q.options) {
-            q.options = this.removeDuplicateOptions(
-              q.options,
-              q.id || `Q${index + 1}`,
-            );
+            q.options = this.removeDuplicateOptions(q.options, q.id || `Q${index + 1}`);
           }
 
           // Supprimer les doublons dans les questions de matching
@@ -743,17 +703,14 @@ IMPORTANT pour le titre IA :
         aiGeneratedTitle: normalizedQuizData.aiGeneratedTitle, // ✅ Titre généré par l'IA
         description: normalizedQuizData.description,
         schoolLevel: request.schoolLevel,
-        questions: normalizedQuizData.questions.map((q) =>
-          this.toQuestionFromAI(q),
-        ),
+        questions: normalizedQuizData.questions.map((q) => this.toQuestionFromAI(q)),
         totalPoints: normalizedQuizData.questions.reduce(
           (sum: number, q: QuizQuestionFromAI) => sum + (q.points || 1),
           0,
         ),
         estimatedTime: Math.ceil(
           normalizedQuizData.questions.reduce(
-            (sum: number, q: QuizQuestionFromAI) =>
-              sum + (q.timeEstimate || 60),
+            (sum: number, q: QuizQuestionFromAI) => sum + (q.timeEstimate || 60),
             0,
           ) / 60,
         ),
@@ -839,10 +796,7 @@ IMPORTANT pour le titre IA :
       }));
 
       // Validation du contenu pour le mode "coursesOnly"
-      const totalContentLength = contentSummary.reduce(
-        (sum, cs) => sum + cs.content.length,
-        0,
-      );
+      const totalContentLength = contentSummary.reduce((sum, cs) => sum + cs.content.length, 0);
 
       if (request.coursesOnly && totalContentLength < 100) {
         throw new Error(
@@ -937,10 +891,7 @@ IMPORTANT pour le titre IA :
       quizData.questions = quizData.questions.map((q, index: number) => {
         // Supprimer les doublons dans les QCM
         if (q.type === "MULTIPLE_CHOICE" && q.options) {
-          q.options = this.removeDuplicateOptions(
-            q.options,
-            q.id || `Q${index + 1}`,
-          );
+          q.options = this.removeDuplicateOptions(q.options, q.id || `Q${index + 1}`);
         }
 
         // Supprimer les doublons dans les questions de matching
@@ -986,9 +937,7 @@ IMPORTANT pour le titre IA :
 
       // ⚠️ GRAPHIQUES DÉSACTIVÉS pour quiz personnalisés (pas de presets)
       if (!request.preset || request.preset === "NONE") {
-        logger.log(
-          "⚠️ [GRAPHICS] Graphiques désactivés pour quiz personnalisé",
-        );
+        logger.log("⚠️ [GRAPHICS] Graphiques désactivés pour quiz personnalisé");
       } else {
         quizData.questions = await this.enrichQuestionsWithGraphics(
           quizData.questions,
@@ -1010,8 +959,7 @@ IMPORTANT pour le titre IA :
         ),
         estimatedTime: Math.ceil(
           quizData.questions.reduce(
-            (sum: number, q: QuizQuestionFromAI) =>
-              sum + (q.timeEstimate || 60),
+            (sum: number, q: QuizQuestionFromAI) => sum + (q.timeEstimate || 60),
             0,
           ) / 60,
         ),
@@ -1089,30 +1037,9 @@ IMPORTANT pour le titre IA :
         "société",
         "civilisation",
       ],
-      Géographie: [
-        "géographie",
-        "climat",
-        "population",
-        "territoire",
-        "relief",
-        "urbanisation",
-      ],
-      Français: [
-        "littérature",
-        "roman",
-        "poésie",
-        "grammaire",
-        "orthographe",
-        "analyse",
-      ],
-      Philosophie: [
-        "philosophie",
-        "morale",
-        "éthique",
-        "conscience",
-        "liberté",
-        "vérité",
-      ],
+      Géographie: ["géographie", "climat", "population", "territoire", "relief", "urbanisation"],
+      Français: ["littérature", "roman", "poésie", "grammaire", "orthographe", "analyse"],
+      Philosophie: ["philosophie", "morale", "éthique", "conscience", "liberté", "vérité"],
       Sociologie: [
         "sociologie",
         "durkheim",
@@ -1164,9 +1091,7 @@ IMPORTANT pour le titre IA :
     }
 
     // Matière par défaut si aucune détection
-    logger.log(
-      "🔍 [SUBJECT-DETECTION] Aucune matière détectée, utilisation par défaut",
-    );
+    logger.log("🔍 [SUBJECT-DETECTION] Aucune matière détectée, utilisation par défaut");
     return "Général";
   }
 
@@ -1219,8 +1144,7 @@ IMPORTANT pour le titre IA :
         logger.log("🔧 Format inattendu, tentative de récupération...");
         // Vérifier s'il y a des propriétés qui ressemblent à des questions
         const possibleQuestions = Object.values(data).filter(
-          (value: unknown): value is QuizQuestionFromAI =>
-            this.isValidQuestion(value),
+          (value: unknown): value is QuizQuestionFromAI => this.isValidQuestion(value),
         );
 
         if (possibleQuestions.length > 0) {
@@ -1230,32 +1154,22 @@ IMPORTANT pour le titre IA :
             questions: possibleQuestions,
           };
         } else {
-          throw new Error(
-            "Format de réponse IA non reconnu - aucune question valide trouvée",
-          );
+          throw new Error("Format de réponse IA non reconnu - aucune question valide trouvée");
         }
       }
     }
 
     // Sécurisation du champ questions
     if (!Array.isArray(data.questions)) {
-      logger.error(
-        "❌ Le champ questions est manquant ou mal formé dans la réponse IA:",
-        quizData,
-      );
-      throw new Error(
-        "Le champ questions est manquant ou mal formé dans la réponse IA",
-      );
+      logger.error("❌ Le champ questions est manquant ou mal formé dans la réponse IA:", quizData);
+      throw new Error("Le champ questions est manquant ou mal formé dans la réponse IA");
     }
 
     return {
       title: typeof data.title === "string" ? data.title : undefined,
       aiGeneratedTitle:
-        typeof data.aiGeneratedTitle === "string"
-          ? data.aiGeneratedTitle
-          : undefined,
-      description:
-        typeof data.description === "string" ? data.description : undefined,
+        typeof data.aiGeneratedTitle === "string" ? data.aiGeneratedTitle : undefined,
+      description: typeof data.description === "string" ? data.description : undefined,
       questions: data.questions as QuizQuestionFromAI[],
     };
   }
@@ -1263,17 +1177,12 @@ IMPORTANT pour le titre IA :
   /**
    * Obtient la configuration documentaire pour une requête donnée
    */
-  private static getDocumentConfig(
-    request: QuizGenerationRequest,
-  ): DocumentConfiguration | null {
+  private static getDocumentConfig(request: QuizGenerationRequest): DocumentConfiguration | null {
     if (!request.preset) return null;
 
     // NOUVEAU : Utiliser d'abord la configuration dynamique si disponible
     if (request.documentConfig) {
-      logger.log(
-        "📄 [CONFIG] Utilisation de la configuration dynamique:",
-        request.documentConfig,
-      );
+      logger.log("📄 [CONFIG] Utilisation de la configuration dynamique:", request.documentConfig);
       return request.documentConfig;
     }
 
@@ -1281,9 +1190,7 @@ IMPORTANT pour le titre IA :
       // Configuration pour PARTIELS
       if (request.preset === "PARTIELS" && request.higherEdField) {
         const filiereConfig =
-          PARTIELS_CONFIG.filieres[
-            request.higherEdField as keyof typeof PARTIELS_CONFIG.filieres
-          ];
+          PARTIELS_CONFIG.filieres[request.higherEdField as keyof typeof PARTIELS_CONFIG.filieres];
         if (filiereConfig) {
           return {
             enableDocuments: filiereConfig.enableDocuments || false,
@@ -1295,9 +1202,7 @@ IMPORTANT pour le titre IA :
         }
 
         // NOUVEAU : Pour les filières personnalisées, pas de documents par défaut
-        logger.log(
-          "📄 [CONFIG] Filière personnalisée détectée - pas de documents par défaut",
-        );
+        logger.log("📄 [CONFIG] Filière personnalisée détectée - pas de documents par défaut");
         return {
           enableDocuments: false,
           documentTopics: [],
@@ -1323,23 +1228,18 @@ IMPORTANT pour le titre IA :
 
         // Pour les spécialités
         if (request.lyceeSpecialties && request.lyceeSpecialties.length > 0) {
-          const currentIndex =
-            request.sequentialConfig?.currentSubjectIndex || 0;
+          const currentIndex = request.sequentialConfig?.currentSubjectIndex || 0;
           const subjects = [
             "PHILOSOPHIE",
             ...request.lyceeSpecialties.map(
-              (s) =>
-                BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]
-                  ?.subject || s,
+              (s) => BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]?.subject || s,
             ),
             "GRAND_ORAL",
           ];
           const currentSubject = subjects[currentIndex];
 
           // Trouver la spécialité correspondante
-          for (const [specialtyKey, specialtyConfig] of Object.entries(
-            BAC_CONFIG.specialties,
-          )) {
+          for (const [specialtyKey, specialtyConfig] of Object.entries(BAC_CONFIG.specialties)) {
             if (specialtyConfig.subject === currentSubject) {
               return {
                 enableDocuments: specialtyConfig.enableDocuments || false,
@@ -1369,10 +1269,7 @@ IMPORTANT pour le titre IA :
         }
       }
     } catch (error) {
-      logger.warn(
-        "⚠️ Erreur lors de la récupération de la config documentaire:",
-        error,
-      );
+      logger.warn("⚠️ Erreur lors de la récupération de la config documentaire:", error);
     }
 
     return null;
@@ -1384,9 +1281,7 @@ IMPORTANT pour le titre IA :
   private static getCurrentSubjectName(request: QuizGenerationRequest): string {
     if (request.preset === "PARTIELS" && request.higherEdField) {
       const filiereConfig =
-        PARTIELS_CONFIG.filieres[
-          request.higherEdField as keyof typeof PARTIELS_CONFIG.filieres
-        ];
+        PARTIELS_CONFIG.filieres[request.higherEdField as keyof typeof PARTIELS_CONFIG.filieres];
       if (filiereConfig && request.sequentialConfig) {
         const currentIndex = request.sequentialConfig.currentSubjectIndex || 0;
         return filiereConfig.subjects[currentIndex] || request.higherEdField;
@@ -1411,9 +1306,7 @@ IMPORTANT pour le titre IA :
   /**
    * Obtient la configuration graphique pour une requête donnée
    */
-  private static getGraphicConfig(
-    request: QuizGenerationRequest,
-  ): GraphicConfiguration | null {
+  private static getGraphicConfig(request: QuizGenerationRequest): GraphicConfiguration | null {
     if (!request.preset) return null;
 
     try {
@@ -1484,31 +1377,21 @@ IMPORTANT pour le titre IA :
             key.toLowerCase().includes(lowerSubject)
           ) {
             config = value;
-            logger.log(
-              `🎨 [GRAPHIC-CONFIG] Correspondance trouvée: ${key} → ${subjectName}`,
-            );
+            logger.log(`🎨 [GRAPHIC-CONFIG] Correspondance trouvée: ${key} → ${subjectName}`);
             break;
           }
         }
       }
 
       if (config) {
-        logger.log(
-          `🎨 [GRAPHIC-CONFIG] Configuration trouvée pour ${subjectName}:`,
-          config,
-        );
+        logger.log(`🎨 [GRAPHIC-CONFIG] Configuration trouvée pour ${subjectName}:`, config);
         return config;
       }
 
-      logger.log(
-        `🎨 [GRAPHIC-CONFIG] Aucune configuration graphique pour ${subjectName}`,
-      );
+      logger.log(`🎨 [GRAPHIC-CONFIG] Aucune configuration graphique pour ${subjectName}`);
       return { enableGraphics: false };
     } catch (error) {
-      logger.warn(
-        "⚠️ Erreur lors de la récupération de la config graphique:",
-        error,
-      );
+      logger.warn("⚠️ Erreur lors de la récupération de la config graphique:", error);
       return { enableGraphics: false };
     }
   }
@@ -1516,10 +1399,7 @@ IMPORTANT pour le titre IA :
   /**
    * Supprime les options en doublon dans les QCM
    */
-  private static removeDuplicateOptions(
-    options: QuizOption[],
-    questionId: string,
-  ): QuizOption[] {
+  private static removeDuplicateOptions(options: QuizOption[], questionId: string): QuizOption[] {
     if (!options || options.length === 0) return options;
 
     const seen = new Set<string>();

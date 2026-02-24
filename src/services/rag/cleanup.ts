@@ -1,8 +1,5 @@
 // 🧹 RAG Cleanup Service - Nettoyage automatique des embeddings non utilisés
-import {
-  prismaEmbeddings as prisma,
-  type Prisma,
-} from "../../lib/prismaEmbeddings.js";
+import { prismaEmbeddings as prisma, type Prisma } from "../../lib/prismaEmbeddings.js";
 import { logger } from "../../utils/logger.js";
 
 // Type pour les sources avec count de chunks
@@ -32,26 +29,16 @@ export class RAGCleanupService {
    */
   async cleanupUnusedSources(options: CleanupOptions): Promise<CleanupStats> {
     const startTime = Date.now();
-    const {
-      maxAge = 7,
-      dryRun = false,
-      includeUserSources = false,
-      batchSize = 100,
-    } = options;
+    const { maxAge = 7, dryRun = false, includeUserSources = false, batchSize = 100 } = options;
 
-    logger.log(
-      `🧹 [CLEANUP] Démarrage nettoyage - Age max: ${maxAge} jours, DryRun: ${dryRun}`,
-    );
+    logger.log(`🧹 [CLEANUP] Démarrage nettoyage - Age max: ${maxAge} jours, DryRun: ${dryRun}`);
 
     // Calculer la date limite
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - maxAge);
 
     // Trouver les sources candidates au nettoyage
-    const candidateSources = await this.findCandidateSources(
-      cutoffDate,
-      includeUserSources,
-    );
+    const candidateSources = await this.findCandidateSources(cutoffDate, includeUserSources);
 
     if (candidateSources.length === 0) {
       logger.log(`🧹 [CLEANUP] Aucune source à nettoyer`);
@@ -63,9 +50,7 @@ export class RAGCleanupService {
       };
     }
 
-    logger.log(
-      `🧹 [CLEANUP] ${candidateSources.length} sources candidates au nettoyage`,
-    );
+    logger.log(`🧹 [CLEANUP] ${candidateSources.length} sources candidates au nettoyage`);
 
     let totalSourcesDeleted = 0;
     let totalChunksDeleted = 0;
@@ -102,10 +87,7 @@ export class RAGCleanupService {
   /**
    * 🔍 Trouve les sources candidates au nettoyage
    */
-  private async findCandidateSources(
-    cutoffDate: Date,
-    includeUserSources: boolean,
-  ) {
+  private async findCandidateSources(cutoffDate: Date, includeUserSources: boolean) {
     const whereCondition: Prisma.RAGSourceWhereInput = {
       sourceType: "WIKIPEDIA",
       status: "COMPLETED",
@@ -195,10 +177,7 @@ export class RAGCleanupService {
         data: { lastUsedAt: new Date() },
       });
     } catch (error) {
-      logger.error(
-        `🚨 [CLEANUP] Erreur mise à jour lastUsedAt pour ${sourceId}:`,
-        error,
-      );
+      logger.error(`🚨 [CLEANUP] Erreur mise à jour lastUsedAt pour ${sourceId}:`, error);
     }
   }
 
@@ -214,9 +193,7 @@ export class RAGCleanupService {
         where: { id: { in: sourceIds } },
         data: { lastUsedAt: new Date() },
       });
-      logger.log(
-        `📊 [CLEANUP] LastUsedAt mis à jour pour ${sourceIds.length} sources`,
-      );
+      logger.log(`📊 [CLEANUP] LastUsedAt mis à jour pour ${sourceIds.length} sources`);
     } catch (error) {
       logger.error(`🚨 [CLEANUP] Erreur mise à jour batch lastUsedAt:`, error);
     }
@@ -261,25 +238,16 @@ export class RAGCleanupService {
   /**
    * 🔍 Trouve les sources qui seront nettoyées (preview)
    */
-  async previewCleanup(
-    maxAge: number = 7,
-    includeUserSources: boolean = false,
-  ) {
+  async previewCleanup(maxAge: number = 7, includeUserSources: boolean = false) {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - maxAge);
 
-    const candidates = await this.findCandidateSources(
-      cutoffDate,
-      includeUserSources,
-    );
+    const candidates = await this.findCandidateSources(cutoffDate, includeUserSources);
 
     return {
       candidateCount: candidates.length,
       totalChunks: candidates.reduce((sum, s) => sum + s._count.chunks, 0),
-      estimatedSpaceMB: candidates.reduce(
-        (sum, s) => sum + s._count.chunks / 1024,
-        0,
-      ),
+      estimatedSpaceMB: candidates.reduce((sum, s) => sum + s._count.chunks / 1024, 0),
       oldestSource: candidates.length > 0 ? candidates[0].createdAt : null,
       sources: candidates.map((s) => ({
         id: s.id,
@@ -361,14 +329,9 @@ export class RAGCleanupService {
         totalChunksDeleted += chunksCount;
         totalSpaceFreed += chunksCount / 1024; // 1KB par chunk approximatif
 
-        logger.log(
-          `🗑️ [CLEANUP-FILE] Supprimé: "${file.title}" (${chunksCount} chunks)`,
-        );
+        logger.log(`🗑️ [CLEANUP-FILE] Supprimé: "${file.title}" (${chunksCount} chunks)`);
       } catch (error) {
-        logger.error(
-          `❌ [CLEANUP-FILE] Erreur suppression "${file.title}":`,
-          error,
-        );
+        logger.error(`❌ [CLEANUP-FILE] Erreur suppression "${file.title}":`, error);
       }
     }
 

@@ -76,10 +76,7 @@ function convertParsedToQuestion(parsed: ParsedQuestionData): Question {
     points: parsed.points,
     hasGraphic: parsed.hasGraphic,
     graphicId: parsed.graphicId,
-    graphicLibrary: parsed.graphicLibrary as
-      | "apexcharts"
-      | "plotly"
-      | undefined,
+    graphicLibrary: parsed.graphicLibrary as "apexcharts" | "plotly" | undefined,
     graphicType: parsed.graphicType,
     graphicDescription: parsed.graphicDescription,
     graphicConfig: parsed.graphicConfig,
@@ -116,24 +113,12 @@ const SUBJECT_GRAPHIC_MAPPING: {
     preferredLibrary: "apexcharts",
   },
   Mathématiques: {
-    topics: [
-      "fonctions",
-      "géométrie",
-      "statistiques",
-      "probabilités",
-      "dérivées",
-    ],
+    topics: ["fonctions", "géométrie", "statistiques", "probabilités", "dérivées"],
     probability: 0.9,
     preferredLibrary: "apexcharts",
   },
   Chimie: {
-    topics: [
-      "cinétique",
-      "équilibres",
-      "orbitales",
-      "spectroscopie",
-      "thermochimie",
-    ],
+    topics: ["cinétique", "équilibres", "orbitales", "spectroscopie", "thermochimie"],
     probability: 0.7,
     preferredLibrary: "plotly",
   },
@@ -165,24 +150,17 @@ export class GraphicBasedQuizGenerator {
   ): Promise<GraphicBasedQuizResult> {
     const startTime = Date.now();
 
-    logger.log(
-      `🎨 [GRAPHIC-QUIZ] Génération quiz basé sur graphiques pour ${subjectName}`,
-    );
+    logger.log(`🎨 [GRAPHIC-QUIZ] Génération quiz basé sur graphiques pour ${subjectName}`);
 
     try {
       // 1. Déterminer si cette matière bénéficie des graphiques
       const graphicConfig = this.getGraphicConfigForSubject(subjectName);
       if (!graphicConfig) {
-        throw new Error(
-          `Matière ${subjectName} ne supporte pas les graphiques`,
-        );
+        throw new Error(`Matière ${subjectName} ne supporte pas les graphiques`);
       }
 
       // 2. Générer 1-2 graphiques seulement (pas 1 par question)
-      const graphicsCount = Math.min(
-        2,
-        Math.max(1, Math.ceil(questionCount / 2)),
-      ); // 1-2 graphiques max
+      const graphicsCount = Math.min(2, Math.max(1, Math.ceil(questionCount / 2))); // 1-2 graphiques max
       const graphics = await this.generateGraphicsFirst(
         subjectName,
         graphicConfig,
@@ -197,11 +175,7 @@ export class GraphicBasedQuizGenerator {
       logger.log(`🎨 [GRAPHIC-QUIZ] ${graphics.length} graphiques générés`);
 
       // 3. Générer les questions basées sur ces graphiques
-      const questions = await this.generateQuestionsFromGraphics(
-        graphics,
-        request,
-        subjectName,
-      );
+      const questions = await this.generateQuestionsFromGraphics(graphics, request, subjectName);
 
       // 4. Construire le quiz final
       const quiz: GeneratedQuiz = {
@@ -230,9 +204,7 @@ export class GraphicBasedQuizGenerator {
         totalQuestions: questions.length,
       };
 
-      logger.log(
-        `✅ [GRAPHIC-QUIZ] Quiz généré avec ${questions.length} questions graphiques`,
-      );
+      logger.log(`✅ [GRAPHIC-QUIZ] Quiz généré avec ${questions.length} questions graphiques`);
 
       return {
         quiz,
@@ -253,27 +225,23 @@ export class GraphicBasedQuizGenerator {
     level: string,
     count: number,
   ): Promise<GeneratedGraphic[]> {
-    logger.log(
-      `🎨 [GRAPHIC-FIRST] Génération de ${count} graphiques pour ${subject}`,
-    );
+    logger.log(`🎨 [GRAPHIC-FIRST] Génération de ${count} graphiques pour ${subject}`);
 
     const graphics: GeneratedGraphic[] = [];
 
     for (let i = 0; i < count; i++) {
       try {
         // Choisir un topic aléatoire
-        const topic =
-          config.topics[Math.floor(Math.random() * config.topics.length)];
+        const topic = config.topics[Math.floor(Math.random() * config.topics.length)];
 
         // Générer le graphique via l'IA
-        const graphicResult =
-          await this.aiGraphicGenerator.generateGraphicWithAI({
-            subject,
-            topic,
-            level,
-            questionContext: `Question ${i + 1} de ${subject} sur ${topic} niveau ${level}`,
-            library: config.preferredLibrary,
-          });
+        const graphicResult = await this.aiGraphicGenerator.generateGraphicWithAI({
+          subject,
+          topic,
+          level,
+          questionContext: `Question ${i + 1} de ${subject} sur ${topic} niveau ${level}`,
+          library: config.preferredLibrary,
+        });
 
         const graphic: GeneratedGraphic = {
           id: `graphic_${Date.now()}_${i}`,
@@ -386,9 +354,7 @@ ATTENTION CRITIQUE:
 - Utilise "D'après" et "l'axe" normalement (pas d'échappement excessif)
 - Teste mentalement que ton JSON array est valide avant de répondre`;
 
-      logger.log(
-        `🤖 [QUESTIONS-FROM-GRAPHICS] Appel IA unique pour ${totalQuestions} questions`,
-      );
+      logger.log(`🤖 [QUESTIONS-FROM-GRAPHICS] Appel IA unique pour ${totalQuestions} questions`);
 
       const response = await AIService.generateContent({
         prompt,
@@ -397,9 +363,7 @@ ATTENTION CRITIQUE:
       });
 
       // Parser la réponse JSON (array de questions)
-      const parsedQuestions = this.parseQuestionsArrayJSON(
-        response.content.trim(),
-      );
+      const parsedQuestions = this.parseQuestionsArrayJSON(response.content.trim());
 
       // Convertir ParsedQuestionData[] en Question[]
       const questionsArray = parsedQuestions.map(convertParsedToQuestion);
@@ -409,15 +373,10 @@ ATTENTION CRITIQUE:
       );
       return questionsArray;
     } catch (error) {
-      logger.error(
-        `❌ [QUESTIONS-FROM-GRAPHICS] Erreur génération groupée:`,
-        error,
-      );
+      logger.error(`❌ [QUESTIONS-FROM-GRAPHICS] Erreur génération groupée:`, error);
 
       // Fallback : créer des questions de base
-      logger.log(
-        `🔄 [QUESTIONS-FROM-GRAPHICS] Fallback vers génération individuelle`,
-      );
+      logger.log(`🔄 [QUESTIONS-FROM-GRAPHICS] Fallback vers génération individuelle`);
       return this.generateFallbackQuestions(graphics, totalQuestions);
     }
   }
@@ -432,13 +391,9 @@ ATTENTION CRITIQUE:
 
       // Supprimer les blocs de code markdown si présents
       if (cleanContent.startsWith("```json")) {
-        cleanContent = cleanContent
-          .replace(/^```json\s*/, "")
-          .replace(/\s*```$/, "");
+        cleanContent = cleanContent.replace(/^```json\s*/, "").replace(/\s*```$/, "");
       } else if (cleanContent.startsWith("```")) {
-        cleanContent = cleanContent
-          .replace(/^```\s*/, "")
-          .replace(/\s*```$/, "");
+        cleanContent = cleanContent.replace(/^```\s*/, "").replace(/\s*```$/, "");
       }
 
       // Nettoyer les caractères problématiques
@@ -448,10 +403,7 @@ ATTENTION CRITIQUE:
       return JSON.parse(cleanContent);
     } catch (error) {
       logger.error("❌ Erreur parsing JSON question:", error);
-      logger.log(
-        "🔧 Contenu reçu (100 premiers chars):",
-        content.substring(0, 100) + "...",
-      );
+      logger.log("🔧 Contenu reçu (100 premiers chars):", content.substring(0, 100) + "...");
 
       return this.recoverQuestionFromContent(content);
     }
@@ -476,10 +428,7 @@ ATTENTION CRITIQUE:
     );
 
     // Supprimer d'autres propriétés avec des fonctions
-    jsonStr = jsonStr.replace(
-      /"\w+"\s*:\s*function\s*\([^)]*\)\s*\{[^}]*\}/g,
-      "",
-    );
+    jsonStr = jsonStr.replace(/"\w+"\s*:\s*function\s*\([^)]*\)\s*\{[^}]*\}/g, "");
 
     // Enlever les virgules traînantes
     jsonStr = jsonStr.replace(/,(\s*[}\]])/g, "$1");
@@ -509,9 +458,7 @@ ATTENTION CRITIQUE:
   /**
    * Tentative de récupération d'une question à partir du contenu brut
    */
-  private static recoverQuestionFromContent(
-    content: string,
-  ): ParsedQuestionData {
+  private static recoverQuestionFromContent(content: string): ParsedQuestionData {
     try {
       // Tentative 1 : Extraire le JSON principal entre accolades
       const mainJsonMatch = content.match(/\{[\s\S]*\}/);
@@ -560,39 +507,27 @@ ATTENTION CRITIQUE:
             }));
           }
         } catch (optionError) {
-          logger.log(
-            "❌ Erreur extraction options, utilisation des options par défaut",
-          );
+          logger.log("❌ Erreur extraction options, utilisation des options par défaut");
         }
       }
 
       const recoveredQuestion = {
         id: `recovered_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        question: questionMatch
-          ? questionMatch[1]
-          : "Question récupérée automatiquement",
+        question: questionMatch ? questionMatch[1] : "Question récupérée automatiquement",
         type: typeMatch ? typeMatch[1] : "MULTIPLE_CHOICE",
         difficulty: difficultyMatch ? difficultyMatch[1] : "moyen",
         options: options,
         points: pointsMatch ? parseInt(pointsMatch[1]) : 3,
         hasGraphic: true, // Puisque cette méthode est utilisée dans un contexte graphique
-        graphicId:
-          content.match(/"graphicId"\s*:\s*"([^"]+)"/)?.[1] ||
-          `graphic_${Date.now()}`,
-        graphicLibrary:
-          content.match(/"graphicLibrary"\s*:\s*"([^"]+)"/)?.[1] ||
-          "apexcharts",
-        graphicType:
-          content.match(/"graphicType"\s*:\s*"([^"]+)"/)?.[1] || "2d",
+        graphicId: content.match(/"graphicId"\s*:\s*"([^"]+)"/)?.[1] || `graphic_${Date.now()}`,
+        graphicLibrary: content.match(/"graphicLibrary"\s*:\s*"([^"]+)"/)?.[1] || "apexcharts",
+        graphicType: content.match(/"graphicType"\s*:\s*"([^"]+)"/)?.[1] || "2d",
         graphicDescription:
           content.match(/"graphicDescription"\s*:\s*"([^"]+)"/)?.[1] ||
           "Graphique récupéré automatiquement",
       };
 
-      logger.log(
-        "✅ Question récupérée avec succès:",
-        recoveredQuestion.question,
-      );
+      logger.log("✅ Question récupérée avec succès:", recoveredQuestion.question);
       return recoveredQuestion;
     } catch (manualError) {
       logger.error("❌ Échec récupération manuelle:", manualError);
@@ -660,9 +595,7 @@ CONTEXTE: ${graphic.questionContext}
   /**
    * Construit le contexte de TOUS les graphiques pour l'IA (approche optimisée)
    */
-  private static buildAllGraphicsContextForAI(
-    graphics: GeneratedGraphic[],
-  ): string {
+  private static buildAllGraphicsContextForAI(graphics: GeneratedGraphic[]): string {
     let context = `GRAPHIQUES FOURNIS (${graphics.length} graphiques):\n\n`;
 
     graphics.forEach((graphic, index) => {
@@ -748,8 +681,7 @@ CONTEXTE: ${graphic.questionContext}
 
     for (let i = 0; i < graphicsCount; i++) {
       // Distribuer les questions restantes aux premiers graphiques
-      const questionsForThisGraphic =
-        baseQuestionsPerGraphic + (i < remainingQuestions ? 1 : 0);
+      const questionsForThisGraphic = baseQuestionsPerGraphic + (i < remainingQuestions ? 1 : 0);
       distribution.push(questionsForThisGraphic);
     }
 
@@ -759,12 +691,8 @@ CONTEXTE: ${graphic.questionContext}
   /**
    * Parse un array JSON de questions de manière ultra-robuste avec multiple tentatives
    */
-  private static parseQuestionsArrayJSON(
-    content: string,
-  ): ParsedQuestionData[] {
-    logger.log(
-      `🔧 [PARSE-ARRAY] Tentative parsing array de ${content.length} caractères`,
-    );
+  private static parseQuestionsArrayJSON(content: string): ParsedQuestionData[] {
+    logger.log(`🔧 [PARSE-ARRAY] Tentative parsing array de ${content.length} caractères`);
 
     try {
       // Nettoyer le contenu d'abord
@@ -772,13 +700,9 @@ CONTEXTE: ${graphic.questionContext}
 
       // Supprimer les blocs de code markdown si présents
       if (cleanContent.startsWith("```json")) {
-        cleanContent = cleanContent
-          .replace(/^```json\s*/, "")
-          .replace(/\s*```$/, "");
+        cleanContent = cleanContent.replace(/^```json\s*/, "").replace(/\s*```$/, "");
       } else if (cleanContent.startsWith("```")) {
-        cleanContent = cleanContent
-          .replace(/^```\s*/, "")
-          .replace(/\s*```$/, "");
+        cleanContent = cleanContent.replace(/^```\s*/, "").replace(/\s*```$/, "");
       }
 
       // Nettoyer les caractères problématiques avec méthode renforcée
@@ -792,16 +716,11 @@ CONTEXTE: ${graphic.questionContext}
         throw new Error("La réponse n'est pas un array de questions");
       }
 
-      logger.log(
-        `✅ [PARSE-ARRAY] ${parsed.length} questions parsées avec succès`,
-      );
+      logger.log(`✅ [PARSE-ARRAY] ${parsed.length} questions parsées avec succès`);
       return parsed;
     } catch (error) {
       logger.error("❌ Erreur parsing JSON array questions:", error);
-      logger.log(
-        "🔧 Contenu autour de l'erreur (pos 1400-1450):",
-        content.substring(1380, 1450),
-      );
+      logger.log("🔧 Contenu autour de l'erreur (pos 1400-1450):", content.substring(1380, 1450));
 
       return this.recoverQuestionsArrayFromContent(content);
     }
@@ -849,9 +768,7 @@ CONTEXTE: ${graphic.questionContext}
   /**
    * Récupération d'urgence des questions depuis un JSON cassé
    */
-  private static recoverQuestionsArrayFromContent(
-    content: string,
-  ): ParsedQuestionData[] {
+  private static recoverQuestionsArrayFromContent(content: string): ParsedQuestionData[] {
     try {
       // Tentative 1 : Extraire l'array principal avec nettoyage renforcé
       const arrayMatch = content.match(/\[[\s\S]*\]/);
@@ -862,9 +779,7 @@ CONTEXTE: ${graphic.questionContext}
 
         const recovered = JSON.parse(extractedArray);
         if (Array.isArray(recovered)) {
-          logger.log(
-            `✅ [RECOVERY-1] ${recovered.length} questions récupérées`,
-          );
+          logger.log(`✅ [RECOVERY-1] ${recovered.length} questions récupérées`);
           return recovered;
         }
       }
@@ -879,9 +794,7 @@ CONTEXTE: ${graphic.questionContext}
 
       // Chercher toutes les questions individuelles avec regex
       const questionMatches = [
-        ...content.matchAll(
-          /\{[\s\S]*?"id":\s*"[^"]*"[\s\S]*?"question"[\s\S]*?\}/g,
-        ),
+        ...content.matchAll(/\{[\s\S]*?"id":\s*"[^"]*"[\s\S]*?"question"[\s\S]*?\}/g),
       ];
 
       for (const match of questionMatches) {
@@ -911,17 +824,12 @@ CONTEXTE: ${graphic.questionContext}
             questions.push(questionObj);
           }
         } catch (questionError) {
-          logger.log(
-            `❌ Erreur parsing question individuelle:`,
-            questionError,
-          );
+          logger.log(`❌ Erreur parsing question individuelle:`, questionError);
         }
       }
 
       if (questions.length > 0) {
-        logger.log(
-          `✅ [RECOVERY-2] ${questions.length} questions récupérées individuellement`,
-        );
+        logger.log(`✅ [RECOVERY-2] ${questions.length} questions récupérées individuellement`);
         return questions;
       }
     } catch (individualError) {
@@ -939,16 +847,13 @@ CONTEXTE: ${graphic.questionContext}
     graphics: GeneratedGraphic[],
     totalQuestions: number,
   ): Question[] {
-    logger.log(
-      `🔄 [FALLBACK] Génération de ${totalQuestions} questions de fallback`,
-    );
+    logger.log(`🔄 [FALLBACK] Génération de ${totalQuestions} questions de fallback`);
 
     const questions: Question[] = [];
     const questionsPerGraphic = Math.ceil(totalQuestions / graphics.length);
 
     for (let i = 0; i < totalQuestions; i++) {
-      const graphicIndex =
-        Math.floor(i / questionsPerGraphic) % graphics.length;
+      const graphicIndex = Math.floor(i / questionsPerGraphic) % graphics.length;
       const graphic = graphics[graphicIndex];
 
       questions.push(this.createFallbackQuestion(graphic, i + 1));
@@ -997,9 +902,7 @@ CONTEXTE: ${graphic.questionContext}
   /**
    * Obtient la configuration graphique pour une matière
    */
-  private static getGraphicConfigForSubject(
-    subject: string,
-  ): SubjectGraphicMappingConfig | null {
+  private static getGraphicConfigForSubject(subject: string): SubjectGraphicMappingConfig | null {
     // Normaliser le nom de la matière
     const normalizedSubject = this.normalizeSubjectName(subject);
     return SUBJECT_GRAPHIC_MAPPING[normalizedSubject] ?? null;

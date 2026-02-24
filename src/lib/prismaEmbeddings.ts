@@ -10,10 +10,7 @@
  * - RAGSession
  */
 
-import {
-  PrismaClient,
-  Prisma,
-} from "../../node_modules/.prisma/client-embeddings/index.js";
+import { PrismaClient, Prisma } from "../../node_modules/.prisma/client-embeddings/index.js";
 
 // Réexporter pour éviter les imports directs du chemin node_modules
 export { Prisma }; // Exporté comme valeur car utilisé pour Prisma.QueryMode
@@ -31,10 +28,7 @@ const globalForPrismaEmbeddings = global as unknown as {
 export const prismaEmbeddings: PrismaClient =
   globalForPrismaEmbeddings.prismaEmbeddings ??
   new PrismaClient({
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
+    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
 
 if (process.env.NODE_ENV !== "production") {

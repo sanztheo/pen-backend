@@ -39,22 +39,21 @@ export class RAGDeduplicationService {
     title: string,
   ): Promise<DeduplicationResult> {
     // 🌍 ÉTAPE 1: Rechercher d'abord dans les sources GLOBALES partagées
-    const globalSource: RAGSourceWithChunkCount | null =
-      await prisma.rAGSource.findFirst({
-        where: {
-          isGlobal: true,
-          sourceType: "WIKIPEDIA",
-          title: {
-            equals: title,
-            mode: Prisma.QueryMode.insensitive,
-          },
+    const globalSource: RAGSourceWithChunkCount | null = await prisma.rAGSource.findFirst({
+      where: {
+        isGlobal: true,
+        sourceType: "WIKIPEDIA",
+        title: {
+          equals: title,
+          mode: Prisma.QueryMode.insensitive,
         },
-        include: {
-          _count: {
-            select: { chunks: true },
-          },
+      },
+      include: {
+        _count: {
+          select: { chunks: true },
         },
-      });
+      },
+    });
 
     if (globalSource && globalSource._count.chunks > 0) {
       logger.log(
@@ -70,24 +69,23 @@ export class RAGDeduplicationService {
     }
 
     // 👤 ÉTAPE 2: Si pas de source globale, rechercher dans les sources USER
-    const userSource: RAGSourceWithChunkCount | null =
-      await prisma.rAGSource.findFirst({
-        where: {
-          userId,
-          workspaceId,
-          sourceType: "WIKIPEDIA",
-          isGlobal: false,
-          title: {
-            equals: title,
-            mode: Prisma.QueryMode.insensitive,
-          },
+    const userSource: RAGSourceWithChunkCount | null = await prisma.rAGSource.findFirst({
+      where: {
+        userId,
+        workspaceId,
+        sourceType: "WIKIPEDIA",
+        isGlobal: false,
+        title: {
+          equals: title,
+          mode: Prisma.QueryMode.insensitive,
         },
-        include: {
-          _count: {
-            select: { chunks: true },
-          },
+      },
+      include: {
+        _count: {
+          select: { chunks: true },
         },
-      });
+      },
+    });
 
     if (!userSource) {
       return { exists: false };
@@ -120,28 +118,25 @@ export class RAGDeduplicationService {
     const results = new Map<string, DeduplicationResult>();
 
     // 🌍 ÉTAPE 1: Recherche en batch des sources GLOBALES
-    const globalSources: RAGSourceWithChunkCount[] =
-      await prisma.rAGSource.findMany({
-        where: {
-          isGlobal: true,
-          sourceType: "WIKIPEDIA",
-          title: {
-            in: titles,
-            mode: Prisma.QueryMode.insensitive,
-          },
+    const globalSources: RAGSourceWithChunkCount[] = await prisma.rAGSource.findMany({
+      where: {
+        isGlobal: true,
+        sourceType: "WIKIPEDIA",
+        title: {
+          in: titles,
+          mode: Prisma.QueryMode.insensitive,
         },
-        include: {
-          _count: {
-            select: { chunks: true },
-          },
+      },
+      include: {
+        _count: {
+          select: { chunks: true },
         },
-      });
+      },
+    });
 
     // 👤 ÉTAPE 2: Recherche en batch des sources USER (pour les titres non trouvés en global)
     const globalTitles = globalSources.map((s) => s.title.toLowerCase());
-    const remainingTitles = titles.filter(
-      (t) => !globalTitles.includes(t.toLowerCase()),
-    );
+    const remainingTitles = titles.filter((t) => !globalTitles.includes(t.toLowerCase()));
 
     const userSources: RAGSourceWithChunkCount[] =
       remainingTitles.length > 0
@@ -209,37 +204,36 @@ export class RAGDeduplicationService {
     fileName?: string,
   ): Promise<DeduplicationResult> {
     // Recherche par hash de contenu (plus fiable que le nom)
-    const existingSource: RAGSourceWithChunkCount | null =
-      await prisma.rAGSource.findFirst({
-        where: {
-          userId,
-          workspaceId,
-          sourceType: "PDF",
-          OR: [
-            {
-              metadata: {
-                path: ["contentHash"],
-                equals: contentHash,
-              },
+    const existingSource: RAGSourceWithChunkCount | null = await prisma.rAGSource.findFirst({
+      where: {
+        userId,
+        workspaceId,
+        sourceType: "PDF",
+        OR: [
+          {
+            metadata: {
+              path: ["contentHash"],
+              equals: contentHash,
             },
-            ...(fileName
-              ? [
-                  {
-                    title: {
-                      equals: fileName,
-                      mode: Prisma.QueryMode.insensitive,
-                    },
-                  },
-                ]
-              : []),
-          ],
-        },
-        include: {
-          _count: {
-            select: { chunks: true },
           },
+          ...(fileName
+            ? [
+                {
+                  title: {
+                    equals: fileName,
+                    mode: Prisma.QueryMode.insensitive,
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+      include: {
+        _count: {
+          select: { chunks: true },
         },
-      });
+      },
+    });
 
     if (!existingSource) {
       return { exists: false };

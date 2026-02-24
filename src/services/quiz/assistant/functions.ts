@@ -195,9 +195,7 @@ type FunctionCallResult =
 /**
  * Exécute un appel de fonction de l'Assistant OpenAI
  */
-export async function executeFunctionCall(
-  toolCall: ToolCall,
-): Promise<FunctionCallResult> {
+export async function executeFunctionCall(toolCall: ToolCall): Promise<FunctionCallResult> {
   const functionName = toolCall.function.name;
   let args;
 
@@ -243,14 +241,11 @@ export async function executeFunctionCall(
 /**
  * 1. generate_graphic - Génère une configuration de graphique
  */
-async function generateGraphic(
-  args: GenerateGraphicArgs,
-): Promise<GraphicResult> {
+async function generateGraphic(args: GenerateGraphicArgs): Promise<GraphicResult> {
   logger.log("📊 Génération graphique avec:", args);
 
   // Valider les paramètres requis
-  const { config, type, library, description, dataValues, htmlContainer } =
-    args;
+  const { config, type, library, description, dataValues, htmlContainer } = args;
 
   if (!type || !library || !description || !dataValues || !htmlContainer) {
     throw new Error("Paramètres manquants pour generate_graphic");
@@ -260,12 +255,7 @@ async function generateGraphic(
   let finalConfig: GraphicConfig = config || {};
   if (!config || Object.keys(config).length === 0) {
     logger.log("⚠️ Config vide reçue, génération automatique...");
-    finalConfig = await generateDefaultConfig(
-      library,
-      type,
-      description,
-      dataValues,
-    );
+    finalConfig = await generateDefaultConfig(library, type, description, dataValues);
   }
 
   // Retourner la configuration graphique formatée
@@ -313,42 +303,25 @@ async function generateDefaultConfig(
       logger.log("✅ Configuration IA générée avec succès");
 
       // 🔧 VALIDATION ET CORRECTION POST-GÉNÉRATION
-      const correctedConfig = validateAndCorrectGraphicConfig(
-        aiGraphicResult.config,
-        description,
-      );
+      const correctedConfig = validateAndCorrectGraphicConfig(aiGraphicResult.config, description);
       logger.log("🔍 Configuration après validation locale:", correctedConfig);
 
       // 🤖 VALIDATION IA AVANCÉE - Vérification scientifique par IA
-      const aiValidatedConfig = await validateWithAI(
-        correctedConfig,
-        description,
-      );
+      const aiValidatedConfig = await validateWithAI(correctedConfig, description);
       logger.log("🧠 Configuration après validation IA:", aiValidatedConfig);
 
       return aiValidatedConfig;
     }
   } catch (error) {
-    logger.log(
-      "⚠️ Erreur génération IA, fallback vers configuration prédéfinie:",
-      error,
-    );
+    logger.log("⚠️ Erreur génération IA, fallback vers configuration prédéfinie:", error);
   }
 
   // Fallback vers la logique prédéfinie si l'IA échoue
   logger.log("🔧 Utilisation configuration prédéfinie comme fallback");
-  const fallbackConfig = generateFallbackConfig(
-    library,
-    type,
-    description,
-    dataValues,
-  );
+  const fallbackConfig = generateFallbackConfig(library, type, description, dataValues);
 
   // Appliquer la validation même sur le fallback
-  const validatedFallback = validateAndCorrectGraphicConfig(
-    fallbackConfig,
-    description,
-  );
+  const validatedFallback = validateAndCorrectGraphicConfig(fallbackConfig, description);
   logger.log("🔍 Fallback après validation scientifique:", validatedFallback);
 
   return validatedFallback;
@@ -364,10 +337,7 @@ function validateAndCorrectGraphicConfig(
   // Créer une copie profonde pour éviter les mutations
   const correctedConfig = JSON.parse(JSON.stringify(config));
 
-  logger.log(
-    "🔍 Validation scientifique pour:",
-    desc.substring(0, 50) + "...",
-  );
+  logger.log("🔍 Validation scientifique pour:", desc.substring(0, 50) + "...");
 
   // ✅ CORRECTION 1: Fonctions mathématiques exactes
   if (
@@ -447,10 +417,7 @@ function validateAndCorrectGraphicConfig(
     // S'assurer que le titre contient l'information sur la tangente
     if (correctedConfig.title && correctedConfig.title.text) {
       const currentTitle = correctedConfig.title.text;
-      if (
-        !currentTitle.includes("tangente") &&
-        !currentTitle.includes("dérivée")
-      ) {
+      if (!currentTitle.includes("tangente") && !currentTitle.includes("dérivée")) {
         correctedConfig.title.text = currentTitle + " et sa tangente";
       }
     } else {
@@ -465,10 +432,7 @@ function validateAndCorrectGraphicConfig(
       correctedConfig.series.forEach((serie: GraphicSeries) => {
         if (serie.name && serie.name.toLowerCase().includes("tangente")) {
           // Tangente = ligne droite rouge
-          if (
-            !correctedConfig.stroke ||
-            Array.isArray(correctedConfig.stroke)
-          ) {
+          if (!correctedConfig.stroke || Array.isArray(correctedConfig.stroke)) {
             correctedConfig.stroke = [
               { curve: "smooth", width: 2 }, // Fonction
               { curve: "straight", width: 2 }, // Tangente
@@ -484,14 +448,8 @@ function validateAndCorrectGraphicConfig(
   }
 
   // ✅ CORRECTION 4: Oscillations (garder smooth mais vérifier les données)
-  if (
-    desc.includes("oscillation") ||
-    desc.includes("sinusoïd") ||
-    desc.includes("sin(")
-  ) {
-    logger.log(
-      "🌊 Détection oscillation → Conservation curve: smooth pour sin()",
-    );
+  if (desc.includes("oscillation") || desc.includes("sinusoïd") || desc.includes("sin(")) {
+    logger.log("🌊 Détection oscillation → Conservation curve: smooth pour sin()");
     // Pour les oscillations, on garde smooth car sin() doit être lisse
     if (correctedConfig.stroke) {
       correctedConfig.stroke.curve = "smooth";
@@ -513,11 +471,7 @@ function validateAndCorrectGraphicConfig(
 
   // ✅ CORRECTION 5: Vérifier la symétrie des paraboles
   if (desc.includes("quadratique") || desc.includes("parabole")) {
-    if (
-      correctedConfig.series &&
-      correctedConfig.series[0] &&
-      correctedConfig.series[0].data
-    ) {
+    if (correctedConfig.series && correctedConfig.series[0] && correctedConfig.series[0].data) {
       const data = correctedConfig.series[0].data;
       logger.log("🔍 Vérification symétrie parabole, points:", data.length);
 
@@ -528,9 +482,7 @@ function validateAndCorrectGraphicConfig(
         if (Math.abs(y - x * x) > 0.01) {
           // Tolérance de 0.01
           isSymmetric = false;
-          logger.log(
-            `⚠️ Point non conforme à y=x²: (${x}, ${y}) devrait être (${x}, ${x * x})`,
-          );
+          logger.log(`⚠️ Point non conforme à y=x²: (${x}, ${y}) devrait être (${x}, ${x * x})`);
         }
       }
 
@@ -556,22 +508,8 @@ function validateAndCorrectGraphicConfig(
 // Fonction pour extraire le sujet de la description
 function extractSubjectFromDescription(description: string): string {
   const subjects = {
-    physique: [
-      "oscillation",
-      "force",
-      "énergie",
-      "onde",
-      "électrique",
-      "magnétique",
-    ],
-    mathématiques: [
-      "fonction",
-      "quadratique",
-      "parabole",
-      "dérivée",
-      "intégrale",
-      "géométrie",
-    ],
+    physique: ["oscillation", "force", "énergie", "onde", "électrique", "magnétique"],
+    mathématiques: ["fonction", "quadratique", "parabole", "dérivée", "intégrale", "géométrie"],
     chimie: ["molécule", "réaction", "concentration", "pH", "équilibre"],
     svt: ["cellule", "adn", "évolution", "écosystème", "génétique"],
   };
@@ -641,11 +579,7 @@ function generateFallbackConfig(
     }
 
     // ✅ Fonction quadratique EXACTE
-    if (
-      desc.includes("quadratique") ||
-      desc.includes("parabole") ||
-      desc.includes("x²")
-    ) {
+    if (desc.includes("quadratique") || desc.includes("parabole") || desc.includes("x²")) {
       const data = [];
       for (let x = -3; x <= 3; x += 0.5) {
         data.push([x, x * x]); // y = x² EXACT
@@ -667,11 +601,7 @@ function generateFallbackConfig(
     }
 
     // ✅ Oscillation sinusoïdale PURE
-    if (
-      desc.includes("oscillation") ||
-      desc.includes("sinusoïd") ||
-      desc.includes("sin(")
-    ) {
+    if (desc.includes("oscillation") || desc.includes("sinusoïd") || desc.includes("sin(")) {
       const data = [];
       for (let x = 0; x <= 6.28; x += 0.1) {
         data.push([x, Math.sin(x)]); // sin(x) PUR
@@ -733,11 +663,7 @@ function generateFallbackConfig(
     }
 
     // ✅ Relation linéaire générique (y = mx + b)
-    if (
-      desc.includes("linéaire") ||
-      desc.includes("proportionnel") ||
-      desc.includes("droite")
-    ) {
+    if (desc.includes("linéaire") || desc.includes("proportionnel") || desc.includes("droite")) {
       const slope = 2; // pente de 2
       const data = [];
       for (let x = 0; x <= 10; x += 1) {
@@ -781,8 +707,7 @@ async function generateAIGraphicConfig(
 ): Promise<{ config: GraphicConfig }> {
   try {
     // Importer et instancier le service de génération graphique IA
-    const { AIGraphicGenerator } =
-      await import("../graphics/aiGraphicGenerator.js");
+    const { AIGraphicGenerator } = await import("../graphics/aiGraphicGenerator.js");
     const aiGraphicGenerator = new AIGraphicGenerator();
 
     const result = await aiGraphicGenerator.generateGraphicWithAI({
@@ -817,9 +742,7 @@ async function generateQuestionsArray(
   const { questions } = args;
 
   if (!questions || !Array.isArray(questions)) {
-    throw new Error(
-      "Array de questions manquant pour generate_questions_array",
-    );
+    throw new Error("Array de questions manquant pour generate_questions_array");
   }
 
   // Valider chaque question
@@ -865,10 +788,7 @@ interface GenerateSubjectResult {
 async function generateSubjectWithDocuments(
   args: GenerateSubjectWithDocumentsArgs,
 ): Promise<GenerateSubjectResult> {
-  logger.log(
-    "📚 Génération sujet avec documents (API Wikipedia directe):",
-    args,
-  );
+  logger.log("📚 Génération sujet avec documents (API Wikipedia directe):", args);
 
   const {
     title,
@@ -883,17 +803,13 @@ async function generateSubjectWithDocuments(
   } = args;
 
   if (!title || !description || !documentTopics || !questionDistribution) {
-    throw new Error(
-      "Paramètres manquants pour generate_subject_with_documents",
-    );
+    throw new Error("Paramètres manquants pour generate_subject_with_documents");
   }
 
   let searchResults: SearchDocument[] = [];
 
   if (useFileUpload && uploadedFileIds && uploadedFileIds.length > 0) {
-    logger.log(
-      `📤 Mode File Upload: utilisation de ${uploadedFileIds.length} fichiers uploadés`,
-    );
+    logger.log(`📤 Mode File Upload: utilisation de ${uploadedFileIds.length} fichiers uploadés`);
     // Garder la logique existante pour les fichiers uploadés
     searchResults = uploadedFileIds.map((fileId: string, index: number) => ({
       id: `file_${index}`,
@@ -910,9 +826,7 @@ async function generateSubjectWithDocuments(
     try {
       // TON SYSTÈME SIMPLE ET PUISSANT 🎯
       const subjectName = extractSubjectFromTitle(title);
-      logger.log(
-        `🤖 Recherche IA pour "${subjectName}" niveau ${targetLevel}`,
-      );
+      logger.log(`🤖 Recherche IA pour "${subjectName}" niveau ${targetLevel}`);
       logger.log(`📝 Topics: ${documentTopics.join(", ")}`);
 
       const bestDocument = await searchWikipediaWithAI(
@@ -1052,8 +966,7 @@ async function searchWikipediaAPI(
 
     const response = await fetch(searchUrl, {
       headers: {
-        "User-Agent":
-          "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
+        "User-Agent": "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
       },
     });
 
@@ -1162,8 +1075,7 @@ async function getWikipediaArticleContent(
 
     const infoResponse = await fetch(infoUrl, {
       headers: {
-        "User-Agent":
-          "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
+        "User-Agent": "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
       },
     });
 
@@ -1196,8 +1108,7 @@ async function getWikipediaArticleContent(
 
     const parseResponse = await fetch(parseUrl, {
       headers: {
-        "User-Agent":
-          "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
+        "User-Agent": "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
       },
     });
 
@@ -1255,15 +1166,13 @@ async function getWikipediaArticleContent(
 
       const extractResponse = await fetch(extractUrl, {
         headers: {
-          "User-Agent":
-            "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
+          "User-Agent": "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
         },
       });
 
       if (extractResponse.ok) {
         const extractRaw: unknown = await extractResponse.json();
-        const extractParsed =
-          WikipediaAPIQueryResponseSchema.safeParse(extractRaw);
+        const extractParsed = WikipediaAPIQueryResponseSchema.safeParse(extractRaw);
         if (!extractParsed.success) {
           throw new Error("Réponse Wikipedia invalide (extracts)");
         }
@@ -1271,26 +1180,18 @@ async function getWikipediaArticleContent(
         const extractText = extractData.query?.pages?.[pageId]?.extract || "";
         if (extractText.length > cleanText.length) {
           cleanText = extractText;
-          logger.log(
-            `✅ Fallback extracts utilisé: ${cleanText.length} caractères`,
-          );
+          logger.log(`✅ Fallback extracts utilisé: ${cleanText.length} caractères`);
         }
       }
     }
 
     // Limiter la longueur finale pour éviter les problèmes de mémoire
     if (cleanText.length > 200000) {
-      logger.log(
-        `⚠️ Article très long (${cleanText.length} chars), troncature à 200K`,
-      );
-      cleanText =
-        cleanText.substring(0, 200000) +
-        "\n\n[Article tronqué pour optimisation]";
+      logger.log(`⚠️ Article très long (${cleanText.length} chars), troncature à 200K`);
+      cleanText = cleanText.substring(0, 200000) + "\n\n[Article tronqué pour optimisation]";
     }
 
-    logger.log(
-      `📄 Article "${pageInfo.title}" récupéré: ${cleanText.length} caractères`,
-    );
+    logger.log(`📄 Article "${pageInfo.title}" récupéré: ${cleanText.length} caractères`);
 
     return {
       title: pageInfo.title || "",
@@ -1309,10 +1210,7 @@ async function getWikipediaArticleContent(
 /**
  * Calcule un score de pertinence pour un article selon le niveau cible
  */
-function calculateRelevanceScore(
-  article: WikipediaSearchResult,
-  targetLevel: string,
-): number {
+function calculateRelevanceScore(article: WikipediaSearchResult, targetLevel: string): number {
   let score = 0;
 
   // Score de base selon la longueur (articles plus longs = plus complets)
@@ -1325,24 +1223,8 @@ function calculateRelevanceScore(
   // Bonus pour les mots clés éducatifs dans le snippet
   const snippet = (article.snippet || "").toLowerCase();
   const educationalKeywords = {
-    BREVET: [
-      "histoire",
-      "géographie",
-      "français",
-      "mathématiques",
-      "sciences",
-      "cours",
-      "leçon",
-    ],
-    BAC: [
-      "analyse",
-      "étude",
-      "recherche",
-      "théorie",
-      "méthode",
-      "concept",
-      "développement",
-    ],
+    BREVET: ["histoire", "géographie", "français", "mathématiques", "sciences", "cours", "leçon"],
+    BAC: ["analyse", "étude", "recherche", "théorie", "méthode", "concept", "développement"],
     PARTIELS: [
       "université",
       "recherche",
@@ -1353,11 +1235,8 @@ function calculateRelevanceScore(
     ],
   };
 
-  const keywords =
-    educationalKeywords[targetLevel as keyof typeof educationalKeywords] || [];
-  const keywordMatches = keywords.filter((keyword) =>
-    snippet.includes(keyword),
-  ).length;
+  const keywords = educationalKeywords[targetLevel as keyof typeof educationalKeywords] || [];
+  const keywordMatches = keywords.filter((keyword) => snippet.includes(keyword)).length;
   score += keywordMatches * 0.1;
 
   // Pénalité pour les articles trop courts
@@ -1497,8 +1376,7 @@ MISSION: Trouve le MEILLEUR article Wikipedia pour un quiz ${subject} niveau ${l
       temperature: 0.3,
     });
 
-    const searchTerms =
-      searchResponse.choices[0].message.content?.split(", ") || [];
+    const searchTerms = searchResponse.choices[0].message.content?.split(", ") || [];
     logger.log(`🎯 IA génère: ${searchTerms.join(", ")}`);
 
     // 3. Recherches Wikipedia parallèles
@@ -1558,11 +1436,7 @@ Réponds: {numéro}|{justification courte et précise}`,
     const [indexStr, justification] = scoringResult.split("|");
     const bestIndex = parseInt(indexStr);
 
-    if (
-      isNaN(bestIndex) ||
-      bestIndex < 0 ||
-      bestIndex >= searchResults.length
-    ) {
+    if (isNaN(bestIndex) || bestIndex < 0 || bestIndex >= searchResults.length) {
       throw new Error(`Index invalide: ${bestIndex}`);
     }
 
@@ -1572,10 +1446,7 @@ Réponds: {numéro}|{justification courte et précise}`,
     // 5. Récupération contenu complet + extraction 6500 chars avec IA
     logger.log(`📖 Lecture complète de "${bestArticle.title}"...`);
 
-    let fullContent = await getWikipediaArticleContent(
-      bestArticle.pageid,
-      100000,
-    ); // Page complète
+    let fullContent = await getWikipediaArticleContent(bestArticle.pageid, 100000); // Page complète
 
     if (!fullContent?.extract || fullContent.extract.length < 1000) {
       logger.log(
@@ -1586,10 +1457,7 @@ Réponds: {numéro}|{justification courte et précise}`,
       if (searchResults.length > 1) {
         logger.log(`🔄 Essai avec le 2ème article...`);
         const secondBest = searchResults[1];
-        const secondContent = await getWikipediaArticleContent(
-          secondBest.pageid,
-          100000,
-        );
+        const secondContent = await getWikipediaArticleContent(secondBest.pageid, 100000);
 
         if (secondContent?.extract && secondContent.extract.length >= 1000) {
           logger.log(
@@ -1600,23 +1468,17 @@ Réponds: {numéro}|{justification courte et précise}`,
           bestArticle.pageid = secondBest.pageid;
           fullContent = secondContent;
         } else {
-          throw new Error(
-            `Tous les articles Wikipedia trouvés sont trop courts`,
-          );
+          throw new Error(`Tous les articles Wikipedia trouvés sont trop courts`);
         }
       } else {
-        throw new Error(
-          "Contenu Wikipedia trop court ou inexistant et aucun fallback disponible",
-        );
+        throw new Error("Contenu Wikipedia trop court ou inexistant et aucun fallback disponible");
       }
     }
 
     // At this point fullContent is guaranteed to be non-null with valid extract
     const validContent = fullContent as WikipediaArticleContent;
 
-    logger.log(
-      `📄 Contenu récupéré: ${validContent.extract.length} caractères`,
-    );
+    logger.log(`📄 Contenu récupéré: ${validContent.extract.length} caractères`);
     logger.log(`🤖 IA extrait 6500 meilleurs caractères...`);
 
     // 6. Extraction intelligente 6500 caractères par l'IA
@@ -1658,8 +1520,7 @@ Extrais les 6500 meilleurs caractères pour un quiz ${subject} niveau ${level}:`
       temperature: 0.1,
     });
 
-    const extractedContent =
-      extractionResponse.choices[0].message.content?.trim();
+    const extractedContent = extractionResponse.choices[0].message.content?.trim();
 
     if (!extractedContent || extractedContent.length < 2000) {
       logger.log(
@@ -1699,9 +1560,7 @@ Extrais les 6500 meilleurs caractères pour un quiz ${subject} niveau ${level}:`
 // ========================================================================
 
 // Fonctions stub pour compatibilité (à implémenter si nécessaire)
-async function correctQuizStandard(
-  args: CorrectQuizArgs,
-): Promise<CorrectionResult> {
+async function correctQuizStandard(args: CorrectQuizArgs): Promise<CorrectionResult> {
   logger.log("🎯 correctQuizStandard appelée avec:", args);
 
   try {
@@ -1713,9 +1572,7 @@ async function correctQuizStandard(
       throw new Error("Paramètres manquants: corrections requis");
     }
 
-    logger.log(
-      `📝 Correction standard avec ${corrections.length} corrections`,
-    );
+    logger.log(`📝 Correction standard avec ${corrections.length} corrections`);
 
     // L'Assistant OpenAI a déjà traité les corrections - on retourne directement le résultat
     const result = {
@@ -1737,28 +1594,16 @@ async function correctQuizStandard(
   }
 }
 
-async function correctQuizWithGraphics(
-  _args: CorrectQuizArgs,
-): Promise<CorrectionResult> {
-  throw new Error(
-    "correctQuizWithGraphics: Non implémenté dans le nouveau système",
-  );
+async function correctQuizWithGraphics(_args: CorrectQuizArgs): Promise<CorrectionResult> {
+  throw new Error("correctQuizWithGraphics: Non implémenté dans le nouveau système");
 }
 
-async function correctQuizWithDocuments(
-  _args: CorrectQuizArgs,
-): Promise<CorrectionResult> {
-  throw new Error(
-    "correctQuizWithDocuments: Non implémenté dans le nouveau système",
-  );
+async function correctQuizWithDocuments(_args: CorrectQuizArgs): Promise<CorrectionResult> {
+  throw new Error("correctQuizWithDocuments: Non implémenté dans le nouveau système");
 }
 
-async function correctQuizComplete(
-  _args: CorrectQuizArgs,
-): Promise<CorrectionResult> {
-  throw new Error(
-    "correctQuizComplete: Non implémenté dans le nouveau système",
-  );
+async function correctQuizComplete(_args: CorrectQuizArgs): Promise<CorrectionResult> {
+  throw new Error("correctQuizComplete: Non implémenté dans le nouveau système");
 }
 
 async function validateWithAI(

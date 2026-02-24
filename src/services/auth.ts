@@ -22,9 +22,7 @@ export interface AuthUser {
 
 // Validation et initialisation du client Clerk
 if (!process.env.CLERK_SECRET_KEY) {
-  logger.error(
-    "❌ CRITIQUE: CLERK_SECRET_KEY manquante. Le service ne peut pas démarrer.",
-  );
+  logger.error("❌ CRITIQUE: CLERK_SECRET_KEY manquante. Le service ne peut pas démarrer.");
   process.exit(1);
 }
 
@@ -38,9 +36,7 @@ export class AuthService {
   static async verifyAuth(): Promise<AuthUser | null> {
     try {
       // Cette méthode est désormais utilisée principalement pour les tokens
-      logger.warn(
-        "verifyAuth() sans token - utiliser verifyToken() à la place",
-      );
+      logger.warn("verifyAuth() sans token - utiliser verifyToken() à la place");
       return null;
     } catch (error) {
       logger.error("Erreur vérification auth:", error);
@@ -61,13 +57,8 @@ export class AuthService {
       });
 
       // Double vérification de l'expiration pour renforcer la sécurité
-      if (
-        !sessionToken ||
-        (sessionToken.exp && sessionToken.exp * 1000 < Date.now())
-      ) {
-        logger.warn(
-          "[AuthService] Tentative d'utilisation d'un token expiré.",
-        );
+      if (!sessionToken || (sessionToken.exp && sessionToken.exp * 1000 < Date.now())) {
+        logger.warn("[AuthService] Tentative d'utilisation d'un token expiré.");
         return null;
       }
 
@@ -85,21 +76,17 @@ export class AuthService {
           firstName: user.firstName || "",
           lastName: user.lastName || "",
           avatar: user.imageUrl || "",
-          displayName:
-            user.fullName ||
-            `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+          displayName: user.fullName || `${user.firstName || ""} ${user.lastName || ""}`.trim(),
           // Récupérer depuis publicMetadata/privateMetadata si définis
           timezone: user.publicMetadata?.timezone as string,
           language: (user.publicMetadata?.language as string) || "fr",
           theme: (user.publicMetadata?.theme as string) || "light",
-          autocompletionEnabled:
-            (user.publicMetadata?.autocompletionEnabled as boolean) ?? true,
+          autocompletionEnabled: (user.publicMetadata?.autocompletionEnabled as boolean) ?? true,
         },
       };
     } catch (error) {
       // Clerk lèvera une erreur si le token est invalide ou expiré, c'est normal
-      const isExpiredError =
-        error instanceof Error && error.message.includes("expired");
+      const isExpiredError = error instanceof Error && error.message.includes("expired");
       if (!isExpiredError) {
         logger.error("Erreur vérification token Clerk:", error);
       }
@@ -109,24 +96,16 @@ export class AuthService {
 
   // Note: Clerk gère la création d'utilisateurs via son interface web
   // Ces méthodes ne sont plus nécessaires avec Clerk
-  static async createUser(
-    email: string,
-    password: string,
-    metadata?: Record<string, unknown>,
-  ) {
+  static async createUser(email: string, password: string, metadata?: Record<string, unknown>) {
     throw new Error("Utilisez l'interface Clerk pour créer des utilisateurs");
   }
 
   static async deleteUser(userId: string) {
-    throw new Error(
-      "Utilisez l'interface Clerk pour supprimer des utilisateurs",
-    );
+    throw new Error("Utilisez l'interface Clerk pour supprimer des utilisateurs");
   }
 
   static async updateUserPassword(userId: string, newPassword: string) {
-    throw new Error(
-      "Utilisez l'interface Clerk pour changer les mots de passe",
-    );
+    throw new Error("Utilisez l'interface Clerk pour changer les mots de passe");
   }
 
   static async updateUserEmail(userId: string, newEmail: string) {
@@ -134,10 +113,7 @@ export class AuthService {
   }
 
   // Mettre à jour les métadonnées d'un utilisateur via Clerk
-  static async updateUserMetadata(
-    userId: string,
-    metadata: Record<string, unknown>,
-  ) {
+  static async updateUserMetadata(userId: string, metadata: Record<string, unknown>) {
     try {
       // Note: Cette méthode nécessiterait l'API Backend de Clerk
       // Pour l'instant, nous indiquons que cela doit être fait via l'interface
@@ -149,12 +125,7 @@ export class AuthService {
   }
 
   // Note: Clerk gère la vérification des mots de passe automatiquement
-  static async verifyCurrentPassword(
-    email: string,
-    password: string,
-  ): Promise<boolean> {
-    throw new Error(
-      "Clerk gère la vérification des mots de passe automatiquement",
-    );
+  static async verifyCurrentPassword(email: string, password: string): Promise<boolean> {
+    throw new Error("Clerk gère la vérification des mots de passe automatiquement");
   }
 }

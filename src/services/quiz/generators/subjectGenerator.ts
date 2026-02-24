@@ -102,15 +102,8 @@ export class SubjectGenerator {
   /**
    * Génère des sujets thématiques pour un preset donné (version optimisée)
    */
-  static async generateSubjects(
-    request: QuizGenerationRequest,
-  ): Promise<QuizSubject[]> {
-    const {
-      preset,
-      schoolLevel,
-      specificSubject,
-      questionCount = 30,
-    } = request;
+  static async generateSubjects(request: QuizGenerationRequest): Promise<QuizSubject[]> {
+    const { preset, schoolLevel, specificSubject, questionCount = 30 } = request;
 
     // Calculer le nombre de sujets et questions par sujet
     const subjectCount = this.getSubjectCount(preset, schoolLevel);
@@ -121,11 +114,7 @@ export class SubjectGenerator {
     );
 
     // **OPTIMISATION**: Générer tous les sujets en une seule requête IA
-    return await this.generateAllSubjectsOptimized(
-      request,
-      subjectCount,
-      questionsPerSubject,
-    );
+    return await this.generateAllSubjectsOptimized(request, subjectCount, questionsPerSubject);
   }
 
   /**
@@ -203,76 +192,68 @@ IMPORTANT:
           id: uuidv4(),
           title: subjectData.title,
           description: subjectData.description,
-          questions: subjectData.questions.map(
-            (q: AIGeneratedQuestionData): Question => {
-              // Base question properties
-              const baseQuestion = {
-                id: q.id || uuidv4(),
-                question: q.question,
-                difficulty: q.difficulty,
-                points: q.points,
-                category: q.category || subjectData.title,
-                subjectId: subjectData.title,
-                timeEstimate: 90,
-              };
+          questions: subjectData.questions.map((q: AIGeneratedQuestionData): Question => {
+            // Base question properties
+            const baseQuestion = {
+              id: q.id || uuidv4(),
+              question: q.question,
+              difficulty: q.difficulty,
+              points: q.points,
+              category: q.category || subjectData.title,
+              subjectId: subjectData.title,
+              timeEstimate: 90,
+            };
 
-              // Conversion choices -> options pour MULTIPLE_CHOICE
-              if (
-                q.type === QuestionType.MULTIPLE_CHOICE &&
-                q.choices &&
-                Array.isArray(q.choices)
-              ) {
-                return {
-                  ...baseQuestion,
-                  type: QuestionType.MULTIPLE_CHOICE,
-                  options: q.choices.map(
-                    (choice: string, choiceIndex: number) => ({
-                      id: `option_${choiceIndex + 1}`,
-                      text: choice,
-                      isCorrect: false, // À définir côté correction
-                    }),
-                  ),
-                };
-              }
-
-              // If already has options array
-              if (q.options && Array.isArray(q.options)) {
-                return {
-                  ...baseQuestion,
-                  type: QuestionType.MULTIPLE_CHOICE,
-                  options: q.options.map((o) => ({
-                    ...o,
-                    isCorrect: o.isCorrect ?? false,
-                  })),
-                };
-              }
-
-              // For TRUE_FALSE questions
-              if (q.type === QuestionType.TRUE_FALSE) {
-                return {
-                  ...baseQuestion,
-                  type: QuestionType.TRUE_FALSE,
-                  correctAnswer: q.correctAnswer ?? true,
-                };
-              }
-
-              // For OPEN_QUESTION
-              if (q.type === QuestionType.OPEN_QUESTION) {
-                return {
-                  ...baseQuestion,
-                  type: QuestionType.OPEN_QUESTION,
-                  expectedAnswer: q.expectedAnswer,
-                };
-              }
-
-              // Default to MULTIPLE_CHOICE with empty options
+            // Conversion choices -> options pour MULTIPLE_CHOICE
+            if (q.type === QuestionType.MULTIPLE_CHOICE && q.choices && Array.isArray(q.choices)) {
               return {
                 ...baseQuestion,
                 type: QuestionType.MULTIPLE_CHOICE,
-                options: [],
+                options: q.choices.map((choice: string, choiceIndex: number) => ({
+                  id: `option_${choiceIndex + 1}`,
+                  text: choice,
+                  isCorrect: false, // À définir côté correction
+                })),
               };
-            },
-          ),
+            }
+
+            // If already has options array
+            if (q.options && Array.isArray(q.options)) {
+              return {
+                ...baseQuestion,
+                type: QuestionType.MULTIPLE_CHOICE,
+                options: q.options.map((o) => ({
+                  ...o,
+                  isCorrect: o.isCorrect ?? false,
+                })),
+              };
+            }
+
+            // For TRUE_FALSE questions
+            if (q.type === QuestionType.TRUE_FALSE) {
+              return {
+                ...baseQuestion,
+                type: QuestionType.TRUE_FALSE,
+                correctAnswer: q.correctAnswer ?? true,
+              };
+            }
+
+            // For OPEN_QUESTION
+            if (q.type === QuestionType.OPEN_QUESTION) {
+              return {
+                ...baseQuestion,
+                type: QuestionType.OPEN_QUESTION,
+                expectedAnswer: q.expectedAnswer,
+              };
+            }
+
+            // Default to MULTIPLE_CHOICE with empty options
+            return {
+              ...baseQuestion,
+              type: QuestionType.MULTIPLE_CHOICE,
+              options: [],
+            };
+          }),
           timeLimit: subjectData.timeLimit || questionsPerSubject * 2,
           difficulty: this.determineDifficulty(request.schoolLevel),
           category: subjectData.category || subjectName,
@@ -280,19 +261,12 @@ IMPORTANT:
         }),
       );
     } catch (error) {
-      logger.warn(
-        "⚠️ Erreur génération optimisée, fallback vers méthode individuelle:",
-        error,
-      );
+      logger.warn("⚠️ Erreur génération optimisée, fallback vers méthode individuelle:", error);
 
       // Fallback vers l'ancienne méthode
       const subjects: QuizSubject[] = [];
       for (let i = 0; i < subjectCount; i++) {
-        const subject = await this.generateSingleSubject(
-          request,
-          i,
-          questionsPerSubject,
-        );
+        const subject = await this.generateSingleSubject(request, i, questionsPerSubject);
         subjects.push(subject);
       }
       return subjects;
@@ -544,9 +518,7 @@ CONSIGNES:
   /**
    * Détermine si une matière a besoin de documents
    */
-  private static subjectNeedsDocuments(
-    request: QuizGenerationRequest,
-  ): boolean {
+  private static subjectNeedsDocuments(request: QuizGenerationRequest): boolean {
     const subjectName = this.getSubjectName(request).toLowerCase();
 
     return (
@@ -562,15 +534,10 @@ CONSIGNES:
    */
   private static getSubjectName(request: QuizGenerationRequest): string {
     // **PRIORITÉ 1**: Matière spécifique des Partiels depuis la configuration séquentielle
-    if (
-      request.preset === "PARTIELS" &&
-      request.sequentialConfig &&
-      request.higherEdField
-    ) {
+    if (request.preset === "PARTIELS" && request.sequentialConfig && request.higherEdField) {
       const config = request.sequentialConfig;
       if (config.subjectResults && config.currentSubjectIndex !== undefined) {
-        const currentSubjectResult =
-          config.subjectResults[config.currentSubjectIndex];
+        const currentSubjectResult = config.subjectResults[config.currentSubjectIndex];
 
         if (currentSubjectResult && currentSubjectResult.subjectName) {
           logger.log(
@@ -593,9 +560,7 @@ CONSIGNES:
 
     // **PRIORITÉ 3**: Filière d'études supérieures (Partiels - fallback)
     if (request.higherEdField) {
-      logger.log(
-        `🎯 Matière détectée: ${request.higherEdField} (filière d'études supérieures)`,
-      );
+      logger.log(`🎯 Matière détectée: ${request.higherEdField} (filière d'études supérieures)`);
       return request.higherEdField;
     }
 
@@ -618,8 +583,7 @@ CONSIGNES:
         GRAND_ORAL: "Grand Oral",
       };
 
-      const subjectName =
-        subjectNames[request.specificSubject] || request.specificSubject;
+      const subjectName = subjectNames[request.specificSubject] || request.specificSubject;
       logger.log(`🎯 Matière détectée: ${subjectName} (matière spécifique)`);
       return subjectName;
     }
@@ -632,10 +596,7 @@ CONSIGNES:
   /**
    * Détermine le nombre de sujets selon le preset
    */
-  private static getSubjectCount(
-    preset?: string,
-    schoolLevel?: SchoolLevel,
-  ): number {
+  private static getSubjectCount(preset?: string, schoolLevel?: SchoolLevel): number {
     // Pour les examens officiels, on utilise généralement 3 sujets
     // Cela peut être personnalisé selon les besoins
     return 3;
@@ -644,22 +605,16 @@ CONSIGNES:
   /**
    * Calcule le temps limite pour un sujet
    */
-  private static calculateTimeLimit(
-    questionCount: number,
-    schoolLevel?: SchoolLevel,
-  ): number {
+  private static calculateTimeLimit(questionCount: number, schoolLevel?: SchoolLevel): number {
     // Environ 2-3 minutes par question selon le niveau
-    const timePerQuestion =
-      schoolLevel === SchoolLevel.ETUDES_SUPERIEURES ? 3 : 2;
+    const timePerQuestion = schoolLevel === SchoolLevel.ETUDES_SUPERIEURES ? 3 : 2;
     return questionCount * timePerQuestion;
   }
 
   /**
    * Détermine la difficulté selon le niveau scolaire
    */
-  private static determineDifficulty(
-    schoolLevel?: SchoolLevel,
-  ): "facile" | "moyen" | "difficile" {
+  private static determineDifficulty(schoolLevel?: SchoolLevel): "facile" | "moyen" | "difficile" {
     switch (schoolLevel) {
       case SchoolLevel.COLLEGE:
         return "facile";

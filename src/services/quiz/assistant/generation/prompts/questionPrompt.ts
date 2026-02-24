@@ -55,15 +55,11 @@ export function buildSingleQuestionPrompt(
 
   // Debug: Vérifier toutes les propriétés
   logger.log(`[CHAT-COMPLETION-DEBUG] Propriétés reçues:`);
-  logger.log(
-    `  - ragContext: ${ragContext ? `${ragContext.length} chars` : "undefined/null"}`,
-  );
+  logger.log(`  - ragContext: ${ragContext ? `${ragContext.length} chars` : "undefined/null"}`);
   logger.log(`  - coursesOnly: ${coursesOnly}`);
   logger.log(`  - specificSubject: ${specificSubject}`);
   logger.log(`  - questionType: ${questionTypes[0]}`);
-  logger.log(
-    `  - personalization: ${personalization?.hasPersonalization ? "OUI" : "NON"}`,
-  );
+  logger.log(`  - personalization: ${personalization?.hasPersonalization ? "OUI" : "NON"}`);
 
   // Générer un ID unique pour la question
   const questionId = generateQuestionId();
@@ -76,9 +72,7 @@ export function buildSingleQuestionPrompt(
 
   // Utiliser le domaine personnalisé si disponible et pertinent
   const effectiveSubject =
-    personalization?.domaine &&
-    personalization.hasPersonalization &&
-    !specificSubject
+    personalization?.domaine && personalization.hasPersonalization && !specificSubject
       ? personalization.domaine
       : specificSubject || "General";
 

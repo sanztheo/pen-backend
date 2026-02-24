@@ -23,8 +23,7 @@ export const aiBurstRateLimit = rateLimit({
   message: {
     success: false,
     error: "AI_BURST_LIMIT_EXCEEDED",
-    message:
-      "Trop de requêtes IA en peu de temps. Veuillez patienter quelques secondes.",
+    message: "Trop de requêtes IA en peu de temps. Veuillez patienter quelques secondes.",
     retryAfter: "60 seconds",
   },
   keyGenerator: (req) => {

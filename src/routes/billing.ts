@@ -1,9 +1,6 @@
 import express from "express";
 import { logger } from "../utils/logger.js";
-import {
-  PaddleBillingService,
-  paddle,
-} from "../services/billing/paddleBilling.js";
+import { PaddleBillingService, paddle } from "../services/billing/paddleBilling.js";
 import { authenticateToken } from "../middlewares/auth.js";
 import { validateEmail } from "../middlewares/validateEmail.js";
 import { prisma } from "../lib/prisma.js";
@@ -74,70 +71,65 @@ router.get("/stats", authenticateToken, async (req, res) => {
  * Genere les informations necessaires pour ouvrir un checkout Paddle
  * Le checkout est ouvert cote frontend avec Paddle.js
  */
-router.post(
-  "/checkout-session",
-  authenticateToken,
-  validateEmail,
-  async (req, res) => {
-    try {
-      const userId = req.user?.id;
-      const userEmail = req.user?.email;
+router.post("/checkout-session", authenticateToken, validateEmail, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userEmail = req.user?.email;
 
-      if (!userId) {
-        return res.status(401).json({ error: "Utilisateur non authentifie" });
-      }
-
-      const { priceId, interval } = req.body;
-
-      // Determiner le priceId si non fourni
-      const selectedPriceId =
-        priceId ||
-        (interval === "yearly"
-          ? PADDLE_CONFIG.prices.premiumYearly
-          : PADDLE_CONFIG.prices.premiumMonthly);
-
-      if (!selectedPriceId) {
-        return res.status(400).json({ error: "Prix non configure" });
-      }
-
-      // Check if user already had a trial (trialStart not null)
-      const existingSubscription = await prisma.userSubscription.findUnique({
-        where: { userId },
-        select: { trialStart: true },
-      });
-
-      const hadTrial = existingSubscription?.trialStart !== null;
-
-      logger.log(`[BILLING] Checkout session pour user ${userId}:`, {
-        priceId: selectedPriceId,
-        email: userEmail,
-        hadTrial,
-      });
-
-      // Retourner les infos pour le checkout frontend
-      // Le checkout sera ouvert avec Paddle.Checkout.open() cote client
-      res.json({
-        success: true,
-        checkout: {
-          priceId: selectedPriceId,
-          customData: {
-            clerkUserId: userId,
-          },
-          customer: {
-            email: userEmail,
-          },
-        },
-        hadTrial, // Inform frontend if user already had trial
-      });
-    } catch (error) {
-      logger.error("[API] Erreur creation checkout session:", error);
-      res.status(500).json({
-        error: "Erreur lors de la creation de la session checkout",
-        details: "Une erreur est survenue",
-      });
+    if (!userId) {
+      return res.status(401).json({ error: "Utilisateur non authentifie" });
     }
-  },
-);
+
+    const { priceId, interval } = req.body;
+
+    // Determiner le priceId si non fourni
+    const selectedPriceId =
+      priceId ||
+      (interval === "yearly"
+        ? PADDLE_CONFIG.prices.premiumYearly
+        : PADDLE_CONFIG.prices.premiumMonthly);
+
+    if (!selectedPriceId) {
+      return res.status(400).json({ error: "Prix non configure" });
+    }
+
+    // Check if user already had a trial (trialStart not null)
+    const existingSubscription = await prisma.userSubscription.findUnique({
+      where: { userId },
+      select: { trialStart: true },
+    });
+
+    const hadTrial = existingSubscription?.trialStart !== null;
+
+    logger.log(`[BILLING] Checkout session pour user ${userId}:`, {
+      priceId: selectedPriceId,
+      email: userEmail,
+      hadTrial,
+    });
+
+    // Retourner les infos pour le checkout frontend
+    // Le checkout sera ouvert avec Paddle.Checkout.open() cote client
+    res.json({
+      success: true,
+      checkout: {
+        priceId: selectedPriceId,
+        customData: {
+          clerkUserId: userId,
+        },
+        customer: {
+          email: userEmail,
+        },
+      },
+      hadTrial, // Inform frontend if user already had trial
+    });
+  } catch (error) {
+    logger.error("[API] Erreur creation checkout session:", error);
+    res.status(500).json({
+      error: "Erreur lors de la creation de la session checkout",
+      details: "Une erreur est survenue",
+    });
+  }
+});
 
 /**
  * GET /api/billing/portal-url
@@ -169,9 +161,7 @@ router.get("/portal-url", authenticateToken, async (req, res) => {
 
     // Generer l'URL de mise a jour du paiement via l'API Paddle
     try {
-      const paddleSubscription = await paddle.subscriptions.get(
-        subscription.paddleSubscriptionId,
-      );
+      const paddleSubscription = await paddle.subscriptions.get(subscription.paddleSubscriptionId);
 
       // L'URL de gestion est dans managementUrls
       const portalUrl =
@@ -194,10 +184,7 @@ router.get("/portal-url", authenticateToken, async (req, res) => {
       logger.error("[API] Erreur API Paddle:", paddleError);
       return res.status(500).json({
         error: "Erreur lors de la recuperation du portail Paddle",
-        details:
-          paddleError instanceof Error
-            ? paddleError.message
-            : "Une erreur est survenue",
+        details: paddleError instanceof Error ? paddleError.message : "Une erreur est survenue",
       });
     }
   } catch (error) {

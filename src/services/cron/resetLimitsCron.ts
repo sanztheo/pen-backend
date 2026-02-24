@@ -48,16 +48,11 @@ export function startDailyLimitsReset() {
         SecureLogger.debug("✨ [CRON] Aucun utilisateur à réinitialiser");
       }
     } catch (error) {
-      SecureLogger.error(
-        "❌ [CRON] Erreur lors du reset automatique des limites",
-        error,
-      );
+      SecureLogger.error("❌ [CRON] Erreur lors du reset automatique des limites", error);
     }
   });
 
-  SecureLogger.log(
-    "🕐 [CRON] Job de reset quotidien initialisé (tous les jours à minuit)",
-  );
+  SecureLogger.log("🕐 [CRON] Job de reset quotidien initialisé (tous les jours à minuit)");
 }
 
 /**
@@ -84,13 +79,10 @@ export async function manualResetLimits(): Promise<number> {
       },
     });
 
-    SecureLogger.log(
-      `✅ [MANUAL-RESET] Reset manuel réussi: ${result.count} utilisateur(s)`,
-      {
-        count: result.count,
-        timestamp: now.toISOString(),
-      },
-    );
+    SecureLogger.log(`✅ [MANUAL-RESET] Reset manuel réussi: ${result.count} utilisateur(s)`, {
+      count: result.count,
+      timestamp: now.toISOString(),
+    });
 
     return result.count;
   } catch (error) {
@@ -113,15 +105,10 @@ export async function forceResetUserLimits(userId: string): Promise<boolean> {
       },
     });
 
-    SecureLogger.log(
-      `✅ [FORCE-RESET] Reset forcé pour l'utilisateur ${userId}`,
-    );
+    SecureLogger.log(`✅ [FORCE-RESET] Reset forcé pour l'utilisateur ${userId}`);
     return true;
   } catch (error) {
-    SecureLogger.error(
-      `❌ [FORCE-RESET] Erreur reset utilisateur ${userId}`,
-      error,
-    );
+    SecureLogger.error(`❌ [FORCE-RESET] Erreur reset utilisateur ${userId}`, error);
     return false;
   }
 }

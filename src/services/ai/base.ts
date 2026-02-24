@@ -1,8 +1,7 @@
 import OpenAI from "openai";
 import { logger } from "../../utils/logger.js";
 
-const DEFAULT_MODEL =
-  process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL;
+const DEFAULT_MODEL = process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL;
 
 // 🔥 LAZY INITIALIZATION: N'initialise les clients que quand nécessaire
 let openai: OpenAI | null = null;
@@ -88,29 +87,20 @@ export class AIService {
   static async testConnection(): Promise<boolean> {
     try {
       if (!this.isConfigured()) {
-        logger.error(
-          "❌ OPENAI_API_KEY ou OPENAI_DASHBOARD_MODEL/OPENAI_MODEL non configurés",
-        );
+        logger.error("❌ OPENAI_API_KEY ou OPENAI_DASHBOARD_MODEL/OPENAI_MODEL non configurés");
         return false;
       }
 
       const client = getOpenAIInstance();
       const response = await client.chat.completions.create({
         model: DEFAULT_MODEL!,
-        messages: [
-          { role: "user", content: 'Test de connexion - réponds juste "OK"' },
-        ],
+        messages: [{ role: "user", content: 'Test de connexion - réponds juste "OK"' }],
         max_tokens: 10,
       });
 
       const isSuccess =
-        response.choices[0]?.message?.content?.toLowerCase().includes("ok") ||
-        false;
-      logger.log(
-        isSuccess
-          ? "✅ Connexion OpenAI réussie"
-          : "⚠️ Réponse inattendue de OpenAI",
-      );
+        response.choices[0]?.message?.content?.toLowerCase().includes("ok") || false;
+      logger.log(isSuccess ? "✅ Connexion OpenAI réussie" : "⚠️ Réponse inattendue de OpenAI");
       return isSuccess;
     } catch (error) {
       logger.error("❌ Erreur connexion OpenAI:", error);
@@ -170,9 +160,7 @@ export class AIService {
   /**
    * Générer du contenu avec l'IA
    */
-  static async generateContent(
-    options: AIGenerationOptions,
-  ): Promise<AIGenerationResult> {
+  static async generateContent(options: AIGenerationOptions): Promise<AIGenerationResult> {
     const { ContentGenerationService } = await import("./contentGeneration.js");
     return ContentGenerationService.generateContent(options);
   }
@@ -192,10 +180,7 @@ export class AIService {
   /**
    * Améliorer du contenu existant
    */
-  static async improveContent(
-    content: string,
-    instructions?: string,
-  ): Promise<AIGenerationResult> {
+  static async improveContent(content: string, instructions?: string): Promise<AIGenerationResult> {
     const { ContentGenerationService } = await import("./contentGeneration.js");
     return ContentGenerationService.improveContent(content, instructions);
   }
@@ -225,10 +210,7 @@ export class AIService {
   /**
    * Générer des idées/suggestions
    */
-  static async generateIdeas(
-    topic: string,
-    count: number = 5,
-  ): Promise<AIGenerationResult> {
+  static async generateIdeas(topic: string, count: number = 5): Promise<AIGenerationResult> {
     const { ContentGenerationService } = await import("./contentGeneration.js");
     return ContentGenerationService.generateIdeas(topic, count);
   }

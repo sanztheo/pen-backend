@@ -35,10 +35,7 @@ router.get("/:id/pages", async (req, res) => {
     const workspace = await prisma.workspace.findFirst({
       where: {
         id,
-        OR: [
-          { ownerId: userId },
-          { members: { some: { userId, isActive: true } } },
-        ],
+        OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
       },
     });
 

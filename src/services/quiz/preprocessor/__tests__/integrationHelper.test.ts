@@ -166,9 +166,7 @@ describe("runPreprocessorForGeneration", () => {
       pageProjectIds: ["page-1"],
     };
 
-    await expect(runPreprocessorForGeneration(params)).rejects.toThrow(
-      "Contenu insuffisant",
-    );
+    await expect(runPreprocessorForGeneration(params)).rejects.toThrow("Contenu insuffisant");
   });
 
   it("should detect formulas in content", async () => {
@@ -187,9 +185,7 @@ describe("runPreprocessorForGeneration", () => {
           },
           {
             type: "paragraph",
-            content: [
-              { text: "This formula helps solve quadratic equations..." },
-            ],
+            content: [{ text: "This formula helps solve quadratic equations..." }],
           },
         ]),
       },
@@ -323,10 +319,7 @@ describe("runPreprocessorForGeneration", () => {
 
     expect(quizPreprocessorAgent.analyzeAndRecommend).toHaveBeenCalledWith(
       expect.objectContaining({
-        sourceTopics: expect.arrayContaining([
-          "Photosynthesis",
-          "Cell Respiration",
-        ]),
+        sourceTopics: expect.arrayContaining(["Photosynthesis", "Cell Respiration"]),
       }),
       "user-1",
     );
@@ -390,9 +383,7 @@ describe("runPreprocessorForGeneration", () => {
         blockNoteContent: JSON.stringify([
           {
             type: "paragraph",
-            content: [
-              { text: "Enough content to generate a quiz from this..." },
-            ],
+            content: [{ text: "Enough content to generate a quiz from this..." }],
           },
         ]),
       },
@@ -570,9 +561,7 @@ describe("Integration Helper - Edge Cases", () => {
     };
 
     // Should not crash, but should fail on insufficient content
-    await expect(runPreprocessorForGeneration(params)).rejects.toThrow(
-      "Contenu insuffisant",
-    );
+    await expect(runPreprocessorForGeneration(params)).rejects.toThrow("Contenu insuffisant");
   });
 
   it("should handle empty pageProjectIds and workspaceIds", async () => {
@@ -583,9 +572,7 @@ describe("Integration Helper - Edge Cases", () => {
       workspaceIds: [],
     };
 
-    await expect(runPreprocessorForGeneration(params)).rejects.toThrow(
-      "Contenu insuffisant",
-    );
+    await expect(runPreprocessorForGeneration(params)).rejects.toThrow("Contenu insuffisant");
   });
 
   it("should handle missing userLimits", async () => {

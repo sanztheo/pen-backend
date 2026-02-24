@@ -1,5 +1,5 @@
-import { Router } from 'express';
-import { QuizStatsController } from '../controllers/quizStats.js';
+import { Router } from "express";
+import { QuizStatsController } from "../controllers/quizStats.js";
 
 const router = Router();
 
@@ -9,33 +9,32 @@ const router = Router();
  */
 
 // Récupérer toutes les stats en une fois (optimisé)
-router.get('/all', QuizStatsController.getAllStats);
+router.get("/all", QuizStatsController.getAllStats);
 
 // Stats avancées générales
-router.get('/advanced', QuizStatsController.getAdvancedStats);
+router.get("/advanced", QuizStatsController.getAdvancedStats);
 
 // Progression dans le temps
-router.get('/progression', QuizStatsController.getProgression);
+router.get("/progression", QuizStatsController.getProgression);
 
 // Répartition par matière
-router.get('/subjects', QuizStatsController.getSubjectBreakdown);
+router.get("/subjects", QuizStatsController.getSubjectBreakdown);
 
 // Analyse par difficulté
-router.get('/difficulty', QuizStatsController.getDifficultyAnalysis);
+router.get("/difficulty", QuizStatsController.getDifficultyAnalysis);
 
 // Analyse du temps
-router.get('/time', QuizStatsController.getTimeAnalytics);
+router.get("/time", QuizStatsController.getTimeAnalytics);
 
 // Pages sources utilisées
-router.get('/sources', QuizStatsController.getPageSources);
+router.get("/sources", QuizStatsController.getPageSources);
 
 // Types de questions
-router.get('/question-types', QuizStatsController.getQuestionTypeStats);
+router.get("/question-types", QuizStatsController.getQuestionTypeStats);
 
 // Layout du dashboard
-router.get('/layout', QuizStatsController.getLayout);
-router.put('/layout', QuizStatsController.saveLayout);
-router.post('/layout/reset', QuizStatsController.resetLayout);
+router.get("/layout", QuizStatsController.getLayout);
+router.put("/layout", QuizStatsController.saveLayout);
+router.post("/layout/reset", QuizStatsController.resetLayout);
 
 export { router as quizStatsRouter };
-

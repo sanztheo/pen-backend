@@ -18,19 +18,11 @@ router.get("/stream/:sessionId", QuizStreamingController.streamQuizGeneration);
 router.use(authenticateToken);
 
 // Routes de génération et gestion des quiz
-router.post(
-  "/generate",
-  requireCustomQuizLimits(),
-  QuizController.generateQuiz,
-);
+router.post("/generate", requireCustomQuizLimits(), QuizController.generateQuiz);
 
 // PEN-35: Route pour le preprocessor (analyse et recommandations)
 // SÉCURITÉ: Rate limit par userId (30 req/15min) pour éviter abus de l'IA
-router.post(
-  "/preprocess",
-  preprocessorRateLimit,
-  QuizController.preprocessQuiz,
-);
+router.post("/preprocess", preprocessorRateLimit, QuizController.preprocessQuiz);
 
 // ===== NOUVELLES ROUTES POUR LE STREAMING =====
 // Approche EventSource avec session
@@ -64,10 +56,7 @@ router.get("/:id", QuizController.getQuiz);
 router.post("/:id/submit", QuizController.submitQuiz);
 
 // ===== NOUVELLE ROUTE POUR CORRECTION STREAMING =====
-router.post(
-  "/submit-and-correct-stream",
-  QuizStreamingController.submitAndCorrectStream,
-);
+router.post("/submit-and-correct-stream", QuizStreamingController.submitAndCorrectStream);
 
 // ===== NOUVELLE ROUTE POUR CORRECTION RAPIDE =====
 router.post("/save-fast-correction", QuizController.saveFastCorrection);
@@ -75,30 +64,17 @@ router.post("/save-fast-correction", QuizController.saveFastCorrection);
 // ===== NOUVELLES ROUTES POUR QUIZ SÉQUENTIELS =====
 
 // Routes de gestion des presets et quiz séquentiels
-router.post(
-  "/preset/start",
-  requirePresetSequenceLimits(),
-  QuizController.startPresetSequence,
-);
+router.post("/preset/start", requirePresetSequenceLimits(), QuizController.startPresetSequence);
 router.get("/sequence/:sequenceId", QuizController.getSequenceStatus);
 router.post("/sequence/:sequenceId/next", QuizController.generateNextQuiz);
 router.get("/sequence/:sequenceId/results", QuizController.getSequenceResults);
 
 // Routes pour corriger et naviguer dans les séquences
-router.post(
-  "/sequence/:sequenceId/quiz/:quizId/submit",
-  QuizController.submitSequentialQuiz,
-);
-router.get(
-  "/sequence/:sequenceId/quiz/:quizId/correction",
-  QuizController.getQuizCorrection,
-);
+router.post("/sequence/:sequenceId/quiz/:quizId/submit", QuizController.submitSequentialQuiz);
+router.get("/sequence/:sequenceId/quiz/:quizId/correction", QuizController.getQuizCorrection);
 
 // 🔧 ROUTE DEBUG - Forcer la réinitialisation d'état de séquence
-router.post(
-  "/sequence/:sequenceId/debug/force-reset",
-  QuizController.forceResetSequenceState,
-);
+router.post("/sequence/:sequenceId/debug/force-reset", QuizController.forceResetSequenceState);
 
 // ===== NOUVELLES ROUTES POUR RECHERCHE DOCUMENTAIRE =====
 

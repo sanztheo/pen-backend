@@ -359,11 +359,7 @@ export interface MatchingQuestion extends BaseQuestion {
 }
 
 // Union type pour toutes les questions
-export type Question =
-  | OpenQuestion
-  | MultipleChoiceQuestion
-  | TrueFalseQuestion
-  | MatchingQuestion;
+export type Question = OpenQuestion | MultipleChoiceQuestion | TrueFalseQuestion | MatchingQuestion;
 
 // Structure d'un quiz généré
 export interface GeneratedQuiz {

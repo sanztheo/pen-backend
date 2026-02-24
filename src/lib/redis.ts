@@ -144,9 +144,7 @@ export const cacheProject = async (projectId: string, userId: string) => {
 /**
  * Cache DefaultWorkspace avec TTL 1 heure (rarement change)
  */
-export const cacheDefaultWorkspaceId = async (
-  userId: string,
-): Promise<string | null> => {
+export const cacheDefaultWorkspaceId = async (userId: string): Promise<string | null> => {
   try {
     const cacheKey = `default-workspace:${userId}`;
     const cached = await redis.get(cacheKey);
@@ -159,10 +157,7 @@ export const cacheDefaultWorkspaceId = async (
     logger.log(`❌ [REDIS-CACHE] DefaultWorkspace MISS: ${userId}`);
     const workspace = await prisma.workspace.findFirst({
       where: {
-        OR: [
-          { ownerId: userId },
-          { members: { some: { userId, isActive: true } } },
-        ],
+        OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
       },
       orderBy: { createdAt: "asc" },
     });
@@ -177,10 +172,7 @@ export const cacheDefaultWorkspaceId = async (
     logger.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
     const workspace = await prisma.workspace.findFirst({
       where: {
-        OR: [
-          { ownerId: userId },
-          { members: { some: { userId, isActive: true } } },
-        ],
+        OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
       },
       orderBy: { createdAt: "asc" },
     });
@@ -196,9 +188,7 @@ export const clearUserCache = async (userId: string) => {
     const keys = await redis.keys(`*:${userId}*`);
     if (keys.length > 0) {
       await redis.del(...keys);
-      logger.log(
-        `🗑️ [REDIS-CACHE] Cleared ${keys.length} keys for user ${userId}`,
-      );
+      logger.log(`🗑️ [REDIS-CACHE] Cleared ${keys.length} keys for user ${userId}`);
     }
   } catch (error) {
     logger.error("⚠️ [REDIS] Erreur nettoyage cache:", error);
@@ -317,10 +307,7 @@ const deserializeRAGSession = (session: RAGSessionData | null) => {
  * Cache Active RAG Session avec TTL 15 minutes
  * Optimisé pour usage mono-utilisateur (invalidation lors des updates)
  */
-export const cacheActiveRAGSession = async (
-  userId: string,
-  workspaceId: string,
-) => {
+export const cacheActiveRAGSession = async (userId: string, workspaceId: string) => {
   try {
     const cacheKey = `rag-session:${userId}:${workspaceId}`;
     const cached = await redis.get(cacheKey);
@@ -367,15 +354,10 @@ export const cacheActiveRAGSession = async (
 /**
  * Invalider le cache RAG Session (après update)
  */
-export const invalidateRAGSessionCache = async (
-  userId: string,
-  workspaceId: string,
-) => {
+export const invalidateRAGSessionCache = async (userId: string, workspaceId: string) => {
   try {
     await redis.del(`rag-session:${userId}:${workspaceId}`);
-    logger.log(
-      `🗑️ [REDIS-CACHE] RAG Session invalidated: ${userId}/${workspaceId}`,
-    );
+    logger.log(`🗑️ [REDIS-CACHE] RAG Session invalidated: ${userId}/${workspaceId}`);
   } catch (error) {
     logger.error("⚠️ [REDIS] Erreur invalidation cache RAG Session:", error);
   }
@@ -435,9 +417,7 @@ export const cacheQuotaUsage = async (quotaKey: string = "global") => {
 /**
  * Invalider le cache Quota Usage (après enregistrement)
  */
-export const invalidateQuotaUsageCache = async (
-  quotaKey: string = "global",
-) => {
+export const invalidateQuotaUsageCache = async (quotaKey: string = "global") => {
   try {
     await redis.del(`quota-usage:${quotaKey}`);
     logger.log(`🗑️ [REDIS-CACHE] Quota Usage invalidated: ${quotaKey}`);
@@ -497,25 +477,17 @@ export const invalidateSidebarCache = async (userId: string) => {
  * Cache Quiz History avec TTL 2 minutes
  * TTL court pour garantir la fraîcheur des données
  */
-export const cacheQuizHistory = async (
-  userId: string,
-  limit: number,
-  offset: number,
-) => {
+export const cacheQuizHistory = async (userId: string, limit: number, offset: number) => {
   try {
     const cacheKey = `quiz-history:${userId}:${limit}:${offset}`;
     const cached = await redis.get(cacheKey);
 
     if (cached) {
-      logger.log(
-        `✅ [REDIS-CACHE] Quiz History HIT: ${userId} (limit:${limit}, offset:${offset})`,
-      );
+      logger.log(`✅ [REDIS-CACHE] Quiz History HIT: ${userId} (limit:${limit}, offset:${offset})`);
       return JSON.parse(cached);
     }
 
-    logger.log(
-      `❌ [REDIS-CACHE] Quiz History MISS: ${userId} (limit:${limit}, offset:${offset})`,
-    );
+    logger.log(`❌ [REDIS-CACHE] Quiz History MISS: ${userId} (limit:${limit}, offset:${offset})`);
     return null;
   } catch (error) {
     logger.error("⚠️ [REDIS] Fallback to DB (cache error):", error);

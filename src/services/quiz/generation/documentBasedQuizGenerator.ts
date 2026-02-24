@@ -15,11 +15,7 @@ import {
   TrueFalseQuestion,
 } from "../types.js";
 import { z } from "zod";
-import {
-  documentSearchService,
-  DocumentChunk,
-  SearchRequest,
-} from "../documentSearchService.js";
+import { documentSearchService, DocumentChunk, SearchRequest } from "../documentSearchService.js";
 import { AIService } from "../../ai/base.js";
 import { getPartielsPrompt } from "../presets/partiels/index.js";
 
@@ -116,27 +112,13 @@ export interface DocumentBasedQuizResult {
 
 // Configuration par matière pour la recherche documentaire
 const SUBJECT_TOPIC_MAPPING = {
-  histoire: [
-    "antiquite",
-    "moyen_age",
-    "renaissance",
-    "revolution",
-    "moderne",
-    "guerre_conflits",
-  ],
+  histoire: ["antiquite", "moyen_age", "renaissance", "revolution", "moderne", "guerre_conflits"],
   "histoire contemporaine": ["moderne", "revolution", "guerre_conflits"],
   "méthodologie historique": ["histoire", "moderne", "antiquite"],
   "sources et archives": ["histoire", "moderne", "revolution"],
   historiographie: ["moderne", "renaissance", "revolution"],
 
-  sciences: [
-    "sciences",
-    "technologie",
-    "medecine",
-    "physique",
-    "chimie",
-    "mathematiques",
-  ],
+  sciences: ["sciences", "technologie", "medecine", "physique", "chimie", "mathematiques"],
   mathématiques: ["mathematiques", "sciences", "physique"],
   physique: ["physique", "sciences", "technologie"],
   chimie: ["chimie", "sciences", "medecine"],
@@ -174,9 +156,7 @@ export class DocumentBasedQuizGenerator {
       }
     }
 
-    logger.log(
-      `🗡️ Déduplication: ${chunks.length} chunks → ${docMap.size} documents uniques`,
-    );
+    logger.log(`🗡️ Déduplication: ${chunks.length} chunks → ${docMap.size} documents uniques`);
     return Array.from(docMap.values());
   }
 
@@ -250,10 +230,7 @@ export class DocumentBasedQuizGenerator {
   /**
    * Construit une requête de recherche optimisée pour éviter les termes trop génériques
    */
-  private buildOptimalSearchQuery(
-    subjectName: string,
-    topics: string[],
-  ): string {
+  private buildOptimalSearchQuery(subjectName: string, topics: string[]): string {
     const subjectLower = subjectName.toLowerCase();
 
     // Mappage des matières vers des requêtes plus spécifiques
@@ -307,15 +284,10 @@ export class DocumentBasedQuizGenerator {
     const startTime = Date.now();
 
     // 1. Recherche des documents pertinents
-    const documents = await this.searchRelevantDocuments(
-      subjectName,
-      documentConfig,
-    );
+    const documents = await this.searchRelevantDocuments(subjectName, documentConfig);
     const searchTime = Date.now() - startTime;
 
-    logger.log(
-      `📊 Documents trouvés: ${documents.chunks.length} en ${searchTime}ms`,
-    );
+    logger.log(`📊 Documents trouvés: ${documents.chunks.length} en ${searchTime}ms`);
 
     // 2. Génération du quiz avec intégration des documents
     const quiz = await this.generateQuizWithDocuments(
@@ -331,10 +303,8 @@ export class DocumentBasedQuizGenerator {
       documentsSearchTime: searchTime,
       detectedTopics: documents.detected_topics,
       searchStrategy:
-        (documents.search_strategy as
-          | "topic_based"
-          | "semantic_search"
-          | "hybrid") || "semantic_search",
+        (documents.search_strategy as "topic_based" | "semantic_search" | "hybrid") ||
+        "semantic_search",
       documentRatio: documentConfig.documentRatio,
     };
 
@@ -358,21 +328,14 @@ export class DocumentBasedQuizGenerator {
     // Détermine les topics à utiliser
     const subjectKey = subjectName.toLowerCase();
     const mappedTopics =
-      SUBJECT_TOPIC_MAPPING[subjectKey as keyof typeof SUBJECT_TOPIC_MAPPING] ||
-      [];
+      SUBJECT_TOPIC_MAPPING[subjectKey as keyof typeof SUBJECT_TOPIC_MAPPING] || [];
 
     const searchTopics = config.topics || [...mappedTopics];
 
-    logger.log(
-      `🔍 Recherche documentaire pour "${subjectName}" avec topics:`,
-      searchTopics,
-    );
+    logger.log(`🔍 Recherche documentaire pour "${subjectName}" avec topics:`, searchTopics);
 
     // Stratégies de recherche progressive
-    const searchStrategies = this.buildSearchStrategies(
-      subjectName,
-      searchTopics,
-    );
+    const searchStrategies = this.buildSearchStrategies(subjectName, searchTopics);
 
     let finalResult = null;
     let attemptNumber = 1;
@@ -389,8 +352,7 @@ export class DocumentBasedQuizGenerator {
         topics: strategy.topics,
       };
 
-      const searchResult =
-        await documentSearchService.searchDocuments(searchRequest);
+      const searchResult = await documentSearchService.searchDocuments(searchRequest);
 
       // Filtrer les documents trop courts
       const filteredChunks = searchResult.chunks.filter(
@@ -424,9 +386,7 @@ export class DocumentBasedQuizGenerator {
 
     // Si aucune stratégie n'a fonctionné, utiliser le dernier résultat même vide
     if (!finalResult) {
-      logger.log(
-        `⚠️ Aucun document pertinent trouvé après ${searchStrategies.length} tentatives`,
-      );
+      logger.log(`⚠️ Aucun document pertinent trouvé après ${searchStrategies.length} tentatives`);
       finalResult = {
         chunks: [],
         detected_topics: searchTopics,
@@ -465,9 +425,7 @@ export class DocumentBasedQuizGenerator {
       knowledgeQuestions,
     );
 
-    logger.log(
-      `🤖 Génération du quiz avec ${documents.length} documents intégrés`,
-    );
+    logger.log(`🤖 Génération du quiz avec ${documents.length} documents intégrés`);
 
     try {
       const aiResponse = await AIService.generateContent({
@@ -479,10 +437,7 @@ export class DocumentBasedQuizGenerator {
       const quizData = this.parseQuizResponse(aiResponse.content);
 
       // Marquer les questions basées sur documents
-      const questions = this.markDocumentQuestions(
-        quizData.questions,
-        documentQuestions,
-      );
+      const questions = this.markDocumentQuestions(quizData.questions, documentQuestions);
 
       // Créer un sujet unique contenant toutes les questions
       const subject = {
@@ -499,8 +454,7 @@ export class DocumentBasedQuizGenerator {
       const finalQuiz = {
         id: `quiz_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         title: request.title || `Quiz ${subjectName}`,
-        description:
-          request.description || `Quiz avec documents - ${subjectName}`,
+        description: request.description || `Quiz avec documents - ${subjectName}`,
         questions: [], // Vide pour le nouveau système
         subjects: [subject], // NOUVEAU: Système de sujets
         subjectBased: true, // NOUVEAU: Indicateur du système utilisé
@@ -705,8 +659,8 @@ Format de réponse attendu (JSON uniquement) :
       }
 
       // Transformer les questions au format attendu par le frontend
-      const transformedQuestions = parsed.questions.map(
-        (q: AIQuestionResponse) => this.transformQuestionFormat(q),
+      const transformedQuestions = parsed.questions.map((q: AIQuestionResponse) =>
+        this.transformQuestionFormat(q),
       );
 
       return {
@@ -726,8 +680,7 @@ Format de réponse attendu (JSON uniquement) :
   private transformQuestionFormat(aiQuestion: AIQuestionResponse): Question {
     const baseQuestion = {
       id: String(aiQuestion.id || Math.random()),
-      question:
-        aiQuestion.text || aiQuestion.question || "Question non disponible",
+      question: aiQuestion.text || aiQuestion.question || "Question non disponible",
       difficulty: "moyen" as const,
       points: 1,
       basedOnDocument: aiQuestion.basedOnDocument || false,
@@ -740,21 +693,16 @@ Format de réponse attendu (JSON uniquement) :
         // Transformer choices ["A", "B", "C", "D"] vers options [{id, text}]
         const choices = aiQuestion.choices || [];
         const correctAnswer =
-          typeof aiQuestion.correctAnswer === "string"
-            ? aiQuestion.correctAnswer
-            : "";
+          typeof aiQuestion.correctAnswer === "string" ? aiQuestion.correctAnswer : "";
 
-        const options: QuestionOption[] = choices.map(
-          (choice: string, index: number) => {
-            const isCorrect =
-              choice === correctAnswer || choice.startsWith(correctAnswer);
-            return {
-              id: String(index),
-              text: choice,
-              isCorrect: correctAnswer ? isCorrect : index === 0,
-            };
-          },
-        );
+        const options: QuestionOption[] = choices.map((choice: string, index: number) => {
+          const isCorrect = choice === correctAnswer || choice.startsWith(correctAnswer);
+          return {
+            id: String(index),
+            text: choice,
+            isCorrect: correctAnswer ? isCorrect : index === 0,
+          };
+        });
 
         const mcQuestion: MultipleChoiceQuestion = {
           ...baseQuestion,
@@ -769,9 +717,7 @@ Format de réponse attendu (JSON uniquement) :
         const tfQuestion: TrueFalseQuestion = {
           ...baseQuestion,
           type: QuestionType.TRUE_FALSE,
-          correctAnswer:
-            aiQuestion.correctAnswer === "true" ||
-            aiQuestion.correctAnswer === true,
+          correctAnswer: aiQuestion.correctAnswer === "true" || aiQuestion.correctAnswer === true,
           explanation: aiQuestion.explanation,
         };
         return tfQuestion;
@@ -815,10 +761,7 @@ Format de réponse attendu (JSON uniquement) :
   /**
    * Marque les questions qui sont basées sur les documents
    */
-  private markDocumentQuestions(
-    questions: Question[],
-    documentQuestionCount: number,
-  ): Question[] {
+  private markDocumentQuestions(questions: Question[], documentQuestionCount: number): Question[] {
     return questions.map((question, index) => ({
       ...question,
       basedOnDocument: index < documentQuestionCount,

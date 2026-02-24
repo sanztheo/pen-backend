@@ -163,9 +163,7 @@ You will receive:
 // PROMPT BUILDER
 // ============================================================================
 
-export function buildPreprocessorPrompt(
-  params: PreprocessorPromptParams,
-): string {
+export function buildPreprocessorPrompt(params: PreprocessorPromptParams): string {
   const topicsList =
     params.sourceTopics.length > 0
       ? params.sourceTopics.map((t) => `- ${t}`).join("\n")

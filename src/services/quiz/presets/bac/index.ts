@@ -41,11 +41,7 @@ export const BAC_CONFIG = {
       questionCount: 25,
       description: "Dissertation ou explication de texte",
       enableDocuments: true,
-      documentTopics: [
-        "philosophie",
-        "philosophie_antique",
-        "philosophie_moderne",
-      ],
+      documentTopics: ["philosophie", "philosophie_antique", "philosophie_moderne"],
       documentRatio: 0.4, // 40% questions sur documents
       minDocumentLength: 100,
       maxDocuments: 2,
@@ -186,9 +182,7 @@ export function createBacSequentialConfig(
   specialties: LyceeSpecialty[],
 ): SequentialQuizConfig {
   if (specialties.length !== 2) {
-    throw new Error(
-      "Le Baccalauréat général nécessite exactement 2 spécialités",
-    );
+    throw new Error("Le Baccalauréat général nécessite exactement 2 spécialités");
   }
 
   // Vérification que les spécialités sont supportées
@@ -196,11 +190,7 @@ export function createBacSequentialConfig(
     BAC_CONFIG.specialties,
   ) as (keyof typeof BAC_CONFIG.specialties)[];
   for (const specialty of specialties) {
-    if (
-      !availableSpecialties.includes(
-        specialty as keyof typeof BAC_CONFIG.specialties,
-      )
-    ) {
+    if (!availableSpecialties.includes(specialty as keyof typeof BAC_CONFIG.specialties)) {
       throw new Error(`Spécialité non supportée: ${specialty}`);
     }
   }
@@ -208,9 +198,7 @@ export function createBacSequentialConfig(
   // Ordre souhaité: d'abord les 2 spécialités, puis Philosophie en dernier
   const subjects: ExamSubject[] = [
     ...specialties.map(
-      (s) =>
-        BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]
-          .subject,
+      (s) => BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties].subject,
     ),
     ExamSubject.PHILOSOPHIE,
     // Grand Oral retiré de la séquence
@@ -232,12 +220,9 @@ export function createBacSequentialConfig(
       } else {
         const spec = specialties.find(
           (s) =>
-            BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]
-              ?.subject === subject,
+            BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]?.subject === subject,
         );
-        if (spec)
-          cfg =
-            BAC_CONFIG.specialties[spec as keyof typeof BAC_CONFIG.specialties];
+        if (spec) cfg = BAC_CONFIG.specialties[spec as keyof typeof BAC_CONFIG.specialties];
       }
 
       const documentConfig = cfg?.enableDocuments
@@ -260,10 +245,7 @@ export function createBacSequentialConfig(
         ? {
             enableGraphics: cfg.enableGraphics,
             graphicProbability: cfg.graphicProbability ?? 0,
-            preferredLibraries: [...(cfg.preferredLibraries ?? [])] as (
-              | "apexcharts"
-              | "plotly"
-            )[],
+            preferredLibraries: [...(cfg.preferredLibraries ?? [])] as ("apexcharts" | "plotly")[],
             graphicTypes: [...(cfg.graphicTypes ?? [])] as ("2d" | "3d")[],
           }
         : undefined;
@@ -302,16 +284,13 @@ export function generateBacSubjectRequest(
     // Spécialité
     const specialty = config.specialties?.find(
       (s) =>
-        BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]
-          ?.subject === currentSubject,
+        BAC_CONFIG.specialties[s as keyof typeof BAC_CONFIG.specialties]?.subject ===
+        currentSubject,
     );
     if (!specialty) {
-      throw new Error(
-        `Spécialité introuvable pour la matière: ${currentSubject}`,
-      );
+      throw new Error(`Spécialité introuvable pour la matière: ${currentSubject}`);
     }
-    subjectConfig =
-      BAC_CONFIG.specialties[specialty as keyof typeof BAC_CONFIG.specialties];
+    subjectConfig = BAC_CONFIG.specialties[specialty as keyof typeof BAC_CONFIG.specialties];
   }
 
   // Configuration documentaire pour cette matière (si elle existe)
@@ -339,10 +318,7 @@ export function generateBacSubjectRequest(
           | "apexcharts"
           | "plotly"
         )[],
-        graphicTypes: [...(subjectConfig.graphicTypes ?? [])] as (
-          | "2d"
-          | "3d"
-        )[],
+        graphicTypes: [...(subjectConfig.graphicTypes ?? [])] as ("2d" | "3d")[],
       }
     : {
         enableGraphics: false,
@@ -372,10 +348,7 @@ export function generateBacSubjectRequest(
 /**
  * Génère les prompts spécialisés pour chaque épreuve du Bac
  */
-export function getBacPrompt(
-  subject: ExamSubject,
-  specialties?: LyceeSpecialty[],
-): string {
+export function getBacPrompt(subject: ExamSubject, specialties?: LyceeSpecialty[]): string {
   const baseContext = `
 Tu es un expert concepteur de sujets pour le Baccalauréat général (réforme 2021).
 L'élève est en Terminale et se prépare aux épreuves officielles finales du Baccalauréat.
@@ -671,8 +644,7 @@ export function getSubjectDisplayName(subject: ExamSubject): string {
     [ExamSubject.SCIENCES]: "Sciences (Physique-Chimie et SVT)",
     [ExamSubject.ORAL_BREVET]: "Oral du Brevet",
     [ExamSubject.PHILOSOPHIE]: "Philosophie",
-    [ExamSubject.HGGSP]:
-      "Histoire-Géographie, Géopolitique et Sciences Politiques",
+    [ExamSubject.HGGSP]: "Histoire-Géographie, Géopolitique et Sciences Politiques",
     [ExamSubject.HLP]: "Humanités, Littérature et Philosophie",
     [ExamSubject.LLCER]: "Langues, Littératures et Cultures Étrangères",
     [ExamSubject.NSI_SPECIALITE]: "Numérique et Sciences Informatiques",

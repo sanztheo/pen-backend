@@ -55,9 +55,7 @@ export class JsonUtils {
     try {
       return JSON.parse(cleanedContent);
     } catch (error) {
-      logger.log(
-        "🔧 Parsing JSON direct échoué, tentatives de récupération...",
-      );
+      logger.log("🔧 Parsing JSON direct échoué, tentatives de récupération...");
 
       // Tentative 1 : Extraire le JSON principal avec une approche différente
       try {
@@ -91,9 +89,7 @@ export class JsonUtils {
             try {
               // Chercher l'objet complet autour de ce pattern
               const startIndex = cleanedContent.indexOf(match);
-              const beforeMatch = cleanedContent
-                .substring(0, startIndex)
-                .lastIndexOf("{");
+              const beforeMatch = cleanedContent.substring(0, startIndex).lastIndexOf("{");
 
               if (beforeMatch !== -1) {
                 let braceCount = 1;
@@ -106,10 +102,7 @@ export class JsonUtils {
                 }
 
                 if (braceCount === 0) {
-                  const questionJson = cleanedContent.substring(
-                    beforeMatch,
-                    endIndex,
-                  );
+                  const questionJson = cleanedContent.substring(beforeMatch, endIndex);
                   const question = JSON.parse(questionJson);
                   if (question.id && question.type && question.question) {
                     questions.push(question);
@@ -156,9 +149,7 @@ export class JsonUtils {
         let jsonContent = content;
 
         // 1. Extraire JSON des blocs markdown ```json
-        const markdownJsonMatch = jsonContent.match(
-          /```json\s*([\s\S]*?)\s*```/,
-        );
+        const markdownJsonMatch = jsonContent.match(/```json\s*([\s\S]*?)\s*```/);
         if (markdownJsonMatch) {
           jsonContent = markdownJsonMatch[1];
           return this.parseJsonWithRecovery(jsonContent);

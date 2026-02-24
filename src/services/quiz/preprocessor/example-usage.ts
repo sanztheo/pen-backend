@@ -31,10 +31,7 @@ export async function createQuizWithValidation(req: Request, res: Response) {
     };
 
     // 2. Valider et corriger selon les limites utilisateur
-    const validation = await quizLimitValidator.validateAndCorrect(
-      aiSuggestions,
-      userId,
-    );
+    const validation = await quizLimitValidator.validateAndCorrect(aiSuggestions, userId);
 
     // 3. Si corrections appliquées, informer l'utilisateur
     if (!validation.isValid) {
@@ -48,13 +45,8 @@ export async function createQuizWithValidation(req: Request, res: Response) {
         upgradePrompt: validation.upgradeRequired
           ? {
               title: "Passez à Premium",
-              description:
-                "Débloquez plus de questions et tous les types de questions",
-              benefits: [
-                "Jusqu'à 40 questions",
-                "Questions ouvertes",
-                "Quiz illimités",
-              ],
+              description: "Débloquez plus de questions et tous les types de questions",
+              benefits: ["Jusqu'à 40 questions", "Questions ouvertes", "Quiz illimités"],
             }
           : null,
       });
@@ -84,11 +76,7 @@ export async function checkQuizCreationAllowed(req: Request, res: Response) {
     const { questionCount, questionTypes } = req.body;
 
     // Vérifier si l'utilisateur peut créer ce quiz
-    const canCreate = await quizLimitValidator.canCreateQuiz(
-      userId,
-      questionCount,
-      questionTypes,
-    );
+    const canCreate = await quizLimitValidator.canCreateQuiz(userId, questionCount, questionTypes);
 
     if (!canCreate.allowed) {
       return res.status(403).json({
@@ -134,8 +122,7 @@ export async function getUserQuizLimits(req: Request, res: Response) {
           remaining:
             context.currentLimits.customQuizzesLimit === -1
               ? "unlimited"
-              : context.currentLimits.customQuizzesLimit -
-                context.currentLimits.customQuizzesUsed,
+              : context.currentLimits.customQuizzesLimit - context.currentLimits.customQuizzesUsed,
         },
       },
     });
@@ -149,11 +136,7 @@ export async function getUserQuizLimits(req: Request, res: Response) {
 // EXEMPLE 4: Middleware de validation pour routes de quiz
 // ============================================================================
 
-export async function validateQuizParams(
-  req: Request,
-  res: Response,
-  next: Function,
-) {
+export async function validateQuizParams(req: Request, res: Response, next: Function) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -163,11 +146,7 @@ export async function validateQuizParams(
     const { questionCount, questionTypes } = req.body;
 
     // Valider les paramètres
-    const canCreate = await quizLimitValidator.canCreateQuiz(
-      userId,
-      questionCount,
-      questionTypes,
-    );
+    const canCreate = await quizLimitValidator.canCreateQuiz(userId, questionCount, questionTypes);
 
     if (!canCreate.allowed) {
       return res.status(403).json({

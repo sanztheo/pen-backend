@@ -24,9 +24,7 @@ export const PADDLE_PLANS = {
  */
 export const paddle = new Paddle(process.env.PADDLE_API_KEY || "", {
   environment:
-    process.env.PADDLE_ENVIRONMENT === "production"
-      ? Environment.production
-      : Environment.sandbox,
+    process.env.PADDLE_ENVIRONMENT === "production" ? Environment.production : Environment.sandbox,
 });
 
 /**
@@ -84,8 +82,7 @@ export class PaddleBillingService {
         // 🚨 Indicateurs d'erreur pour le frontend
         isError: true,
         errorCode: "SUBSCRIPTION_FETCH_ERROR",
-        errorMessage:
-          "Impossible de récupérer l'abonnement. Veuillez réessayer.",
+        errorMessage: "Impossible de récupérer l'abonnement. Veuillez réessayer.",
       };
     }
   }
@@ -110,14 +107,10 @@ export class PaddleBillingService {
       if (trialDates) {
         const { trialStart, trialEnd } = trialDates;
         if (!(trialStart instanceof Date) || isNaN(trialStart.getTime())) {
-          logger.warn(
-            `⚠️ [PADDLE] Invalid trialStart for user ${userId}, ignoring trial dates`,
-          );
+          logger.warn(`⚠️ [PADDLE] Invalid trialStart for user ${userId}, ignoring trial dates`);
           trialDates = undefined;
         } else if (!(trialEnd instanceof Date) || isNaN(trialEnd.getTime())) {
-          logger.warn(
-            `⚠️ [PADDLE] Invalid trialEnd for user ${userId}, ignoring trial dates`,
-          );
+          logger.warn(`⚠️ [PADDLE] Invalid trialEnd for user ${userId}, ignoring trial dates`);
           trialDates = undefined;
         } else if (trialEnd <= trialStart) {
           logger.warn(
@@ -170,9 +163,7 @@ export class PaddleBillingService {
       // Synchroniser les limites utilisateur
       await this.syncUserLimitsAfterPlanChange(userId, "premium");
 
-      logger.log(
-        `✅ [PADDLE] Premium activé pour: ${userId} (status: ${status})`,
-      );
+      logger.log(`✅ [PADDLE] Premium activé pour: ${userId} (status: ${status})`);
       return subscription;
     } catch (error) {
       logger.error("❌ [PADDLE] Erreur activation Premium:", error);
@@ -273,15 +264,12 @@ export class PaddleBillingService {
    * Synchronise les limites utilisateur après un changement de plan
    * IMPORTANT: Lors d'un downgrade (premium → free), les compteurs sont remis à 0
    */
-  static async syncUserLimitsAfterPlanChange(
-    userId: string,
-    newPlan: SubscriptionPlan,
-  ) {
+  static async syncUserLimitsAfterPlanChange(userId: string, newPlan: SubscriptionPlan) {
     try {
-      SecureLogger.debug(
-        `🔄 [PADDLE] Synchronisation limites après changement de plan`,
-        { userId, newPlan },
-      );
+      SecureLogger.debug(`🔄 [PADDLE] Synchronisation limites après changement de plan`, {
+        userId,
+        newPlan,
+      });
 
       const isPremium = newPlan === "premium";
 
@@ -316,26 +304,23 @@ export class PaddleBillingService {
         presetSequencesUsedValue = 0;
         lastResetAtValue = new Date(); // Nouveau cycle commence maintenant
 
-        SecureLogger.log(
-          `🔄 [PADDLE] Downgrade détecté - Reset des compteurs pour: ${userId}`,
-        );
+        SecureLogger.log(`🔄 [PADDLE] Downgrade détecté - Reset des compteurs pour: ${userId}`);
       } else {
         // Pas de downgrade: recalculer depuis les tables
-        const [customQuizzesCount, presetSequencesCount, aiCreditsAggregated] =
-          await Promise.all([
-            prisma.quiz.count({ where: { userId, preset: "NONE" } }),
-            prisma.quizSequence.count({ where: { userId } }),
-            (async () => {
-              const result = await prisma.usageRecord.aggregate({
-                where: {
-                  userId,
-                  resourceType: { in: ["ai_credits", "openai_request"] },
-                },
-                _sum: { quantity: true },
-              });
-              return result._sum.quantity || 0;
-            })(),
-          ]);
+        const [customQuizzesCount, presetSequencesCount, aiCreditsAggregated] = await Promise.all([
+          prisma.quiz.count({ where: { userId, preset: "NONE" } }),
+          prisma.quizSequence.count({ where: { userId } }),
+          (async () => {
+            const result = await prisma.usageRecord.aggregate({
+              where: {
+                userId,
+                resourceType: { in: ["ai_credits", "openai_request"] },
+              },
+              _sum: { quantity: true },
+            });
+            return result._sum.quantity || 0;
+          })(),
+        ]);
 
         aiCreditsUsedValue = Math.max(0, aiCreditsAggregated);
         customQuizzesUsedValue = customQuizzesCount;

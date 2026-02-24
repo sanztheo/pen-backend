@@ -102,9 +102,7 @@ async function loadTestUser(clerkUserId: string): Promise<AuthUser | null> {
         firstName: user.firstName || "",
         lastName: user.lastName || "",
         avatar: user.imageUrl || "",
-        displayName:
-          user.fullName ||
-          `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        displayName: user.fullName || `${user.firstName || ""} ${user.lastName || ""}`.trim(),
         language: (user.publicMetadata?.language as string) || "fr",
         theme: (user.publicMetadata?.theme as string) || "light",
       },
@@ -116,11 +114,7 @@ async function loadTestUser(clerkUserId: string): Promise<AuthUser | null> {
 }
 
 // Middleware d'authentification
-export const authenticateToken = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // 🛡️ Mode test: Sécurité multicouche obligatoire
     // Voir commentaire en haut du fichier pour les safeguards
@@ -169,17 +163,13 @@ export const authenticateToken = async (
     const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
 
     if (!token) {
-      return res
-        .status(401)
-        .json({ error: "Token d'accès requis", code: "MISSING_TOKEN" });
+      return res.status(401).json({ error: "Token d'accès requis", code: "MISSING_TOKEN" });
     }
 
     const user = await AuthService.verifyToken(token);
 
     if (!user) {
-      return res
-        .status(401)
-        .json({ error: "Token invalide ou expiré", code: "INVALID_TOKEN" });
+      return res.status(401).json({ error: "Token invalide ou expiré", code: "INVALID_TOKEN" });
     }
 
     const lastSync = userSyncCache.get(user.id);
@@ -204,18 +194,12 @@ export const authenticateToken = async (
     }
   } catch (error) {
     logger.error("Erreur middleware auth:", error);
-    return res
-      .status(500)
-      .json({ error: "Erreur interne du serveur", code: "AUTH_ERROR" });
+    return res.status(500).json({ error: "Erreur interne du serveur", code: "AUTH_ERROR" });
   }
 };
 
 // Middleware optionnel (n'échoue pas si pas de token)
-export const optionalAuth = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const optionalAuth = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
     const token = authHeader && authHeader.split(" ")[1];
@@ -235,15 +219,9 @@ export const optionalAuth = async (
 };
 
 // Middleware pour garantir la présence de req.user
-export const requireUser = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const requireUser = (req: Request, res: Response, next: NextFunction) => {
   if (!req.user) {
-    return res
-      .status(401)
-      .json({ error: "Utilisateur non authentifié", code: "USER_REQUIRED" });
+    return res.status(401).json({ error: "Utilisateur non authentifié", code: "USER_REQUIRED" });
   }
   next();
 };
@@ -252,9 +230,7 @@ export const requireUser = (
 export const requireRole = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
-      return res
-        .status(401)
-        .json({ error: "Authentification requise", code: "AUTH_REQUIRED" });
+      return res.status(401).json({ error: "Authentification requise", code: "AUTH_REQUIRED" });
     }
     // TODO: Implémenter la vérification des rôles
     next();

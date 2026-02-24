@@ -107,15 +107,14 @@ export class HealthCheckService {
     logger.log("[HEALTH_CHECK] Running fresh checks...");
     const startTime = Date.now();
 
-    const [database, embeddingsDatabase, redis, clerk, openai, paddleHealth] =
-      await Promise.all([
-        this.checkDatabase(),
-        this.checkEmbeddingsDatabase(),
-        this.checkRedis(),
-        this.checkClerk(),
-        this.checkOpenAI(),
-        this.checkPaddle(),
-      ]);
+    const [database, embeddingsDatabase, redis, clerk, openai, paddleHealth] = await Promise.all([
+      this.checkDatabase(),
+      this.checkEmbeddingsDatabase(),
+      this.checkRedis(),
+      this.checkClerk(),
+      this.checkOpenAI(),
+      this.checkPaddle(),
+    ]);
 
     const services = {
       database,
@@ -251,11 +250,7 @@ export class HealthCheckService {
       const result = await fn();
       const latency = Date.now() - startTime;
 
-      if (
-        latencyThreshold &&
-        latency > latencyThreshold &&
-        result.status === "up"
-      ) {
+      if (latencyThreshold && latency > latencyThreshold && result.status === "up") {
         return { status: "degraded", latency, error: "High latency" };
       }
 

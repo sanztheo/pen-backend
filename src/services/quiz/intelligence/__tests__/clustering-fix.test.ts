@@ -35,9 +35,7 @@ describe("Clustering Fix - Multiple clusters avec peu de pages", () => {
     const nonEmptyClusters = result.clusters.filter((c) => c.length > 0);
     expect(nonEmptyClusters.length).toBeGreaterThanOrEqual(2);
 
-    logger.log(
-      `✅ K-means créé ${nonEmptyClusters.length} clusters pour 3 pages`,
-    );
+    logger.log(`✅ K-means créé ${nonEmptyClusters.length} clusters pour 3 pages`);
     logger.log(
       `   Cluster 1: ${result.clusters[0].length} pages, Cluster 2: ${result.clusters[1]?.length || 0} pages`,
     );
@@ -95,9 +93,7 @@ describe("Clustering Fix - Multiple clusters avec peu de pages", () => {
       const oldK = Math.min(10, Math.ceil(pages / 4));
       const newK = Math.min(10, Math.max(2, Math.ceil(pages / 2.5)));
 
-      logger.log(
-        `  ${pages.toString().padStart(2)}  |    ${oldK}     |     ${newK}`,
-      );
+      logger.log(`  ${pages.toString().padStart(2)}  |    ${oldK}     |     ${newK}`);
       expect(newK).toBe(expectedK);
     }
   });

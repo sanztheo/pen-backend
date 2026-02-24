@@ -14,10 +14,7 @@ import {
 import { authenticateToken } from "../middlewares/auth.js";
 import { validateUUID } from "../middlewares/validateUUID.js";
 import { prisma } from "../lib/prisma.js";
-import {
-  cacheBlockNoteContent,
-  invalidateBlockNoteCache,
-} from "../lib/redis.js";
+import { cacheBlockNoteContent, invalidateBlockNoteCache } from "../lib/redis.js";
 
 // Type for authenticated requests with user
 interface AuthenticatedRequest extends Request {
@@ -174,10 +171,7 @@ router.get("/search", async (req, res) => {
         isArchived: false,
         title: { contains: query, mode: "insensitive" },
         workspace: {
-          OR: [
-            { ownerId: userId },
-            { members: { some: { userId, isActive: true } } },
-          ],
+          OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
         },
       },
       select: { id: true, title: true, projectId: true, workspaceId: true },
@@ -206,10 +200,7 @@ router.get("/search-content", async (req, res) => {
       where: {
         isArchived: false,
         workspace: {
-          OR: [
-            { ownerId: userId },
-            { members: { some: { userId, isActive: true } } },
-          ],
+          OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
         },
       },
       select: { id: true, title: true, blockNoteContent: true },
@@ -220,9 +211,7 @@ router.get("/search-content", async (req, res) => {
 
     const blocksToText = (blocks: unknown[]): string => {
       let text = "";
-      const walk = (
-        node: unknown,
-      ): void => {
+      const walk = (node: unknown): void => {
         if (!node) return;
         // Inline content
         if (Array.isArray(node)) {
@@ -302,92 +291,77 @@ router.patch("/:id/pin", validateUUID("id"), togglePagePin);
 router.delete("/cleanup/archived", cleanupArchivedPages);
 
 // 🆕 IMPORT HTML VERS BLOCKNOTE (pour import PDF)
-router.post(
-  "/:pageId/import-html",
-  validateUUID("pageId"),
-  async (req, res) => {
-    try {
-      const { pageId } = req.params;
-      const { html } = req.body;
+router.post("/:pageId/import-html", validateUUID("pageId"), async (req, res) => {
+  try {
+    const { pageId } = req.params;
+    const { html } = req.body;
 
-      if (!html || typeof html !== "string") {
-        return res.status(400).json({ error: "HTML requis" });
-      }
-
-      logger.log("📄 [API] Import HTML vers BlockNote:", {
-        pageId,
-        htmlLength: html.length,
-        htmlPreview: html.substring(0, 200),
-      });
-
-      // Convertir HTML en blocs BlockNote
-      let blocks: BlockNoteBlock[];
-      try {
-        blocks = htmlToBlockNoteBlocks(html);
-        logger.log("📄 [API] Blocs générés:", blocks.length, "blocs");
-      } catch (conversionError) {
-        logger.error("❌ [API] Erreur conversion HTML:", conversionError);
-        return res.status(500).json({
-          error: "Erreur conversion HTML",
-          details: String(conversionError),
-        });
-      }
-
-      // Sauvegarder dans la page
-      logger.log("📄 [API] Sauvegarde dans la page:", pageId);
-      await prisma.page.update({
-        where: { id: pageId },
-        data: {
-          blockNoteContent: blocks as unknown as Prisma.InputJsonValue,
-          updatedAt: new Date(),
-        },
-      });
-
-      // Invalider cache Redis
-      invalidateBlockNoteCache(pageId).catch((err) =>
-        logger.error("⚠️ [REDIS] Erreur invalidation cache:", err),
-      );
-
-      logger.log("✅ [API] HTML importé avec succès:", {
-        pageId,
-        blocksCount: blocks.length,
-      });
-
-      res.json({
-        message: "HTML importé avec succès",
-        pageId,
-        blocksCount: blocks.length,
-      });
-    } catch (error: unknown) {
-      if (isPrismaError(error) && error.code === "P2025") {
-        return res.status(404).json({ error: "Page non trouvée" });
-      }
-      logger.error(
-        "❌ [API] Erreur import HTML:",
-        error instanceof Error ? error.message : String(error),
-      );
-      res.status(500).json({ error: "Erreur lors de l'import" });
+    if (!html || typeof html !== "string") {
+      return res.status(400).json({ error: "HTML requis" });
     }
-  },
-);
+
+    logger.log("📄 [API] Import HTML vers BlockNote:", {
+      pageId,
+      htmlLength: html.length,
+      htmlPreview: html.substring(0, 200),
+    });
+
+    // Convertir HTML en blocs BlockNote
+    let blocks: BlockNoteBlock[];
+    try {
+      blocks = htmlToBlockNoteBlocks(html);
+      logger.log("📄 [API] Blocs générés:", blocks.length, "blocs");
+    } catch (conversionError) {
+      logger.error("❌ [API] Erreur conversion HTML:", conversionError);
+      return res.status(500).json({
+        error: "Erreur conversion HTML",
+        details: String(conversionError),
+      });
+    }
+
+    // Sauvegarder dans la page
+    logger.log("📄 [API] Sauvegarde dans la page:", pageId);
+    await prisma.page.update({
+      where: { id: pageId },
+      data: {
+        blockNoteContent: blocks as unknown as Prisma.InputJsonValue,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Invalider cache Redis
+    invalidateBlockNoteCache(pageId).catch((err) =>
+      logger.error("⚠️ [REDIS] Erreur invalidation cache:", err),
+    );
+
+    logger.log("✅ [API] HTML importé avec succès:", {
+      pageId,
+      blocksCount: blocks.length,
+    });
+
+    res.json({
+      message: "HTML importé avec succès",
+      pageId,
+      blocksCount: blocks.length,
+    });
+  } catch (error: unknown) {
+    if (isPrismaError(error) && error.code === "P2025") {
+      return res.status(404).json({ error: "Page non trouvée" });
+    }
+    logger.error(
+      "❌ [API] Erreur import HTML:",
+      error instanceof Error ? error.message : String(error),
+    );
+    res.status(500).json({ error: "Erreur lors de l'import" });
+  }
+});
 
 // 🆕 SAUVEGARDER CONTENU BLOCKNOTE OPTIMISÉ (Solution officielle + optimisations)
 // Support POST et PUT pour compatibilité
-router.post(
-  "/:pageId/blocknote-content",
-  validateUUID("pageId"),
-  saveBlockNoteContent,
-);
-router.put(
-  "/:pageId/blocknote-content",
-  validateUUID("pageId"),
-  saveBlockNoteContent,
-);
+router.post("/:pageId/blocknote-content", validateUUID("pageId"), saveBlockNoteContent);
+router.put("/:pageId/blocknote-content", validateUUID("pageId"), saveBlockNoteContent);
 
-async function saveBlockNoteContent(
-  req: Request,
-  res: Response,
-): Promise<void> {
+async function saveBlockNoteContent(req: Request, res: Response): Promise<void> {
   try {
     const { pageId } = req.params;
     const { content, changedBlocks, isDifferential } = req.body as {
@@ -485,82 +459,73 @@ async function saveBlockNoteContent(
 
 // 🆕 CHARGER CONTENU BLOCKNOTE DIRECTEMENT (Solution officielle + Redis Cache)
 // 🔒 SECURITY: Requires authentication + workspace access OR admin privileges
-router.get(
-  "/:pageId/blocknote-content",
-  authenticateToken,
-  async (req, res) => {
-    try {
-      const { pageId } = req.params;
-      const userId = req.user!.id;
+router.get("/:pageId/blocknote-content", authenticateToken, async (req, res) => {
+  try {
+    const { pageId } = req.params;
+    const userId = req.user!.id;
 
-      // 🚨 VALIDATION UUID
-      if (
-        !pageId ||
-        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-          pageId,
-        )
-      ) {
-        return res.status(400).json({
-          error: "PageId doit être un UUID valide",
-          received: pageId,
-        });
-      }
-
-      // 🔒 AUTHORIZATION: Check if user has access to the page's workspace OR is admin
-      const [pageAccess, userAdmin] = await Promise.all([
-        prisma.page.findFirst({
-          where: {
-            id: pageId,
-            workspace: {
-              OR: [
-                { ownerId: userId },
-                { members: { some: { userId, isActive: true } } },
-              ],
-            },
-          },
-          select: { id: true },
-        }),
-        prisma.user.findUnique({
-          where: { id: userId },
-          select: { isAdmin: true },
-        }),
-      ]);
-
-      if (!pageAccess && !userAdmin?.isAdmin) {
-        return res.status(403).json({ error: "Accès refusé" });
-      }
-
-      // 🚀 REDIS CACHE: Récupérer depuis cache (2min TTL)
-      const page: PageWithBlockNote | null = await cacheBlockNoteContent(pageId);
-
-      if (!page) {
-        return res.status(404).json({ error: "Page non trouvée" });
-      }
-
-      const content: BlockNoteBlock[] = Array.isArray(page.blockNoteContent)
-        ? page.blockNoteContent
-        : [];
-
-      const hasNestedBlocks = content.some((b: BlockNoteBlock) => {
-        return Array.isArray(b.children) && b.children.length > 0;
+    // 🚨 VALIDATION UUID
+    if (
+      !pageId ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pageId)
+    ) {
+      return res.status(400).json({
+        error: "PageId doit être un UUID valide",
+        received: pageId,
       });
-
-      res.json({
-        content,
-        pageId,
-        title: page.title,
-        blocksCount: content.length,
-        hasNestedBlocks,
-      });
-    } catch (error: unknown) {
-      logger.error(
-        "[PAGE_ROUTES] Erreur chargement BlockNote:",
-        error instanceof Error ? error.message : String(error),
-      );
-      res.status(500).json({ error: "Erreur lors du chargement" });
     }
-  },
-);
+
+    // 🔒 AUTHORIZATION: Check if user has access to the page's workspace OR is admin
+    const [pageAccess, userAdmin] = await Promise.all([
+      prisma.page.findFirst({
+        where: {
+          id: pageId,
+          workspace: {
+            OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
+          },
+        },
+        select: { id: true },
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { isAdmin: true },
+      }),
+    ]);
+
+    if (!pageAccess && !userAdmin?.isAdmin) {
+      return res.status(403).json({ error: "Accès refusé" });
+    }
+
+    // 🚀 REDIS CACHE: Récupérer depuis cache (2min TTL)
+    const page: PageWithBlockNote | null = await cacheBlockNoteContent(pageId);
+
+    if (!page) {
+      return res.status(404).json({ error: "Page non trouvée" });
+    }
+
+    const content: BlockNoteBlock[] = Array.isArray(page.blockNoteContent)
+      ? page.blockNoteContent
+      : [];
+
+    const hasNestedBlocks = content.some((b: BlockNoteBlock) => {
+      return Array.isArray(b.children) && b.children.length > 0;
+    });
+
+    res.json({
+      content,
+      pageId,
+      title: page.title,
+      blocksCount: content.length,
+      hasNestedBlocks,
+    });
+  } catch (error: unknown) {
+    logger.error(
+      "[PAGE_ROUTES] Erreur chargement BlockNote:",
+      error instanceof Error ? error.message : String(error),
+    );
+    res.status(500).json({ error: "Erreur lors du chargement" });
+  }
+});
 
 // 🎨 METTRE À JOUR L'ICÔNE D'UNE PAGE
 router.patch("/:id/icon", async (req, res) => {
@@ -577,12 +542,7 @@ router.patch("/:id/icon", async (req, res) => {
     });
 
     // Validation de l'UUID
-    if (
-      !id ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        id,
-      )
-    ) {
+    if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
       return res.status(400).json({
         error: "PageId doit être un UUID valide",
         received: id,
@@ -591,18 +551,11 @@ router.patch("/:id/icon", async (req, res) => {
 
     // Validation des données d'icône
     if (icon && typeof icon !== "string") {
-      return res
-        .status(400)
-        .json({ error: "L'icône doit être une chaîne de caractères" });
+      return res.status(400).json({ error: "L'icône doit être une chaîne de caractères" });
     }
 
-    if (
-      iconColor &&
-      (typeof iconColor !== "string" || !/^#[0-9A-Fa-f]{6}$/.test(iconColor))
-    ) {
-      return res
-        .status(400)
-        .json({ error: "La couleur doit être au format hexadécimal #RRGGBB" });
+    if (iconColor && (typeof iconColor !== "string" || !/^#[0-9A-Fa-f]{6}$/.test(iconColor))) {
+      return res.status(400).json({ error: "La couleur doit être au format hexadécimal #RRGGBB" });
     }
 
     // Mise à jour de la page
@@ -633,9 +586,7 @@ router.patch("/:id/icon", async (req, res) => {
     });
   } catch (error: unknown) {
     if (isPrismaError(error) && error.code === "P2025") {
-      logger.log(
-        `⚠️ [API] Page ${req.params.id} n'existe plus lors de la mise à jour de l'icône`,
-      );
+      logger.log(`⚠️ [API] Page ${req.params.id} n'existe plus lors de la mise à jour de l'icône`);
       return res.status(404).json({
         error: "Page non trouvée",
         code: "PAGE_NOT_FOUND",

@@ -19,11 +19,7 @@ import { OpenAIAssistantService } from "./assistant/index.js";
 // Import des types depuis le module assistant
 import type { GraphicData } from "./assistant/types/index.js";
 // Import des modules refactorisés (fallback)
-import {
-  QuizGenerator,
-  CorrectionGenerator,
-  WorkspaceAnalyzer,
-} from "./generators/index.js";
+import { QuizGenerator, CorrectionGenerator, WorkspaceAnalyzer } from "./generators/index.js";
 import { PromptUtils } from "./utils/index.js";
 import { progressService } from "../progressService.js";
 
@@ -157,11 +153,7 @@ export class AIQuizService {
     workspaceContent: WorkspaceAnalysisResult[],
     ragContext?: string,
   ): Promise<GeneratedQuiz> {
-    return QuizGenerator.generateQuizFromWorkspace(
-      request,
-      workspaceContent,
-      ragContext,
-    );
+    return QuizGenerator.generateQuizFromWorkspace(request, workspaceContent, ragContext);
   }
 
   /**
@@ -197,11 +189,7 @@ export class AIQuizService {
       }
 
       // PRIORITÉ: Si coursesOnly est activé, utiliser le CorrectionGenerator pour une correction stricte
-      if (
-        request.coursesOnly &&
-        request.workspaceContent &&
-        request.workspaceContent.length > 0
-      ) {
+      if (request.coursesOnly && request.workspaceContent && request.workspaceContent.length > 0) {
         logger.log(
           "📚 Mode coursesOnly détecté - Utilisation du CorrectionGenerator pour correction stricte",
         );
@@ -211,8 +199,7 @@ export class AIQuizService {
           progressService.sendProgress(processId, {
             percentage: 30,
             stage: "courses_only_correction",
-            message:
-              "Correction basée uniquement sur le contenu de vos cours...",
+            message: "Correction basée uniquement sur le contenu de vos cours...",
           });
         }
 
@@ -221,12 +208,8 @@ export class AIQuizService {
       }
 
       // Détection automatique du type de correction nécessaire (pour les autres cas)
-      const correctionCapabilities =
-        this.detectCorrectionCapabilities(questions);
-      logger.log(
-        "🔍 Correction - Capacités détectées:",
-        correctionCapabilities,
-      );
+      const correctionCapabilities = this.detectCorrectionCapabilities(questions);
+      logger.log("🔍 Correction - Capacités détectées:", correctionCapabilities);
 
       const assistantService = new OpenAIAssistantService();
       let assistantResult: AssistantCorrectionResult;
@@ -241,10 +224,7 @@ export class AIQuizService {
       }
 
       // Choix de la méthode de correction Assistant appropriée
-      if (
-        correctionCapabilities.hasGraphics &&
-        correctionCapabilities.hasDocuments
-      ) {
+      if (correctionCapabilities.hasGraphics && correctionCapabilities.hasDocuments) {
         // Progression : Correction complète
         if (processId && progressService.hasActiveConnection(processId)) {
           progressService.sendProgress(processId, {
@@ -254,9 +234,7 @@ export class AIQuizService {
           });
         }
 
-        logger.log(
-          "🚀 Correction complète: graphiques + documents via Chat Completion",
-        );
+        logger.log("🚀 Correction complète: graphiques + documents via Chat Completion");
         assistantResult = await assistantService.correctWithRetry(
           () =>
             assistantService.correctCompleteQuizChatCompletion(
@@ -290,9 +268,7 @@ export class AIQuizService {
             });
           }
 
-          logger.log(
-            "🚀 Correction documents avec File Upload via Chat Completion",
-          );
+          logger.log("🚀 Correction documents avec File Upload via Chat Completion");
           assistantResult = await assistantService.correctWithRetry(
             () =>
               assistantService.correctCompleteQuizChatCompletion(
@@ -408,9 +384,7 @@ export class AIQuizService {
                       : undefined,
                   correctAnswerId:
                     q.type === QuestionType.MULTIPLE_CHOICE
-                      ? (q as MultipleChoiceQuestion).options.find(
-                          (opt) => opt.isCorrect,
-                        )?.id
+                      ? (q as MultipleChoiceQuestion).options.find((opt) => opt.isCorrect)?.id
                       : undefined,
                 })),
                 schoolLevel: request.schoolLevel,
@@ -445,10 +419,7 @@ export class AIQuizService {
 
       return result;
     } catch (error) {
-      logger.error(
-        "❌ Erreur correction Assistant, fallback vers ancien système:",
-        error,
-      );
+      logger.error("❌ Erreur correction Assistant, fallback vers ancien système:", error);
 
       // Progression : Erreur
       if (processId && progressService.hasActiveConnection(processId)) {
@@ -474,11 +445,7 @@ export class AIQuizService {
     suggestedQuestionCount: number;
     relevanceScore: number;
   }> {
-    return WorkspaceAnalyzer.analyzeWorkspaceContent(
-      workspaceContent,
-      workspaceName,
-      schoolLevel,
-    );
+    return WorkspaceAnalyzer.analyzeWorkspaceContent(workspaceContent, workspaceName, schoolLevel);
   }
 
   // ========================================
@@ -489,10 +456,7 @@ export class AIQuizService {
    * Génère un prompt adapté au niveau scolaire et à la classe spécifique
    * @deprecated Utilisez PromptUtils.getGenerationPromptByLevel() directement
    */
-  static getGenerationPromptByLevel(
-    level: SchoolLevel,
-    collegeGrade?: CollegeGrade,
-  ): string {
+  static getGenerationPromptByLevel(level: SchoolLevel, collegeGrade?: CollegeGrade): string {
     return PromptUtils.getGenerationPromptByLevel(level, collegeGrade);
   }
 
@@ -511,9 +475,7 @@ export class AIQuizService {
   /**
    * Détecte automatiquement les capacités nécessaires pour la correction
    */
-  private static detectCorrectionCapabilities(
-    questions: Question[],
-  ): CorrectionCapabilities {
+  private static detectCorrectionCapabilities(questions: Question[]): CorrectionCapabilities {
     let hasGraphics = false;
     let hasDocuments = false;
     const graphicsData: GraphicData[] = [];
@@ -523,11 +485,7 @@ export class AIQuizService {
     questions.forEach((question) => {
       if (question.hasGraphic) {
         hasGraphics = true;
-        if (
-          question.graphicId &&
-          question.graphicConfig &&
-          question.graphicLibrary
-        ) {
+        if (question.graphicId && question.graphicConfig && question.graphicLibrary) {
           // ✅ CORRECTION: Inclure TOUTES les données du graphique pour la correction
           graphicsData.push({
             // Format attendu par les méthodes Assistant
@@ -580,74 +538,61 @@ export class AIQuizService {
     logger.log("🔄 Transformation résultat Assistant:", assistantResult);
 
     // Transformation des corrections par question vers le format frontend
-    const questionResults: TransformedQuestionResult[] = (
-      assistantResult.corrections || []
-    ).map((correction: QuestionCorrectionFromAssistant, index: number) => {
-      const actualMaxScore =
-        correction.pointsTotal || questions[index]?.points || 1;
-      let score = correction.pointsObtained || 0;
-      const isCorrect = correction.isCorrect || false;
+    const questionResults: TransformedQuestionResult[] = (assistantResult.corrections || []).map(
+      (correction: QuestionCorrectionFromAssistant, index: number) => {
+        const actualMaxScore = correction.pointsTotal || questions[index]?.points || 1;
+        let score = correction.pointsObtained || 0;
+        const isCorrect = correction.isCorrect || false;
 
-      // 🔧 FIX CRITIQUE: Si l'Assistant indique que la réponse est correcte (isCorrect: true),
-      // forcer le score à être égal au maxScore pour éviter les points partiels sur des bonnes réponses
-      if (isCorrect && score < actualMaxScore) {
-        logger.log(
-          `🔧 [ASSISTANT-FIX] Question ${correction.questionId || questions[index]?.id}: Assistant dit correct mais score partiel ${score}/${actualMaxScore} → Correction à ${actualMaxScore}/${actualMaxScore}`,
-        );
-        score = actualMaxScore;
-      }
+        // 🔧 FIX CRITIQUE: Si l'Assistant indique que la réponse est correcte (isCorrect: true),
+        // forcer le score à être égal au maxScore pour éviter les points partiels sur des bonnes réponses
+        if (isCorrect && score < actualMaxScore) {
+          logger.log(
+            `🔧 [ASSISTANT-FIX] Question ${correction.questionId || questions[index]?.id}: Assistant dit correct mais score partiel ${score}/${actualMaxScore} → Correction à ${actualMaxScore}/${actualMaxScore}`,
+          );
+          score = actualMaxScore;
+        }
 
-      // Récupérer la réponse utilisateur et la convertir en string
-      const foundUserAnswer = userAnswers.find(
-        (a) => a.questionId === (correction.questionId || questions[index]?.id),
-      )?.answer;
+        // Récupérer la réponse utilisateur et la convertir en string
+        const foundUserAnswer = userAnswers.find(
+          (a) => a.questionId === (correction.questionId || questions[index]?.id),
+        )?.answer;
 
-      // Convertir AnswerValue en string pour le résultat
-      const userAnswerAsString =
-        correction.userAnswer ||
-        (typeof foundUserAnswer === "string"
-          ? foundUserAnswer
-          : foundUserAnswer !== undefined
-            ? JSON.stringify(foundUserAnswer)
-            : "");
+        // Convertir AnswerValue en string pour le résultat
+        const userAnswerAsString =
+          correction.userAnswer ||
+          (typeof foundUserAnswer === "string"
+            ? foundUserAnswer
+            : foundUserAnswer !== undefined
+              ? JSON.stringify(foundUserAnswer)
+              : "");
 
-      return {
-        questionId:
-          correction.questionId || questions[index]?.id || `q_${index}`,
-        isCorrect: isCorrect,
-        userAnswer: userAnswerAsString,
-        correctAnswer: correction.correctAnswer || "",
-        explanation: correction.explanation || "",
-        score: score, // Frontend attend 'score'
-        maxScore: actualMaxScore, // Frontend attend 'maxScore'
-        feedback: correction.feedback || "",
-        difficulty: questions[index]?.difficulty || "moyen",
-      };
-    });
+        return {
+          questionId: correction.questionId || questions[index]?.id || `q_${index}`,
+          isCorrect: isCorrect,
+          userAnswer: userAnswerAsString,
+          correctAnswer: correction.correctAnswer || "",
+          explanation: correction.explanation || "",
+          score: score, // Frontend attend 'score'
+          maxScore: actualMaxScore, // Frontend attend 'maxScore'
+          feedback: correction.feedback || "",
+          difficulty: questions[index]?.difficulty || "moyen",
+        };
+      },
+    );
 
     // Calculer les scores de base depuis le résultat Assistant
     const totalScore =
       assistantResult.globalScore?.pointsObtained ||
-      questionResults.reduce(
-        (sum: number, qr: TransformedQuestionResult) => sum + qr.score,
-        0,
-      );
+      questionResults.reduce((sum: number, qr: TransformedQuestionResult) => sum + qr.score, 0);
     const maxScore =
       assistantResult.globalScore?.pointsTotal ||
-      questionResults.reduce(
-        (sum: number, qr: TransformedQuestionResult) => sum + qr.maxScore,
-        0,
-      );
-    const percentage =
-      maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+      questionResults.reduce((sum: number, qr: TransformedQuestionResult) => sum + qr.maxScore, 0);
+    const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
 
     // Créer l'objet aiCorrection avec des valeurs par défaut sûres
     const aiCorrection = {
-      globalFeedback: this.generateGlobalFeedback(
-        assistantResult,
-        percentage,
-        questionResults,
-      ),
+      globalFeedback: this.generateGlobalFeedback(assistantResult, percentage, questionResults),
       recommendations: assistantResult.recommendations || [],
       strengths: this.extractStrengths(assistantResult, questionResults),
       weaknesses: this.extractWeaknesses(assistantResult, questionResults),
@@ -691,9 +636,7 @@ export class AIQuizService {
     const correctAnswers = questionResults.filter((q) => q.isCorrect);
 
     if (correctAnswers.length > 0) {
-      strengths.push(
-        `Bonnes réponses sur ${correctAnswers.length} question(s)`,
-      );
+      strengths.push(`Bonnes réponses sur ${correctAnswers.length} question(s)`);
 
       // Analyser les compétences spécifiques selon le type de correction
       if (
@@ -710,9 +653,7 @@ export class AIQuizService {
       }
     }
 
-    return strengths.length > 0
-      ? strengths
-      : ["Participation au quiz complétée"];
+    return strengths.length > 0 ? strengths : ["Participation au quiz complétée"];
   }
 
   /**
@@ -723,10 +664,7 @@ export class AIQuizService {
     questionResults: TransformedQuestionResult[],
   ): string[] {
     // Si des faiblesses sont directement fournies
-    if (
-      assistantResult.weaknesses &&
-      Array.isArray(assistantResult.weaknesses)
-    ) {
+    if (assistantResult.weaknesses && Array.isArray(assistantResult.weaknesses)) {
       return assistantResult.weaknesses;
     }
 
@@ -791,11 +729,9 @@ export class AIQuizService {
     } else if (percentage >= 60) {
       feedback += "Bon travail ! Quelques points à approfondir.";
     } else if (percentage >= 40) {
-      feedback +=
-        "Travail correct. Une révision des concepts serait bénéfique.";
+      feedback += "Travail correct. Une révision des concepts serait bénéfique.";
     } else {
-      feedback +=
-        "Des efforts supplémentaires sont nécessaires. Reprenez les bases du sujet.";
+      feedback += "Des efforts supplémentaires sont nécessaires. Reprenez les bases du sujet.";
     }
 
     // Ajouter des conseils spécifiques selon le type de correction

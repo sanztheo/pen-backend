@@ -265,11 +265,7 @@ export function dbscan(
   };
 
   // Expand cluster
-  const expandCluster = (
-    pointIdx: number,
-    neighbors: number[],
-    cluster: number,
-  ): void => {
+  const expandCluster = (pointIdx: number, neighbors: number[], cluster: number): void => {
     labels[pointIdx] = cluster;
 
     const queue = [...neighbors];
@@ -360,10 +356,7 @@ function estimateEps(vectors: number[][], k: number): number {
  * Silhouette score for evaluating clustering quality
  * Returns a value between -1 and 1 (higher is better)
  */
-export function silhouetteScore(
-  vectors: number[][],
-  clusters: number[][],
-): number {
+export function silhouetteScore(vectors: number[][], clusters: number[][]): number {
   if (clusters.length <= 1) return 0;
 
   let totalScore = 0;
@@ -387,11 +380,7 @@ export function silhouetteScore(
 
       // Calculate b(i) - minimum average distance to other clusters
       let b = Infinity;
-      for (
-        let otherClusterIdx = 0;
-        otherClusterIdx < clusters.length;
-        otherClusterIdx++
-      ) {
+      for (let otherClusterIdx = 0; otherClusterIdx < clusters.length; otherClusterIdx++) {
         if (otherClusterIdx === clusterIdx) continue;
         const otherCluster = clusters[otherClusterIdx];
         if (otherCluster.length === 0) continue;

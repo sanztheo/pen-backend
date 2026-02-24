@@ -45,26 +45,20 @@ export async function retryWithBackoff<T>(
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      SecureLogger.debug(
-        `🔄 [RETRY] Tentative ${attempt + 1}/${maxRetries + 1}`,
-        {
-          ...context,
-          attempt: attempt + 1,
-          maxRetries: maxRetries + 1,
-        },
-      );
+      SecureLogger.debug(`🔄 [RETRY] Tentative ${attempt + 1}/${maxRetries + 1}`, {
+        ...context,
+        attempt: attempt + 1,
+        maxRetries: maxRetries + 1,
+      });
 
       const result = await operation();
 
       const totalTime = Date.now() - startTime;
-      SecureLogger.debug(
-        `✅ [RETRY] Succès après ${attempt + 1} tentative(s)`,
-        {
-          ...context,
-          attempts: attempt + 1,
-          totalTime,
-        },
-      );
+      SecureLogger.debug(`✅ [RETRY] Succès après ${attempt + 1} tentative(s)`, {
+        ...context,
+        attempts: attempt + 1,
+        totalTime,
+      });
 
       return {
         success: true,
@@ -130,21 +124,17 @@ export async function retryWithBackoff<T>(
     lastError !== null && typeof lastError === "object" && "code" in lastError
       ? String((lastError as { code: unknown }).code)
       : undefined;
-  const finalErrorMessage =
-    lastError instanceof Error ? lastError.message : undefined;
+  const finalErrorMessage = lastError instanceof Error ? lastError.message : undefined;
 
-  SecureLogger.error(
-    `❌ [RETRY] Échec définitif après ${maxRetries + 1} tentatives`,
-    {
-      ...context,
-      attempts: maxRetries + 1,
-      totalTime,
-      finalError: {
-        code: finalErrorCode,
-        message: finalErrorMessage,
-      },
+  SecureLogger.error(`❌ [RETRY] Échec définitif après ${maxRetries + 1} tentatives`, {
+    ...context,
+    attempts: maxRetries + 1,
+    totalTime,
+    finalError: {
+      code: finalErrorCode,
+      message: finalErrorMessage,
     },
-  );
+  });
 
   return {
     success: false,
@@ -204,10 +194,7 @@ export async function retryPrismaTransaction<T>(
  * @param minMs - Délai minimum en millisecondes
  * @param maxMs - Délai maximum en millisecondes
  */
-export function randomJitter(
-  minMs: number = 50,
-  maxMs: number = 200,
-): Promise<void> {
+export function randomJitter(minMs: number = 50, maxMs: number = 200): Promise<void> {
   const delay = Math.random() * (maxMs - minMs) + minMs;
   return new Promise((resolve) => setTimeout(resolve, delay));
 }

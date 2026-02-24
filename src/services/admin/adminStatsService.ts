@@ -74,49 +74,43 @@ export class AdminStatsService {
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-    const [
-      totalUsers,
-      activeUsers,
-      newUsersThisWeek,
-      newUsersPreviousWeek,
-      inactiveUsers,
-    ] = await Promise.all([
-      prisma.user.count({ where: { isActive: true } }),
-      prisma.user.count({
-        where: {
-          isActive: true,
-          lastLoginAt: { gte: thirtyDaysAgo },
-        },
-      }),
-      // New users this week (last 7 days)
-      prisma.user.count({
-        where: {
-          isActive: true,
-          createdAt: { gte: sevenDaysAgo },
-        },
-      }),
-      // New users previous week (7-14 days ago)
-      prisma.user.count({
-        where: {
-          isActive: true,
-          createdAt: { lt: sevenDaysAgo, gte: fourteenDaysAgo },
-        },
-      }),
-      prisma.user.count({
-        where: {
-          isActive: true,
-          OR: [{ lastLoginAt: { lt: thirtyDaysAgo } }, { lastLoginAt: null }],
-        },
-      }),
-    ]);
+    const [totalUsers, activeUsers, newUsersThisWeek, newUsersPreviousWeek, inactiveUsers] =
+      await Promise.all([
+        prisma.user.count({ where: { isActive: true } }),
+        prisma.user.count({
+          where: {
+            isActive: true,
+            lastLoginAt: { gte: thirtyDaysAgo },
+          },
+        }),
+        // New users this week (last 7 days)
+        prisma.user.count({
+          where: {
+            isActive: true,
+            createdAt: { gte: sevenDaysAgo },
+          },
+        }),
+        // New users previous week (7-14 days ago)
+        prisma.user.count({
+          where: {
+            isActive: true,
+            createdAt: { lt: sevenDaysAgo, gte: fourteenDaysAgo },
+          },
+        }),
+        prisma.user.count({
+          where: {
+            isActive: true,
+            OR: [{ lastLoginAt: { lt: thirtyDaysAgo } }, { lastLoginAt: null }],
+          },
+        }),
+      ]);
 
     const churnRate = totalUsers > 0 ? (inactiveUsers / totalUsers) * 100 : 0;
 
     // FIX: Compare new users this week vs previous week (week-over-week growth)
     const growthRate =
       newUsersPreviousWeek > 0
-        ? ((newUsersThisWeek - newUsersPreviousWeek) / newUsersPreviousWeek) *
-          100
+        ? ((newUsersThisWeek - newUsersPreviousWeek) / newUsersPreviousWeek) * 100
         : newUsersThisWeek > 0
           ? 100
           : 0;
@@ -147,8 +141,7 @@ export class AdminStatsService {
 
     const mrr = premiumUsersCount * MONTHLY_PREMIUM_PRICE;
     const totalRevenue = mrr; // Expand with historical data later
-    const conversionRate =
-      totalUsersCount > 0 ? (premiumUsersCount / totalUsersCount) * 100 : 0;
+    const conversionRate = totalUsersCount > 0 ? (premiumUsersCount / totalUsersCount) * 100 : 0;
     const arpu = totalUsersCount > 0 ? mrr / totalUsersCount : 0;
 
     return {
@@ -165,29 +158,26 @@ export class AdminStatsService {
    * Get usage-related metrics
    */
   static async getUsageMetrics(): Promise<UsageMetrics> {
-    const [creditsAgg, quizCount, totalUsers, topUsersData] = await Promise.all(
-      [
-        prisma.userLimits.aggregate({
-          _sum: { aiCreditsUsed: true },
-        }),
-        prisma.quiz.count(),
-        prisma.user.count({ where: { isActive: true } }),
-        prisma.userLimits.findMany({
-          where: { aiCreditsUsed: { gt: 0 } },
-          orderBy: { aiCreditsUsed: "desc" },
-          take: 10,
-          include: {
-            user: {
-              select: { id: true, email: true },
-            },
+    const [creditsAgg, quizCount, totalUsers, topUsersData] = await Promise.all([
+      prisma.userLimits.aggregate({
+        _sum: { aiCreditsUsed: true },
+      }),
+      prisma.quiz.count(),
+      prisma.user.count({ where: { isActive: true } }),
+      prisma.userLimits.findMany({
+        where: { aiCreditsUsed: { gt: 0 } },
+        orderBy: { aiCreditsUsed: "desc" },
+        take: 10,
+        include: {
+          user: {
+            select: { id: true, email: true },
           },
-        }),
-      ],
-    );
+        },
+      }),
+    ]);
 
     const totalAICreditsUsed = creditsAgg._sum.aiCreditsUsed || 0;
-    const avgCreditsPerUser =
-      totalUsers > 0 ? totalAICreditsUsed / totalUsers : 0;
+    const avgCreditsPerUser = totalUsers > 0 ? totalAICreditsUsed / totalUsers : 0;
     const avgQuizzesPerUser = totalUsers > 0 ? quizCount / totalUsers : 0;
 
     const topUsers = topUsersData.map((ul) => ({
@@ -208,9 +198,7 @@ export class AdminStatsService {
   /**
    * Get moderation logs with pagination and filters
    */
-  static async getModerationLogs(
-    filters: ModerationFilters,
-  ): Promise<PaginatedLogs> {
+  static async getModerationLogs(filters: ModerationFilters): Promise<PaginatedLogs> {
     const page = filters.page || 1;
     const limit = Math.min(filters.limit || 50, 100); // Max 100 per page
     const skip = (page - 1) * limit;
@@ -429,11 +417,7 @@ export class AdminStatsService {
   /**
    * Get paginated list of pages for a specific user (admin access)
    */
-  static async getUserPages(
-    userId: string,
-    page = 1,
-    limit = 50,
-  ): Promise<PaginatedUserPages> {
+  static async getUserPages(userId: string, page = 1, limit = 50): Promise<PaginatedUserPages> {
     const skip = (page - 1) * Math.min(limit, 100);
     const take = Math.min(limit, 100);
 

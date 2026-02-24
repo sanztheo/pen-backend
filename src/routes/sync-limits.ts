@@ -124,10 +124,7 @@ router.post("/", authenticateToken, async (req: Request, res: Response) => {
       },
     });
   } catch (error) {
-    SecureLogger.error(
-      "❌ Erreur lors de la synchronisation des limites",
-      error,
-    );
+    SecureLogger.error("❌ Erreur lors de la synchronisation des limites", error);
     res.status(500).json({
       success: false,
       error: "SYNC_LIMITS_ERROR",

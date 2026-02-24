@@ -41,9 +41,7 @@ export interface PersonalizationContext {
 /**
  * Récupère la personnalisation utilisateur depuis la base de données
  */
-export async function getUserPersonalization(
-  userId: string,
-): Promise<UserPersonalization | null> {
+export async function getUserPersonalization(userId: string): Promise<UserPersonalization | null> {
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -64,15 +62,13 @@ export async function getUserPersonalization(
     if (typeof personalization.etude === "string") result.etude = personalization.etude;
     if (typeof personalization.filiere === "string") result.filiere = personalization.filiere;
     if (typeof personalization.langue === "string") result.langue = personalization.langue;
-    if (typeof personalization.presentation === "string") result.presentation = personalization.presentation;
+    if (typeof personalization.presentation === "string")
+      result.presentation = personalization.presentation;
     if (typeof personalization.attente === "string") result.attente = personalization.attente;
 
     return Object.keys(result).length > 0 ? result : null;
   } catch (error) {
-    logger.error(
-      "❌ [PERSONALIZATION] Erreur récupération personnalisation:",
-      error,
-    );
+    logger.error("❌ [PERSONALIZATION] Erreur récupération personnalisation:", error);
     return null;
   }
 }
@@ -240,9 +236,7 @@ export function generateAttentesInstructions(attentes: string): string {
     instructions.push(
       "- Privilégie les questions techniques et pratiques liées à la programmation",
     );
-    instructions.push(
-      "- Inclus des exemples de code ou des cas pratiques quand c'est pertinent",
-    );
+    instructions.push("- Inclus des exemples de code ou des cas pratiques quand c'est pertinent");
   }
 
   if (
@@ -250,9 +244,7 @@ export function generateAttentesInstructions(attentes: string): string {
     attentesLower.includes("examen") ||
     attentesLower.includes("prépare")
   ) {
-    instructions.push(
-      "- Formule les questions dans un style proche des examens officiels",
-    );
+    instructions.push("- Formule les questions dans un style proche des examens officiels");
     instructions.push("- Augmente le niveau d'exigence dans les réponses");
   }
 
@@ -271,9 +263,7 @@ export function generateAttentesInstructions(attentes: string): string {
     attentesLower.includes("complet")
   ) {
     instructions.push("- Fournis des explications détaillées et complètes");
-    instructions.push(
-      "- Approfondis les concepts avec des informations complémentaires",
-    );
+    instructions.push("- Approfondis les concepts avec des informations complémentaires");
   }
 
   if (
@@ -293,9 +283,7 @@ export function generateAttentesInstructions(attentes: string): string {
  * @param classeValue - Valeur brute de la personnalisation (ex: "l2", "terminale", "M1")
  * @returns Valeur valide de l'enum SchoolLevel
  */
-export function mapToSchoolLevelEnum(
-  classeValue: string | undefined | null,
-): SchoolLevel {
+export function mapToSchoolLevelEnum(classeValue: string | undefined | null): SchoolLevel {
   if (!classeValue || classeValue.trim() === "") {
     return SchoolLevel.COLLEGE;
   }
@@ -363,12 +351,9 @@ export function mapToSchoolLevelEnum(
   if (normalized === "lycee_seconde") return SchoolLevel.LYCEE_SECONDE;
   if (normalized === "lycee_premiere") return SchoolLevel.LYCEE_PREMIERE;
   if (normalized === "lycee_terminale") return SchoolLevel.LYCEE_TERMINALE;
-  if (normalized === "etudes_superieures")
-    return SchoolLevel.ETUDES_SUPERIEURES;
+  if (normalized === "etudes_superieures") return SchoolLevel.ETUDES_SUPERIEURES;
 
   // Fallback par défaut
-  logger.warn(
-    `[SCHOOL-LEVEL-MAPPING] Valeur non reconnue "${classeValue}", fallback vers COLLEGE`,
-  );
+  logger.warn(`[SCHOOL-LEVEL-MAPPING] Valeur non reconnue "${classeValue}", fallback vers COLLEGE`);
   return SchoolLevel.COLLEGE;
 }

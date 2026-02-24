@@ -7,9 +7,7 @@ import { logger } from "../utils/logger.js";
 // Schémas de validation
 const registerSchema = z.object({
   email: z.string().email("Email invalide"),
-  password: z
-    .string()
-    .min(6, "Le mot de passe doit contenir au moins 6 caractères"),
+  password: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
 });
@@ -29,9 +27,7 @@ const loginSchema = z.object({
  * IMPORTANT: Toujours mettre à jour allowedFields lors de l'ajout de nouveaux
  * champs publics dans user_metadata.
  */
-const getSafeUserMetadata = (
-  userMetadata: unknown,
-): Record<string, unknown> => {
+const getSafeUserMetadata = (userMetadata: unknown): Record<string, unknown> => {
   if (!userMetadata || typeof userMetadata !== "object") {
     return {};
   }
@@ -57,11 +53,7 @@ const getSafeUserMetadata = (
     if (metadata[field] !== undefined && metadata[field] !== null) {
       // Validation basique pour éviter l'injection de contenu malveillant
       const value = metadata[field];
-      if (
-        typeof value === "string" ||
-        typeof value === "number" ||
-        typeof value === "boolean"
-      ) {
+      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
         safeMetadata[field] = value;
       }
     }
@@ -273,9 +265,7 @@ const updateProfileSchema = z
 // Schéma de validation pour la mise à jour du mot de passe
 const updatePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Mot de passe actuel requis"),
-  newPassword: z
-    .string()
-    .min(6, "Le nouveau mot de passe doit contenir au moins 6 caractères"),
+  newPassword: z.string().min(6, "Le nouveau mot de passe doit contenir au moins 6 caractères"),
 });
 
 // Schéma de validation pour la mise à jour de l'email

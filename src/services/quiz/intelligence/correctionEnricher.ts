@@ -120,22 +120,13 @@ export class CorrectionEnricherService {
     const cfg = { ...DEFAULT_CONFIG, ...config };
 
     try {
-      logger.log(
-        `📚 [ENRICHER] Enrichissement question: "${question.question.slice(0, 50)}..."`,
-      );
+      logger.log(`📚 [ENRICHER] Enrichissement question: "${question.question.slice(0, 50)}..."`);
 
       // 1. Rechercher les passages pertinents dans les sources
-      const sourceReferences = await this.findSourceReferences(
-        question,
-        correction,
-        cfg,
-      );
+      const sourceReferences = await this.findSourceReferences(question, correction, cfg);
 
       // 2. Générer l'explication détaillée avec citations
-      const detailedExplanation = this.buildDetailedExplanation(
-        correction,
-        sourceReferences,
-      );
+      const detailedExplanation = this.buildDetailedExplanation(correction, sourceReferences);
 
       // 3. Si réponse incorrecte, suggérer des concepts à réviser
       let conceptsToReview: ConceptToReview[] | undefined;
@@ -156,9 +147,7 @@ export class CorrectionEnricherService {
         isEnriched: sourceReferences.length > 0,
       };
 
-      logger.log(
-        `✅ [ENRICHER] Enrichi avec ${sourceReferences.length} références`,
-      );
+      logger.log(`✅ [ENRICHER] Enrichi avec ${sourceReferences.length} références`);
       return enriched;
     } catch (error) {
       logger.error(`⚠️ [ENRICHER] Erreur enrichissement:`, error);
@@ -179,9 +168,7 @@ export class CorrectionEnricherService {
     corrections: QuestionResult[],
     config: EnrichmentConfig,
   ): Promise<EnrichedQuestionResult[]> {
-    logger.log(
-      `📚 [ENRICHER] Enrichissement batch: ${corrections.length} corrections`,
-    );
+    logger.log(`📚 [ENRICHER] Enrichissement batch: ${corrections.length} corrections`);
 
     const enrichedResults: EnrichedQuestionResult[] = [];
 
@@ -197,18 +184,12 @@ export class CorrectionEnricherService {
         continue;
       }
 
-      const enriched = await this.enrichCorrection(
-        question,
-        correction,
-        config,
-      );
+      const enriched = await this.enrichCorrection(question, correction, config);
       enrichedResults.push(enriched);
     }
 
     const enrichedCount = enrichedResults.filter((r) => r.isEnriched).length;
-    logger.log(
-      `✅ [ENRICHER] Batch terminé: ${enrichedCount}/${corrections.length} enrichis`,
-    );
+    logger.log(`✅ [ENRICHER] Batch terminé: ${enrichedCount}/${corrections.length} enrichis`);
 
     return enrichedResults;
   }
@@ -256,10 +237,7 @@ export class CorrectionEnricherService {
   /**
    * Construit la requête de recherche basée sur la question et la correction
    */
-  private static buildSearchQuery(
-    question: Question,
-    correction: QuestionResult,
-  ): string {
+  private static buildSearchQuery(question: Question, correction: QuestionResult): string {
     // Combiner l'énoncé de la question avec la bonne réponse
     const questionText = question.question;
     const correctAnswerText = this.extractCorrectAnswerText(question);
@@ -303,9 +281,7 @@ export class CorrectionEnricherService {
           question.correctMatches
             ?.map((m) => {
               const left = question.leftColumn?.find((l) => l.id === m.leftId);
-              const right = question.rightColumn?.find(
-                (r) => r.id === m.rightId,
-              );
+              const right = question.rightColumn?.find((r) => r.id === m.rightId);
               return `${left?.text || ""} ↔ ${right?.text || ""}`;
             })
             .join(", ") || ""
@@ -319,9 +295,7 @@ export class CorrectionEnricherService {
   /**
    * Convertit un résultat RAG en SourceReference
    */
-  private static ragResultToSourceReference(
-    result: RAGSearchResult,
-  ): SourceReference {
+  private static ragResultToSourceReference(result: RAGSearchResult): SourceReference {
     // Tronquer le contenu pour l'excerpt (max 300 caractères)
     const excerpt = this.truncateText(result.content, 300);
 
