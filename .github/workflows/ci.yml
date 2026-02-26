@@ -1,0 +1,103 @@
+name: CI Backend
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    name: "Quality Gate"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma clients
+        run: npx prisma generate && npx prisma generate --schema=prisma/schema-embeddings.prisma
+
+      - name: Lint (errors only)
+        run: npm run lint:errors
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Format check
+        run: npm run format:check
+
+  build:
+    name: "Build"
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma clients
+        run: npx prisma generate && npx prisma generate --schema=prisma/schema-embeddings.prisma
+
+      - name: Build
+        run: npm run build
+
+  unit-tests:
+    name: "Unit Tests"
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma clients
+        run: npx prisma generate && npx prisma generate --schema=prisma/schema-embeddings.prisma
+
+      - name: Run tests
+        run: npm test -- --ci --testPathIgnorePatterns="node_modules" --testPathIgnorePatterns="dist" --testPathIgnorePatterns="preprocessor/__tests__/(QuizPreprocessorAgent|limitValidator|integrationHelper)"
+        env:
+          CI: true
+
+  ci-status:
+    name: "CI Status"
+    if: always()
+    needs: [quality-gate, build, unit-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate pipeline result
+        env:
+          QUALITY_GATE: ${{ needs.quality-gate.result }}
+          BUILD: ${{ needs.build.result }}
+          TESTS: ${{ needs.unit-tests.result }}
+        run: |
+          echo "Quality Gate: $QUALITY_GATE"
+          echo "Build: $BUILD"
+          echo "Unit Tests: $TESTS"
+
+          if [[ "$QUALITY_GATE" == "failure" ]] || \
+             [[ "$BUILD" == "failure" ]] || \
+             [[ "$TESTS" == "failure" ]]; then
+            echo "CI Pipeline FAILED"
+            exit 1
+          fi
+          echo "CI Pipeline PASSED"
