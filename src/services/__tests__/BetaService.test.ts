@@ -19,9 +19,13 @@ const mockWaitlistCreate = jest.fn();
 const mockWaitlistFindUnique = jest.fn();
 const mockWaitlistCount = jest.fn();
 const mockWaitlistDeleteMany = jest.fn();
+const mockPageFindFirst = jest.fn();
+const mockAIConversationFindFirst = jest.fn();
+const mockQuizFindFirst = jest.fn();
 const mockExecuteRaw = jest.fn();
 const mockTransaction = jest.fn();
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 (prisma.user as any).count = mockUserCount;
 (prisma.user as any).findUnique = mockUserFindUnique;
 (prisma.user as any).findFirst = mockUserFindFirst;
@@ -31,17 +35,23 @@ const mockTransaction = jest.fn();
 (prisma.betaWaitlist as any).findUnique = mockWaitlistFindUnique;
 (prisma.betaWaitlist as any).count = mockWaitlistCount;
 (prisma.betaWaitlist as any).deleteMany = mockWaitlistDeleteMany;
+(prisma.page as any).findFirst = mockPageFindFirst;
+(prisma.aIConversation as any).findFirst = mockAIConversationFindFirst;
+(prisma.quiz as any).findFirst = mockQuizFindFirst;
 (prisma as any).$executeRaw = mockExecuteRaw;
 (prisma as any).$transaction = mockTransaction;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // ─── Redis Mocks ────────────────────────────────────────────────
 const mockRedisGet = jest.fn();
 const mockRedisSet = jest.fn();
 const mockRedisDel = jest.fn();
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 (redis as any).get = mockRedisGet;
 (redis as any).set = mockRedisSet;
 (redis as any).del = mockRedisDel;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // ─── Suppress logger output in tests ────────────────────────────
 jest.unstable_mockModule("../../utils/logger.js", () => ({
@@ -62,6 +72,10 @@ beforeEach(() => {
   mockRedisDel.mockResolvedValue(1);
   // Default: no active user found by email (public waitlist guard)
   mockUserFindFirst.mockResolvedValue(null);
+  // Default: no progress data (new user)
+  mockPageFindFirst.mockResolvedValue(null);
+  mockAIConversationFindFirst.mockResolvedValue(null);
+  mockQuizFindFirst.mockResolvedValue(null);
 });
 
 afterAll(async () => {
@@ -109,9 +123,11 @@ describe("BetaService.getStatus", () => {
     expect(result.isFull).toBe(true);
   });
 
-  it("should include userStatus when userId is provided", async () => {
+  it("should include userStatus and progress when userId is provided", async () => {
     mockRedisGet.mockResolvedValue("50");
     mockUserFindUnique.mockResolvedValue({ betaStatus: "active" });
+    mockPageFindFirst.mockResolvedValue({ id: "page-1" });
+    mockAIConversationFindFirst.mockResolvedValue({ id: "conv-1" });
 
     const result = await BetaService.getStatus("user-123");
 
@@ -120,6 +136,12 @@ describe("BetaService.getStatus", () => {
       select: { betaStatus: true },
     });
     expect(result.userStatus).toBe("active");
+    expect(result.progress).toEqual({
+      hasCreatedPage: true,
+      hasWrittenContent: true,
+      hasUsedAI: true,
+      hasGeneratedQuiz: false,
+    });
   });
 
   it("should handle spotsRemaining never going negative", async () => {
