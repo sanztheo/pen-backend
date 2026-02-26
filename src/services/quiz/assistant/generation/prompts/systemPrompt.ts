@@ -144,9 +144,7 @@ Chaque question doit evaluer des competences specifiques tout en respectant les 
 
     // Ajouter les instructions basées sur les attentes
     if (personalization.attentes) {
-      const attentesInstructions = generateAttentesInstructions(
-        personalization.attentes,
-      );
+      const attentesInstructions = generateAttentesInstructions(personalization.attentes);
       if (attentesInstructions) {
         systemPrompt += `
 

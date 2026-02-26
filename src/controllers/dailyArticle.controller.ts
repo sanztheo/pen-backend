@@ -51,9 +51,7 @@ export class DailyArticleController {
       res.status(500).json({
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Erreur lors de la récupération de l'article",
+          error instanceof Error ? error.message : "Erreur lors de la récupération de l'article",
       });
     }
   }
@@ -87,10 +85,7 @@ export class DailyArticleController {
       }
 
       // Forcer la création d'un nouvel article même s'il y en a déjà un cette semaine
-      const savedArticle = await FuturaRssService.saveWeeklyArticle(
-        latestArticle,
-        true,
-      );
+      const savedArticle = await FuturaRssService.saveWeeklyArticle(latestArticle, true);
 
       if (!savedArticle) {
         return res.status(500).json({
@@ -117,9 +112,7 @@ export class DailyArticleController {
       res.status(500).json({
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Erreur lors du rafraîchissement de l'article",
+          error instanceof Error ? error.message : "Erreur lors du rafraîchissement de l'article",
       });
     }
   }

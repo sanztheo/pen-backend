@@ -35,12 +35,7 @@ export class BetaService {
         activeCount = await prisma.user.count({
           where: { betaStatus: "active" },
         });
-        await redis.set(
-          STATUS_CACHE_KEY,
-          activeCount,
-          "EX",
-          STATUS_CACHE_TTL_SECONDS,
-        );
+        await redis.set(STATUS_CACHE_KEY, activeCount, "EX", STATUS_CACHE_TTL_SECONDS);
       }
     } catch {
       // Redis down — fallback to DB
@@ -140,10 +135,7 @@ export class BetaService {
    * Adds an entry to the beta waitlist
    * Returns position and whether the entry already existed
    */
-  static async addToWaitlist(
-    input: WaitlistInput,
-    userId?: string,
-  ): Promise<WaitlistResult> {
+  static async addToWaitlist(input: WaitlistInput, userId?: string): Promise<WaitlistResult> {
     // Guard: active users must not join waitlist (would lose access)
     if (userId) {
       const user = await prisma.user.findUnique({
@@ -177,10 +169,7 @@ export class BetaService {
       });
     } catch (error: unknown) {
       // P2002 = unique constraint violation (duplicate email)
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      ) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         const position = await BetaService.getWaitlistPosition(input.email);
         // PEN-141: Only mark as owned if the existing entry belongs to this user
         const existingEntry = userId
@@ -206,9 +195,7 @@ export class BetaService {
 
     const position = await BetaService.getWaitlistPosition(input.email);
 
-    logger.log(
-      `[BETA_SERVICE] Waitlist entry created: ${input.email} (position: ${position})`,
-    );
+    logger.log(`[BETA_SERVICE] Waitlist entry created: ${input.email} (position: ${position})`);
 
     // New entry created with userId → owned by this user
     return {
@@ -240,10 +227,7 @@ export class BetaService {
     }
 
     // Only inactive or pending_reactivation can reactivate
-    const reactivatableStatuses: BetaStatus[] = [
-      "inactive",
-      "pending_reactivation",
-    ];
+    const reactivatableStatuses: BetaStatus[] = ["inactive", "pending_reactivation"];
 
     if (!reactivatableStatuses.includes(user.betaStatus)) {
       return {
@@ -280,10 +264,7 @@ export class BetaService {
     try {
       await redis.del(STATUS_CACHE_KEY);
     } catch (cacheError) {
-      logger.warn(
-        "[BETA_SERVICE] Failed to invalidate cache after reactivation:",
-        cacheError,
-      );
+      logger.warn("[BETA_SERVICE] Failed to invalidate cache after reactivation:", cacheError);
     }
 
     logger.log(`[BETA_SERVICE] User reactivated: ${userId}`);
@@ -296,9 +277,7 @@ export class BetaService {
    * Prisma P2034 = "Transaction failed due to write conflict or deadlock"
    * Under concurrent reactivation waves, Serializable isolation causes transient failures.
    */
-  private static async executeReactivationTransaction(
-    userId: string,
-  ): Promise<void> {
+  private static async executeReactivationTransaction(userId: string): Promise<void> {
     for (let attempt = 1; attempt <= SERIALIZATION_MAX_RETRIES; attempt++) {
       try {
         await prisma.$transaction(
@@ -353,8 +332,7 @@ export class BetaService {
 
         // P2034 = serialization failure — retry with exponential backoff
         const isSerializationError =
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2034";
+          error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034";
 
         if (!isSerializationError || attempt === SERIALIZATION_MAX_RETRIES) {
           logger.error(

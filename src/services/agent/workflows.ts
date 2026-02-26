@@ -16,18 +16,13 @@ import { createRagTools } from "./tools/ragTools.js";
 
 // Créer le provider Google avec la clé API explicite
 const google = createGoogleGenerativeAI({
-  apiKey:
-    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
 import { createWebTools } from "./tools/webTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createPageTools } from "./tools/pageTools.js";
 import type { AgentRequest } from "./types.js";
-import {
-  buildSystemPrompt,
-  type RagSource,
-  type UserPersonalization,
-} from "./systemPrompts.js";
+import { buildSystemPrompt, type RagSource, type UserPersonalization } from "./systemPrompts.js";
 
 // ============================================================================
 // TYPES
@@ -106,10 +101,7 @@ function extractToolOutput(toolResults: ToolResultItem[] | undefined): string {
  * Execute parallel searches across multiple sources
  * Uses Promise.all for concurrent execution
  */
-async function parallelSearch(
-  query: string,
-  ctx: WorkflowContext,
-): Promise<SearchResult[]> {
+async function parallelSearch(query: string, ctx: WorkflowContext): Promise<SearchResult[]> {
   const toolContext = { userId: ctx.userId, workspaceId: ctx.workspaceId };
   const webTools = createWebTools(toolContext);
   const ragTools = createRagTools(toolContext);
@@ -163,11 +155,7 @@ async function parallelSearch(
           { toolCallId: "wiki-search", messages: [] },
         );
 
-        if (
-          searchResult &&
-          "articles" in searchResult &&
-          searchResult.articles?.length > 0
-        ) {
+        if (searchResult && "articles" in searchResult && searchResult.articles?.length > 0) {
           // Get first article
           const articleTitle = searchResult.articles[0].title;
           const articleResult = await webTools.getWikipediaArticle.execute!(
@@ -240,24 +228,17 @@ async function parallelSearch(
           { toolCallId: "workspace-list", messages: [] },
         );
 
-        if (
-          listResult &&
-          "pages" in listResult &&
-          listResult.pages?.length > 0
-        ) {
+        if (listResult && "pages" in listResult && listResult.pages?.length > 0) {
           // Read first 2 relevant pages
           const pageContents: string[] = [];
           for (const page of listResult.pages.slice(0, 2)) {
             try {
-              const pageContent = await workspaceTools.readWorkspacePage
-                .execute!(
+              const pageContent = await workspaceTools.readWorkspacePage.execute!(
                 { pageId: page.id },
                 { toolCallId: `workspace-read-${page.id}`, messages: [] },
               );
               if (pageContent && "content" in pageContent) {
-                pageContents.push(
-                  `## ${page.title}\n${pageContent.content || ""}`,
-                );
+                pageContents.push(`## ${page.title}\n${pageContent.content || ""}`);
               }
             } catch {
               // Skip failed page reads
@@ -307,9 +288,7 @@ async function synthesizeResearch(
   query: string,
   searchResults: SearchResult[],
 ): Promise<ResearchResults> {
-  logger.log(
-    `📝 [Workflow] Synthesizing ${searchResults.length} search results`,
-  );
+  logger.log(`📝 [Workflow] Synthesizing ${searchResults.length} search results`);
 
   const sourcesContext = searchResults
     .map(
@@ -341,9 +320,7 @@ ${sourcesContext}
 Create a comprehensive research synthesis that combines all relevant information from these sources.`,
   });
 
-  const sources = searchResults.map(
-    (r) => `[${r.source.toUpperCase()}] ${r.query}`,
-  );
+  const sources = searchResults.map((r) => `[${r.source.toUpperCase()}] ${r.query}`);
 
   return {
     searches: searchResults,
@@ -430,9 +407,7 @@ async function improveContent(
   draft: ContentDraft,
   evaluation: EvaluationResult,
 ): Promise<ContentDraft> {
-  logger.log(
-    `🔧 [Workflow] Improving content (iteration ${draft.iteration + 1})`,
-  );
+  logger.log(`🔧 [Workflow] Improving content (iteration ${draft.iteration + 1})`);
 
   const result = await generateText({
     model: MODELS.thinking,
@@ -539,9 +514,7 @@ Format as a structured outline.`,
   });
 
   // Extract title
-  const titleMatch = planResult.text.match(
-    /(?:title|titre)[:\s]*["']?([^"\n]+)["']?/i,
-  );
+  const titleMatch = planResult.text.match(/(?:title|titre)[:\s]*["']?([^"\n]+)["']?/i);
   const title = titleMatch?.[1]?.trim() || query.slice(0, 100);
 
   // Step 4: Content generation
@@ -599,9 +572,7 @@ Create a complete, detailed document covering all aspects of the research.`,
       targetAudience: ctx.personalization?.classe || "General",
     });
 
-    logger.log(
-      `📊 [Workflow] Evaluation ${i + 1}: Score ${evaluation.score}/100`,
-    );
+    logger.log(`📊 [Workflow] Evaluation ${i + 1}: Score ${evaluation.score}/100`);
 
     if (evaluation.passesThreshold) {
       logger.log(`✅ [Workflow] Content passed evaluation`);
@@ -632,12 +603,7 @@ Create a complete, detailed document covering all aspects of the research.`,
         { toolCallId: "create-page-search", messages: [] },
       );
 
-      if (
-        pageResult &&
-        "success" in pageResult &&
-        pageResult.success &&
-        pageResult.pageId
-      ) {
+      if (pageResult && "success" in pageResult && pageResult.success && pageResult.pageId) {
         pageId = pageResult.pageId;
         logger.log(`✅ [Workflow] Page created: ${pageId}`);
       }
@@ -712,9 +678,7 @@ Format as a structured outline.`,
   });
 
   // Extract title from plan
-  const titleMatch = planResult.text.match(
-    /(?:title|titre)[:\s]*["']?([^"\n]+)["']?/i,
-  );
+  const titleMatch = planResult.text.match(/(?:title|titre)[:\s]*["']?([^"\n]+)["']?/i);
   const title = titleMatch?.[1]?.trim() || userPrompt.slice(0, 100);
 
   // Step 3: Initial content generation
@@ -770,9 +734,7 @@ IMPORTANT:
       targetAudience: ctx.personalization?.classe || "General",
     });
 
-    logger.log(
-      `📊 [Workflow] Evaluation ${i + 1}: Score ${evaluation.score}/100`,
-    );
+    logger.log(`📊 [Workflow] Evaluation ${i + 1}: Score ${evaluation.score}/100`);
 
     if (evaluation.passesThreshold) {
       logger.log(`✅ [Workflow] Content passed evaluation`);
@@ -802,12 +764,7 @@ IMPORTANT:
       { toolCallId: "create-page", messages: [] },
     );
 
-    if (
-      pageResult &&
-      "success" in pageResult &&
-      pageResult.success &&
-      pageResult.pageId
-    ) {
+    if (pageResult && "success" in pageResult && pageResult.success && pageResult.pageId) {
       pageId = pageResult.pageId;
       logger.log(`✅ [Workflow] Page created: ${pageId}`);
     }
@@ -917,12 +874,7 @@ IMPORTANT:
       { toolCallId: "create-page-quick", messages: [] },
     );
 
-    if (
-      pageResult &&
-      "success" in pageResult &&
-      pageResult.success &&
-      pageResult.pageId
-    ) {
+    if (pageResult && "success" in pageResult && pageResult.success && pageResult.pageId) {
       pageId = pageResult.pageId;
     }
   } catch (e) {

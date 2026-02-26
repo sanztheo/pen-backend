@@ -42,18 +42,13 @@ const processJob = async (job: Job<FuturaJobData>): Promise<FuturaResult> => {
       }
 
       // Sauvegarder l'article dans la base de données
-      const savedArticle = await FuturaRssService.saveWeeklyArticle(
-        article,
-        forceNew,
-      );
+      const savedArticle = await FuturaRssService.saveWeeklyArticle(article, forceNew);
 
       if (!savedArticle) {
         throw new Error("Échec de la sauvegarde de l'article");
       }
 
-      logger.log(
-        `✅ [Futura Worker] Article sauvegardé: "${savedArticle.title}"`,
-      );
+      logger.log(`✅ [Futura Worker] Article sauvegardé: "${savedArticle.title}"`);
 
       return {
         success: true,
@@ -73,18 +68,14 @@ const processJob = async (job: Job<FuturaJobData>): Promise<FuturaResult> => {
 };
 
 // 🎯 Création du worker Futura
-export const futuraWorker = new Worker<FuturaJobData, FuturaResult>(
-  "futura",
-  processJob,
-  {
-    connection: redis as unknown as import("bullmq").ConnectionOptions,
-    concurrency: 1, // Un seul job à la fois pour éviter les conflits
-    limiter: {
-      max: 5, // Maximum 5 jobs par période
-      duration: 60000, // Sur 60 secondes
-    },
+export const futuraWorker = new Worker<FuturaJobData, FuturaResult>("futura", processJob, {
+  connection: redis as unknown as import("bullmq").ConnectionOptions,
+  concurrency: 1, // Un seul job à la fois pour éviter les conflits
+  limiter: {
+    max: 5, // Maximum 5 jobs par période
+    duration: 60000, // Sur 60 secondes
   },
-);
+});
 
 // 📊 Events du worker
 futuraWorker.on("completed", (job, result) => {

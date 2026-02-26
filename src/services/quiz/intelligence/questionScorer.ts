@@ -70,10 +70,7 @@ function getQuestionText(question: Question): string {
 function hasCorrectAnswer(question: Question): boolean {
   switch (question.type) {
     case QuestionType.OPEN_QUESTION:
-      return !!(
-        question.expectedAnswer ||
-        (question.keywords && question.keywords.length > 0)
-      );
+      return !!(question.expectedAnswer || (question.keywords && question.keywords.length > 0));
     case QuestionType.MULTIPLE_CHOICE:
       return question.options?.some((opt) => opt.isCorrect) ?? false;
     case QuestionType.TRUE_FALSE:
@@ -114,10 +111,7 @@ export class QuestionScorerService {
   /**
    * Score une question basé sur des heuristiques rapides (sans IA)
    */
-  static scoreQuestion(
-    question: Question,
-    config: ScoringConfig = {},
-  ): QuestionScore {
+  static scoreQuestion(question: Question, config: ScoringConfig = {}): QuestionScore {
     const cfg = { ...DEFAULT_CONFIG, ...config };
     const reasons: string[] = [];
 
@@ -138,10 +132,7 @@ export class QuestionScorerService {
     const optionVariety = this.scoreOptionVariety(question, reasons);
 
     // 4. Score de cohérence de difficulté
-    const difficultyCoherence = this.scoreDifficultyCoherence(
-      question,
-      reasons,
-    );
+    const difficultyCoherence = this.scoreDifficultyCoherence(question, reasons);
 
     // Calcul du score global (moyenne pondérée)
     const weights = {
@@ -215,11 +206,7 @@ export class QuestionScorerService {
     const cfg = { ...DEFAULT_CONFIG, ...config };
 
     const score = this.scoreQuestion(question, cfg);
-    const duplicate = this.isDuplicate(
-      question,
-      existingQuestions,
-      cfg.duplicateThreshold,
-    );
+    const duplicate = this.isDuplicate(question, existingQuestions, cfg.duplicateThreshold);
 
     const acceptable = score.overall >= cfg.minScore && !duplicate.isDuplicate;
 
@@ -249,16 +236,12 @@ export class QuestionScorerService {
 
     if (score.optionVariety < 0.6) {
       if (question.type === QuestionType.MULTIPLE_CHOICE) {
-        suggestions.push(
-          "Les options de réponse manquent de variété ou sont trop similaires.",
-        );
+        suggestions.push("Les options de réponse manquent de variété ou sont trop similaires.");
       }
     }
 
     if (score.difficultyCoherence < 0.6) {
-      suggestions.push(
-        "La difficulté estimée ne correspond pas au contenu de la question.",
-      );
+      suggestions.push("La difficulté estimée ne correspond pas au contenu de la question.");
     }
 
     return suggestions;
@@ -332,10 +315,7 @@ export class QuestionScorerService {
   /**
    * Score la variété des options (pour QCM)
    */
-  private static scoreOptionVariety(
-    question: Question,
-    reasons: string[],
-  ): number {
+  private static scoreOptionVariety(question: Question, reasons: string[]): number {
     // Pour les questions non-QCM, score parfait par défaut
     if (question.type !== QuestionType.MULTIPLE_CHOICE) {
       return 1.0;
@@ -367,11 +347,9 @@ export class QuestionScorerService {
     }
 
     // Vérifier que les options ne sont pas trop similaires
-    const avgLength =
-      options.reduce((sum, o) => sum + o.length, 0) / options.length;
+    const avgLength = options.reduce((sum, o) => sum + o.length, 0) / options.length;
     const lengthVariance =
-      options.reduce((sum, o) => sum + Math.pow(o.length - avgLength, 2), 0) /
-      options.length;
+      options.reduce((sum, o) => sum + Math.pow(o.length - avgLength, 2), 0) / options.length;
 
     if (lengthVariance < 10) {
       reasons.push("Options de longueur trop uniforme");
@@ -385,10 +363,7 @@ export class QuestionScorerService {
   /**
    * Score la cohérence de difficulté
    */
-  private static scoreDifficultyCoherence(
-    question: Question,
-    reasons: string[],
-  ): number {
+  private static scoreDifficultyCoherence(question: Question, reasons: string[]): number {
     // Si pas de difficulté spécifiée, score neutre
     if (!question.difficulty) {
       return 0.7;
@@ -397,11 +372,8 @@ export class QuestionScorerService {
     const questionText = getQuestionText(question);
     const textLength = questionText.length;
     const hasFormula =
-      questionText.includes("=") ||
-      questionText.includes("²") ||
-      questionText.includes("√");
-    const hasMultipleConcepts =
-      (questionText.match(/,|et|ou|ainsi que/gi) || []).length >= 2;
+      questionText.includes("=") || questionText.includes("²") || questionText.includes("√");
+    const hasMultipleConcepts = (questionText.match(/,|et|ou|ainsi que/gi) || []).length >= 2;
 
     // Heuristiques simples de difficulté
     let estimatedDifficulty: "facile" | "moyen" | "difficile" = "moyen";

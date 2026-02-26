@@ -48,10 +48,7 @@ export interface CorrectionPromptOptions {
  * Type guard to check if a value is a valid SchoolLevel
  */
 function isSchoolLevel(value: unknown): value is SchoolLevel {
-  return (
-    typeof value === "string" &&
-    Object.values(SchoolLevel).includes(value as SchoolLevel)
-  );
+  return typeof value === "string" && Object.values(SchoolLevel).includes(value as SchoolLevel);
 }
 
 /**
@@ -85,7 +82,7 @@ export function buildStandardCorrectionPrompt(
     options?.collegeGrade as CollegeGrade | undefined,
   );
 
-  let prompt = `${professorPersona}
+  const prompt = `${professorPersona}
 
 CORRIGE CE QUIZ STANDARD
 
@@ -95,9 +92,7 @@ NOMBRE DE RÉPONSES : ${answers.length}
 DÉTAIL DES QUESTIONS ET RÉPONSES :
 ${answers
   .map((answer, index) => {
-    const question = questions.find(
-      (q: CorrectionQuizQuestion) => q.id === answer.questionId,
-    );
+    const question = questions.find((q: CorrectionQuizQuestion) => q.id === answer.questionId);
     let questionDetails = "";
 
     if (question) {
@@ -106,11 +101,7 @@ ${answers
    Type: ${question.type || "UNKNOWN"}`;
 
       // Pour les QCM, afficher les options et la bonne réponse
-      if (
-        question.type === "MULTIPLE_CHOICE" &&
-        question.options &&
-        question.options.length > 0
-      ) {
+      if (question.type === "MULTIPLE_CHOICE" && question.options && question.options.length > 0) {
         const correctOption = question.options.find(
           (opt: CorrectionQuizOption) => opt.isCorrect === true,
         );
@@ -199,7 +190,7 @@ export function buildCompleteCorrectionPrompt(
     options?.collegeGrade as CollegeGrade | undefined,
   );
 
-  let prompt = `${professorPersona}
+  const prompt = `${professorPersona}
 
 CORRIGE CE QUIZ COMPLET (GRAPHIQUES + DOCUMENTS)
 
@@ -210,9 +201,7 @@ TYPE : Quiz multimédia avec analyse croisée
 DÉTAIL DES QUESTIONS ET RÉPONSES :
 ${answers
   .map((answer, index) => {
-    const question = questions.find(
-      (q: CorrectionQuizQuestion) => q.id === answer.questionId,
-    );
+    const question = questions.find((q: CorrectionQuizQuestion) => q.id === answer.questionId);
     let questionDetails = "";
 
     if (question) {
@@ -221,11 +210,7 @@ ${answers
    Type: ${question.type || "UNKNOWN"}`;
 
       // Pour les QCM, afficher les options et la bonne réponse
-      if (
-        question.type === "MULTIPLE_CHOICE" &&
-        question.options &&
-        question.options.length > 0
-      ) {
+      if (question.type === "MULTIPLE_CHOICE" && question.options && question.options.length > 0) {
         const correctOption = question.options.find(
           (opt: CorrectionQuizOption) => opt.isCorrect === true,
         );

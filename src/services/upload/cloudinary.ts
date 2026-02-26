@@ -68,16 +68,11 @@ function validateFile(buffer: Buffer, mimetype: string): UploadError | null {
 type AllowedMimeType = (typeof UPLOAD_CONFIG.ALLOWED_IMAGE_TYPES)[number];
 
 function isAllowedMimeType(mimetype: string): mimetype is AllowedMimeType {
-  return UPLOAD_CONFIG.ALLOWED_IMAGE_TYPES.includes(
-    mimetype as AllowedMimeType,
-  );
+  return UPLOAD_CONFIG.ALLOWED_IMAGE_TYPES.includes(mimetype as AllowedMimeType);
 }
 
 // 🗜️ Compression intelligente avec Sharp
-async function compressImage(
-  buffer: Buffer,
-  mimetype: string,
-): Promise<Buffer> {
+async function compressImage(buffer: Buffer, mimetype: string): Promise<Buffer> {
   try {
     const image = sharp(buffer);
     const metadata = await image.metadata();
@@ -87,10 +82,7 @@ async function compressImage(
     let height = metadata.height || UPLOAD_CONFIG.MAX_HEIGHT;
 
     if (width > UPLOAD_CONFIG.MAX_WIDTH || height > UPLOAD_CONFIG.MAX_HEIGHT) {
-      const ratio = Math.min(
-        UPLOAD_CONFIG.MAX_WIDTH / width,
-        UPLOAD_CONFIG.MAX_HEIGHT / height,
-      );
+      const ratio = Math.min(UPLOAD_CONFIG.MAX_WIDTH / width, UPLOAD_CONFIG.MAX_HEIGHT / height);
       width = Math.round(width * ratio);
       height = Math.round(height * ratio);
     }
@@ -235,18 +227,11 @@ export async function deleteFromCloudinary(publicId: string): Promise<void> {
 
     // Vérifier si la suppression a vraiment réussi
     if (result.result === "ok") {
-      logger.log(
-        "✅ [Cloudinary Service] Image SUPPRIMÉE avec succès de Cloudinary",
-      );
+      logger.log("✅ [Cloudinary Service] Image SUPPRIMÉE avec succès de Cloudinary");
     } else if (result.result === "not found") {
-      logger.warn(
-        "⚠️ [Cloudinary Service] Image déjà supprimée ou introuvable sur Cloudinary",
-      );
+      logger.warn("⚠️ [Cloudinary Service] Image déjà supprimée ou introuvable sur Cloudinary");
     } else {
-      logger.warn(
-        "⚠️ [Cloudinary Service] Statut suppression inattendu:",
-        result.result,
-      );
+      logger.warn("⚠️ [Cloudinary Service] Statut suppression inattendu:", result.result);
     }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);

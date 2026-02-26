@@ -56,19 +56,9 @@ interface BlockNoteBlock {
 // Définition des schémas Zod pour chaque tool
 const listWorkspacePagesSchema = z.object({
   projectId: z.string().optional().describe("Filtrer par projet spécifique"),
-  limit: z
-    .number()
-    .min(1)
-    .max(100)
-    .optional()
-    .default(20)
-    .describe("Nombre max de pages"),
+  limit: z.number().min(1).max(100).optional().default(20).describe("Nombre max de pages"),
   search: z.string().optional().describe("Recherche dans les titres"),
-  includeArchived: z
-    .boolean()
-    .optional()
-    .default(false)
-    .describe("Inclure les pages archivées"),
+  includeArchived: z.boolean().optional().default(false).describe("Inclure les pages archivées"),
 });
 
 const readWorkspacePageSchema = z.object({
@@ -76,13 +66,7 @@ const readWorkspacePageSchema = z.object({
 });
 
 const listWorkspaceProjectsSchema = z.object({
-  limit: z
-    .number()
-    .min(1)
-    .max(50)
-    .optional()
-    .default(20)
-    .describe("Nombre max de projets"),
+  limit: z.number().min(1).max(50).optional().default(20).describe("Nombre max de projets"),
 });
 
 /**
@@ -137,9 +121,7 @@ Utile pour savoir quelles pages peuvent être référencées ou lues.`,
             take: limit,
           });
 
-          logger.log(
-            `✅ [TOOL:listWorkspacePages] ${pages.length} pages trouvées`,
-          );
+          logger.log(`✅ [TOOL:listWorkspacePages] ${pages.length} pages trouvées`);
 
           return {
             count: pages.length,
@@ -217,10 +199,7 @@ Le contenu BlockNote est converti en texte lisible.`,
               }
             }
           } catch (e) {
-            logger.warn(
-              `⚠️ [TOOL:readWorkspacePage] Erreur extraction BlockNote:`,
-              e,
-            );
+            logger.warn(`⚠️ [TOOL:readWorkspacePage] Erreur extraction BlockNote:`, e);
           }
 
           logger.log(
@@ -255,9 +234,7 @@ Le contenu BlockNote est converti en texte lisible.`,
 Retourne les noms, IDs, et nombre de pages par projet.`,
       inputSchema: listWorkspaceProjectsSchema,
       execute: async ({ limit }) => {
-        logger.log(
-          `🔍 [TOOL:listWorkspaceProjects] workspaceId=${ctx.workspaceId}`,
-        );
+        logger.log(`🔍 [TOOL:listWorkspaceProjects] workspaceId=${ctx.workspaceId}`);
 
         try {
           const projects = await prisma.project.findMany({
@@ -276,9 +253,7 @@ Retourne les noms, IDs, et nombre de pages par projet.`,
             take: limit,
           });
 
-          logger.log(
-            `✅ [TOOL:listWorkspaceProjects] ${projects.length} projets trouvés`,
-          );
+          logger.log(`✅ [TOOL:listWorkspaceProjects] ${projects.length} projets trouvés`);
 
           return {
             count: projects.length,
@@ -378,11 +353,7 @@ function extractTextFromBlockNote(blocks: BlockNoteBlock[]): string {
     }
 
     // Traiter les blocs enfants récursivement
-    if (
-      block.children &&
-      Array.isArray(block.children) &&
-      block.children.length > 0
-    ) {
+    if (block.children && Array.isArray(block.children) && block.children.length > 0) {
       const childText = extractTextFromBlockNote(block.children);
       if (childText) {
         textParts.push(childText);

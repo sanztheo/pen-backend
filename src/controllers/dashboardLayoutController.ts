@@ -1,5 +1,5 @@
-import { Request, Response } from 'express';
-import { DashboardLayoutService } from '../services/dashboardLayoutService.js';
+import { Request, Response } from "express";
+import { DashboardLayoutService } from "../services/dashboardLayoutService.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -15,7 +15,7 @@ export const DashboardLayoutController = {
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({ error: 'Non authentifié' });
+        return res.status(401).json({ error: "Non authentifié" });
       }
 
       const layout = await DashboardLayoutService.getUserLayout(userId);
@@ -24,10 +24,10 @@ export const DashboardLayoutController = {
         // Retourne les valeurs par défaut si aucun layout sauvegardé
         return res.json({
           visibleCharts: [
-            'progression-area',
-            'subject-performance-bar',
-            'difficulty-radar',
-            'time-analytics-line',
+            "progression-area",
+            "subject-performance-bar",
+            "difficulty-radar",
+            "time-analytics-line",
           ],
           layout: [],
         });
@@ -35,9 +35,9 @@ export const DashboardLayoutController = {
 
       return res.json(layout);
     } catch (error) {
-      logger.error('Erreur lors de la récupération du layout:', error);
+      logger.error("Erreur lors de la récupération du layout:", error);
       return res.status(500).json({
-        error: 'Erreur lors de la récupération de la disposition',
+        error: "Erreur lors de la récupération de la disposition",
       });
     }
   },
@@ -51,14 +51,14 @@ export const DashboardLayoutController = {
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({ error: 'Non authentifié' });
+        return res.status(401).json({ error: "Non authentifié" });
       }
 
       const { visibleCharts, layout } = req.body;
 
       if (!Array.isArray(visibleCharts)) {
         return res.status(400).json({
-          error: 'visibleCharts doit être un tableau',
+          error: "visibleCharts doit être un tableau",
         });
       }
 
@@ -69,9 +69,9 @@ export const DashboardLayoutController = {
 
       return res.json(savedLayout);
     } catch (error) {
-      logger.error('Erreur lors de la sauvegarde du layout:', error);
+      logger.error("Erreur lors de la sauvegarde du layout:", error);
       return res.status(500).json({
-        error: 'Erreur lors de la sauvegarde de la disposition',
+        error: "Erreur lors de la sauvegarde de la disposition",
       });
     }
   },
@@ -85,27 +85,26 @@ export const DashboardLayoutController = {
       const userId = req.user?.id;
 
       if (!userId) {
-        return res.status(401).json({ error: 'Non authentifié' });
+        return res.status(401).json({ error: "Non authentifié" });
       }
 
       await DashboardLayoutService.resetUserLayout(userId);
 
       return res.json({
-        message: 'Disposition réinitialisée',
+        message: "Disposition réinitialisée",
         visibleCharts: [
-          'progression-area',
-          'subject-performance-bar',
-          'difficulty-radar',
-          'time-analytics-line',
+          "progression-area",
+          "subject-performance-bar",
+          "difficulty-radar",
+          "time-analytics-line",
         ],
         layout: [],
       });
     } catch (error) {
-      logger.error('Erreur lors de la réinitialisation du layout:', error);
+      logger.error("Erreur lors de la réinitialisation du layout:", error);
       return res.status(500).json({
-        error: 'Erreur lors de la réinitialisation de la disposition',
+        error: "Erreur lors de la réinitialisation de la disposition",
       });
     }
   },
 };
-

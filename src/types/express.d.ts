@@ -11,14 +11,14 @@ declare global {
   }
 }
 
-export {}; 
+export {};
 
 // Shims for untyped modules used at runtime
-declare module 'pdf-parse/lib/pdf-parse.js' {
+declare module "pdf-parse/lib/pdf-parse.js" {
   const value: any;
   export default value;
 }
-declare module 'pdf-parse' {
+declare module "pdf-parse" {
   const value: any;
   export default value;
 }

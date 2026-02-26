@@ -25,9 +25,7 @@ const listAvailableSourcesSchema = z.object({
     .default(true)
     .describe("Inclure les sources globales (Wikipedia)"),
   sourceTypes: z
-    .array(
-      z.enum(["PDF", "TEXT_FILE", "WIKIPEDIA", "WORKSPACE_PAGE", "USER_NOTES"]),
-    )
+    .array(z.enum(["PDF", "TEXT_FILE", "WIKIPEDIA", "WORKSPACE_PAGE", "USER_NOTES"]))
     .optional()
     .describe("Filtrer par types de sources"),
 });
@@ -37,16 +35,8 @@ const searchRagChunksSchema = z.object({
   sourceIds: z
     .array(z.string())
     .optional()
-    .describe(
-      "IDs des sources spécifiques à interroger (si vide, cherche dans toutes)",
-    ),
-  limit: z
-    .number()
-    .min(1)
-    .max(20)
-    .optional()
-    .default(8)
-    .describe("Nombre max de résultats"),
+    .describe("IDs des sources spécifiques à interroger (si vide, cherche dans toutes)"),
+  limit: z.number().min(1).max(20).optional().default(8).describe("Nombre max de résultats"),
   threshold: z
     .number()
     .min(0)
@@ -132,9 +122,7 @@ Utilise cet outil EN PREMIER pour savoir quelles sources sont disponibles avant 
             take: 50,
           });
 
-          logger.log(
-            `✅ [TOOL:listAvailableSources] ${sources.length} sources trouvées`,
-          );
+          logger.log(`✅ [TOOL:listAvailableSources] ${sources.length} sources trouvées`);
 
           return {
             count: sources.length,
@@ -185,14 +173,9 @@ Idéal pour répondre à des questions factuelles ou trouver des informations pr
             searchOptions.specificSourceIds = sourceIds;
           }
 
-          const results = await ragSystem.intelligentSearch(
-            query,
-            searchOptions,
-          );
+          const results = await ragSystem.intelligentSearch(query, searchOptions);
 
-          logger.log(
-            `✅ [TOOL:searchRagChunks] ${results.length} chunks trouvés`,
-          );
+          logger.log(`✅ [TOOL:searchRagChunks] ${results.length} chunks trouvés`);
 
           return {
             count: results.length,
@@ -228,9 +211,7 @@ Utile pour obtenir une vue complète d'un document ou article.
 Retourne le contenu organisé par sections si disponible.`,
       inputSchema: readRagSourceSchema,
       execute: async ({ sourceId, maxChunks }) => {
-        logger.log(
-          `🔍 [TOOL:readRagSource] sourceId=${sourceId}, maxChunks=${maxChunks}`,
-        );
+        logger.log(`🔍 [TOOL:readRagSource] sourceId=${sourceId}, maxChunks=${maxChunks}`);
 
         try {
           // Vérifier que la source existe et est accessible
@@ -238,10 +219,7 @@ Retourne le contenu organisé par sections si disponible.`,
             where: {
               id: sourceId,
               status: "COMPLETED",
-              OR: [
-                { userId: ctx.userId, workspaceId: ctx.workspaceId },
-                { isGlobal: true },
-              ],
+              OR: [{ userId: ctx.userId, workspaceId: ctx.workspaceId }, { isGlobal: true }],
             },
             select: {
               id: true,
@@ -319,9 +297,7 @@ Retourne le contenu organisé par sections si disponible.`,
 Utile pour savoir si un fichier ou article Wikipedia a été traité.`,
       inputSchema: checkSourcesRagStatusSchema,
       execute: async ({ titles }) => {
-        logger.log(
-          `🔍 [TOOL:checkSourcesRagStatus] Vérification de ${titles.length} sources`,
-        );
+        logger.log(`🔍 [TOOL:checkSourcesRagStatus] Vérification de ${titles.length} sources`);
 
         try {
           const results = await Promise.all(
@@ -330,10 +306,7 @@ Utile pour savoir si un fichier ou article Wikipedia a été traité.`,
                 where: {
                   title: { contains: title, mode: "insensitive" },
                   status: "COMPLETED",
-                  OR: [
-                    { userId: ctx.userId, workspaceId: ctx.workspaceId },
-                    { isGlobal: true },
-                  ],
+                  OR: [{ userId: ctx.userId, workspaceId: ctx.workspaceId }, { isGlobal: true }],
                 },
                 select: {
                   id: true,

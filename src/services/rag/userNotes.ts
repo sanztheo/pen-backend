@@ -46,10 +46,7 @@ export class UserNotesRAGSystem {
 
       return source || null;
     } catch (error) {
-      logger.error(
-        `❌ [USER-NOTES] Erreur recherche source existante:`,
-        error,
-      );
+      logger.error(`❌ [USER-NOTES] Erreur recherche source existante:`, error);
       return null;
     }
   }
@@ -153,9 +150,7 @@ export class UserNotesRAGSystem {
   /**
    * 📦 Découpe le contenu des notes en chunks pertinents
    */
-  private async chunkUserNoteContent(
-    note: UserNoteContent,
-  ): Promise<RAGChunkInput[]> {
+  private async chunkUserNoteContent(note: UserNoteContent): Promise<RAGChunkInput[]> {
     const chunks: RAGChunkInput[] = [];
 
     if (!note.content || note.content.trim().length === 0) {
@@ -206,9 +201,7 @@ export class UserNotesRAGSystem {
       });
     }
 
-    logger.log(
-      `📦 [USER-NOTES] ${chunks.length} chunks générés pour: "${note.title}"`,
-    );
+    logger.log(`📦 [USER-NOTES] ${chunks.length} chunks générés pour: "${note.title}"`);
 
     return chunks;
   }
@@ -216,16 +209,11 @@ export class UserNotesRAGSystem {
   /**
    * 🧠 Traite les chunks avec embeddings
    */
-  private async processUserNoteChunks(
-    sourceId: string,
-    chunks: RAGChunkInput[],
-  ): Promise<void> {
+  private async processUserNoteChunks(sourceId: string, chunks: RAGChunkInput[]): Promise<void> {
     const { ragSystem } = await import("./index.js");
 
     try {
-      logger.log(
-        `🧠 [USER-NOTES] Génération embeddings pour ${chunks.length} chunks...`,
-      );
+      logger.log(`🧠 [USER-NOTES] Génération embeddings pour ${chunks.length} chunks...`);
 
       const chunksBatch = [];
 
@@ -283,9 +271,7 @@ export class UserNotesRAGSystem {
         `;
       }
 
-      logger.log(
-        `✅ [USER-NOTES] ${chunks.length} chunks indexés avec embeddings`,
-      );
+      logger.log(`✅ [USER-NOTES] ${chunks.length} chunks indexés avec embeddings`);
     } catch (error) {
       logger.error(`❌ [USER-NOTES] Erreur traitement chunks:`, error);
       throw error;

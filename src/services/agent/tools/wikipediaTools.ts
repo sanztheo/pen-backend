@@ -18,18 +18,12 @@ interface WikipediaToolsContext {
 
 const indexWikipediaToRAGSchema = z.object({
   pageid: z.number().optional().describe("ID de la page Wikipedia à indexer"),
-  title: z
-    .string()
-    .optional()
-    .describe("Titre de l'article Wikipedia (si pas de pageid)"),
+  title: z.string().optional().describe("Titre de l'article Wikipedia (si pas de pageid)"),
 });
 
 const getWikipediaFullContentSchema = z.object({
   pageid: z.number().optional().describe("ID de la page Wikipedia"),
-  title: z
-    .string()
-    .optional()
-    .describe("Titre de l'article (si pas de pageid)"),
+  title: z.string().optional().describe("Titre de l'article (si pas de pageid)"),
   maxSections: z
     .number()
     .min(1)
@@ -142,9 +136,7 @@ UTILISE CET OUTIL pour stocker des articles Wikipedia importants que tu veux pou
 Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
       inputSchema: indexWikipediaToRAGSchema,
       execute: async ({ pageid, title }) => {
-        logger.log(
-          `🔄 [TOOL:indexWikipediaToRAG] pageid=${pageid}, title=${title}`,
-        );
+        logger.log(`🔄 [TOOL:indexWikipediaToRAG] pageid=${pageid}, title=${title}`);
 
         if (!pageid && !title) {
           return { error: "Fournir soit pageid soit title", indexed: false };
@@ -207,15 +199,12 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
           const infoUrl = `https://fr.wikipedia.org/w/api.php?action=query&pageids=${resolvedPageId}&prop=extracts&exintro=1&explaintext=1&format=json&origin=*`;
           const infoResponse = await fetch(infoUrl);
           const infoRaw: unknown = await infoResponse.json();
-          const infoParsed =
-            WikipediaIntroExtractResponseSchema.safeParse(infoRaw);
-          const pageInfo =
-            infoParsed.success
-              ? infoParsed.data.query?.pages?.[String(resolvedPageId)]
-              : undefined;
+          const infoParsed = WikipediaIntroExtractResponseSchema.safeParse(infoRaw);
+          const pageInfo = infoParsed.success
+            ? infoParsed.data.query?.pages?.[String(resolvedPageId)]
+            : undefined;
           const extract = pageInfo?.extract || "";
-          resolvedTitle =
-            pageInfo?.title || resolvedTitle || "Article Wikipedia";
+          resolvedTitle = pageInfo?.title || resolvedTitle || "Article Wikipedia";
 
           // 4. Créer l'objet article pour le système RAG
           const article: WikipediaArticle = {
@@ -225,9 +214,7 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
           };
 
           // 5. Indexer via WikipediaRAGSystem (chunks + embeddings + pgvector)
-          logger.log(
-            `📖 [TOOL:indexWikipediaToRAG] Indexation de "${resolvedTitle}"...`,
-          );
+          logger.log(`📖 [TOOL:indexWikipediaToRAG] Indexation de "${resolvedTitle}"...`);
           const sourceIds = await wikipediaRAG.processWikipediaArticles(
             ctx.userId,
             ctx.workspaceId,
@@ -279,9 +266,7 @@ cet outil retourne l'article entier organisé par sections.
 Idéal pour une lecture approfondie ou avant d'indexer dans RAG.`,
       inputSchema: getWikipediaFullContentSchema,
       execute: async ({ pageid, title, maxSections }) => {
-        logger.log(
-          `📖 [TOOL:getWikipediaFullContent] pageid=${pageid}, title=${title}`,
-        );
+        logger.log(`📖 [TOOL:getWikipediaFullContent] pageid=${pageid}, title=${title}`);
 
         if (!pageid && !title) {
           return { error: "Fournir soit pageid soit title", article: null };
@@ -296,8 +281,7 @@ Idéal pour une lecture approfondie ou avant d'indexer dans RAG.`,
             const response = await fetch(searchUrl);
             const raw: unknown = await response.json();
             const parsed = WikipediaSearchApiResponseSchema.safeParse(raw);
-            resolvedPageId =
-              parsed.success ? parsed.data.query?.search?.[0]?.pageid : undefined;
+            resolvedPageId = parsed.success ? parsed.data.query?.search?.[0]?.pageid : undefined;
 
             if (!resolvedPageId) {
               return { error: `Article "${title}" non trouvé`, article: null };
@@ -322,9 +306,7 @@ Idéal pour une lecture approfondie ou avant d'indexer dans RAG.`,
 
           const fullText = pageData.extract || "";
           const categories =
-            pageData.categories?.map((c) =>
-              c.title.replace("Catégorie:", ""),
-            ) || [];
+            pageData.categories?.map((c) => c.title.replace("Catégorie:", "")) || [];
 
           // Parser les sections
           const sections = parseWikiSections(fullText).slice(0, maxSections);
@@ -366,14 +348,11 @@ DIFFÉRENT de searchRagChunks: celui-ci cherche UNIQUEMENT dans les sources Wiki
 Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les rechercher.`,
       inputSchema: searchWikipediaRAGSchema,
       execute: async ({ query, limit, threshold }) => {
-        logger.log(
-          `🔍 [TOOL:searchWikipediaRAG] query="${query}", limit=${limit}`,
-        );
+        logger.log(`🔍 [TOOL:searchWikipediaRAG] query="${query}", limit=${limit}`);
 
         try {
           // Générer l'embedding de la requête
-          const queryEmbedding =
-            await ragSystem.embeddingService.generateEmbedding(query);
+          const queryEmbedding = await ragSystem.embeddingService.generateEmbedding(query);
           const embeddingStr = `[${queryEmbedding.join(",")}]`;
 
           // Recherche vectorielle UNIQUEMENT sur les sources Wikipedia
@@ -462,10 +441,7 @@ Retourne le titre, nombre de chunks, et date d'indexation.`,
             where: {
               sourceType: "WIKIPEDIA",
               status: "COMPLETED",
-              OR: [
-                { isGlobal: true },
-                { userId: ctx.userId, workspaceId: ctx.workspaceId },
-              ],
+              OR: [{ isGlobal: true }, { userId: ctx.userId, workspaceId: ctx.workspaceId }],
             },
             select: {
               id: true,
@@ -517,8 +493,7 @@ function parseWikiSections(
   const lines = fullText.split("\n");
 
   let introContent = "";
-  let currentSection: { title: string; content: string; level: number } | null =
-    null;
+  let currentSection: { title: string; content: string; level: number } | null = null;
   let foundFirstSection = false;
 
   for (const line of lines) {

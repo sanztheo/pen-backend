@@ -44,9 +44,7 @@ export async function saveConversation({
   messages: UIMessage[];
   mode?: string;
 }): Promise<void> {
-  logger.log(
-    `💾 [CONVERSATION] Sauvegarde: ${conversationId}, ${messages.length} messages`,
-  );
+  logger.log(`💾 [CONVERSATION] Sauvegarde: ${conversationId}, ${messages.length} messages`);
 
   try {
     // Extraire le titre du premier message utilisateur
@@ -95,9 +93,7 @@ export async function saveConversation({
       });
     }
 
-    logger.log(
-      `✅ [CONVERSATION] Sauvegardé: ${conversationId}, ${messages.length} messages`,
-    );
+    logger.log(`✅ [CONVERSATION] Sauvegardé: ${conversationId}, ${messages.length} messages`);
   } catch (error) {
     logger.error(`❌ [CONVERSATION] Erreur sauvegarde:`, error);
     // Ne pas throw pour ne pas casser le stream
@@ -149,9 +145,7 @@ export async function loadConversation(
       }
     });
 
-    logger.log(
-      `✅ [CONVERSATION] Chargé: ${conversationId}, ${messages.length} messages`,
-    );
+    logger.log(`✅ [CONVERSATION] Chargé: ${conversationId}, ${messages.length} messages`);
     return messages;
   } catch (error) {
     logger.error(`❌ [CONVERSATION] Erreur chargement:`, error);
@@ -198,10 +192,7 @@ export async function listConversations(
 /**
  * Supprime une conversation
  */
-export async function deleteConversation(
-  conversationId: string,
-  userId: string,
-): Promise<boolean> {
+export async function deleteConversation(conversationId: string, userId: string): Promise<boolean> {
   try {
     // Soft delete
     const result = await prisma.aIConversation.updateMany({

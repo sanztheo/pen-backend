@@ -5,11 +5,7 @@ import { Awareness } from "y-protocols/awareness";
 const prisma = new PrismaClient();
 
 function toBuffer(arr: Uint8Array): Uint8Array<ArrayBuffer> {
-  return new Uint8Array(
-    arr.buffer as ArrayBuffer,
-    arr.byteOffset,
-    arr.byteLength,
-  );
+  return new Uint8Array(arr.buffer as ArrayBuffer, arr.byteOffset, arr.byteLength);
 }
 
 function toUint8Array(buf: Buffer): Uint8Array {
@@ -58,9 +54,7 @@ export class PrismaPersistence {
         where: { pageId: docName },
       });
       if (!dbDoc) {
-        throw new Error(
-          `[y-prisma] Could not find or create document for page: ${docName}`,
-        );
+        throw new Error(`[y-prisma] Could not find or create document for page: ${docName}`);
       }
     }
 

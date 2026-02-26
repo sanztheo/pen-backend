@@ -21,9 +21,7 @@ describe("QuizPreprocessorAgent - Constructor", () => {
     const originalKey = process.env.OPENAI_API_KEY;
     delete process.env.OPENAI_API_KEY;
 
-    expect(() => new QuizPreprocessorAgent()).toThrow(
-      "OPENAI_API_KEY manquant dans Infisical",
-    );
+    expect(() => new QuizPreprocessorAgent()).toThrow("OPENAI_API_KEY manquant dans Infisical");
 
     process.env.OPENAI_API_KEY = originalKey;
   });
@@ -52,9 +50,7 @@ describe("QuizPreprocessorAgent - analyzeAndRecommend", () => {
       },
     } as unknown as jest.Mocked<OpenAI>;
 
-    (OpenAI as jest.MockedClass<typeof OpenAI>).mockImplementation(
-      () => mockOpenAI,
-    );
+    (OpenAI as jest.MockedClass<typeof OpenAI>).mockImplementation(() => mockOpenAI);
 
     agent = new QuizPreprocessorAgent();
 
@@ -310,9 +306,7 @@ ${JSON.stringify(mockResponse)}
       subscriptionLimit: 10,
     };
 
-    await expect(agent.analyzeAndRecommend(params, "user-1")).rejects.toThrow(
-      "must sum to 100",
-    );
+    await expect(agent.analyzeAndRecommend(params, "user-1")).rejects.toThrow("must sum to 100");
   });
 
   it("should throw if missing required fields", async () => {
@@ -377,14 +371,12 @@ ${JSON.stringify(mockResponse)}
       ],
     });
 
-    mockValidator.validateAndCorrect.mockImplementation(
-      async (output) => ({
-        isValid: true,
-        correctedOutput: output,
-        corrections: [],
-        upgradeRequired: false,
-      }),
-    );
+    mockValidator.validateAndCorrect.mockImplementation(async (output) => ({
+      isValid: true,
+      correctedOutput: output,
+      corrections: [],
+      upgradeRequired: false,
+    }));
 
     const params: PreprocessorPromptParams = {
       schoolLevel: "Terminale",
@@ -492,14 +484,12 @@ ${JSON.stringify(mockResponse)}
       ],
     });
 
-    mockValidator.validateAndCorrect.mockImplementation(
-      async (output) => ({
-        isValid: true,
-        correctedOutput: output,
-        corrections: [],
-        upgradeRequired: false,
-      }),
-    );
+    mockValidator.validateAndCorrect.mockImplementation(async (output) => ({
+      isValid: true,
+      correctedOutput: output,
+      corrections: [],
+      upgradeRequired: false,
+    }));
 
     const params: PreprocessorPromptParams = {
       schoolLevel: "5ème",
@@ -555,20 +545,16 @@ describe("QuizPreprocessorAgent - Edge Cases", () => {
       },
     } as unknown as jest.Mocked<OpenAI>;
 
-    (OpenAI as jest.MockedClass<typeof OpenAI>).mockImplementation(
-      () => mockOpenAI,
-    );
+    (OpenAI as jest.MockedClass<typeof OpenAI>).mockImplementation(() => mockOpenAI);
 
     agent = new QuizPreprocessorAgent();
 
-    mockValidator.validateAndCorrect.mockImplementation(
-      async (output) => ({
-        isValid: true,
-        correctedOutput: output,
-        corrections: [],
-        upgradeRequired: false,
-      }),
-    );
+    mockValidator.validateAndCorrect.mockImplementation(async (output) => ({
+      isValid: true,
+      correctedOutput: output,
+      corrections: [],
+      upgradeRequired: false,
+    }));
   });
 
   it("should handle 100% of single question type", async () => {
@@ -611,9 +597,7 @@ describe("QuizPreprocessorAgent - Edge Cases", () => {
     const result = await agent.analyzeAndRecommend(params, "user-1");
 
     expect(result.questionTypes).toHaveLength(10);
-    expect(result.questionTypes.every((t) => t === "MULTIPLE_CHOICE")).toBe(
-      true,
-    );
+    expect(result.questionTypes.every((t) => t === "MULTIPLE_CHOICE")).toBe(true);
   });
 
   it("should handle rounding with odd total questions", async () => {

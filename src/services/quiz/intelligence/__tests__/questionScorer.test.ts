@@ -18,8 +18,7 @@ import { QuestionType, type Question } from "../../types.js";
 const createOpenQuestion = (overrides: Partial<Question> = {}): Question => ({
   id: "test-open-1",
   type: QuestionType.OPEN_QUESTION,
-  question:
-    "Expliquez le processus de photosynthèse et son importance pour l'écosystème.",
+  question: "Expliquez le processus de photosynthèse et son importance pour l'écosystème.",
   difficulty: "moyen",
   points: 5,
   expectedAnswer: "La photosynthèse est le processus par lequel les plantes...",
@@ -27,9 +26,7 @@ const createOpenQuestion = (overrides: Partial<Question> = {}): Question => ({
   ...overrides,
 });
 
-const createMultipleChoiceQuestion = (
-  overrides: Partial<Question> = {},
-): Question => ({
+const createMultipleChoiceQuestion = (overrides: Partial<Question> = {}): Question => ({
   id: "test-mcq-1",
   type: QuestionType.MULTIPLE_CHOICE,
   question: "Quelle est la formule chimique de l'eau?",
@@ -44,23 +41,18 @@ const createMultipleChoiceQuestion = (
   ...overrides,
 });
 
-const createTrueFalseQuestion = (
-  overrides: Partial<Question> = {},
-): Question => ({
+const createTrueFalseQuestion = (overrides: Partial<Question> = {}): Question => ({
   id: "test-tf-1",
   type: QuestionType.TRUE_FALSE,
   question: "La Terre est le troisième planète du système solaire.",
   difficulty: "facile",
   points: 1,
   correctAnswer: true,
-  explanation:
-    "La Terre est effectivement la troisième planète en partant du Soleil.",
+  explanation: "La Terre est effectivement la troisième planète en partant du Soleil.",
   ...overrides,
 });
 
-const createMatchingQuestion = (
-  overrides: Partial<Question> = {},
-): Question => ({
+const createMatchingQuestion = (overrides: Partial<Question> = {}): Question => ({
   id: "test-match-1",
   type: QuestionType.MATCHING,
   question: "Associez chaque capitale à son pays.",
@@ -92,8 +84,7 @@ describe("QuestionScorerService.scoreQuestion", () => {
   describe("Clarity scoring (based on length)", () => {
     it("should give high clarity score for optimal length (50-200 chars)", () => {
       const question = createOpenQuestion({
-        question:
-          "Expliquez brièvement le cycle de l'eau et ses principales étapes.",
+        question: "Expliquez brièvement le cycle de l'eau et ses principales étapes.",
       });
 
       const score = QuestionScorerService.scoreQuestion(question);
@@ -352,10 +343,7 @@ describe("QuestionScorerService.isDuplicate", () => {
       question: "Expliquez ce qu'est la photosynthèse.",
     });
 
-    const result = QuestionScorerService.isDuplicate(
-      newQuestion,
-      existingQuestions,
-    );
+    const result = QuestionScorerService.isDuplicate(newQuestion, existingQuestions);
 
     expect(result.similarTo).toBe(1); // Index of photosynthesis question
   });
@@ -418,16 +406,10 @@ describe("QuestionScorerService.isAcceptable", () => {
   it("should respect custom minScore threshold", () => {
     const question = createMultipleChoiceQuestion();
 
-    const resultLowThreshold = QuestionScorerService.isAcceptable(
-      question,
-      [],
-      { minScore: 0.3 },
-    );
-    const resultHighThreshold = QuestionScorerService.isAcceptable(
-      question,
-      [],
-      { minScore: 0.95 },
-    );
+    const resultLowThreshold = QuestionScorerService.isAcceptable(question, [], { minScore: 0.3 });
+    const resultHighThreshold = QuestionScorerService.isAcceptable(question, [], {
+      minScore: 0.95,
+    });
 
     expect(resultLowThreshold.acceptable).toBe(true);
     expect(resultHighThreshold.acceptable).toBe(false);
@@ -482,9 +464,7 @@ describe("QuestionScorerService.getSuggestions", () => {
     expect(
       suggestions.some(
         (s) =>
-          s.toLowerCase().includes("option") ||
-          s.includes("variété") ||
-          s.includes("similaires"),
+          s.toLowerCase().includes("option") || s.includes("variété") || s.includes("similaires"),
       ),
     ).toBe(true);
   });
@@ -550,10 +530,7 @@ describe("QuestionScorerService - Performance", () => {
     });
 
     const start = performance.now();
-    const result = QuestionScorerService.isDuplicate(
-      newQuestion,
-      existingQuestions,
-    );
+    const result = QuestionScorerService.isDuplicate(newQuestion, existingQuestions);
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(100); // Less than 100ms for 50 comparisons

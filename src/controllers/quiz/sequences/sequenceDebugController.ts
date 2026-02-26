@@ -9,10 +9,7 @@ export class SequenceDebugController {
   /**
    * POST /api/quiz/sequence/:sequenceId/force-reset - 🔧 Forcer la réinitialisation d'état de séquence
    */
-  static async forceResetSequenceState(
-    req: Request,
-    res: Response,
-  ): Promise<void> {
+  static async forceResetSequenceState(req: Request, res: Response): Promise<void> {
     try {
       const userId = req.user?.id;
       const { sequenceId } = req.params;
@@ -34,22 +31,16 @@ export class SequenceDebugController {
       logger.log(`📊 Reset count: ${resetCount}`);
 
       // Importer le tempSequenceStorage ici pour éviter les imports circulaires
-      const { tempSequenceStorage } =
-        await import("../../../services/quiz/tempSequenceStorage.js");
+      const { tempSequenceStorage } = await import("../../../services/quiz/tempSequenceStorage.js");
 
       // 1. Récupérer la config actuelle du stockage
       let currentConfig = tempSequenceStorage.get(sequenceId);
 
       if (!currentConfig) {
         // Fallback: récupérer depuis QuizService si pas en cache
-        const currentConfigFromService = await QuizService.getSequenceConfig(
-          sequenceId,
-          userId,
-        );
+        const currentConfigFromService = await QuizService.getSequenceConfig(sequenceId, userId);
         currentConfig = currentConfigFromService;
-        logger.log(
-          "📋 Config récupérée depuis QuizService (pas en cache tempStorage)",
-        );
+        logger.log("📋 Config récupérée depuis QuizService (pas en cache tempStorage)");
       }
 
       if (!currentConfig) {
@@ -96,9 +87,7 @@ export class SequenceDebugController {
         const updatedConfig = { ...currentConfig, ...config };
         tempSequenceStorage.update(sequenceId, updatedConfig);
 
-        logger.log(
-          `✅ ${actualResetCount} état(s) réinitialisé(s) dans tempSequenceStorage`,
-        );
+        logger.log(`✅ ${actualResetCount} état(s) réinitialisé(s) dans tempSequenceStorage`);
 
         // 3. Synchroniser avec la base de données
         try {

@@ -52,17 +52,14 @@ export const requirePremiumPlan = () => {
         const planInfo = subscription ? subscription.plan : "no_subscription";
         const status = subscription?.status || "no_status";
 
-        secureLog(
-          "warn: 🚨 [PREMIUM-CHECK] Accès refusé aux fonctionnalités premium",
-          {
-            userId,
-            path: req.path,
-            method: req.method,
-            currentPlan: planInfo,
-            subscriptionStatus: status,
-            userAgent: req.get("User-Agent")?.slice(0, 100),
-          },
-        );
+        secureLog("warn: 🚨 [PREMIUM-CHECK] Accès refusé aux fonctionnalités premium", {
+          userId,
+          path: req.path,
+          method: req.method,
+          currentPlan: planInfo,
+          subscriptionStatus: status,
+          userAgent: req.get("User-Agent")?.slice(0, 100),
+        });
 
         return res.status(403).json({
           success: false,

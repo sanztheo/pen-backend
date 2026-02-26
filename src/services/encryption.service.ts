@@ -29,9 +29,7 @@ export class EncryptionService {
     const key = process.env.ENCRYPTION_KEY;
 
     if (!key) {
-      throw new Error(
-        "🔴 ENCRYPTION_KEY manquante dans .env - Chiffrement impossible",
-      );
+      throw new Error("🔴 ENCRYPTION_KEY manquante dans .env - Chiffrement impossible");
     }
 
     // Vérifier que la clé est bien en hexadécimal et fait 64 caractères
@@ -96,9 +94,7 @@ export class EncryptionService {
     // Le format chiffré est : {iv}:{authTag}:{encrypted} (3 parties séparées par :)
     const parts = encrypted.split(":");
     if (parts.length !== 3) {
-      logger.log(
-        "⚠️ [ENCRYPTION] Données en clair détectées, pas de déchiffrement nécessaire",
-      );
+      logger.log("⚠️ [ENCRYPTION] Données en clair détectées, pas de déchiffrement nécessaire");
       return encrypted; // Retourner tel quel si ce n'est pas le bon format
     }
 
@@ -120,9 +116,7 @@ export class EncryptionService {
       return decrypted;
     } catch (error) {
       logger.error("❌ [ENCRYPTION] Erreur lors du déchiffrement:", error);
-      logger.error(
-        "❌ [ENCRYPTION] Données corrompues ou clé invalide — déchiffrement impossible",
-      );
+      logger.error("❌ [ENCRYPTION] Données corrompues ou clé invalide — déchiffrement impossible");
       return null;
     }
   }
@@ -167,10 +161,7 @@ export class EncryptionService {
 
     // Cas 3 : String (peut être chiffré ou JSON en clair)
     if (typeof encrypted !== "string") {
-      logger.error(
-        "❌ [ENCRYPTION] Type de données invalide:",
-        typeof encrypted,
-      );
+      logger.error("❌ [ENCRYPTION] Type de données invalide:", typeof encrypted);
       return null;
     }
 
@@ -189,9 +180,7 @@ export class EncryptionService {
       // Si le déchiffrement ou le parsing échoue,
       // essayer de parser directement (JSON en clair)
       try {
-        logger.log(
-          "⚠️ [ENCRYPTION] Tentative de parsing JSON en clair (string)",
-        );
+        logger.log("⚠️ [ENCRYPTION] Tentative de parsing JSON en clair (string)");
         const parsedUnknown: unknown = JSON.parse(encrypted);
         return parsedUnknown;
       } catch (parseError) {
@@ -201,10 +190,7 @@ export class EncryptionService {
     }
   }
 
-  static decryptJSONWithSchema<T>(
-    encrypted: unknown,
-    schema: z.ZodType<T>,
-  ): T | null {
+  static decryptJSONWithSchema<T>(encrypted: unknown, schema: z.ZodType<T>): T | null {
     const value = this.decryptJSON(encrypted);
     if (value === null) return null;
     const parsed = schema.safeParse(value);

@@ -10,10 +10,7 @@ import {
 } from "../../types.js";
 
 type BrevetSubjectEntry = (typeof BREVET_CONFIG.subjects)[number];
-type GraphicEnabledBrevetSubjectEntry = Extract<
-  BrevetSubjectEntry,
-  { enableGraphics: true }
->;
+type GraphicEnabledBrevetSubjectEntry = Extract<BrevetSubjectEntry, { enableGraphics: true }>;
 
 function isGraphicEnabledBrevetSubjectEntry(
   cfg: BrevetSubjectEntry | undefined,
@@ -23,7 +20,7 @@ function isGraphicEnabledBrevetSubjectEntry(
 
 // Configuration officielle du Brevet des collèges - Version améliorée
 export const BREVET_CONFIG = {
-  name: 'Diplôme National du Brevet',
+  name: "Diplôme National du Brevet",
   subjects: [
     {
       subject: ExamSubject.FRANCAIS,
@@ -31,12 +28,12 @@ export const BREVET_CONFIG = {
       points: 100,
       questionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE], // 80% ouvertes, 20% QCM
       questionCount: 25, // Augmenté pour un entraînement plus complet
-      description: 'Analyse de texte, grammaire, rédaction - Format officiel Brevet',
+      description: "Analyse de texte, grammaire, rédaction - Format officiel Brevet",
       enableDocuments: true,
-      documentTopics: ['litterature', 'arts', 'renaissance'],
+      documentTopics: ["litterature", "arts", "renaissance"],
       documentRatio: 0.3, // 30% questions sur documents
       minDocumentLength: 100,
-      maxDocuments: 2
+      maxDocuments: 2,
     },
     {
       subject: ExamSubject.MATHEMATIQUES,
@@ -44,7 +41,7 @@ export const BREVET_CONFIG = {
       points: 100,
       questionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE], // 85% ouvertes, 15% QCM
       questionCount: 25, // Augmenté pour couvrir tout le programme
-      description: 'Exercices et problèmes couvrant le programme complet de cycle 4',
+      description: "Exercices et problèmes couvrant le programme complet de cycle 4",
       enableDocuments: false,
       documentTopics: [],
       documentRatio: 0,
@@ -52,8 +49,8 @@ export const BREVET_CONFIG = {
       maxDocuments: 0,
       enableGraphics: true,
       graphicProbability: 0.7,
-      preferredLibraries: ['apexcharts', 'plotly'],
-      graphicTypes: ['2d']
+      preferredLibraries: ["apexcharts", "plotly"],
+      graphicTypes: ["2d"],
     },
     {
       subject: ExamSubject.HISTOIRE_GEOGRAPHIE_EMC,
@@ -61,20 +58,35 @@ export const BREVET_CONFIG = {
       points: 50,
       questionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE], // 70% ouvertes, 30% QCM
       questionCount: 25, // Augmenté pour analyse de documents + repères
-      description: 'Analyse de documents, repères chronologiques et spatiaux, EMC',
+      description: "Analyse de documents, repères chronologiques et spatiaux, EMC",
       enableDocuments: true,
-      documentTopics: ['revolution', 'guerre', 'republique', 'france', 'europe', 'decolonisation', 'geographie', 'amenagement', 'metropolisation', 'citoyennete'],
+      documentTopics: [
+        "revolution",
+        "guerre",
+        "republique",
+        "france",
+        "europe",
+        "decolonisation",
+        "geographie",
+        "amenagement",
+        "metropolisation",
+        "citoyennete",
+      ],
       documentRatio: 0.5, // 50% questions sur documents
       minDocumentLength: 100,
-      maxDocuments: 2
+      maxDocuments: 2,
     },
     {
       subject: ExamSubject.SCIENCES,
       duration: 60, // 1 heure
       points: 50,
-      questionTypes: [QuestionType.OPEN_QUESTION, QuestionType.MULTIPLE_CHOICE, QuestionType.TRUE_FALSE], // 60% ouvertes, 30% QCM, 10% V/F
+      questionTypes: [
+        QuestionType.OPEN_QUESTION,
+        QuestionType.MULTIPLE_CHOICE,
+        QuestionType.TRUE_FALSE,
+      ], // 60% ouvertes, 30% QCM, 10% V/F
       questionCount: 25, // Augmenté pour Physique-Chimie + SVT
-      description: 'Physique-Chimie et SVT - Démarche expérimentale et scientifique',
+      description: "Physique-Chimie et SVT - Démarche expérimentale et scientifique",
       enableDocuments: false,
       documentTopics: [],
       documentRatio: 0,
@@ -82,13 +94,13 @@ export const BREVET_CONFIG = {
       maxDocuments: 0,
       enableGraphics: true,
       graphicProbability: 0.5,
-      preferredLibraries: ['apexcharts'],
-      graphicTypes: ['2d']
-    }
+      preferredLibraries: ["apexcharts"],
+      graphicTypes: ["2d"],
+    },
   ],
   totalPoints: 300,
   totalDuration: 480, // 8 heures
-  passingGrade: 10
+  passingGrade: 10,
 } as const;
 
 /**
@@ -96,10 +108,10 @@ export const BREVET_CONFIG = {
  */
 export function createBrevetSequentialConfig(
   userId: string,
-  collegeGrade: CollegeGrade = CollegeGrade.TROISIEME
+  collegeGrade: CollegeGrade = CollegeGrade.TROISIEME,
 ): SequentialQuizConfig {
-  const subjects = BREVET_CONFIG.subjects.map(s => s.subject);
-  
+  const subjects = BREVET_CONFIG.subjects.map((s) => s.subject);
+
   return {
     id: `brevet_${userId}_${Date.now()}`,
     preset: QuizPreset.BREVET,
@@ -107,15 +119,17 @@ export function createBrevetSequentialConfig(
     currentSubjectIndex: 0,
     totalSubjects: subjects.length,
     isCompleted: false,
-    subjectResults: subjects.map(subject => {
-      const cfg = BREVET_CONFIG.subjects.find(s => s.subject === subject);
-      const documentConfig = cfg ? {
-        enableDocuments: cfg.enableDocuments,
-        documentTopics: Array.isArray(cfg.documentTopics) ? [...cfg.documentTopics] : [],
-        documentRatio: cfg.documentRatio,
-        minDocumentLength: cfg.minDocumentLength,
-        maxDocuments: cfg.maxDocuments
-      } : undefined;
+    subjectResults: subjects.map((subject) => {
+      const cfg = BREVET_CONFIG.subjects.find((s) => s.subject === subject);
+      const documentConfig = cfg
+        ? {
+            enableDocuments: cfg.enableDocuments,
+            documentTopics: Array.isArray(cfg.documentTopics) ? [...cfg.documentTopics] : [],
+            documentRatio: cfg.documentRatio,
+            minDocumentLength: cfg.minDocumentLength,
+            maxDocuments: cfg.maxDocuments,
+          }
+        : undefined;
       const graphicConfig = isGraphicEnabledBrevetSubjectEntry(cfg)
         ? {
             enableGraphics: cfg.enableGraphics,
@@ -129,13 +143,13 @@ export function createBrevetSequentialConfig(
         subject,
         isCompleted: false,
         documentConfig,
-        graphicConfig
+        graphicConfig,
       };
     }),
     metadata: {
       startedAt: new Date(),
-      estimatedTotalTime: BREVET_CONFIG.totalDuration
-    }
+      estimatedTotalTime: BREVET_CONFIG.totalDuration,
+    },
   };
 }
 
@@ -145,11 +159,11 @@ export function createBrevetSequentialConfig(
 export function generateBrevetSubjectRequest(
   config: SequentialQuizConfig,
   userId: string,
-  workspaceIds?: string[]
+  workspaceIds?: string[],
 ): QuizGenerationRequest {
   const currentSubject = config.subjects[config.currentSubjectIndex];
-  const subjectConfig = BREVET_CONFIG.subjects.find(s => s.subject === currentSubject);
-  
+  const subjectConfig = BREVET_CONFIG.subjects.find((s) => s.subject === currentSubject);
+
   if (!subjectConfig) {
     throw new Error(`Configuration introuvable pour la matière: ${currentSubject}`);
   }
@@ -160,23 +174,22 @@ export function generateBrevetSubjectRequest(
     documentTopics: [...subjectConfig.documentTopics],
     documentRatio: subjectConfig.documentRatio,
     minDocumentLength: subjectConfig.minDocumentLength,
-    maxDocuments: subjectConfig.maxDocuments
+    maxDocuments: subjectConfig.maxDocuments,
   };
 
-  const graphicConfig: SubjectGraphicConfig =
-    isGraphicEnabledBrevetSubjectEntry(subjectConfig)
-      ? {
-          enableGraphics: subjectConfig.enableGraphics,
-          graphicProbability: subjectConfig.graphicProbability,
-          preferredLibraries: [...subjectConfig.preferredLibraries],
-          graphicTypes: [...subjectConfig.graphicTypes],
-        }
-      : {
-          enableGraphics: false,
-          graphicProbability: 0,
-          preferredLibraries: [],
-          graphicTypes: [],
-        };
+  const graphicConfig: SubjectGraphicConfig = isGraphicEnabledBrevetSubjectEntry(subjectConfig)
+    ? {
+        enableGraphics: subjectConfig.enableGraphics,
+        graphicProbability: subjectConfig.graphicProbability,
+        preferredLibraries: [...subjectConfig.preferredLibraries],
+        graphicTypes: [...subjectConfig.graphicTypes],
+      }
+    : {
+        enableGraphics: false,
+        graphicProbability: 0,
+        preferredLibraries: [],
+        graphicTypes: [],
+      };
 
   return {
     userId,
@@ -191,16 +204,19 @@ export function generateBrevetSubjectRequest(
     title: `Brevet - ${getSubjectDisplayName(currentSubject)}`,
     description: `${subjectConfig.description} - Durée: ${subjectConfig.duration} min - Points: ${subjectConfig.points}`,
     documentConfig,
-    graphicConfig
+    graphicConfig,
   };
 }
 
 /**
  * Génère les prompts spécialisés améliorés pour chaque matière du Brevet
  */
-export function getBrevetPrompt(subject: ExamSubject, collegeGrade: CollegeGrade = CollegeGrade.TROISIEME): string {
+export function getBrevetPrompt(
+  subject: ExamSubject,
+  collegeGrade: CollegeGrade = CollegeGrade.TROISIEME,
+): string {
   const gradeLevel = getGradeLevelContext(collegeGrade);
-  
+
   const baseContext = `
 Tu es un concepteur expert de sujets officiels pour le Diplôme National du Brevet (DNB).
 Tu dois créer un sujet d'entraînement fidèle aux vrais examens du Brevet.
@@ -574,24 +590,24 @@ Génère des questions pour la matière ${subject} adaptées au niveau Brevet.`;
  */
 export function getSubjectDisplayName(subject: ExamSubject): string {
   const names: Record<ExamSubject, string> = {
-    [ExamSubject.FRANCAIS]: 'Français',
-    [ExamSubject.MATHEMATIQUES]: 'Mathématiques',
-    [ExamSubject.HISTOIRE_GEOGRAPHIE_EMC]: 'Histoire-Géographie-EMC',
-    [ExamSubject.SCIENCES]: 'Sciences (Physique-Chimie et SVT)',
-    [ExamSubject.ORAL_BREVET]: 'Oral du Brevet',
-    [ExamSubject.PHILOSOPHIE]: 'Philosophie',
-    [ExamSubject.HGGSP]: 'Histoire-Géographie, Géopolitique et Sciences Politiques',
-    [ExamSubject.HLP]: 'Humanités, Littérature et Philosophie',
-    [ExamSubject.LLCER]: 'Langues, Littératures et Cultures Étrangères',
-    [ExamSubject.NSI_SPECIALITE]: 'Numérique et Sciences Informatiques',
-    [ExamSubject.SI_SPECIALITE]: 'Sciences de l\'Ingénieur',
-    [ExamSubject.SES_SPECIALITE]: 'Sciences Économiques et Sociales',
-    [ExamSubject.SVT_SPECIALITE]: 'Sciences de la Vie et de la Terre',
-    [ExamSubject.PHYSIQUE_CHIMIE_SPECIALITE]: 'Physique-Chimie',
-    [ExamSubject.MATHEMATIQUES_SPECIALITE]: 'Mathématiques',
-    [ExamSubject.GRAND_ORAL]: 'Grand Oral'
+    [ExamSubject.FRANCAIS]: "Français",
+    [ExamSubject.MATHEMATIQUES]: "Mathématiques",
+    [ExamSubject.HISTOIRE_GEOGRAPHIE_EMC]: "Histoire-Géographie-EMC",
+    [ExamSubject.SCIENCES]: "Sciences (Physique-Chimie et SVT)",
+    [ExamSubject.ORAL_BREVET]: "Oral du Brevet",
+    [ExamSubject.PHILOSOPHIE]: "Philosophie",
+    [ExamSubject.HGGSP]: "Histoire-Géographie, Géopolitique et Sciences Politiques",
+    [ExamSubject.HLP]: "Humanités, Littérature et Philosophie",
+    [ExamSubject.LLCER]: "Langues, Littératures et Cultures Étrangères",
+    [ExamSubject.NSI_SPECIALITE]: "Numérique et Sciences Informatiques",
+    [ExamSubject.SI_SPECIALITE]: "Sciences de l'Ingénieur",
+    [ExamSubject.SES_SPECIALITE]: "Sciences Économiques et Sociales",
+    [ExamSubject.SVT_SPECIALITE]: "Sciences de la Vie et de la Terre",
+    [ExamSubject.PHYSIQUE_CHIMIE_SPECIALITE]: "Physique-Chimie",
+    [ExamSubject.MATHEMATIQUES_SPECIALITE]: "Mathématiques",
+    [ExamSubject.GRAND_ORAL]: "Grand Oral",
   };
-  
+
   return names[subject] || subject;
 }
 
@@ -600,12 +616,12 @@ export function getSubjectDisplayName(subject: ExamSubject): string {
  */
 function getGradeLevelContext(grade: CollegeGrade): string {
   const contexts: Record<CollegeGrade, string> = {
-    [CollegeGrade.SIXIEME]: '6ème (transition primaire-collège, vocabulaire simple)',
-    [CollegeGrade.CINQUIEME]: '5ème (consolidation des bases, vocabulaire technique)',
-    [CollegeGrade.QUATRIEME]: '4ème (concepts abstraits, raisonnement complexe)',
-    [CollegeGrade.TROISIEME]: '3ème (préparation Brevet, synthèse du cycle 4)'
+    [CollegeGrade.SIXIEME]: "6ème (transition primaire-collège, vocabulaire simple)",
+    [CollegeGrade.CINQUIEME]: "5ème (consolidation des bases, vocabulaire technique)",
+    [CollegeGrade.QUATRIEME]: "4ème (concepts abstraits, raisonnement complexe)",
+    [CollegeGrade.TROISIEME]: "3ème (préparation Brevet, synthèse du cycle 4)",
   };
-  
+
   return contexts[grade];
 }
 
@@ -621,16 +637,16 @@ export function calculateBrevetGlobalScore(config: SequentialQuizConfig): {
   const totalScore = config.subjectResults.reduce((sum, result) => sum + (result.score || 0), 0);
   const maxScore = BREVET_CONFIG.totalPoints;
   const grade = (totalScore / maxScore) * 20;
-  
+
   let mention: string | undefined;
-  if (grade >= 16) mention = 'Très bien';
-  else if (grade >= 14) mention = 'Bien';
-  else if (grade >= 12) mention = 'Assez bien';
-  
+  if (grade >= 16) mention = "Très bien";
+  else if (grade >= 14) mention = "Bien";
+  else if (grade >= 12) mention = "Assez bien";
+
   return {
     totalScore,
     maxScore,
     grade: Math.round(grade * 100) / 100,
-    mention
+    mention,
   };
-} 
+}

@@ -6,11 +6,7 @@ import { logger } from "../utils/logger.js";
  * Middleware to block disposable/temporary email addresses
  * Prevents trial abuse via throwaway email accounts
  */
-export const validateEmail = (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
+export const validateEmail = (req: Request, res: Response, next: NextFunction) => {
   // Get email from request body or user object
   const email = req.body?.email || req.user?.email;
 

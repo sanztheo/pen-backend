@@ -42,9 +42,7 @@ export interface WaitlistResult {
 
 // ─── Type Guards ──────────────────────────────────────────
 /** Validates that a value is safe for Prisma JSON storage */
-export function isInputJsonValue(
-  value: unknown,
-): value is Prisma.InputJsonValue {
+export function isInputJsonValue(value: unknown): value is Prisma.InputJsonValue {
   if (value === undefined) return false;
   if (
     value === null ||
@@ -54,7 +52,6 @@ export function isInputJsonValue(
   )
     return true;
   if (Array.isArray(value)) return value.every(isInputJsonValue);
-  if (typeof value === "object")
-    return Object.values(value).every(isInputJsonValue);
+  if (typeof value === "object") return Object.values(value).every(isInputJsonValue);
   return false;
 }

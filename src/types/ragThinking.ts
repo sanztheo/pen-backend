@@ -42,8 +42,7 @@ export interface IntermediateThinkingBlock {
 export const isFirstThinkingPlan = (obj: unknown): obj is FirstThinkingPlan => {
   if (typeof obj !== "object" || obj === null) return false;
   const candidate = obj as Record<string, unknown>;
-  if (typeof candidate.plan !== "object" || candidate.plan === null)
-    return false;
+  if (typeof candidate.plan !== "object" || candidate.plan === null) return false;
   const plan = candidate.plan as Record<string, unknown>;
   return (
     typeof plan.totalIterations === "number" &&
@@ -53,9 +52,7 @@ export const isFirstThinkingPlan = (obj: unknown): obj is FirstThinkingPlan => {
   );
 };
 
-export const isIntermediateThinkingOutput = (
-  obj: unknown,
-): obj is IntermediateThinkingOutput => {
+export const isIntermediateThinkingOutput = (obj: unknown): obj is IntermediateThinkingOutput => {
   if (typeof obj !== "object" || obj === null) return false;
   const candidate = obj as Record<string, unknown>;
   return (

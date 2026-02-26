@@ -78,10 +78,7 @@ export class AICreditsService {
       });
 
       if (!finalLimits) {
-        SecureLogger.error(
-          `❌ [SERVER-CREDITS] Limites introuvables après UPSERT`,
-          { userId },
-        );
+        SecureLogger.error(`❌ [SERVER-CREDITS] Limites introuvables après UPSERT`, { userId });
         return {
           success: false,
           remainingCredits: 0,
@@ -91,29 +88,22 @@ export class AICreditsService {
       }
 
       // Validation intelligente du succès
-      const expectedMinUsage =
-        result === 0 ? amount : finalLimits.aiCreditsUsed; // Si UPDATE, minimum attendu
+      const expectedMinUsage = result === 0 ? amount : finalLimits.aiCreditsUsed; // Si UPDATE, minimum attendu
       const deductionSucceeded = finalLimits.aiCreditsUsed >= expectedMinUsage;
 
       if (!deductionSucceeded) {
         const currentRemainingCredits =
           finalLimits.aiCreditsLimit === -1
             ? -1
-            : Math.max(
-                0,
-                finalLimits.aiCreditsLimit - finalLimits.aiCreditsUsed,
-              );
+            : Math.max(0, finalLimits.aiCreditsLimit - finalLimits.aiCreditsUsed);
 
-        SecureLogger.warn(
-          `❌ [SERVER-CREDITS] Limite atteinte (déduction refusée)`,
-          {
-            userId,
-            amount,
-            currentUsage: finalLimits.aiCreditsUsed,
-            limit: finalLimits.aiCreditsLimit,
-            remainingCredits: currentRemainingCredits,
-          },
-        );
+        SecureLogger.warn(`❌ [SERVER-CREDITS] Limite atteinte (déduction refusée)`, {
+          userId,
+          amount,
+          currentUsage: finalLimits.aiCreditsUsed,
+          limit: finalLimits.aiCreditsLimit,
+          remainingCredits: currentRemainingCredits,
+        });
 
         return {
           success: false,
@@ -142,12 +132,7 @@ export class AICreditsService {
         this.recordUsage(userId, "ai_action", amount, {
           action,
           method: "upsert_atomic",
-        }).catch((err) =>
-          SecureLogger.warn(
-            "Erreur enregistrement usage IA (non-critique)",
-            err,
-          ),
-        );
+        }).catch((err) => SecureLogger.warn("Erreur enregistrement usage IA (non-critique)", err));
       });
 
       return {
@@ -157,14 +142,10 @@ export class AICreditsService {
         message: "Crédits déduits avec succès",
       };
     } catch (error: unknown) {
-      SecureLogger.error(
-        "❌ Erreur lors de la déduction atomique des crédits IA",
-        error,
-      );
+      SecureLogger.error("❌ Erreur lors de la déduction atomique des crédits IA", error);
 
       // Gestion spécifique des erreurs de transaction Prisma
-      const isPrismaError =
-        error !== null && typeof error === "object" && "code" in error;
+      const isPrismaError = error !== null && typeof error === "object" && "code" in error;
       if (isPrismaError && (error as { code: string }).code === "P2034") {
         // Transaction timeout
         return {
@@ -206,10 +187,7 @@ export class AICreditsService {
       // Vérifier si under la limite
       return userLimits.aiCreditsUsed < userLimits.aiCreditsLimit;
     } catch (error) {
-      SecureLogger.error(
-        "Erreur lors de la vérification des crédits IA",
-        error,
-      );
+      SecureLogger.error("Erreur lors de la vérification des crédits IA", error);
       return false;
     }
   }
@@ -238,24 +216,20 @@ export class AICreditsService {
       });
 
       if (!userLimits) {
-        SecureLogger.error(
-          `❌ [SERVER-CREDITS] Utilisateur inexistant pour remboursement`,
-          { userId },
-        );
+        SecureLogger.error(`❌ [SERVER-CREDITS] Utilisateur inexistant pour remboursement`, {
+          userId,
+        });
         return {
           success: false,
           error: "Utilisateur non trouvé pour le remboursement",
         };
       }
 
-      SecureLogger.debug(
-        `📊 [SERVER-CREDITS] Limites utilisateur avant remboursement`,
-        {
-          userId,
-          currentUsage: userLimits.aiCreditsUsed,
-          limit: userLimits.aiCreditsLimit,
-        },
-      );
+      SecureLogger.debug(`📊 [SERVER-CREDITS] Limites utilisateur avant remboursement`, {
+        userId,
+        currentUsage: userLimits.aiCreditsUsed,
+        limit: userLimits.aiCreditsLimit,
+      });
 
       // Calculer le nouveau usage (ne peut pas être négatif)
       const newAiCreditsUsed = Math.max(0, userLimits.aiCreditsUsed - amount);
@@ -301,10 +275,7 @@ export class AICreditsService {
       });
       return result;
     } catch (error) {
-      SecureLogger.error(
-        "❌ Erreur lors du remboursement des crédits IA",
-        error,
-      );
+      SecureLogger.error("❌ Erreur lors du remboursement des crédits IA", error);
       return {
         success: false,
         error: "Erreur lors du remboursement des crédits",
@@ -333,10 +304,7 @@ export class AICreditsService {
       const remaining = userLimits.aiCreditsLimit - userLimits.aiCreditsUsed;
       return Math.max(0, remaining);
     } catch (error) {
-      SecureLogger.error(
-        "Erreur lors de la récupération des crédits restants",
-        error,
-      );
+      SecureLogger.error("Erreur lors de la récupération des crédits restants", error);
       return 0;
     }
   }
@@ -365,10 +333,7 @@ export class AICreditsService {
         },
       });
     } catch (error) {
-      SecureLogger.error(
-        "Erreur lors de l'enregistrement de l'utilisation",
-        error,
-      );
+      SecureLogger.error("Erreur lors de l'enregistrement de l'utilisation", error);
     }
   }
 
@@ -396,10 +361,7 @@ export class AICreditsService {
         },
       });
     } catch (error) {
-      SecureLogger.error(
-        "Erreur lors de l'enregistrement du remboursement",
-        error,
-      );
+      SecureLogger.error("Erreur lors de l'enregistrement du remboursement", error);
     }
   }
 
@@ -419,11 +381,7 @@ export class AICreditsService {
 
       const now = new Date();
       const lastReset = userLimits.lastResetAt;
-      const oneMonthAgo = new Date(
-        now.getFullYear(),
-        now.getMonth() - 1,
-        now.getDate(),
-      );
+      const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
 
       if (lastReset < oneMonthAgo) {
         await prisma.userLimits.update({
@@ -438,10 +396,7 @@ export class AICreditsService {
 
       return false;
     } catch (error) {
-      SecureLogger.error(
-        "Erreur lors de la réinitialisation des crédits",
-        error,
-      );
+      SecureLogger.error("Erreur lors de la réinitialisation des crédits", error);
       return false;
     }
   }

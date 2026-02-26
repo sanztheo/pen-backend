@@ -7,8 +7,7 @@ declare global {
 
 // 🎯 Auto-détection environnement (local vs production)
 const isProduction =
-  process.env.NODE_ENV === "production" ||
-  process.env.RAILWAY_ENVIRONMENT === "production";
+  process.env.NODE_ENV === "production" || process.env.RAILWAY_ENVIRONMENT === "production";
 const isDevelopment = process.env.NODE_ENV === "development";
 
 // 🔧 Configuration dynamique selon l'environnement
@@ -82,8 +81,7 @@ export async function ensureConnection(maxRetries = 3): Promise<boolean> {
       }
       return true;
     } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
 
       // Détecter les erreurs de connexion
       const isConnectionError =
@@ -97,10 +95,7 @@ export async function ensureConnection(maxRetries = 3): Promise<boolean> {
       if (isConnectionError && attempt < maxRetries) {
         // Backoff exponentiel: 1s, 2s, 4s, etc.
         const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        logger.warn(
-          `⚠️ [Tentative ${attempt}/${maxRetries}] Erreur connexion DB:`,
-          errorMessage,
-        );
+        logger.warn(`⚠️ [Tentative ${attempt}/${maxRetries}] Erreur connexion DB:`, errorMessage);
         logger.log(`🔄 Retry dans ${delayMs}ms...`);
 
         // Déconnecter proprement
@@ -120,10 +115,7 @@ export async function ensureConnection(maxRetries = 3): Promise<boolean> {
           logger.warn(`⚠️ Échec reconnexion (tentative ${attempt})`);
         }
       } else {
-        logger.error(
-          `❌ Erreur DB définitive après ${attempt} tentatives:`,
-          errorMessage,
-        );
+        logger.error(`❌ Erreur DB définitive après ${attempt} tentatives:`, errorMessage);
         return false;
       }
     }
@@ -161,9 +153,7 @@ export function startKeepAlive() {
     }
   }, intervalMs);
 
-  logger.log(
-    `✅ DB Keep-alive activé (ping toutes les ${intervalMs / 60000} min)`,
-  );
+  logger.log(`✅ DB Keep-alive activé (ping toutes les ${intervalMs / 60000} min)`);
 }
 
 export function stopKeepAlive() {
@@ -211,9 +201,7 @@ process.on("SIGUSR2", () => gracefulShutdown("SIGUSR2")); // nodemon
 process.on("beforeExit", async (code) => {
   if (!isShuttingDown) {
     logger.log(`🔄 beforeExit (code: ${code}), fermeture connexions...`);
-    await prisma
-      .$disconnect()
-      .catch((err) => logger.warn("⚠️ Erreur fermeture beforeExit:", err));
+    await prisma.$disconnect().catch((err) => logger.warn("⚠️ Erreur fermeture beforeExit:", err));
   }
 });
 
@@ -240,12 +228,8 @@ process.on("unhandledRejection", async (reason, promise) => {
 logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 logger.log("🗄️  CONFIGURATION DATABASE PRISMA");
 logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-logger.log(
-  `📍 Environnement: ${isProduction ? "🚀 PRODUCTION" : "💻 DEVELOPMENT"}`,
-);
-logger.log(
-  `🔗 Connection Pool: ${isProduction ? "50 connexions max" : "30 connexions max"}`,
-);
+logger.log(`📍 Environnement: ${isProduction ? "🚀 PRODUCTION" : "💻 DEVELOPMENT"}`);
+logger.log(`🔗 Connection Pool: ${isProduction ? "50 connexions max" : "30 connexions max"}`);
 logger.log(`⏱️  Timeouts: 30s statement, 60s idle transaction`);
 logger.log(`🔄 Auto-retry: Activé (3 tentatives max)`);
 logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

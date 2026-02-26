@@ -19,11 +19,7 @@ export interface QuizPreprocessorOutput {
 /**
  * Types de questions disponibles
  */
-export type QuestionType =
-  | "OPEN_QUESTION"
-  | "MULTIPLE_CHOICE"
-  | "TRUE_FALSE"
-  | "MATCHING";
+export type QuestionType = "OPEN_QUESTION" | "MULTIPLE_CHOICE" | "TRUE_FALSE" | "MATCHING";
 
 /**
  * Plans d'abonnement

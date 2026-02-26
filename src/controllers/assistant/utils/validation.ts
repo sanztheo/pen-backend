@@ -24,9 +24,7 @@ export class ValidationUtils {
       .map((id) => String(id))
       .filter((id) => {
         // Validation UUID (32 chars + 4 hyphens = 36 chars total)
-        return (
-          id.length === 36 && id.includes("-") && id.match(/^[0-9a-f-]{36}$/i)
-        );
+        return id.length === 36 && id.includes("-") && id.match(/^[0-9a-f-]{36}$/i);
       });
   }
 
@@ -40,13 +38,7 @@ export class ValidationUtils {
     useWeb?: boolean;
     ragSources?: RagSourceInput[];
   }) {
-    const {
-      query,
-      workspaceId,
-      pageIds = [],
-      useWeb = false,
-      ragSources = [],
-    } = params;
+    const { query, workspaceId, pageIds = [], useWeb = false, ragSources = [] } = params;
 
     const errors: string[] = [];
 

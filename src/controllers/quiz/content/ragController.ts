@@ -56,9 +56,7 @@ export class RAGController {
       }
 
       if (!pageProjectIds || !Array.isArray(pageProjectIds)) {
-        res
-          .status(400)
-          .json({ error: "Liste des IDs de pages/projets requise" });
+        res.status(400).json({ error: "Liste des IDs de pages/projets requise" });
         return;
       }
 
@@ -118,9 +116,7 @@ export class RAGController {
           });
 
           if (!existingSource || existingSource.status === "FAILED") {
-            logger.log(
-              `🔄 [QUIZ-RAG] Reprocessing page ${page.title} (${page.id})`,
-            );
+            logger.log(`🔄 [QUIZ-RAG] Reprocessing page ${page.title} (${page.id})`);
             try {
               if (page.blockNoteContent) {
                 logger.log(
@@ -138,24 +134,19 @@ export class RAGController {
                   if (content && Array.isArray(content)) {
                     const textParts = (content as BlockNoteBlock[])
                       .filter(
-                        (block: BlockNoteBlock) =>
-                          block?.type === "paragraph" && block?.content,
+                        (block: BlockNoteBlock) => block?.type === "paragraph" && block?.content,
                       )
                       .map((block: BlockNoteBlock) =>
                         Array.isArray(block.content)
                           ? (block.content as BlockNoteContentItem[])
-                              .map(
-                                (item: BlockNoteContentItem) =>
-                                  item?.text ?? "",
-                              )
+                              .map((item: BlockNoteContentItem) => item?.text ?? "")
                               .join("")
                           : "",
                       )
                       .filter(Boolean);
 
                     if (textParts.length > 0) {
-                      textContent =
-                        page.title + "\n\n" + textParts.join("\n\n");
+                      textContent = page.title + "\n\n" + textParts.join("\n\n");
                     }
                   }
                 } catch (error) {
@@ -177,8 +168,7 @@ export class RAGController {
                   continue;
                 }
 
-                const { userPagesRAG } =
-                  await import("../../../services/rag/userPages.js");
+                const { userPagesRAG } = await import("../../../services/rag/userPages.js");
                 const sourceId = await userPagesRAG.processUserPage({
                   id: page.id,
                   title: page.title,
@@ -199,20 +189,13 @@ export class RAGController {
                   });
                   logger.log(`📊 [QUIZ-RAG] Chunks créés: ${chunkCount}`);
                 } else {
-                  logger.warn(
-                    `⚠️ [QUIZ-RAG] Échec reprocessing pour page "${page.title}"`,
-                  );
+                  logger.warn(`⚠️ [QUIZ-RAG] Échec reprocessing pour page "${page.title}"`);
                 }
               } else {
-                logger.warn(
-                  `⚠️ [QUIZ-RAG] Page "${page.title}" sans contenu blockNoteContent`,
-                );
+                logger.warn(`⚠️ [QUIZ-RAG] Page "${page.title}" sans contenu blockNoteContent`);
               }
             } catch (error) {
-              logger.error(
-                `❌ [QUIZ-RAG] Failed to reprocess page ${page.title}:`,
-                error,
-              );
+              logger.error(`❌ [QUIZ-RAG] Failed to reprocess page ${page.title}:`, error);
             }
           }
         }
@@ -248,9 +231,7 @@ export class RAGController {
           specificSourceIds: specificSourceIds, // 🆕 Passer les IDs des sources RAG
         });
 
-        logger.log(
-          `🧠 [QUIZ-RAG] ${searchResults.length} sources RAG trouvées`,
-        );
+        logger.log(`🧠 [QUIZ-RAG] ${searchResults.length} sources RAG trouvées`);
 
         let ragContext = "";
         let ragSourcesForResponse: RAGSourceResponse[] = [];
@@ -263,8 +244,7 @@ export class RAGController {
                   (r) =>
                     r.source.type === "user_page" ||
                     r.source.sourceType === "WORKSPACE_PAGE" ||
-                    (specificSourceIds.length > 0 &&
-                      specificSourceIds.includes(r.source.id)),
+                    (specificSourceIds.length > 0 && specificSourceIds.includes(r.source.id)),
                 )
               : searchResults;
 
@@ -276,22 +256,15 @@ export class RAGController {
           );
 
           if (filteredResults.length > 0) {
-            ragContext = await ragSystem.buildOptimizedContext(
-              pagesQuery,
-              filteredResults,
-            );
+            ragContext = await ragSystem.buildOptimizedContext(pagesQuery, filteredResults);
             ragSourcesForResponse = filteredResults.map((r) => ({
               title: r.source.title,
               type: r.source.type,
               similarity: r.similarity,
             }));
-            logger.log(
-              `✅ [QUIZ-RAG] Contexte construit: ${ragContext.length} caractères`,
-            );
+            logger.log(`✅ [QUIZ-RAG] Contexte construit: ${ragContext.length} caractères`);
           } else {
-            logger.log(
-              `⚠️ [QUIZ-RAG] Aucun résultat après filtrage pour mode: ${scopeMode}`,
-            );
+            logger.log(`⚠️ [QUIZ-RAG] Aucun résultat après filtrage pour mode: ${scopeMode}`);
           }
         }
 
@@ -307,10 +280,7 @@ export class RAGController {
           },
         });
       } catch (ragError) {
-        logger.warn(
-          "⚠️ [QUIZ-RAG] Erreur récupération contexte RAG:",
-          ragError,
-        );
+        logger.warn("⚠️ [QUIZ-RAG] Erreur récupération contexte RAG:", ragError);
         res.status(200).json({
           success: false,
           error: "Contexte RAG non disponible",
@@ -338,23 +308,15 @@ export class RAGController {
         return;
       }
 
-      const {
-        quizId,
-        totalScore,
-        maxScore,
-        percentage,
-        questionResults,
-        fastCorrection,
-      } = req.body;
+      const { quizId, totalScore, maxScore, percentage, questionResults, fastCorrection } =
+        req.body;
 
       if (!quizId || !Array.isArray(questionResults)) {
         res.status(400).json({ error: "Données de correction invalides" });
         return;
       }
 
-      logger.log(
-        `🚀 [FAST-CORRECTION] Sauvegarde correction rapide pour quiz: ${quizId}`,
-      );
+      logger.log(`🚀 [FAST-CORRECTION] Sauvegarde correction rapide pour quiz: ${quizId}`);
 
       // Vérifier que le quiz appartient à l'utilisateur
       const quiz = await prisma.quiz.findFirst({
@@ -397,44 +359,39 @@ export class RAGController {
       };
 
       // Sauvegarder le résultat ET marquer le quiz comme terminé (même logique que submitQuiz)
-      const savedResult = await prisma.$transaction(
-        async (tx: Prisma.TransactionClient) => {
-          // Marquer le quiz comme terminé
-          await tx.quiz.update({
-            where: { id: quizId },
-            data: {
-              isCompleted: true,
-              completedAt: new Date(),
-            },
-          });
+      const savedResult = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // Marquer le quiz comme terminé
+        await tx.quiz.update({
+          where: { id: quizId },
+          data: {
+            isCompleted: true,
+            completedAt: new Date(),
+          },
+        });
 
-          // Créer le résultat
-          return await tx.quizResult.create({
-            data: {
-              quizId,
-              totalScore,
-              maxScore,
-              percentage,
-              adaptedGrade: Math.round((totalScore / maxScore) * 20),
-              gradeScale: "/20",
-              detailedScoring:
-                questionResults as unknown as Prisma.InputJsonValue,
-              aiCorrection:
-                quizResult.aiCorrection as unknown as Prisma.InputJsonValue,
-              recommendations: quizResult.aiCorrection
-                .recommendations as unknown as Prisma.InputJsonValue,
-            },
-          });
-        },
-      );
+        // Créer le résultat
+        return await tx.quizResult.create({
+          data: {
+            quizId,
+            totalScore,
+            maxScore,
+            percentage,
+            adaptedGrade: Math.round((totalScore / maxScore) * 20),
+            gradeScale: "/20",
+            detailedScoring: questionResults as unknown as Prisma.InputJsonValue,
+            aiCorrection: quizResult.aiCorrection as unknown as Prisma.InputJsonValue,
+            recommendations: quizResult.aiCorrection
+              .recommendations as unknown as Prisma.InputJsonValue,
+          },
+        });
+      });
 
       logger.log(
         `✅ [FAST-CORRECTION] Résultat sauvegardé et quiz marqué comme terminé: ${savedResult.id}`,
       );
 
       // 🗑️ Invalider le cache de l'historique après complétion du quiz
-      const { invalidateQuizHistoryCache } =
-        await import("../../../lib/redis.js");
+      const { invalidateQuizHistoryCache } = await import("../../../lib/redis.js");
       invalidateQuizHistoryCache(userId).catch((err) =>
         logger.warn("⚠️ [FAST-CORRECTION] Échec invalidation cache:", err),
       );

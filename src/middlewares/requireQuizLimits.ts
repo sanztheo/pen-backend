@@ -16,10 +16,7 @@ interface AuthRequest extends Request {
 }
 
 // LyceeSpecialty enum values for validation
-const LyceeSpecialtyValues = Object.values(LyceeSpecialty) as [
-  string,
-  ...string[],
-];
+const LyceeSpecialtyValues = Object.values(LyceeSpecialty) as [string, ...string[]];
 
 // JSON value schema for recursive JSON structures
 const JsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
@@ -64,19 +61,19 @@ export function requireCustomQuizLimits(autoDeduct: boolean = true) {
         });
       }
 
-      SecureLogger.debug(
-        `🎯 [QUIZ-MIDDLEWARE] Vérification limites quiz personnalisés`,
-        { userId, autoDeduct },
-      );
+      SecureLogger.debug(`🎯 [QUIZ-MIDDLEWARE] Vérification limites quiz personnalisés`, {
+        userId,
+        autoDeduct,
+      });
 
       // Vérifier si l'utilisateur peut créer un quiz personnalisé
       const canCreate = await QuizLimitsService.canCreateCustomQuiz(userId);
 
       if (!canCreate.success) {
-        SecureLogger.warn(
-          `❌ [QUIZ-MIDDLEWARE] Limite quiz personnalisés atteinte`,
-          { userId, remainingQuizzes: canCreate.remainingQuizzes },
-        );
+        SecureLogger.warn(`❌ [QUIZ-MIDDLEWARE] Limite quiz personnalisés atteinte`, {
+          userId,
+          remainingQuizzes: canCreate.remainingQuizzes,
+        });
 
         return res.status(403).json({
           success: false,
@@ -92,10 +89,10 @@ export function requireCustomQuizLimits(autoDeduct: boolean = true) {
         const deductResult = await QuizLimitsService.deductCustomQuiz(userId);
 
         if (!deductResult.success) {
-          SecureLogger.warn(
-            `❌ [QUIZ-MIDDLEWARE] Échec déduction quiz personnalisé`,
-            { userId, message: deductResult.message },
-          );
+          SecureLogger.warn(`❌ [QUIZ-MIDDLEWARE] Échec déduction quiz personnalisé`, {
+            userId,
+            message: deductResult.message,
+          });
 
           return res.status(403).json({
             success: false,
@@ -127,10 +124,7 @@ export function requireCustomQuizLimits(autoDeduct: boolean = true) {
 
       next();
     } catch (error) {
-      SecureLogger.error(
-        "❌ Erreur middleware limites quiz personnalisés",
-        error,
-      );
+      SecureLogger.error("❌ Erreur middleware limites quiz personnalisés", error);
       res.status(500).json({
         success: false,
         error: "QUIZ_LIMITS_CHECK_ERROR",
@@ -157,9 +151,7 @@ export function requirePresetSequenceLimits(autoStart: boolean = false) {
       }
 
       // Valider seulement le preset pour la vérification initiale
-      const presetCheck = z
-        .enum(["BREVET", "BAC", "PARTIELS"])
-        .safeParse(req.body?.preset);
+      const presetCheck = z.enum(["BREVET", "BAC", "PARTIELS"]).safeParse(req.body?.preset);
       if (!presetCheck.success) {
         return res.status(400).json({
           success: false,
@@ -169,26 +161,21 @@ export function requirePresetSequenceLimits(autoStart: boolean = false) {
       }
       const preset = presetCheck.data;
 
-      SecureLogger.debug(
-        `🎯 [QUIZ-MIDDLEWARE] Vérification limites séquences preset`,
-        { userId, preset, autoStart },
-      );
-
-      // Vérifier si l'utilisateur peut créer une nouvelle séquence de preset
-      const canCreate = await QuizLimitsService.canCreatePresetSequence(
+      SecureLogger.debug(`🎯 [QUIZ-MIDDLEWARE] Vérification limites séquences preset`, {
         userId,
         preset,
-      );
+        autoStart,
+      });
+
+      // Vérifier si l'utilisateur peut créer une nouvelle séquence de preset
+      const canCreate = await QuizLimitsService.canCreatePresetSequence(userId, preset);
 
       if (!canCreate.success) {
-        SecureLogger.warn(
-          `❌ [QUIZ-MIDDLEWARE] Limite séquences preset atteinte`,
-          {
-            userId,
-            preset,
-            existingSequence: canCreate.existingSequence,
-          },
-        );
+        SecureLogger.warn(`❌ [QUIZ-MIDDLEWARE] Limite séquences preset atteinte`, {
+          userId,
+          preset,
+          existingSequence: canCreate.existingSequence,
+        });
 
         return res.status(403).json({
           success: false,
@@ -206,8 +193,7 @@ export function requirePresetSequenceLimits(autoStart: boolean = false) {
           return res.status(400).json({
             success: false,
             error: "VALIDATION_ERROR",
-            message:
-              "Données de requête invalides pour le démarrage de la séquence.",
+            message: "Données de requête invalides pour le démarrage de la séquence.",
             details: validationResult.error.issues,
           });
         }
@@ -220,10 +206,11 @@ export function requirePresetSequenceLimits(autoStart: boolean = false) {
         );
 
         if (!startResult.success) {
-          SecureLogger.warn(
-            `❌ [QUIZ-MIDDLEWARE] Échec démarrage séquence preset`,
-            { userId, preset, message: startResult.message },
-          );
+          SecureLogger.warn(`❌ [QUIZ-MIDDLEWARE] Échec démarrage séquence preset`, {
+            userId,
+            preset,
+            message: startResult.message,
+          });
           return res.status(403).json({
             success: false,
             error: "PRESET_SEQUENCE_START_FAILED",
@@ -251,10 +238,7 @@ export function requirePresetSequenceLimits(autoStart: boolean = false) {
 
       next();
     } catch (error) {
-      SecureLogger.error(
-        "❌ Erreur middleware limites séquences preset",
-        error,
-      );
+      SecureLogger.error("❌ Erreur middleware limites séquences preset", error);
       res.status(500).json({
         success: false,
         error: "PRESET_LIMITS_CHECK_ERROR",
@@ -277,10 +261,11 @@ export function setupQuizRefundOnError() {
         const userId = req.user.id;
         const limitType = req.quizLimits.type;
 
-        SecureLogger.debug(
-          `🔄 [QUIZ-MIDDLEWARE] Remboursement automatique détecté`,
-          { userId, limitType, statusCode: res.statusCode },
-        );
+        SecureLogger.debug(`🔄 [QUIZ-MIDDLEWARE] Remboursement automatique détecté`, {
+          userId,
+          limitType,
+          statusCode: res.statusCode,
+        });
 
         // Remboursement asynchrone (ne pas bloquer la réponse)
         void (async () => {
@@ -290,21 +275,19 @@ export function setupQuizRefundOnError() {
               limitType === "custom" ? "custom" : "preset",
             );
             if (refundResult.success) {
-              SecureLogger.debug(
-                `✅ [QUIZ-MIDDLEWARE] Remboursement automatique réussi`,
-                { userId, limitType },
-              );
+              SecureLogger.debug(`✅ [QUIZ-MIDDLEWARE] Remboursement automatique réussi`, {
+                userId,
+                limitType,
+              });
             } else {
-              SecureLogger.error(
-                `❌ [QUIZ-MIDDLEWARE] Échec remboursement automatique`,
-                { userId, limitType, error: refundResult.message },
-              );
+              SecureLogger.error(`❌ [QUIZ-MIDDLEWARE] Échec remboursement automatique`, {
+                userId,
+                limitType,
+                error: refundResult.message,
+              });
             }
           } catch (error) {
-            SecureLogger.error(
-              "❌ Erreur remboursement automatique quiz",
-              error,
-            );
+            SecureLogger.error("❌ Erreur remboursement automatique quiz", error);
           }
         })();
 

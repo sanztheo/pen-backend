@@ -1,16 +1,8 @@
 // assistant/utils/index.ts - Exports des utilitaires
 
-export {
-  executeWithRetry,
-  generateWithRetry,
-  correctWithRetry,
-} from "./retry.js";
+export { executeWithRetry, generateWithRetry, correctWithRetry } from "./retry.js";
 
-export {
-  validateAssistantResponse,
-  hasValidQuestions,
-  hasValidCorrections,
-} from "./validation.js";
+export { validateAssistantResponse, hasValidQuestions, hasValidCorrections } from "./validation.js";
 
 export {
   logOperation,

@@ -11,8 +11,7 @@ import { logger } from "../../utils/logger.js";
 
 // Créer le provider Google avec la clé API explicite
 const google = createGoogleGenerativeAI({
-  apiKey:
-    process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
 
 // Créer le provider OpenAI
@@ -43,10 +42,7 @@ export type { AgentMode, AgentRequest, AgentStreamCallbacks } from "./types.js";
 /**
  * Exécute l'agent Pennote avec streaming
  */
-export async function runPennoteAgent(
-  request: AgentRequest,
-  callbacks?: AgentStreamCallbacks,
-) {
+export async function runPennoteAgent(request: AgentRequest, callbacks?: AgentStreamCallbacks) {
   const {
     messages,
     mode,
@@ -92,12 +88,8 @@ export async function runPennoteAgent(
   const { thinkingConfig } = MODE_CONFIG[mode];
   const modelName = "gemini-3-flash-preview";
 
-  logger.log(
-    `🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`,
-  );
-  logger.log(
-    `🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`,
-  );
+  logger.log(`🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`);
+  logger.log(`🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`);
   logger.log(
     `🤖 [PennoteAgent] Provider: Google, Model: ${modelName}, Thinking: ${thinkingConfig?.thinkingLevel || "auto"}`,
   );
@@ -136,14 +128,7 @@ export async function runPennoteAgent(
     },
 
     // Callback à chaque étape terminée
-    onStepFinish: ({
-      text,
-      toolCalls,
-      toolResults,
-      finishReason,
-      usage,
-      reasoning,
-    }) => {
+    onStepFinish: ({ text, toolCalls, toolResults, finishReason, usage, reasoning }) => {
       stepNumber++;
 
       // Debug: afficher le format exact du reasoning
@@ -195,9 +180,7 @@ export async function runPennoteAgent(
       for (const tr of toolResults) {
         const output = tr.output;
         const preview =
-          typeof output === "string"
-            ? output.slice(0, 100)
-            : JSON.stringify(output).slice(0, 100);
+          typeof output === "string" ? output.slice(0, 100) : JSON.stringify(output).slice(0, 100);
         logger.log(`  ✅ Result: ${preview}...`);
         callbacks?.onToolResult?.(tr.toolName, output);
       }

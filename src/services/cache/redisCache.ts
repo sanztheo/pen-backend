@@ -2,10 +2,7 @@ import Redis from "ioredis";
 import { logger } from "../../utils/logger.js";
 
 // Configuration Redis (Railway ou local)
-const redisUrl =
-  process.env.REDIS_URL ||
-  process.env.REDIS_PUBLIC_URL ||
-  "redis://localhost:6379";
+const redisUrl = process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL || "redis://localhost:6379";
 
 const redis = new Redis(redisUrl, {
   retryStrategy: (times: number) => {
@@ -70,11 +67,7 @@ class RedisCacheService {
   /**
    * Récupère une valeur du cache
    */
-  async get<T>(
-    key: string,
-    parse: CacheParser<T>,
-    options?: CacheOptions,
-  ): Promise<T | null> {
+  async get<T>(key: string, parse: CacheParser<T>, options?: CacheOptions): Promise<T | null> {
     try {
       const cacheKey = this.getKey(key, options?.namespace);
       const data = await redis.get(cacheKey);
@@ -96,11 +89,7 @@ class RedisCacheService {
   /**
    * Stocke une valeur dans le cache
    */
-  async set<T>(
-    key: string,
-    value: T,
-    options?: CacheOptions,
-  ): Promise<boolean> {
+  async set<T>(key: string, value: T, options?: CacheOptions): Promise<boolean> {
     try {
       const cacheKey = this.getKey(key, options?.namespace);
       const ttl = options?.ttl || this.defaultTTL;
@@ -133,32 +122,22 @@ class RedisCacheService {
   /**
    * Invalide toutes les clés correspondant à un pattern
    */
-  async invalidatePattern(
-    pattern: string,
-    options?: CacheOptions,
-  ): Promise<number> {
+  async invalidatePattern(pattern: string, options?: CacheOptions): Promise<number> {
     try {
       const namespace = options?.namespace || this.defaultNamespace;
       const fullPattern = `${namespace}:${pattern}`;
 
       const keys = await redis.keys(fullPattern);
       if (keys.length === 0) {
-        logger.log(
-          `🔍 [Redis Cache] Aucune clé trouvée pour pattern: ${fullPattern}`,
-        );
+        logger.log(`🔍 [Redis Cache] Aucune clé trouvée pour pattern: ${fullPattern}`);
         return 0;
       }
 
       const result = await redis.del(...keys);
-      logger.log(
-        `🗑️ [Redis Cache] INVALIDATE PATTERN: ${fullPattern} (${result} clés supprimées)`,
-      );
+      logger.log(`🗑️ [Redis Cache] INVALIDATE PATTERN: ${fullPattern} (${result} clés supprimées)`);
       return result;
     } catch (error) {
-      logger.error(
-        `❌ [Redis Cache] Erreur INVALIDATE PATTERN ${pattern}:`,
-        error,
-      );
+      logger.error(`❌ [Redis Cache] Erreur INVALIDATE PATTERN ${pattern}:`, error);
       return 0;
     }
   }

@@ -26,15 +26,17 @@ export interface JobResult<T = unknown> {
   userId?: string; // 🛡️ SÉCURITÉ: Ownership du job
 }
 
-const JobResultSchema = z.object({
-  status: z.enum(["pending", "completed", "failed"]),
-  result: z.unknown().optional(),
-  error: z.string().optional(),
-  progress: z.number().optional(),
-  createdAt: z.coerce.date(),
-  completedAt: z.coerce.date().optional(),
-  userId: z.string().optional(),
-}).passthrough();
+const JobResultSchema = z
+  .object({
+    status: z.enum(["pending", "completed", "failed"]),
+    result: z.unknown().optional(),
+    error: z.string().optional(),
+    progress: z.number().optional(),
+    createdAt: z.coerce.date(),
+    completedAt: z.coerce.date().optional(),
+    userId: z.string().optional(),
+  })
+  .passthrough();
 
 type ParsedJobResult = z.infer<typeof JobResultSchema>;
 
@@ -147,9 +149,7 @@ export const getJobResult = async <T>(
       result: parsedResult && parsedResult.success ? parsedResult.data : undefined,
     };
 
-    logger.log(
-      `✅ [JOB-RESULTS] Résultat récupéré: ${jobId} (status: ${typedResult.status})`,
-    );
+    logger.log(`✅ [JOB-RESULTS] Résultat récupéré: ${jobId} (status: ${typedResult.status})`);
     return typedResult;
   } catch (error) {
     logger.error(`❌ [JOB-RESULTS] Erreur récupération: ${jobId}`, error);
@@ -160,10 +160,7 @@ export const getJobResult = async <T>(
 /**
  * 🛡️ Marquer un job comme en cours
  */
-export const markJobPending = async (
-  jobId: string,
-  userId: string,
-): Promise<void> => {
+export const markJobPending = async (jobId: string, userId: string): Promise<void> => {
   await storeJobResult(jobId, userId, {
     status: "pending",
     createdAt: new Date(),
@@ -205,10 +202,7 @@ export const markJobFailed = async (
 /**
  * 🛡️ Supprimer un résultat de job avec vérification d'ownership
  */
-export const deleteJobResult = async (
-  jobId: string,
-  userId: string,
-): Promise<void> => {
+export const deleteJobResult = async (jobId: string, userId: string): Promise<void> => {
   try {
     // Supprimer la clé sécurisée
     const secureKey = getSecureKey(userId, jobId);

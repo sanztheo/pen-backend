@@ -35,9 +35,7 @@ function getOpenAI(): OpenAI {
   if (!openaiClient) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error(
-        "OPENAI_API_KEY manquant dans les variables d'environnement",
-      );
+      throw new Error("OPENAI_API_KEY manquant dans les variables d'environnement");
     }
     openaiClient = new OpenAI({ apiKey });
   }
@@ -57,11 +55,7 @@ export class ConceptExtractorService {
     options: ExtractionOptions = {},
   ): Promise<ExtractionResult> {
     const startTime = Date.now();
-    const {
-      forceRefresh = false,
-      generateEmbedding = true,
-      skipAI = false,
-    } = options;
+    const { forceRefresh = false, generateEmbedding = true, skipAI = false } = options;
 
     logger.log(`🧠 [ConceptExtractor] Extraction pour page ${pageId}...`);
 
@@ -72,16 +66,13 @@ export class ConceptExtractorService {
           where: { pageId },
         });
         if (existing) {
-          logger.log(
-            `🧠 [ConceptExtractor] Concepts déjà extraits, skip (use forceRefresh=true)`,
-          );
+          logger.log(`🧠 [ConceptExtractor] Concepts déjà extraits, skip (use forceRefresh=true)`);
           return {
             success: true,
             pageId,
             concepts: {
               keywords: existing.keywords,
-              definitions:
-                (existing.definitions as Record<string, string>) || {},
+              definitions: (existing.definitions as Record<string, string>) || {},
               keyPoints: existing.keyPoints,
               formulas: existing.formulas,
               topic: existing.topic || "",
@@ -93,8 +84,7 @@ export class ConceptExtractorService {
               wordCount: existing.wordCount,
               conceptCount: existing.conceptCount,
               hasFormulas: existing.formulas.length > 0,
-              hasDefinitions:
-                Object.keys(existing.definitions || {}).length > 0,
+              hasDefinitions: Object.keys(existing.definitions || {}).length > 0,
             },
             extractedAt: existing.lastExtractedAt,
             processingTimeMs: Date.now() - startTime,
@@ -156,15 +146,11 @@ export class ConceptExtractorService {
       }
 
       const textContent = extractTextFromBlockNote(blocks);
-      const wordCount = textContent
-        .split(/\s+/)
-        .filter((w) => w.length > 0).length;
+      const wordCount = textContent.split(/\s+/).filter((w) => w.length > 0).length;
 
       // Minimum de contenu requis
       if (wordCount < 50) {
-        logger.log(
-          `🧠 [ConceptExtractor] Contenu trop court (${wordCount} mots), skip`,
-        );
+        logger.log(`🧠 [ConceptExtractor] Contenu trop court (${wordCount} mots), skip`);
         return {
           success: false,
           pageId,
@@ -242,15 +228,11 @@ export class ConceptExtractorService {
       });
 
       const processingTimeMs = Date.now() - startTime;
-      logger.log(
-        `✅ [ConceptExtractor] Extraction terminée en ${processingTimeMs}ms`,
-      );
+      logger.log(`✅ [ConceptExtractor] Extraction terminée en ${processingTimeMs}ms`);
       logger.log(
         `   📚 ${concepts.keywords.length} keywords, ${concepts.keyPoints.length} keyPoints`,
       );
-      logger.log(
-        `   🎯 Topic: "${concepts.topic}", Difficulty: ${difficulty}`,
-      );
+      logger.log(`   🎯 Topic: "${concepts.topic}", Difficulty: ${difficulty}`);
 
       return {
         success: true,
@@ -286,9 +268,7 @@ export class ConceptExtractorService {
   /**
    * Extraction AI avec GPT-4o-mini
    */
-  private static async extractWithAI(
-    content: string,
-  ): Promise<ExtractedConcepts> {
+  private static async extractWithAI(content: string): Promise<ExtractedConcepts> {
     logger.log(`🤖 [ConceptExtractor] Extraction AI (${EXTRACTION_MODEL})...`);
 
     const openai = getOpenAI();
@@ -328,10 +308,7 @@ export class ConceptExtractorService {
   /**
    * Extraction basique sans AI (pour tests ou fallback)
    */
-  private static extractBasic(
-    content: string,
-    title: string,
-  ): ExtractedConcepts {
+  private static extractBasic(content: string, title: string): ExtractedConcepts {
     // Extraction simple basée sur la fréquence des mots
     const words = content.toLowerCase().split(/\s+/);
     const wordFreq = new Map<string, number>();
@@ -386,16 +363,12 @@ export class ConceptExtractorService {
   /**
    * Détecte la difficulté du contenu
    */
-  private static detectDifficulty(
-    content: string,
-    concepts: ExtractedConcepts,
-  ): Difficulty {
+  private static detectDifficulty(content: string, concepts: ExtractedConcepts): Difficulty {
     let score = 0;
 
     // Critères de complexité
     const avgWordLength =
-      content.split(/\s+/).reduce((sum, w) => sum + w.length, 0) /
-      content.split(/\s+/).length;
+      content.split(/\s+/).reduce((sum, w) => sum + w.length, 0) / content.split(/\s+/).length;
     if (avgWordLength > 7) score += 2;
     else if (avgWordLength > 5) score += 1;
 
@@ -422,9 +395,7 @@ export class ConceptExtractorService {
    * Utilisé après modification du contenu
    */
   static async invalidateAndRefresh(pageId: string): Promise<ExtractionResult> {
-    logger.log(
-      `🔄 [ConceptExtractor] Invalidation et refresh pour page ${pageId}`,
-    );
+    logger.log(`🔄 [ConceptExtractor] Invalidation et refresh pour page ${pageId}`);
     return this.extractAndStore(pageId, { forceRefresh: true });
   }
 
@@ -434,9 +405,7 @@ export class ConceptExtractorService {
   static async deleteConcepts(pageId: string): Promise<boolean> {
     try {
       await prisma.pageConcepts.delete({ where: { pageId } });
-      logger.log(
-        `🗑️ [ConceptExtractor] Concepts supprimés pour page ${pageId}`,
-      );
+      logger.log(`🗑️ [ConceptExtractor] Concepts supprimés pour page ${pageId}`);
       return true;
     } catch {
       return false;
@@ -465,9 +434,7 @@ export class ConceptExtractorService {
     pageIds: string[],
     options: ExtractionOptions = {},
   ): Promise<Map<string, ExtractionResult>> {
-    logger.log(
-      `🧠 [ConceptExtractor] Extraction batch de ${pageIds.length} pages...`,
-    );
+    logger.log(`🧠 [ConceptExtractor] Extraction batch de ${pageIds.length} pages...`);
 
     const results = new Map<string, ExtractionResult>();
 
@@ -483,9 +450,7 @@ export class ConceptExtractorService {
     }
 
     const successCount = [...results.values()].filter((r) => r.success).length;
-    logger.log(
-      `✅ [ConceptExtractor] Batch terminé: ${successCount}/${pageIds.length} succès`,
-    );
+    logger.log(`✅ [ConceptExtractor] Batch terminé: ${successCount}/${pageIds.length} succès`);
 
     return results;
   }

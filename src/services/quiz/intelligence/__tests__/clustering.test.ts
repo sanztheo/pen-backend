@@ -224,12 +224,8 @@ describe("kMeans", () => {
     const result = kMeans(vectors, 2);
 
     // Find which cluster has points near origin
-    const clusterAPoints = result.clusters.find((c) =>
-      c.some((idx) => vectors[idx][0] < 50),
-    );
-    const clusterBPoints = result.clusters.find((c) =>
-      c.some((idx) => vectors[idx][0] > 50),
-    );
+    const clusterAPoints = result.clusters.find((c) => c.some((idx) => vectors[idx][0] < 50));
+    const clusterBPoints = result.clusters.find((c) => c.some((idx) => vectors[idx][0] > 50));
 
     expect(clusterAPoints).toBeDefined();
     expect(clusterBPoints).toBeDefined();
@@ -413,10 +409,7 @@ describe("silhouetteScore", () => {
 describe("Clustering - Performance", () => {
   it("should cluster 100 points with k-means in reasonable time", () => {
     // Generate random 2D points
-    const vectors = Array.from({ length: 100 }, () => [
-      Math.random() * 100,
-      Math.random() * 100,
-    ]);
+    const vectors = Array.from({ length: 100 }, () => [Math.random() * 100, Math.random() * 100]);
 
     const start = performance.now();
     const result = kMeans(vectors, 5);
@@ -427,19 +420,14 @@ describe("Clustering - Performance", () => {
   });
 
   it("should cluster 50 points with DBSCAN in reasonable time", () => {
-    const vectors = Array.from({ length: 50 }, () => [
-      Math.random() * 100,
-      Math.random() * 100,
-    ]);
+    const vectors = Array.from({ length: 50 }, () => [Math.random() * 100, Math.random() * 100]);
 
     const start = performance.now();
     const result = dbscan(vectors, { autoEps: true, minPts: 3 });
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(500); // Less than 500ms
-    expect(result.clusters.length + result.noise.length).toBeGreaterThanOrEqual(
-      0,
-    );
+    expect(result.clusters.length + result.noise.length).toBeGreaterThanOrEqual(0);
   });
 
   it("should calculate silhouette score for 6 clusters quickly", () => {

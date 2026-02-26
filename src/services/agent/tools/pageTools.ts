@@ -19,8 +19,7 @@ interface PageToolsContext {
 }
 
 // Helper pour transformer chaînes vides en undefined
-const emptyToUndefined = (val: unknown) =>
-  val === "" || val === null ? undefined : val;
+const emptyToUndefined = (val: unknown) => (val === "" || val === null ? undefined : val);
 
 // Schéma Zod pour createPage
 // Note: On utilise preprocess pour transformer les chaînes vides en undefined
@@ -31,25 +30,15 @@ const createPageSchema = z.object({
     z
       .string()
       .optional()
-      .describe(
-        "Contenu initial de la page en texte (sera converti en BlockNote)",
-      ),
+      .describe("Contenu initial de la page en texte (sera converti en BlockNote)"),
   ),
   projectId: z.preprocess(
     emptyToUndefined,
-    z
-      .string()
-      .uuid()
-      .optional()
-      .describe("ID du projet dans lequel créer la page (optionnel)"),
+    z.string().uuid().optional().describe("ID du projet dans lequel créer la page (optionnel)"),
   ),
   icon: z.preprocess(
     emptyToUndefined,
-    z
-      .string()
-      .max(10)
-      .optional()
-      .describe("Emoji ou icône pour la page (ex: '📝')"),
+    z.string().max(10).optional().describe("Emoji ou icône pour la page (ex: '📝')"),
   ),
 });
 
@@ -73,9 +62,7 @@ Retourne l'ID, le titre et l'URL de la page créée.
 Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou des notes.`,
       inputSchema: createPageSchema,
       execute: async ({ title, content, projectId, icon }) => {
-        logger.log(
-          `🔍 [TOOL:createPage] title="${title}", projectId=${projectId || "root"}`,
-        );
+        logger.log(`🔍 [TOOL:createPage] title="${title}", projectId=${projectId || "root"}`);
 
         try {
           // 1. Vérifier que le projet existe (si fourni)
@@ -144,9 +131,7 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
             },
           });
 
-          logger.log(
-            `✅ [TOOL:createPage] Page créée: "${page.title}" (ID: ${page.id})`,
-          );
+          logger.log(`✅ [TOOL:createPage] Page créée: "${page.title}" (ID: ${page.id})`);
 
           return {
             success: true,

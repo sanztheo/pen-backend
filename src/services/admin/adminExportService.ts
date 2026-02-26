@@ -44,18 +44,13 @@ export class AdminExportService {
     filters: UserListFilters,
     adminEmail: string,
   ): Promise<{ csv: string; rowCount: number }> {
-    logger.log(
-      "[ADMIN_EXPORT] Starting CSV generation with filters:",
-      filters,
-    );
+    logger.log("[ADMIN_EXPORT] Starting CSV generation with filters:", filters);
 
     const where = this.buildWhereClause(filters);
     const totalCount = await prisma.user.count({ where });
     const rowsToExport = Math.min(totalCount, MAX_EXPORT_ROWS);
 
-    logger.log(
-      `[ADMIN_EXPORT] Found ${totalCount} users, exporting ${rowsToExport}`,
-    );
+    logger.log(`[ADMIN_EXPORT] Found ${totalCount} users, exporting ${rowsToExport}`);
 
     const rows: CSVRow[] = [];
 
@@ -67,9 +62,7 @@ export class AdminExportService {
         rows.push(this.formatUserRow(user));
       }
 
-      logger.log(
-        `[ADMIN_EXPORT] Processed ${offset + users.length}/${rowsToExport} users`,
-      );
+      logger.log(`[ADMIN_EXPORT] Processed ${offset + users.length}/${rowsToExport} users`);
     }
 
     const disclaimer = this.getRGPDDisclaimer(adminEmail);
@@ -79,9 +72,7 @@ export class AdminExportService {
     });
     const fullCSV = disclaimer + csvData;
 
-    logger.log(
-      `[ADMIN_EXPORT] CSV generated: ${rowsToExport} rows, ${fullCSV.length} bytes`,
-    );
+    logger.log(`[ADMIN_EXPORT] CSV generated: ${rowsToExport} rows, ${fullCSV.length} bytes`);
 
     return { csv: fullCSV, rowCount: rowsToExport };
   }
@@ -89,9 +80,7 @@ export class AdminExportService {
   /**
    * Build Prisma where clause from filters
    */
-  private static buildWhereClause(
-    filters: UserListFilters,
-  ): Prisma.UserWhereInput {
+  private static buildWhereClause(filters: UserListFilters): Prisma.UserWhereInput {
     const where: Prisma.UserWhereInput = {};
 
     if (filters.search) {

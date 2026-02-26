@@ -3,14 +3,7 @@
  * Covers: BM-001 (phone bypass), BM-002 (email enumeration), input validation
  */
 
-import {
-  afterAll,
-  describe,
-  expect,
-  it,
-  jest,
-  beforeEach,
-} from "@jest/globals";
+import { afterAll, describe, expect, it, jest, beforeEach } from "@jest/globals";
 import type { Request, Response } from "express";
 import { WaitlistController } from "../waitlistController.js";
 import { BetaService } from "../../../services/BetaService.js";
@@ -76,30 +69,20 @@ describe("WaitlistController — Input Validation", () => {
     const req = createMockRequest({ name: "Test" });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "MISSING_FIELDS" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "MISSING_FIELDS" }));
   });
 
   it("should reject missing name", async () => {
     const req = createMockRequest({ email: "test@example.com" });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "MISSING_FIELDS" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "MISSING_FIELDS" }));
   });
 
   it("should reject invalid email format", async () => {
@@ -109,30 +92,20 @@ describe("WaitlistController — Input Validation", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "INVALID_EMAIL" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "INVALID_EMAIL" }));
   });
 
   it("should reject name shorter than 2 characters", async () => {
     const req = createMockRequest({ email: "t@e.com", name: "A" });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "INVALID_NAME_LENGTH" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "INVALID_NAME_LENGTH" }));
   });
 
   it("should reject name longer than 200 characters", async () => {
@@ -142,15 +115,10 @@ describe("WaitlistController — Input Validation", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "INVALID_NAME_LENGTH" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "INVALID_NAME_LENGTH" }));
   });
 
   it("should normalize email to lowercase and trim", async () => {
@@ -166,10 +134,7 @@ describe("WaitlistController — Input Validation", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(mockAddToWaitlist).toHaveBeenCalledWith(
       expect.objectContaining({ email: "test@example.com" }),
@@ -187,9 +152,7 @@ describe("WaitlistController — Input Validation", () => {
     await WaitlistController.addToWaitlist(req, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "MISSING_FIELDS" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "MISSING_FIELDS" }));
   });
 });
 
@@ -205,15 +168,10 @@ describe("WaitlistController — BM-001: Phone bypass prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "INVALID_PHONE" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "INVALID_PHONE" }));
   });
 
   it("should reject phone with non-phone characters", async () => {
@@ -224,15 +182,10 @@ describe("WaitlistController — BM-001: Phone bypass prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "INVALID_PHONE" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "INVALID_PHONE" }));
   });
 
   it("should accept valid phone formats", async () => {
@@ -259,10 +212,7 @@ describe("WaitlistController — BM-001: Phone bypass prevention", () => {
       });
       const res = createMockResponse();
 
-      await WaitlistController.addToWaitlist(
-        req as Request,
-        res as unknown as Response,
-      );
+      await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
       expect(res.status).toHaveBeenCalledWith(201);
     }
@@ -284,15 +234,10 @@ describe("WaitlistController — BM-001: Phone bypass prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "METADATA_TOO_LARGE" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "METADATA_TOO_LARGE" }));
   });
 
   it("should include phone in final metadata sent to service", async () => {
@@ -310,10 +255,7 @@ describe("WaitlistController — BM-001: Phone bypass prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(mockAddToWaitlist).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -337,10 +279,7 @@ describe("WaitlistController — BM-001: Phone bypass prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     const calledMetadata = mockAddToWaitlist.mock.calls[0]?.[0]?.metadata;
     expect(calledMetadata).not.toHaveProperty("phone");
@@ -364,10 +303,7 @@ describe("WaitlistController — BM-002: Email enumeration prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({ success: true });
@@ -386,10 +322,7 @@ describe("WaitlistController — BM-002: Email enumeration prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     // CRITICAL: must be 201, NOT 409
     expect(res.status).toHaveBeenCalledWith(201);
@@ -409,10 +342,7 @@ describe("WaitlistController — BM-002: Email enumeration prevention", () => {
       name: "New",
     });
     const resNew = createMockResponse();
-    await WaitlistController.addToWaitlist(
-      reqNew as Request,
-      resNew as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(reqNew as Request, resNew as unknown as Response);
 
     // Capture response before clearing mocks
     const newStatus = resNew.status.mock.calls[0]?.[0];
@@ -430,10 +360,7 @@ describe("WaitlistController — BM-002: Email enumeration prevention", () => {
       name: "Dup",
     });
     const resDup = createMockResponse();
-    await WaitlistController.addToWaitlist(
-      reqDup as Request,
-      resDup as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(reqDup as Request, resDup as unknown as Response);
 
     const dupStatus = resDup.status.mock.calls[0]?.[0];
     const dupResponse = resDup.json.mock.calls[0]?.[0];
@@ -459,10 +386,7 @@ describe("WaitlistController — BM-002: Email enumeration prevention", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     const response = res.json.mock.calls[0]?.[0];
     expect(response).not.toHaveProperty("position");
@@ -476,16 +400,10 @@ describe("WaitlistController — BM-002: Email enumeration prevention", () => {
       isOwned: true,
     });
 
-    const req = createMockRequest(
-      { email: "auth@test.com", name: "Auth User" },
-      "user-123",
-    );
+    const req = createMockRequest({ email: "auth@test.com", name: "Auth User" }, "user-123");
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     const response = res.json.mock.calls[0]?.[0];
     expect(response.position).toBe(42);
@@ -499,16 +417,10 @@ describe("WaitlistController — BM-002: Email enumeration prevention", () => {
       isOwned: true,
     });
 
-    const req = createMockRequest(
-      { email: "dup@test.com", name: "Dup User" },
-      "user-456",
-    );
+    const req = createMockRequest({ email: "dup@test.com", name: "Dup User" }, "user-456");
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(201);
     const response = res.json.mock.calls[0]?.[0];
@@ -527,16 +439,10 @@ describe("WaitlistController — Active user guard", () => {
       rejected: true,
     });
 
-    const req = createMockRequest(
-      { email: "active@test.com", name: "Active" },
-      "active-user",
-    );
+    const req = createMockRequest({ email: "active@test.com", name: "Active" }, "active-user");
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     // BM-002: must be 201 { success: true } — indistinguishable from normal success
     expect(res.status).toHaveBeenCalledWith(201);
@@ -556,10 +462,7 @@ describe("WaitlistController — Active user guard", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     // BM-002: unauthenticated rejected must also be 201 — no email enumeration
     expect(res.status).toHaveBeenCalledWith(201);
@@ -599,10 +502,7 @@ describe("WaitlistController — Active user guard", () => {
       name: "New",
     });
     const resNew = createMockResponse();
-    await WaitlistController.addToWaitlist(
-      reqNew as Request,
-      resNew as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(reqNew as Request, resNew as unknown as Response);
 
     const newStatus = resNew.status.mock.calls[0]?.[0];
     const newBody = resNew.json.mock.calls[0]?.[0];
@@ -627,15 +527,10 @@ describe("WaitlistController — MISSING_USER_EMAIL guard", () => {
     );
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "MISSING_USER_EMAIL" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "MISSING_USER_EMAIL" }));
     expect(mockAddToWaitlist).not.toHaveBeenCalled();
   });
 
@@ -646,15 +541,10 @@ describe("WaitlistController — MISSING_USER_EMAIL guard", () => {
     };
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ code: "MISSING_USER_EMAIL" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "MISSING_USER_EMAIL" }));
     expect(mockAddToWaitlist).not.toHaveBeenCalled();
   });
 });
@@ -672,10 +562,7 @@ describe("WaitlistController — Error handling", () => {
     });
     const res = createMockResponse();
 
-    await WaitlistController.addToWaitlist(
-      req as Request,
-      res as unknown as Response,
-    );
+    await WaitlistController.addToWaitlist(req as Request, res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith(

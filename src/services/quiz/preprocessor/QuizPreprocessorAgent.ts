@@ -33,12 +33,9 @@ const QuestionTypesSchema = z
     openEnded: z.number().int().min(0).max(100),
     matching: z.number().int().min(0).max(100),
   })
-  .refine(
-    (data) =>
-      data.multipleChoice + data.trueFalse + data.openEnded + data.matching ===
-      100,
-    { message: "Question type percentages must sum to 100" },
-  );
+  .refine((data) => data.multipleChoice + data.trueFalse + data.openEnded + data.matching === 100, {
+    message: "Question type percentages must sum to 100",
+  });
 
 const PreprocessorAIOutputSchema = z.object({
   recommendedQuestions: z.number().int().min(1).max(100),
@@ -115,10 +112,7 @@ export class QuizPreprocessorAgent {
     const internalOutput = this.convertToInternalFormat(aiOutput);
 
     // 4. Valider et corriger selon limites utilisateur
-    const validationResult = await quizLimitValidator.validateAndCorrect(
-      internalOutput,
-      userId,
-    );
+    const validationResult = await quizLimitValidator.validateAndCorrect(internalOutput, userId);
 
     // 5. Retourner les paramètres validés
     return validationResult.correctedOutput;
@@ -134,9 +128,7 @@ export class QuizPreprocessorAgent {
 
     // Retirer les code blocks markdown si présents
     if (jsonContent.startsWith("```json")) {
-      jsonContent = jsonContent
-        .replace(/^```json\s*/, "")
-        .replace(/\s*```$/, "");
+      jsonContent = jsonContent.replace(/^```json\s*/, "").replace(/\s*```$/, "");
     } else if (jsonContent.startsWith("```")) {
       jsonContent = jsonContent.replace(/^```\s*/, "").replace(/\s*```$/, "");
     }
@@ -170,9 +162,7 @@ export class QuizPreprocessorAgent {
   /**
    * Convertit PreprocessorAIOutput (format IA) vers QuizPreprocessorOutput (format interne)
    */
-  private convertToInternalFormat(
-    aiOutput: PreprocessorAIOutput,
-  ): QuizPreprocessorOutput {
+  private convertToInternalFormat(aiOutput: PreprocessorAIOutput): QuizPreprocessorOutput {
     // Convertir les pourcentages en types concrets
     const questionTypes = this.percentagesToQuestionTypes(
       aiOutput.questionTypes,
@@ -183,8 +173,7 @@ export class QuizPreprocessorAgent {
       recommendedQuestionCount: aiOutput.recommendedQuestions,
       questionTypes,
       difficulty: aiOutput.difficulty,
-      suggestedTimeLimit:
-        aiOutput.suggestedDuration > 0 ? aiOutput.suggestedDuration : null,
+      suggestedTimeLimit: aiOutput.suggestedDuration > 0 ? aiOutput.suggestedDuration : null,
       reasoning: aiOutput.reasoning,
     };
   }
@@ -207,16 +196,14 @@ export class QuizPreprocessorAgent {
 
     // Calculer le nombre de questions par type
     const counts = {
-      MULTIPLE_CHOICE: Math.round(
-        (percentages.multipleChoice / 100) * totalQuestions,
-      ),
+      MULTIPLE_CHOICE: Math.round((percentages.multipleChoice / 100) * totalQuestions),
       TRUE_FALSE: Math.round((percentages.trueFalse / 100) * totalQuestions),
       OPEN_QUESTION: Math.round((percentages.openEnded / 100) * totalQuestions),
       MATCHING: Math.round((percentages.matching / 100) * totalQuestions),
     };
 
     // Vérifier que la somme ne dépasse pas totalQuestions
-    let sum = Object.values(counts).reduce((a, b) => a + b, 0);
+    const sum = Object.values(counts).reduce((a, b) => a + b, 0);
 
     // Ajuster si la somme est différente (arrondi)
     if (sum !== totalQuestions) {
@@ -229,10 +216,7 @@ export class QuizPreprocessorAgent {
     }
 
     // Construire le tableau de types
-    for (const [type, count] of Object.entries(counts) as [
-      QuestionType,
-      number,
-    ][]) {
+    for (const [type, count] of Object.entries(counts) as [QuestionType, number][]) {
       for (let i = 0; i < count; i++) {
         types.push(type);
       }

@@ -26,8 +26,7 @@ export class WaitlistController {
 
       // Normalize and sanitize inputs
       const trimmedEmail = email?.trim().toLowerCase();
-      const trimmedName =
-        name !== undefined ? stripHtmlTags(name.trim()) : undefined;
+      const trimmedName = name !== undefined ? stripHtmlTags(name.trim()) : undefined;
 
       // Validation
       if (!trimmedEmail || !trimmedName) {
@@ -60,10 +59,7 @@ export class WaitlistController {
       // Validate phone before building final payload
       const trimmedPhone = phone?.trim();
       if (trimmedPhone !== undefined && trimmedPhone !== "") {
-        if (
-          trimmedPhone.length > MAX_PHONE_LENGTH ||
-          !PHONE_REGEX.test(trimmedPhone)
-        ) {
+        if (trimmedPhone.length > MAX_PHONE_LENGTH || !PHONE_REGEX.test(trimmedPhone)) {
           res.status(400).json({
             success: false,
             error: `Invalid phone format (max ${MAX_PHONE_LENGTH} chars, digits/spaces/dashes only)`,
@@ -74,16 +70,13 @@ export class WaitlistController {
       }
 
       // Sanitize metadata (prevent prototype pollution) then merge phone
-      const safeMetadata =
-        metadata !== undefined ? sanitizeObjectKeys(metadata) : {};
+      const safeMetadata = metadata !== undefined ? sanitizeObjectKeys(metadata) : {};
       const waitlistMetadata: Record<string, unknown> = {
         ...safeMetadata,
         ...(trimmedPhone ? { phone: trimmedPhone } : {}),
       };
 
-      const finalPayloadSize = new TextEncoder().encode(
-        JSON.stringify(waitlistMetadata),
-      ).length;
+      const finalPayloadSize = new TextEncoder().encode(JSON.stringify(waitlistMetadata)).length;
       if (finalPayloadSize > MAX_METADATA_SIZE_BYTES) {
         res.status(400).json({
           success: false,
@@ -97,9 +90,7 @@ export class WaitlistController {
 
       // PEN-140: Authenticated users must use their own email (prevent third-party submissions)
       const userEmail =
-        userId &&
-        typeof req.user?.email === "string" &&
-        req.user.email.trim() !== ""
+        userId && typeof req.user?.email === "string" && req.user.email.trim() !== ""
           ? req.user.email.trim().toLowerCase()
           : undefined;
 

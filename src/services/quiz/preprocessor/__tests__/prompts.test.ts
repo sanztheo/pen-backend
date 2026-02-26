@@ -44,16 +44,12 @@ describe("QUIZ_PREPROCESSOR_SYSTEM_PROMPT", () => {
   });
 
   it("should include content coverage options", () => {
-    expect(QUIZ_PREPROCESSOR_SYSTEM_PROMPT).toContain(
-      "focused|balanced|comprehensive",
-    );
+    expect(QUIZ_PREPROCESSOR_SYSTEM_PROMPT).toContain("focused|balanced|comprehensive");
   });
 
   it("should specify subscription limit constraint", () => {
     expect(QUIZ_PREPROCESSOR_SYSTEM_PROMPT).toContain("subscriptionLimit");
-    expect(QUIZ_PREPROCESSOR_SYSTEM_PROMPT).toContain(
-      "NEVER exceed subscriptionLimit",
-    );
+    expect(QUIZ_PREPROCESSOR_SYSTEM_PROMPT).toContain("NEVER exceed subscriptionLimit");
   });
 
   it("should require question type percentages to sum to 100", () => {
@@ -200,9 +196,7 @@ describe("buildPreprocessorPrompt", () => {
 
     const promptWithFormulas = buildPreprocessorPrompt(paramsWithFormulas);
     expect(promptWithFormulas).toContain("<has_formulas>true</has_formulas>");
-    expect(promptWithFormulas).toContain(
-      "<has_definitions>false</has_definitions>",
-    );
+    expect(promptWithFormulas).toContain("<has_definitions>false</has_definitions>");
 
     const paramsNoFormulas: PreprocessorPromptParams = {
       ...paramsWithFormulas,
@@ -212,9 +206,7 @@ describe("buildPreprocessorPrompt", () => {
 
     const promptNoFormulas = buildPreprocessorPrompt(paramsNoFormulas);
     expect(promptNoFormulas).toContain("<has_formulas>false</has_formulas>");
-    expect(promptNoFormulas).toContain(
-      "<has_definitions>true</has_definitions>",
-    );
+    expect(promptNoFormulas).toContain("<has_definitions>true</has_definitions>");
   });
 
   it("should handle all quiz types", () => {
@@ -290,14 +282,9 @@ describe("PreprocessorAIOutput type validation", () => {
       if (typeof o.suggestedDuration !== "number") return false;
       if (typeof o.reasoning !== "string") return false;
 
-      if (!["easy", "medium", "hard"].includes(o.difficulty as string))
-        return false;
+      if (!["easy", "medium", "hard"].includes(o.difficulty as string)) return false;
 
-      if (
-        !["focused", "balanced", "comprehensive"].includes(
-          o.contentCoverage as string,
-        )
-      )
+      if (!["focused", "balanced", "comprehensive"].includes(o.contentCoverage as string))
         return false;
 
       if (!o.questionTypes || typeof o.questionTypes !== "object") return false;
@@ -311,11 +298,7 @@ describe("PreprocessorAIOutput type validation", () => {
       )
         return false;
 
-      const sum =
-        types.multipleChoice +
-        types.trueFalse +
-        types.openEnded +
-        types.matching;
+      const sum = types.multipleChoice + types.trueFalse + types.openEnded + types.matching;
       if (sum !== 100) return false;
 
       return true;

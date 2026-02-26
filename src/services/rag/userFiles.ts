@@ -1,8 +1,5 @@
 // 📄 User Files RAG System - Traitement intelligent des fichiers utilisateur
-import {
-  prismaEmbeddings as prisma,
-  type Prisma,
-} from "../../lib/prismaEmbeddings.js";
+import { prismaEmbeddings as prisma, type Prisma } from "../../lib/prismaEmbeddings.js";
 import crypto from "crypto";
 import type { RAGChunkInput } from "./index.js";
 import { logger } from "../../utils/logger.js";
@@ -75,24 +72,23 @@ export class UserFilesRAGSystem {
     chunksCount: number;
   } | null> {
     try {
-      const existingSource: RAGSourceWithChunkCount | null =
-        await prisma.rAGSource.findFirst({
-          where: {
-            userId,
-            workspaceId,
-            sourceType: { in: ["PDF", "TEXT_FILE"] },
-            isGlobal: false,
-            metadata: {
-              path: ["contentHash"],
-              equals: contentHash,
-            },
+      const existingSource: RAGSourceWithChunkCount | null = await prisma.rAGSource.findFirst({
+        where: {
+          userId,
+          workspaceId,
+          sourceType: { in: ["PDF", "TEXT_FILE"] },
+          isGlobal: false,
+          metadata: {
+            path: ["contentHash"],
+            equals: contentHash,
           },
-          include: {
-            _count: {
-              select: { chunks: true },
-            },
+        },
+        include: {
+          _count: {
+            select: { chunks: true },
           },
-        });
+        },
+      });
 
       if (!existingSource) return null;
 
@@ -114,10 +110,7 @@ export class UserFilesRAGSystem {
    * @param mimeType - Type MIME
    * @returns Texte extrait
    */
-  private async extractFileContent(
-    buffer: Buffer,
-    mimeType: string,
-  ): Promise<string> {
+  private async extractFileContent(buffer: Buffer, mimeType: string): Promise<string> {
     try {
       switch (mimeType) {
         case "application/pdf": {
@@ -185,10 +178,7 @@ export class UserFilesRAGSystem {
           return buffer.toString("utf-8");
       }
     } catch (error) {
-      logger.error(
-        `❌ [USER-FILE] Erreur extraction contenu (${mimeType}):`,
-        error,
-      );
+      logger.error(`❌ [USER-FILE] Erreur extraction contenu (${mimeType}):`, error);
       throw new Error(
         `Impossible d'extraire le contenu: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
       );
@@ -255,9 +245,7 @@ export class UserFilesRAGSystem {
         }
       } else {
         // Ajouter le paragraphe au chunk actuel
-        if (
-          this.estimateTokens(currentChunk + "\n\n" + paragraph) > maxChunkSize
-        ) {
+        if (this.estimateTokens(currentChunk + "\n\n" + paragraph) > maxChunkSize) {
           if (currentChunk) {
             chunks.push({
               content: currentChunk.trim(),
@@ -282,9 +270,7 @@ export class UserFilesRAGSystem {
       });
     }
 
-    logger.log(
-      `🧩 [USER-FILE] Chunking: ${text.length} chars → ${chunks.length} chunks`,
-    );
+    logger.log(`🧩 [USER-FILE] Chunking: ${text.length} chars → ${chunks.length} chunks`);
     return chunks;
   }
 
@@ -311,13 +297,11 @@ export class UserFilesRAGSystem {
 
     // Pénaliser les chunks avec beaucoup de caractères spéciaux/répétitions
     const specialCharsRatio =
-      (content.match(/[^a-zA-Z0-9\sàâäéèêëïîôùûüÿçœæ]/g) || []).length /
-      content.length;
+      (content.match(/[^a-zA-Z0-9\sàâäéèêëïîôùûüÿçœæ]/g) || []).length / content.length;
     if (specialCharsRatio > 0.3) score *= 0.7;
 
     // Bonus si le chunk contient des mots significatifs
-    const meaningfulWords =
-      content.match(/\b[a-zA-Zàâäéèêëïîôùûüÿçœæ]{4,}\b/g) || [];
+    const meaningfulWords = content.match(/\b[a-zA-Zàâäéèêëïîôùûüÿçœæ]{4,}\b/g) || [];
     if (meaningfulWords.length > 10) score *= 1.2;
 
     return Math.min(1.0, Math.max(0.1, score));
@@ -332,12 +316,9 @@ export class UserFilesRAGSystem {
     try {
       const { ragSystem } = await import("./index.js");
       const t0 = Date.now();
-      logger.log(
-        `🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${text.substring(0, 50)}..."`,
-      );
+      logger.log(`🚀 [EMBEDDING-FAST] Génération OpenAI pour: "${text.substring(0, 50)}..."`);
 
-      const embedding =
-        await ragSystem.embeddingService.generateEmbedding(text);
+      const embedding = await ragSystem.embeddingService.generateEmbedding(text);
 
       logger.log(
         `✅ [EMBEDDING-FAST] Embedding généré en ${Date.now() - t0}ms: ${embedding.length} dimensions`,
@@ -363,52 +344,34 @@ export class UserFilesRAGSystem {
    * @param sourceId - ID de la source RAG
    * @param chunks - Chunks à traiter
    */
-  private async processFileChunks(
-    sourceId: string,
-    chunks: RAGChunkInput[],
-  ): Promise<void> {
-    const { mapWithConcurrency, chunkArray } =
-      await import("../../utils/concurrency.js");
-    const concurrency = Math.max(
-      1,
-      parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10),
-    );
-    const batchSize = Math.max(
-      1,
-      parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10),
-    );
+  private async processFileChunks(sourceId: string, chunks: RAGChunkInput[]): Promise<void> {
+    const { mapWithConcurrency, chunkArray } = await import("../../utils/concurrency.js");
+    const concurrency = Math.max(1, parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10));
+    const batchSize = Math.max(1, parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10));
 
     const t0 = Date.now();
-    logger.log(
-      `⚙️  [USER-FILE] Embedding ${chunks.length} chunks (x${concurrency})…`,
-    );
+    logger.log(`⚙️  [USER-FILE] Embedding ${chunks.length} chunks (x${concurrency})…`);
 
-    const prepared = await mapWithConcurrency(
-      chunks,
-      concurrency,
-      async (chunk, i) => {
-        try {
-          const embedding = await this.generateEmbedding(chunk.content);
-          return {
-            sourceId,
-            chunkIndex: i,
-            content: chunk.content,
-            cleanContent: this.cleanContent(chunk.content),
-            embedding: JSON.stringify(embedding),
-            tokenCount: this.estimateTokens(chunk.content),
-            sectionTitle: chunk.sectionTitle ?? null,
-            quality: chunk.quality ?? 1.0,
-          } satisfies PreparedRAGChunkRow;
-        } catch (error) {
-          logger.error(`❌ [USER-FILE] Erreur embedding chunk ${i}:`, error);
-          return null;
-        }
-      },
-    );
+    const prepared = await mapWithConcurrency(chunks, concurrency, async (chunk, i) => {
+      try {
+        const embedding = await this.generateEmbedding(chunk.content);
+        return {
+          sourceId,
+          chunkIndex: i,
+          content: chunk.content,
+          cleanContent: this.cleanContent(chunk.content),
+          embedding: JSON.stringify(embedding),
+          tokenCount: this.estimateTokens(chunk.content),
+          sectionTitle: chunk.sectionTitle ?? null,
+          quality: chunk.quality ?? 1.0,
+        } satisfies PreparedRAGChunkRow;
+      } catch (error) {
+        logger.error(`❌ [USER-FILE] Erreur embedding chunk ${i}:`, error);
+        return null;
+      }
+    });
 
-    const filtered = prepared.filter(
-      (row): row is PreparedRAGChunkRow => row !== null,
-    );
+    const filtered = prepared.filter((row): row is PreparedRAGChunkRow => row !== null);
     let inserted = 0;
     for (const batch of chunkArray(filtered, batchSize)) {
       // Utiliser SQL brut pour insérer les embeddings (Prisma ne supporte pas vector nativement)
@@ -435,9 +398,7 @@ export class UserFilesRAGSystem {
         `;
         inserted++;
       }
-      logger.log(
-        `💾 [USER-FILE] Inséré ${inserted}/${filtered.length} chunks…`,
-      );
+      logger.log(`💾 [USER-FILE] Inséré ${inserted}/${filtered.length} chunks…`);
     }
 
     logger.log(`✅ [USER-FILE] Terminé en ${Date.now() - t0} ms`);
@@ -450,9 +411,7 @@ export class UserFilesRAGSystem {
    */
   async processUserFile(file: UserFileContent): Promise<string | null> {
     try {
-      logger.log(
-        `📄 [USER-FILE] Traitement: "${file.fileName}" (${file.mimeType})`,
-      );
+      logger.log(`📄 [USER-FILE] Traitement: "${file.fileName}" (${file.mimeType})`);
 
       // 1. Calculer le hash du contenu
       const contentHash = this.calculateContentHash(file.buffer);
@@ -470,9 +429,7 @@ export class UserFilesRAGSystem {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-        const lastUsed = existingSource.lastUsedAt
-          ? new Date(existingSource.lastUsedAt)
-          : null;
+        const lastUsed = existingSource.lastUsedAt ? new Date(existingSource.lastUsedAt) : null;
         const isOlderThan7Days = !lastUsed || lastUsed < sevenDaysAgo;
 
         // Si hash identique ET moins de 7 jours → réutiliser
@@ -506,18 +463,13 @@ export class UserFilesRAGSystem {
 
       // 4. Extraction du texte
       logger.log(`📝 [USER-FILE] Extraction du contenu...`);
-      const extractedText = await this.extractFileContent(
-        file.buffer,
-        file.mimeType,
-      );
+      const extractedText = await this.extractFileContent(file.buffer, file.mimeType);
 
       if (!extractedText || extractedText.trim().length < 10) {
         throw new Error("Contenu extrait vide ou trop court");
       }
 
-      logger.log(
-        `✅ [USER-FILE] Texte extrait: ${extractedText.length} caractères`,
-      );
+      logger.log(`✅ [USER-FILE] Texte extrait: ${extractedText.length} caractères`);
 
       // 5. Chunking intelligent
       const chunks = this.intelligentChunking(extractedText, file.fileName);
@@ -527,8 +479,7 @@ export class UserFilesRAGSystem {
       }
 
       // 6. Déterminer le type de source
-      const sourceType =
-        file.mimeType === "application/pdf" ? "PDF" : "TEXT_FILE";
+      const sourceType = file.mimeType === "application/pdf" ? "PDF" : "TEXT_FILE";
       const fileExtension = file.fileName.split(".").pop() || "";
 
       // 7. Créer ou mettre à jour la source
@@ -591,15 +542,10 @@ export class UserFilesRAGSystem {
         },
       });
 
-      logger.log(
-        `✅ [USER-FILE] Terminé: "${file.fileName}" (${chunks.length} chunks)`,
-      );
+      logger.log(`✅ [USER-FILE] Terminé: "${file.fileName}" (${chunks.length} chunks)`);
       return source.id;
     } catch (error) {
-      logger.error(
-        `❌ [USER-FILE] Erreur traitement fichier "${file.fileName}":`,
-        error,
-      );
+      logger.error(`❌ [USER-FILE] Erreur traitement fichier "${file.fileName}":`, error);
       throw error;
     }
   }

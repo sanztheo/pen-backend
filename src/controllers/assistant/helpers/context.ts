@@ -42,14 +42,10 @@ export async function buildPagesContext(
     const excerpt = text.substring(0, slice);
     entries.push(`• ${p.title}\n${excerpt}`);
   }
-  return entries.length
-    ? `Contexte des pages du workspace:\n\n${entries.join("\n\n")}`
-    : "";
+  return entries.length ? `Contexte des pages du workspace:\n\n${entries.join("\n\n")}` : "";
 }
 
-export function extractParagraphsFromBlockNote(
-  blocks: BlockNoteNode[],
-): string[] {
+export function extractParagraphsFromBlockNote(blocks: BlockNoteNode[]): string[] {
   const paragraphs: string[] = [];
   const walk = (nodes: BlockNoteNode[]): void => {
     for (const n of nodes || []) {
@@ -69,10 +65,7 @@ export function extractParagraphsFromBlockNote(
   return paragraphs.filter(Boolean);
 }
 
-export function chunkParagraphs(
-  paragraphs: string[],
-  maxCharsPerChunk: number = 1600,
-): string[] {
+export function chunkParagraphs(paragraphs: string[], maxCharsPerChunk: number = 1600): string[] {
   const chunks: string[] = [];
   let current = "";
   for (const p of paragraphs) {
@@ -109,9 +102,7 @@ export async function buildPagesContextChunked(
   const pool: ScoredChunk[] = [];
 
   for (const p of pages) {
-    const blocks = Array.isArray(p.blockNoteContent)
-      ? (p.blockNoteContent as BlockNoteNode[])
-      : [];
+    const blocks = Array.isArray(p.blockNoteContent) ? (p.blockNoteContent as BlockNoteNode[]) : [];
     const paras = extractParagraphsFromBlockNote(blocks);
     const chunks = chunkParagraphs(paras, 1800);
     for (const ch of chunks) {

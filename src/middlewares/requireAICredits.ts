@@ -43,10 +43,9 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
         select: { id: true },
       });
       if (!userExists) {
-        secureLog(
-          "error: ❌ [AI-CREDITS] Tentative d'utilisation pour un utilisateur inexistant",
-          { userId },
-        );
+        secureLog("error: ❌ [AI-CREDITS] Tentative d'utilisation pour un utilisateur inexistant", {
+          userId,
+        });
         return res.status(404).json({
           success: false,
           error: "Utilisateur non trouvé",
@@ -55,11 +54,8 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
       }
 
       // 💰 Calculer le coût (dynamique si fourni, sinon fixe)
-      const cost = config.dynamicCost
-        ? config.dynamicCost(req)
-        : (config.cost ?? 0.5);
-      const action =
-        config.action || `ai_${req.path.replace(/[^a-zA-Z0-9]/g, "_")}`;
+      const cost = config.dynamicCost ? config.dynamicCost(req) : (config.cost ?? 0.5);
+      const action = config.action || `ai_${req.path.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
       // 1. Vérifier si l'utilisateur peut utiliser l'IA
       const canUse = await AICreditsService.canUseAI(userId);
@@ -78,11 +74,7 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
       }
 
       // 2. Déduire les crédits
-      const deductionResult = await AICreditsService.deductCredits(
-        userId,
-        cost,
-        action,
-      );
+      const deductionResult = await AICreditsService.deductCredits(userId, cost, action);
       if (!deductionResult.success) {
         secureLog("warn: 🚨 [AI-CREDITS] Échec déduction crédits", {
           userId,

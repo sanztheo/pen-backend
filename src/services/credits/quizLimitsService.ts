@@ -32,9 +32,7 @@ function toJsonValue<T>(value: T): Prisma.InputJsonValue {
   return value as unknown as Prisma.InputJsonValue;
 }
 
-const LYCEE_SPECIALTY_VALUES: ReadonlySet<string> = new Set(
-  Object.values(LyceeSpecialty),
-);
+const LYCEE_SPECIALTY_VALUES: ReadonlySet<string> = new Set(Object.values(LyceeSpecialty));
 
 function isLyceeSpecialty(value: string): value is LyceeSpecialty {
   return LYCEE_SPECIALTY_VALUES.has(value);
@@ -67,10 +65,7 @@ export class QuizLimitsService {
    * @param userId - ID de l'utilisateur
    */
   static async canCreateCustomQuiz(userId: string): Promise<QuizLimitResult> {
-    SecureLogger.debug(
-      `🎯 [QUIZ-LIMITS] Vérification limite quiz personnalisés`,
-      { userId },
-    );
+    SecureLogger.debug(`🎯 [QUIZ-LIMITS] Vérification limite quiz personnalisés`, { userId });
 
     try {
       const userLimits = await prisma.userLimits.findUnique({
@@ -78,10 +73,7 @@ export class QuizLimitsService {
       });
 
       if (!userLimits) {
-        SecureLogger.debug(
-          `📝 [QUIZ-LIMITS] Création nouvelles limites utilisateur`,
-          { userId },
-        );
+        SecureLogger.debug(`📝 [QUIZ-LIMITS] Création nouvelles limites utilisateur`, { userId });
         // Créer les limites si elles n'existent pas
         await prisma.userLimits.create({
           data: {
@@ -108,8 +100,7 @@ export class QuizLimitsService {
         };
       }
 
-      const remaining =
-        userLimits.customQuizzesLimit - userLimits.customQuizzesUsed;
+      const remaining = userLimits.customQuizzesLimit - userLimits.customQuizzesUsed;
       if (remaining <= 0) {
         return {
           success: false,
@@ -126,10 +117,7 @@ export class QuizLimitsService {
         message: "Quiz personnalisé autorisé",
       };
     } catch (error) {
-      SecureLogger.error(
-        "Erreur lors de la vérification des limites quiz personnalisés",
-        error,
-      );
+      SecureLogger.error("Erreur lors de la vérification des limites quiz personnalisés", error);
       return {
         success: false,
         remainingQuizzes: 0,
@@ -193,10 +181,7 @@ export class QuizLimitsService {
       });
 
       if (!finalLimits) {
-        SecureLogger.error(
-          `❌ [QUIZ-LIMITS] Limites introuvables après UPSERT`,
-          { userId },
-        );
+        SecureLogger.error(`❌ [QUIZ-LIMITS] Limites introuvables après UPSERT`, { userId });
         return {
           success: false,
           remainingQuizzes: 0,
@@ -206,28 +191,21 @@ export class QuizLimitsService {
       }
 
       // Vérifier si la déduction a réussi (usage a augmenté)
-      const previousUsage =
-        result === 0 ? finalLimits.customQuizzesUsed - 1 : 0; // Si INSERT, usage était 0
+      const previousUsage = result === 0 ? finalLimits.customQuizzesUsed - 1 : 0; // Si INSERT, usage était 0
       const deductionSucceeded = finalLimits.customQuizzesUsed > previousUsage;
 
       if (!deductionSucceeded) {
         const currentRemaining =
           finalLimits.customQuizzesLimit === -1
             ? -1
-            : Math.max(
-                0,
-                finalLimits.customQuizzesLimit - finalLimits.customQuizzesUsed,
-              );
+            : Math.max(0, finalLimits.customQuizzesLimit - finalLimits.customQuizzesUsed);
 
-        SecureLogger.warn(
-          `❌ [QUIZ-LIMITS] Limite atteinte (déduction refusée)`,
-          {
-            userId,
-            currentUsage: finalLimits.customQuizzesUsed,
-            limit: finalLimits.customQuizzesLimit,
-            remainingQuizzes: currentRemaining,
-          },
-        );
+        SecureLogger.warn(`❌ [QUIZ-LIMITS] Limite atteinte (déduction refusée)`, {
+          userId,
+          currentUsage: finalLimits.customQuizzesUsed,
+          limit: finalLimits.customQuizzesLimit,
+          remainingQuizzes: currentRemaining,
+        });
 
         return {
           success: false,
@@ -241,10 +219,7 @@ export class QuizLimitsService {
       const remainingQuizzes =
         finalLimits.customQuizzesLimit === -1
           ? -1 // Illimité
-          : Math.max(
-              0,
-              finalLimits.customQuizzesLimit - finalLimits.customQuizzesUsed,
-            );
+          : Math.max(0, finalLimits.customQuizzesLimit - finalLimits.customQuizzesUsed);
 
       SecureLogger.debug(`✅ [QUIZ-LIMITS] Déduction ultra-rapide réussie`, {
         userId,
@@ -258,9 +233,7 @@ export class QuizLimitsService {
         this.recordQuizUsage(userId, "custom_quiz", 1, {
           type: "custom_quiz_creation",
           method: "upsert_atomic",
-        }).catch((err) =>
-          SecureLogger.warn("Erreur enregistrement usage (non-critique)", err),
-        );
+        }).catch((err) => SecureLogger.warn("Erreur enregistrement usage (non-critique)", err));
       });
 
       return {
@@ -270,14 +243,10 @@ export class QuizLimitsService {
         message: "Quiz personnalisé déduit avec succès",
       };
     } catch (error: unknown) {
-      SecureLogger.error(
-        "❌ Erreur lors de la déduction atomique quiz personnalisé",
-        error,
-      );
+      SecureLogger.error("❌ Erreur lors de la déduction atomique quiz personnalisé", error);
 
       // Gestion spécifique des erreurs Prisma
-      const isPrismaError =
-        error !== null && typeof error === "object" && "code" in error;
+      const isPrismaError = error !== null && typeof error === "object" && "code" in error;
       if (isPrismaError && (error as { code: string }).code === "P2034") {
         // Transaction timeout
         return {
@@ -302,14 +271,8 @@ export class QuizLimitsService {
    * @param userId - ID de l'utilisateur
    * @param preset - Type de preset (BREVET, BAC, PARTIELS)
    */
-  static async canCreatePresetSequence(
-    userId: string,
-    preset: string,
-  ): Promise<QuizLimitResult> {
-    SecureLogger.debug(
-      `🎯 [QUIZ-LIMITS] Vérification limite séquences preset`,
-      { userId, preset },
-    );
+  static async canCreatePresetSequence(userId: string, preset: string): Promise<QuizLimitResult> {
+    SecureLogger.debug(`🎯 [QUIZ-LIMITS] Vérification limite séquences preset`, { userId, preset });
 
     try {
       // Vérifier les limites utilisateur d'abord pour déterminer le plan
@@ -335,10 +298,9 @@ export class QuizLimitsService {
 
       // Premium : illimité - peut créer plusieurs séquences
       if (userLimits.presetSequencesLimit === -1) {
-        SecureLogger.debug(
-          `✅ [QUIZ-LIMITS] Utilisateur premium - séquences illimitées`,
-          { userId },
-        );
+        SecureLogger.debug(`✅ [QUIZ-LIMITS] Utilisateur premium - séquences illimitées`, {
+          userId,
+        });
         return {
           success: true,
           limitReached: false,
@@ -362,19 +324,14 @@ export class QuizLimitsService {
 
       if (existingSequence) {
         const progress = Math.round(
-          (existingSequence.currentSubjectIndex /
-            existingSequence.totalSubjects) *
-            100,
+          (existingSequence.currentSubjectIndex / existingSequence.totalSubjects) * 100,
         );
 
-        SecureLogger.debug(
-          `📊 [QUIZ-LIMITS] Séquence existante trouvée (utilisateur gratuit)`,
-          {
-            userId,
-            sequenceId: existingSequence.id,
-            progress,
-          },
-        );
+        SecureLogger.debug(`📊 [QUIZ-LIMITS] Séquence existante trouvée (utilisateur gratuit)`, {
+          userId,
+          sequenceId: existingSequence.id,
+          progress,
+        });
 
         return {
           success: false,
@@ -397,10 +354,7 @@ export class QuizLimitsService {
         message: "Séquence de preset autorisée",
       };
     } catch (error) {
-      SecureLogger.error(
-        "Erreur lors de la vérification des limites séquences preset",
-        error,
-      );
+      SecureLogger.error("Erreur lors de la vérification des limites séquences preset", error);
       return {
         success: false,
         limitReached: false,
@@ -542,10 +496,7 @@ export class QuizLimitsService {
 
       return result;
     } catch (error) {
-      SecureLogger.error(
-        "❌ Erreur lors du démarrage de la séquence preset",
-        error,
-      );
+      SecureLogger.error("❌ Erreur lors du démarrage de la séquence preset", error);
       return {
         success: false,
         message: "Erreur lors de la création de la séquence",
@@ -651,10 +602,7 @@ export class QuizLimitsService {
       });
 
       if (!userLimits) {
-        SecureLogger.debug(
-          `📝 [QUIZ-LIMITS] Création nouvelles limites utilisateur`,
-          { userId },
-        );
+        SecureLogger.debug(`📝 [QUIZ-LIMITS] Création nouvelles limites utilisateur`, { userId });
         await prisma.userLimits.create({
           data: {
             userId,
@@ -673,17 +621,13 @@ export class QuizLimitsService {
       const now = new Date();
       if (userLimits.advancedQuizzesResetAt) {
         const hoursSinceReset =
-          (now.getTime() - userLimits.advancedQuizzesResetAt.getTime()) /
-          (1000 * 60 * 60);
+          (now.getTime() - userLimits.advancedQuizzesResetAt.getTime()) / (1000 * 60 * 60);
 
         if (hoursSinceReset >= 24) {
-          SecureLogger.debug(
-            `🔄 [QUIZ-LIMITS] Reset automatique quiz avancés`,
-            {
-              userId,
-              hoursSinceReset,
-            },
-          );
+          SecureLogger.debug(`🔄 [QUIZ-LIMITS] Reset automatique quiz avancés`, {
+            userId,
+            hoursSinceReset,
+          });
 
           await prisma.userLimits.update({
             where: { userId },
@@ -706,9 +650,7 @@ export class QuizLimitsService {
         const hoursUntilReset = userLimits.advancedQuizzesResetAt
           ? Math.max(
               0,
-              24 -
-                (now.getTime() - userLimits.advancedQuizzesResetAt.getTime()) /
-                  (1000 * 60 * 60),
+              24 - (now.getTime() - userLimits.advancedQuizzesResetAt.getTime()) / (1000 * 60 * 60),
             )
           : 0;
 
@@ -725,10 +667,7 @@ export class QuizLimitsService {
         message: "Quiz avancé autorisé",
       };
     } catch (error) {
-      SecureLogger.error(
-        "Erreur lors de la vérification des limites quiz avancés",
-        error,
-      );
+      SecureLogger.error("Erreur lors de la vérification des limites quiz avancés", error);
       return {
         success: false,
         limitReached: false,
@@ -769,8 +708,7 @@ export class QuizLimitsService {
         },
       });
 
-      const remaining =
-        userLimits.advancedQuizzesLimit - (userLimits.advancedQuizzesUsed + 1);
+      const remaining = userLimits.advancedQuizzesLimit - (userLimits.advancedQuizzesUsed + 1);
 
       SecureLogger.debug(`✅ [QUIZ-LIMITS] Quiz avancé déduit`, {
         userId,
@@ -823,10 +761,7 @@ export class QuizLimitsService {
         },
       });
     } catch (error) {
-      SecureLogger.error(
-        "Erreur lors de l'enregistrement de l'utilisation quiz",
-        error,
-      );
+      SecureLogger.error("Erreur lors de l'enregistrement de l'utilisation quiz", error);
     }
   }
 }

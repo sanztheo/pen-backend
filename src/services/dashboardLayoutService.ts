@@ -47,10 +47,7 @@ export const DashboardLayoutService = {
   /**
    * Sauvegarde la disposition pour un utilisateur
    */
-  async saveUserLayout(
-    userId: string,
-    data: DashboardLayout,
-  ): Promise<DashboardLayout> {
+  async saveUserLayout(userId: string, data: DashboardLayout): Promise<DashboardLayout> {
     const layout = await prisma.userDashboardLayout.upsert({
       where: { userId },
       create: {
@@ -89,10 +86,7 @@ export const DashboardLayoutService = {
       });
     } catch (error: unknown) {
       // Si le layout n'existe pas, on ignore l'erreur.
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2025"
-      ) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
         return;
       }
       logger.warn("⚠️ [DashboardLayout] resetUserLayout failed:", error);

@@ -7,11 +7,7 @@ import type {
   SingleQuestionGenerationRequest,
   SingleQuestionGenerationResult,
 } from "./generation/questionGenerator.js";
-import type {
-  QuizAnswer,
-  LegacyQuizAnswer,
-  CorrectQuizOptions,
-} from "./types/index.js";
+import type { QuizAnswer, LegacyQuizAnswer, CorrectQuizOptions } from "./types/index.js";
 
 /**
  * Service principal pour les quiz OpenAI
@@ -28,57 +24,49 @@ export class OpenAIAssistantService {
 
   // ===== GÉNÉRATION DE QUESTIONS (Chat Completion) =====
 
-	  /**
-	   * Génère une seule question pour le streaming avec chat completion + JSON strict
-	   */
-	  async generateSingleQuestion(
-	    request: SingleQuestionGenerationRequest,
-	  ): Promise<SingleQuestionGenerationResult> {
-	    return this.questionGenerator.generateSingleQuestion(request);
-	  }
+  /**
+   * Génère une seule question pour le streaming avec chat completion + JSON strict
+   */
+  async generateSingleQuestion(
+    request: SingleQuestionGenerationRequest,
+  ): Promise<SingleQuestionGenerationResult> {
+    return this.questionGenerator.generateSingleQuestion(request);
+  }
 
   // ===== CORRECTION DE QUIZ (Chat Completion) =====
 
   /**
    * Méthode de correction générique (compatibilité)
    */
-	  async correctQuiz(
-	    quizId: string,
-	    answers: LegacyQuizAnswer[],
-	    options: CorrectQuizOptions = {},
-	  ): ReturnType<ChatCorrection["correctQuiz"]> {
-	    return this.chatCorrection.correctQuiz(quizId, answers, options);
-	  }
+  async correctQuiz(
+    quizId: string,
+    answers: LegacyQuizAnswer[],
+    options: CorrectQuizOptions = {},
+  ): ReturnType<ChatCorrection["correctQuiz"]> {
+    return this.chatCorrection.correctQuiz(quizId, answers, options);
+  }
 
   /**
    * Corrige un quiz standard via Chat Completion + JSON strict
    */
-	  async correctStandardQuizChatCompletion(
-	    quizId: string,
-	    answers: QuizAnswer[],
-	    options?: CorrectQuizOptions,
-	  ): ReturnType<ChatCorrection["correctStandardQuizChatCompletion"]> {
-	    return this.chatCorrection.correctStandardQuizChatCompletion(
-	      quizId,
-	      answers,
-	      options,
-	    );
-	  }
+  async correctStandardQuizChatCompletion(
+    quizId: string,
+    answers: QuizAnswer[],
+    options?: CorrectQuizOptions,
+  ): ReturnType<ChatCorrection["correctStandardQuizChatCompletion"]> {
+    return this.chatCorrection.correctStandardQuizChatCompletion(quizId, answers, options);
+  }
 
   /**
    * Corrige un quiz complet via Chat Completion + JSON strict
    */
-	  async correctCompleteQuizChatCompletion(
-	    quizId: string,
-	    answers: QuizAnswer[],
-	    options?: CorrectQuizOptions,
-	  ): ReturnType<ChatCorrection["correctCompleteQuizChatCompletion"]> {
-	    return this.chatCorrection.correctCompleteQuizChatCompletion(
-	      quizId,
-	      answers,
-	      options,
-	    );
-	  }
+  async correctCompleteQuizChatCompletion(
+    quizId: string,
+    answers: QuizAnswer[],
+    options?: CorrectQuizOptions,
+  ): ReturnType<ChatCorrection["correctCompleteQuizChatCompletion"]> {
+    return this.chatCorrection.correctCompleteQuizChatCompletion(quizId, answers, options);
+  }
 
   // ===== MÉTHODES UTILITAIRES =====
 
@@ -100,10 +88,7 @@ export class OpenAIAssistantService {
         return result;
       } catch (error) {
         lastError = error as Error;
-        logger.error(
-          `❌ [${operationName}] Erreur tentative ${attempt}:`,
-          error,
-        );
+        logger.error(`❌ [${operationName}] Erreur tentative ${attempt}:`, error);
 
         if (attempt < maxRetries) {
           const delay = Math.pow(2, attempt) * 1000;
@@ -112,10 +97,7 @@ export class OpenAIAssistantService {
       }
     }
 
-    throw (
-      lastError ||
-      new Error(`${operationName} failed after ${maxRetries} attempts`)
-    );
+    throw lastError || new Error(`${operationName} failed after ${maxRetries} attempts`);
   }
 
   /**

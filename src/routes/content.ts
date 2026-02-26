@@ -42,8 +42,7 @@ const updatePageSchema = z.object({
 router.get("/", authenticateToken, async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { cacheSidebarContent, saveSidebarContent } =
-      await import("../lib/redis.js");
+    const { cacheSidebarContent, saveSidebarContent } = await import("../lib/redis.js");
 
     // 🚀 Essayer de récupérer depuis le cache Redis
     const cachedContent = await cacheSidebarContent(userId);
@@ -78,10 +77,8 @@ router.get("/", authenticateToken, async (req, res) => {
 router.get("/workspace", authenticateToken, async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { DefaultWorkspaceService } =
-      await import("../services/defaultWorkspace.js");
-    const workspaceId =
-      await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
+    const { DefaultWorkspaceService } = await import("../services/defaultWorkspace.js");
+    const workspaceId = await DefaultWorkspaceService.getDefaultWorkspaceId(userId);
 
     res.json({
       success: true,
@@ -149,10 +146,7 @@ router.post("/projects", authenticateToken, async (req, res) => {
     const userId = req.user!.id;
     const validatedData = createProjectSchema.parse(req.body);
 
-    const project = await SimplifiedContentService.createProject(
-      userId,
-      validatedData,
-    );
+    const project = await SimplifiedContentService.createProject(userId, validatedData);
 
     // 🗑️ Invalider le cache sidebar après création
     const { invalidateSidebarCache } = await import("../lib/redis.js");

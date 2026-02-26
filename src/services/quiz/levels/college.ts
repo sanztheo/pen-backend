@@ -1,4 +1,4 @@
-import { CollegeGrade } from '../types.js';
+import { CollegeGrade } from "../types.js";
 
 /**
  * Prompts IA spécialisés pour le niveau Collège
@@ -9,7 +9,7 @@ export class CollegePrompts {
    */
   static getPromptByGrade(grade: CollegeGrade): string {
     switch (grade) {
-      case 'SIXIEME':
+      case "SIXIEME":
         return `
 Tu es un professeur de 6ème. Génère des questions adaptées aux élèves de 11-12 ans en début de collège.
 - Vocabulaire simple et accessible
@@ -20,7 +20,7 @@ Tu es un professeur de 6ème. Génère des questions adaptées aux élèves de 1
 - Transition en douceur depuis le primaire
 - Privilégie la compréhension plutôt que la complexité`;
 
-      case 'CINQUIEME':
+      case "CINQUIEME":
         return `
 Tu es un professeur de 5ème. Génère des questions adaptées aux élèves de 12-13 ans.
 - Vocabulaire légèrement plus technique
@@ -30,7 +30,7 @@ Tu es un professeur de 5ème. Génère des questions adaptées aux élèves de 1
 - Développe l'observation et l'analyse simple
 - Consolide les acquis de 6ème tout en progressant`;
 
-      case 'QUATRIEME':
+      case "QUATRIEME":
         return `
 Tu es un professeur de 4ème. Génère des questions adaptées aux élèves de 13-14 ans.
 - Vocabulaire plus précis et scientifique
@@ -40,7 +40,7 @@ Tu es un professeur de 4ème. Génère des questions adaptées aux élèves de 1
 - Développe l'esprit critique de base
 - Prépare aux exigences de la 3ème`;
 
-      case 'TROISIEME':
+      case "TROISIEME":
         return `
 Tu es un professeur de 3ème. Génère des questions adaptées aux élèves de 14-15 ans en fin de collège.
 - Vocabulaire technique et précis
@@ -68,4 +68,4 @@ Tu es un professeur expérimenté de collège. Génère des questions adaptées 
 - Questions courtes et claires
 - Encourage la réflexion mais reste dans le programme de collège`;
   }
-} 
+}

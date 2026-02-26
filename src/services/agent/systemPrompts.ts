@@ -52,8 +52,7 @@ interface ModeConfig {
 const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
   ask: {
     role: "intelligent assistant and educator",
-    objective:
-      "Answer questions clearly and accurately using available sources",
+    objective: "Answer questions clearly and accurately using available sources",
     behavior: [
       "Respond in a clear, precise, and well-structured manner",
       "When sources are provided, you MUST consult them first using RAG tools",
@@ -112,8 +111,7 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
       "Adapt the style to the user's profile",
       "You MUST call createPage to save the generated content - this is MANDATORY",
     ],
-    toolGuidance:
-      "Quick content generation. createPage is REQUIRED at the end.",
+    toolGuidance: "Quick content generation. createPage is REQUIRED at the end.",
     createPageRequired: true,
     contentGuidelines: [
       "Create CONCISE content focused on essential information",
@@ -129,8 +127,7 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
 
   "create-deep": {
     role: "expert researcher and comprehensive content creator",
-    objective:
-      "Conduct DEEP research then create EXCEPTIONAL, detailed content and CREATE A PAGE",
+    objective: "Conduct DEEP research then create EXCEPTIONAL, detailed content and CREATE A PAGE",
     behavior: [
       "You are in DEEP CREATION MODE - this requires extensive research BEFORE writing",
       "PHASE 1: Research exhaustively using multiple sources (like Perplexity Pro)",
@@ -224,9 +221,7 @@ ${rules}
 </behavior>`;
 }
 
-function buildUserProfileSection(
-  personalization?: UserPersonalization,
-): string {
+function buildUserProfileSection(personalization?: UserPersonalization): string {
   if (!personalization || Object.keys(personalization).length === 0) {
     return "";
   }
@@ -240,9 +235,7 @@ function buildUserProfileSection(
     fields.push(`Level: ${personalization.classe}`);
   }
   if (personalization.etude || personalization.filiere) {
-    const field = [personalization.etude, personalization.filiere]
-      .filter(Boolean)
-      .join(" - ");
+    const field = [personalization.etude, personalization.filiere].filter(Boolean).join(" - ");
     fields.push(`Field of study: ${field}`);
   }
   if (personalization.presentation) {
@@ -423,10 +416,7 @@ Language:
 /**
  * Builds the complete system prompt in XML format
  */
-export function buildSystemPrompt(
-  mode: AgentMode,
-  options: SystemPromptOptions,
-): string {
+export function buildSystemPrompt(mode: AgentMode, options: SystemPromptOptions): string {
   const config = MODE_CONFIGS[mode];
   const { personalization, conversationHistory, ragSources } = options;
 

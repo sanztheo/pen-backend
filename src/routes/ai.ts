@@ -5,11 +5,7 @@ import { z } from "zod";
 // Utiliser fetch global (Node >= 18)
 import { testAI } from "../controllers/ai/base.js";
 import { logger } from "../utils/logger.js";
-import {
-  generateContent,
-  improveContent,
-  continueContent,
-} from "../controllers/ai/content.js";
+import { generateContent, improveContent, continueContent } from "../controllers/ai/content.js";
 import {
   generateBlock,
   generatePlan,
@@ -110,11 +106,7 @@ router.post(
   requireAICredits({ cost: 0.5, action: "content_generation" }),
   summarizeContent,
 );
-router.post(
-  "/ideas",
-  requireAICredits({ cost: 0.5, action: "content_generation" }),
-  generateIdeas,
-);
+router.post("/ideas", requireAICredits({ cost: 0.5, action: "content_generation" }), generateIdeas);
 
 // 🔧 FONCTIONS SPÉCIALISÉES - Coût: 0.3 crédits
 router.post(
@@ -170,15 +162,12 @@ router.post(
         await markJobPending(job.id, userId);
       }
 
-      logger.log(
-        `🎯 [AI-ASYNC] Job créé: ${job.id} (generate-content) pour user ${userId}`,
-      );
+      logger.log(`🎯 [AI-ASYNC] Job créé: ${job.id} (generate-content) pour user ${userId}`);
 
       return res.status(202).json({
         jobId: job.id,
         status: "pending",
-        message:
-          "Job créé avec succès. Utilisez GET /api/jobs/:jobId pour récupérer le résultat",
+        message: "Job créé avec succès. Utilisez GET /api/jobs/:jobId pour récupérer le résultat",
       });
     } catch (error: unknown) {
       logger.error("[AI-ASYNC] Erreur création job:", error);
@@ -218,9 +207,7 @@ router.post(
         await markJobPending(job.id, userId);
       }
 
-      logger.log(
-        `🎯 [AI-ASYNC] Job créé: ${job.id} (translate) pour user ${userId}`,
-      );
+      logger.log(`🎯 [AI-ASYNC] Job créé: ${job.id} (translate) pour user ${userId}`);
 
       return res.status(202).json({
         jobId: job.id,
@@ -264,9 +251,7 @@ router.post(
         await markJobPending(job.id, userId);
       }
 
-      logger.log(
-        `🎯 [AI-ASYNC] Job créé: ${job.id} (correct) pour user ${userId}`,
-      );
+      logger.log(`🎯 [AI-ASYNC] Job créé: ${job.id} (correct) pour user ${userId}`);
 
       return res.status(202).json({
         jobId: job.id,
@@ -296,9 +281,7 @@ router.post(
       const { content, cursorPosition, blockType } = req.body;
 
       if (!content || cursorPosition === undefined) {
-        return res
-          .status(400)
-          .json({ error: "content et cursorPosition sont requis" });
+        return res.status(400).json({ error: "content et cursorPosition sont requis" });
       }
 
       const job = await aiGenerationQueue.add("autocomplete", {
@@ -314,9 +297,7 @@ router.post(
         await markJobPending(job.id, userId);
       }
 
-      logger.log(
-        `🎯 [AI-ASYNC] Job créé: ${job.id} (autocomplete) pour user ${userId}`,
-      );
+      logger.log(`🎯 [AI-ASYNC] Job créé: ${job.id} (autocomplete) pour user ${userId}`);
 
       return res.status(202).json({
         jobId: job.id,
@@ -333,111 +314,101 @@ router.post(
 // 🔗 ROUTE CHAT POUR BLOCKNOTE AI - Coût: 1.0 crédit
 // Utilise le SDK Vercel AI pour la conversion des messages et le streaming
 // Conforme à la documentation BlockNote: https://www.blocknotejs.org/docs/features/ai/backend-integration
-router.post(
-  "/chat",
-  requireAICredits({ cost: 1.0, action: "openai_proxy" }),
-  async (req, res) => {
-    try {
-      const { messages, toolDefinitions, maxTokens, temperature } = req.body;
+router.post("/chat", requireAICredits({ cost: 1.0, action: "openai_proxy" }), async (req, res) => {
+  try {
+    const { messages, toolDefinitions, maxTokens, temperature } = req.body;
 
-      logger.log("🔄 [AI-CHAT] Messages UIMessage reçus:", {
-        messagesCount: messages?.length,
-        hasToolDefinitions: !!toolDefinitions,
-        maxTokens: maxTokens || "non fourni",
-        temperature: temperature || "non fourni",
-        bodyKeys: Object.keys(req.body),
-        userId: req.user?.id,
-      });
+    logger.log("🔄 [AI-CHAT] Messages UIMessage reçus:", {
+      messagesCount: messages?.length,
+      hasToolDefinitions: !!toolDefinitions,
+      maxTokens: maxTokens || "non fourni",
+      temperature: temperature || "non fourni",
+      bodyKeys: Object.keys(req.body),
+      userId: req.user?.id,
+    });
 
-      // Validation basique
-      if (!messages || !Array.isArray(messages)) {
-        return res.status(400).json({
-          error: "VALIDATION_ERROR",
-          message: 'Le champ "messages" est requis et doit être un tableau',
-        });
-      }
-
-      // Configuration du modèle OpenAI avec l'API key
-      const modelName =
-        process.env.OPENAI_DASHBOARD_MODEL ||
-        process.env.OPENAI_MODEL ||
-        "gpt-4o-mini";
-
-      const openaiProvider = createOpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
-
-      logger.log("🤖 [AI-CHAT] Configuration:", {
-        model: modelName,
-        hasTools: !!toolDefinitions,
-        apiKeyConfigured: !!process.env.OPENAI_API_KEY,
-      });
-
-      // ✅ BlockNote v0.45+: injectDocumentStateMessages + systemPrompt + convertToModelMessages
-      const injectedMessages = injectDocumentStateMessages(messages);
-      const convertedMessages = convertToModelMessages(injectedMessages);
-      logger.log("📋 [AI-CHAT] Messages convertis:", {
-        originalCount: messages.length,
-        injectedCount: injectedMessages.length,
-        convertedCount: convertedMessages.length,
-      });
-
-      const result = streamText({
-        model: openaiProvider(modelName),
-        system: aiDocumentFormats.html.systemPrompt,
-        messages: convertedMessages,
-        tools: toolDefinitions
-          ? toolDefinitionsToToolSet(toolDefinitions)
-          : undefined,
-        toolChoice: toolDefinitions ? "required" : undefined,
-      });
-
-      // 🔒 AUDIT: Journaliser la consommation
-      const userId = req.user?.id;
-      const cost = req.aiCredits?.cost ?? 1.0;
-      logger.log(
-        `✅ [AUDIT] Chat endpoint utilisé: userId=${userId}, cost=${cost}`,
-      );
-
-      // ✅ BlockNote v0.40+: Convertir Response en stream Express
-      const response = result.toUIMessageStreamResponse();
-      logger.log("🌊 [AI-CHAT] Stream response créé:", {
-        hasBody: !!response.body,
-        headers: Array.from(response.headers.entries()),
-      });
-
-      // Copier les headers de la Response vers Express
-      response.headers.forEach((value, key) => {
-        res.setHeader(key, value);
-      });
-
-      // Streamer le body vers Express
-      if (response.body) {
-        const reader = response.body.getReader();
-
-        async function pump() {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-              res.end();
-              break;
-            }
-            res.write(value);
-          }
-        }
-
-        await pump();
-      } else {
-        res.end();
-      }
-    } catch (error: unknown) {
-      logger.error("❌ [AI-CHAT] Erreur:", error);
-      res.status(500).json({
-        error: "AI chat error",
+    // Validation basique
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({
+        error: "VALIDATION_ERROR",
+        message: 'Le champ "messages" est requis et doit être un tableau',
       });
     }
-  },
-);
+
+    // Configuration du modèle OpenAI avec l'API key
+    const modelName =
+      process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+    const openaiProvider = createOpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
+    logger.log("🤖 [AI-CHAT] Configuration:", {
+      model: modelName,
+      hasTools: !!toolDefinitions,
+      apiKeyConfigured: !!process.env.OPENAI_API_KEY,
+    });
+
+    // ✅ BlockNote v0.45+: injectDocumentStateMessages + systemPrompt + convertToModelMessages
+    const injectedMessages = injectDocumentStateMessages(messages);
+    const convertedMessages = convertToModelMessages(injectedMessages);
+    logger.log("📋 [AI-CHAT] Messages convertis:", {
+      originalCount: messages.length,
+      injectedCount: injectedMessages.length,
+      convertedCount: convertedMessages.length,
+    });
+
+    const result = streamText({
+      model: openaiProvider(modelName),
+      system: aiDocumentFormats.html.systemPrompt,
+      messages: convertedMessages,
+      tools: toolDefinitions ? toolDefinitionsToToolSet(toolDefinitions) : undefined,
+      toolChoice: toolDefinitions ? "required" : undefined,
+    });
+
+    // 🔒 AUDIT: Journaliser la consommation
+    const userId = req.user?.id;
+    const cost = req.aiCredits?.cost ?? 1.0;
+    logger.log(`✅ [AUDIT] Chat endpoint utilisé: userId=${userId}, cost=${cost}`);
+
+    // ✅ BlockNote v0.40+: Convertir Response en stream Express
+    const response = result.toUIMessageStreamResponse();
+    logger.log("🌊 [AI-CHAT] Stream response créé:", {
+      hasBody: !!response.body,
+      headers: Array.from(response.headers.entries()),
+    });
+
+    // Copier les headers de la Response vers Express
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+
+    // Streamer le body vers Express
+    if (response.body) {
+      const reader = response.body.getReader();
+
+      async function pump() {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            res.end();
+            break;
+          }
+          res.write(value);
+        }
+      }
+
+      await pump();
+    } else {
+      res.end();
+    }
+  } catch (error: unknown) {
+    logger.error("❌ [AI-CHAT] Erreur:", error);
+    res.status(500).json({
+      error: "AI chat error",
+    });
+  }
+});
 
 export { router as aiRouter };
 
@@ -470,12 +441,8 @@ router.post(
       }
 
       const body = validationResult.data;
-      const model =
-        body.model ||
-        process.env.OPENAI_DASHBOARD_MODEL ||
-        process.env.OPENAI_MODEL;
-      const isFixedTempModel =
-        typeof model === "string" && /(o1|o3|nano)/i.test(model);
+      const model = body.model || process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL;
+      const isFixedTempModel = typeof model === "string" && /(o1|o3|nano)/i.test(model);
 
       const payload: Record<string, unknown> = { ...body };
       if (
@@ -496,17 +463,14 @@ router.post(
         // (laisse passer si non fournis)
       }
 
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify(payload),
+      });
 
       const text = await response.text();
 

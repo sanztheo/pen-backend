@@ -35,10 +35,7 @@ export async function executeWithRetry<T>(
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
 
-      logger.error(
-        `❌ ${operationName} - Échec tentative ${attempt}:`,
-        lastError.message,
-      );
+      logger.error(`❌ ${operationName} - Échec tentative ${attempt}:`, lastError.message);
 
       if (attempt < maxRetries) {
         const delay = retryDelay * Math.pow(2, attempt - 1); // Backoff exponentiel

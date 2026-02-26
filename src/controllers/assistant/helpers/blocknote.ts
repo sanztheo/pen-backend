@@ -35,13 +35,7 @@ interface BlockProps {
 
 /** BlockNote block structure */
 interface BlockNoteBlock {
-  type:
-    | "paragraph"
-    | "heading"
-    | "bulletListItem"
-    | "numberedListItem"
-    | "codeBlock"
-    | "latex";
+  type: "paragraph" | "heading" | "bulletListItem" | "numberedListItem" | "codeBlock" | "latex";
   content?: InlineContent[];
   props?: BlockProps;
   children?: BlockNoteBlock[];
@@ -76,9 +70,7 @@ function parseJsonlBlockData(line: string): JsonlBlockData | null {
 
     const dRaw = parsed.d;
     const d =
-      typeof dRaw === "number" ||
-      typeof dRaw === "string" ||
-      typeof dRaw === "boolean"
+      typeof dRaw === "number" || typeof dRaw === "string" || typeof dRaw === "boolean"
         ? dRaw
         : undefined;
 
@@ -106,10 +98,7 @@ export function extractTextFromBlockNote(blocks: unknown[]): string {
       for (const c of block.content) {
         if (typeof c === "object" && c !== null) {
           const contentItem = c as Record<string, unknown>;
-          if (
-            contentItem.type === "text" &&
-            typeof contentItem.text === "string"
-          ) {
+          if (contentItem.type === "text" && typeof contentItem.text === "string") {
             parts.push(contentItem.text);
           }
         }
@@ -138,13 +127,11 @@ function parseInlineContent(text: string): InlineContent[] {
   while ((match = inlineLatexRe.exec(text)) !== null) {
     const start = match.index;
     const end = start + match[0].length;
-    if (start > last)
-      segments.push({ type: "plain", text: text.slice(last, start) });
+    if (start > last) segments.push({ type: "plain", text: text.slice(last, start) });
     segments.push({ type: "latex", text: match[1] || "" });
     last = end;
   }
-  if (last < text.length)
-    segments.push({ type: "plain", text: text.slice(last) });
+  if (last < text.length) segments.push({ type: "plain", text: text.slice(last) });
 
   // Helper: parser markdown léger sur un segment plain
   const pushStyled = (t: string): void => {
@@ -210,8 +197,7 @@ function parseInlineContent(text: string): InlineContent[] {
       pushStyled(s.text);
     } else {
       const latex = s.text.trim();
-      if (latex)
-        content.push({ type: "inlineLatex", props: { latex: `$${latex}$` } });
+      if (latex) content.push({ type: "inlineLatex", props: { latex: `$${latex}$` } });
     }
   }
 
@@ -240,7 +226,7 @@ function isLatexLine(line: string): {
 function splitMixedDisplayLatex(line: string): BlockNoteBlock[] | null {
   if (!line.includes("$$")) return null;
   const result: BlockNoteBlock[] = [];
-  let rest = line;
+  const rest = line;
   const displayRe = /\$\$([\s\S]+?)\$\$/g;
   let lastIndex = 0;
   let m: RegExpExecArray | null;
@@ -252,9 +238,7 @@ function splitMixedDisplayLatex(line: string): BlockNoteBlock[] | null {
       result.push({ type: "paragraph", content: parseInlineContent(before) });
     }
     let latex = m[1].trim();
-    latex = latex
-      .replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, "")
-      .replace(/\s*[—-].*$/, "");
+    latex = latex.replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, "").replace(/\s*[—-].*$/, "");
     result.push({ type: "latex", props: { latex: `$$${latex}$$` } });
     lastIndex = end;
   }
@@ -278,15 +262,12 @@ export function toBlockNote(content: string): BlockNoteBlock[] {
   // \[...\] -> $...$
   const normalized = content
     .replace(/\$\$([\s\S]+?)\$\$/g, (_m, g1) => `$${String(g1).trim()}$`)
-    .replace(
-      /^\\\[\s*([\s\S]*?)\s*\\\]$/gm,
-      (_m, g1) => `$${String(g1).trim()}$`,
-    );
+    .replace(/^\\\[\s*([\s\S]*?)\s*\\\]$/gm, (_m, g1) => `$${String(g1).trim()}$`);
 
   const lines = normalized.split(/\r?\n/);
   const blocks: BlockNoteBlock[] = [];
-  let inBracketDisplay = false;
-  let bracketBuffer = "";
+  const inBracketDisplay = false;
+  const bracketBuffer = "";
   let inCodeBlock = false;
   let codeBlockLanguage = "";
   let codeBlockContent: string[] = [];
@@ -351,11 +332,8 @@ export function toBlockNote(content: string): BlockNoteBlock[] {
           }
           if (t === "lx") {
             let latex = String(c || "").trim();
-            latex = latex
-              .replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, "")
-              .replace(/\s*[—-].*$/, "");
-            const display =
-              d === 1 || d === true || String(d).toLowerCase() === "display";
+            latex = latex.replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, "").replace(/\s*[—-].*$/, "");
+            const display = d === 1 || d === true || String(d).toLowerCase() === "display";
             blocks.push({
               type: "latex",
               props: { latex: display ? `$$${latex}$$` : `$${latex}$` },
@@ -428,10 +406,7 @@ export function toBlockNote(content: string): BlockNoteBlock[] {
     const inlineContent = parseInlineContent(line);
     blocks.push({
       type: "paragraph",
-      content:
-        inlineContent.length > 0
-          ? inlineContent
-          : [{ type: "text", text: line }],
+      content: inlineContent.length > 0 ? inlineContent : [{ type: "text", text: line }],
     });
   }
 
@@ -449,9 +424,7 @@ export function toBlockNote(content: string): BlockNoteBlock[] {
 
   // Ensure we always return at least one block
   if (blocks.length === 0) {
-    return [
-      { type: "paragraph", content: [{ type: "text", text: content.trim() }] },
-    ];
+    return [{ type: "paragraph", content: [{ type: "text", text: content.trim() }] }];
   }
 
   return blocks;
@@ -479,8 +452,7 @@ export function toBlockNoteFromJSONL(jsonl: string): BlockNoteBlock[] {
   for (const rawLine of lines) {
     const line = rawLine.trim();
     // Ignorer les balises éventuelles (protection)
-    if (line.startsWith("<thinking>") || line.startsWith("</thinking>"))
-      continue;
+    if (line.startsWith("<thinking>") || line.startsWith("</thinking>")) continue;
 
     const obj = parseJsonlBlockData(line);
     if (!obj) {
@@ -512,9 +484,7 @@ export function toBlockNoteFromJSONL(jsonl: string): BlockNoteBlock[] {
     if (t === "lx") {
       // Convertir tout bloc LaTeX JSONL en paragraphe avec inlineLatex
       let latex = String(c || "").trim();
-      latex = latex
-        .replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, "")
-        .replace(/\s*[—-].*$/, "");
+      latex = latex.replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, "").replace(/\s*[—-].*$/, "");
       const inline = `$${latex}$`;
       blocks.push({ type: "paragraph", content: parseInlineContent(inline) });
       continue;

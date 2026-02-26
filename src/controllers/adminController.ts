@@ -12,11 +12,7 @@ import { AdminStatsService } from "../services/admin/adminStatsService.js";
 import { HealthCheckService } from "../services/admin/healthCheckService.js";
 import { getExportCSV } from "../workers/export.worker.js";
 import { z } from "zod";
-import {
-  ModerationFilters,
-  UserListFilters,
-  AdminExportJobData,
-} from "../types/admin.types.js";
+import { ModerationFilters, UserListFilters, AdminExportJobData } from "../types/admin.types.js";
 
 export class AdminController {
   /**
@@ -29,9 +25,7 @@ export class AdminController {
         where: { id: req.user!.id },
         select: { isAdmin: true },
       });
-      res
-        .status(200)
-        .json({ success: true, data: { isAdmin: user?.isAdmin ?? false } });
+      res.status(200).json({ success: true, data: { isAdmin: user?.isAdmin ?? false } });
     } catch (error) {
       logger.error("[ADMIN_CONTROLLER] checkAdminStatus error:", error);
       res.status(500).json({
@@ -130,33 +124,21 @@ export class AdminController {
   static async getModerationLogs(req: Request, res: Response): Promise<void> {
     try {
       // Validate dates if provided
-      const startDate = req.query.startDate
-        ? new Date(req.query.startDate as string)
-        : undefined;
-      const endDate = req.query.endDate
-        ? new Date(req.query.endDate as string)
-        : undefined;
+      const startDate = req.query.startDate ? new Date(req.query.startDate as string) : undefined;
+      const endDate = req.query.endDate ? new Date(req.query.endDate as string) : undefined;
 
       if (startDate && isNaN(startDate.getTime())) {
-        res
-          .status(400)
-          .json({ success: false, error: "Format startDate invalide" });
+        res.status(400).json({ success: false, error: "Format startDate invalide" });
         return;
       }
       if (endDate && isNaN(endDate.getTime())) {
-        res
-          .status(400)
-          .json({ success: false, error: "Format endDate invalide" });
+        res.status(400).json({ success: false, error: "Format endDate invalide" });
         return;
       }
 
       // Validate pagination parameters (NaN protection)
-      const parsedPage = req.query.page
-        ? parseInt(req.query.page as string, 10)
-        : 1;
-      const parsedLimit = req.query.limit
-        ? parseInt(req.query.limit as string, 10)
-        : 50;
+      const parsedPage = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
 
       const filters: ModerationFilters = {
         page: isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage,
@@ -213,11 +195,7 @@ export class AdminController {
         return;
       }
 
-      const result = await AdminStatsService.toggleUserStatus(
-        userId,
-        isActive,
-        req.user!.id,
-      );
+      const result = await AdminStatsService.toggleUserStatus(userId, isActive, req.user!.id);
       if (!result.success) {
         res.status(404).json({
           success: false,
@@ -255,21 +233,14 @@ export class AdminController {
         return;
       }
 
-      const parsedPage = req.query.page
-        ? parseInt(req.query.page as string, 10)
-        : 1;
-      const parsedLimit = req.query.limit
-        ? parseInt(req.query.limit as string, 10)
-        : 50;
+      const parsedPage = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
 
       const filters: UserListFilters = {
         page: isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage,
         limit: isNaN(parsedLimit) || parsedLimit < 1 ? 50 : parsedLimit,
         search: searchTerm,
-        isActive:
-          req.query.isActive !== undefined
-            ? req.query.isActive === "true"
-            : undefined,
+        isActive: req.query.isActive !== undefined ? req.query.isActive === "true" : undefined,
       };
 
       const result = await AdminStatsService.getUserList(filters);
@@ -300,12 +271,8 @@ export class AdminController {
         return;
       }
 
-      const parsedPage = req.query.page
-        ? parseInt(req.query.page as string, 10)
-        : 1;
-      const parsedLimit = req.query.limit
-        ? parseInt(req.query.limit as string, 10)
-        : 50;
+      const parsedPage = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
 
       const page = isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
       const limit = isNaN(parsedLimit) || parsedLimit < 1 ? 50 : parsedLimit;
@@ -350,10 +317,7 @@ export class AdminController {
 
       const filters: UserListFilters = {
         search: searchTerm,
-        isActive:
-          req.query.isActive !== undefined
-            ? req.query.isActive === "true"
-            : undefined,
+        isActive: req.query.isActive !== undefined ? req.query.isActive === "true" : undefined,
       };
 
       const jobData: AdminExportJobData = {
@@ -414,11 +378,7 @@ export class AdminController {
       const ExportJobPayloadSchema = z.object({
         rowCount: z.number().optional(),
       }) satisfies z.ZodType<ExportJobPayload>;
-      const jobResult = await getJobResult(
-        jobId,
-        userId,
-        ExportJobPayloadSchema,
-      );
+      const jobResult = await getJobResult(jobId, userId, ExportJobPayloadSchema);
 
       if (!jobResult) {
         res.status(404).json({
@@ -465,11 +425,7 @@ export class AdminController {
       const ExportJobPayloadSchema = z.object({
         rowCount: z.number().optional(),
       }) satisfies z.ZodType<ExportJobPayload>;
-      const jobResult = await getJobResult(
-        jobId,
-        userId,
-        ExportJobPayloadSchema,
-      );
+      const jobResult = await getJobResult(jobId, userId, ExportJobPayloadSchema);
 
       if (!jobResult) {
         res.status(404).json({
@@ -499,10 +455,7 @@ export class AdminController {
 
       const filename = `pennote-users-export-${new Date().toISOString().split("T")[0]}.csv`;
       res.setHeader("Content-Type", "text/csv; charset=utf-8");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${filename}"`,
-      );
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.setHeader("Content-Length", Buffer.byteLength(csv, "utf8"));
 
       res.status(200).send(csv);

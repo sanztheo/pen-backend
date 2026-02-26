@@ -22,11 +22,7 @@ export class Logger {
     }
 
     // Générer le nom du fichier avec timestamp
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/:/g, "-")
-      .replace(/\./g, "-")
-      .slice(0, 19); // YYYY-MM-DDTHH-MM-SS
+    const timestamp = new Date().toISOString().replace(/:/g, "-").replace(/\./g, "-").slice(0, 19); // YYYY-MM-DDTHH-MM-SS
 
     this.currentLogFile = path.join(this.logDir, `server-${timestamp}.log`);
 
@@ -101,19 +97,14 @@ Durée de fonctionnement: ${this.getUptime()}
 
     // Capturer les erreurs non gérées
     process.on("uncaughtException", (error) => {
-      const message = this.formatMessage("FATAL", [
-        error.stack || error.message,
-      ]);
+      const message = this.formatMessage("FATAL", [error.stack || error.message]);
       this.originalConsole.error("💥 Erreur fatale non gérée:", error);
       this.writeToFile(message);
       process.exit(1);
     });
 
     process.on("unhandledRejection", (reason, promise) => {
-      const message = this.formatMessage("FATAL", [
-        `Promise rejetée non gérée:`,
-        reason,
-      ]);
+      const message = this.formatMessage("FATAL", [`Promise rejetée non gérée:`, reason]);
       this.originalConsole.error("💥 Promise rejetée non gérée:", reason);
       this.writeToFile(message);
     });
@@ -241,8 +232,7 @@ ${JSON.stringify(detailedError, null, 2)}
       let fileInfo = "";
       if (caller) {
         const match =
-          caller.match(/at .+ \((.+):(\d+):(\d+)\)/) ||
-          caller.match(/at (.+):(\d+):(\d+)/);
+          caller.match(/at .+ \((.+):(\d+):(\d+)\)/) || caller.match(/at (.+):(\d+):(\d+)/);
         if (match) {
           const [, filepath, line, col] = match;
           const filename = filepath.split("/").pop() || filepath;
@@ -306,9 +296,7 @@ ${JSON.stringify(detailedError, null, 2)}
         });
       }
 
-      this.nativeConsole.log(
-        `📁 Logs disponibles: ${files.length} fichiers dans ${this.logDir}`,
-      );
+      this.nativeConsole.log(`📁 Logs disponibles: ${files.length} fichiers dans ${this.logDir}`);
     } catch (error) {
       this.originalConsole.error("❌ Erreur nettoyage logs:", error);
     }

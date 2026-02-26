@@ -145,8 +145,7 @@ export const authRateLimit = rateLimit({
   message: {
     success: false,
     error: "AUTH_RATE_LIMIT_EXCEEDED",
-    message:
-      "Trop de tentatives de connexion. Veuillez réessayer dans 15 minutes.",
+    message: "Trop de tentatives de connexion. Veuillez réessayer dans 15 minutes.",
     retryAfter: "15 minutes",
   },
   skipSuccessfulRequests: true, // Ne compte que les échecs d'authentification
@@ -215,8 +214,7 @@ export const preprocessorRateLimit = rateLimit({
   message: {
     success: false,
     error: "PREPROCESSOR_RATE_LIMIT_EXCEEDED",
-    message:
-      "Trop de demandes d'analyse IA. Veuillez réessayer dans quelques minutes.",
+    message: "Trop de demandes d'analyse IA. Veuillez réessayer dans quelques minutes.",
     retryAfter: "15 minutes",
   },
   keyGenerator: (req) => {
@@ -242,8 +240,7 @@ export const assistantRateLimit = rateLimit({
   message: {
     success: false,
     error: "ASSISTANT_RATE_LIMIT_EXCEEDED",
-    message:
-      "Trop de requêtes assistant IA. Veuillez réessayer dans 15 minutes.",
+    message: "Trop de requêtes assistant IA. Veuillez réessayer dans 15 minutes.",
     retryAfter: "15 minutes",
   },
   skip: (req) => {

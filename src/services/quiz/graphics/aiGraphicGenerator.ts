@@ -30,16 +30,12 @@ export class AIGraphicGenerator {
    * @param prompt - Contexte complet pour génération IA
    * @returns Configuration JSON sécurisée + métadonnées
    */
-  async generateGraphicWithAI(
-    prompt: GraphicGenerationPrompt,
-  ): Promise<GeneratedGraphic> {
+  async generateGraphicWithAI(prompt: GraphicGenerationPrompt): Promise<GeneratedGraphic> {
     try {
       const systemPrompt = this.getSystemPrompt(prompt.library);
       const userPrompt = this.getUserPrompt(prompt);
 
-      logger.log(
-        `[AI-GRAPHICS] Génération graphique pour: ${prompt.subject} - ${prompt.topic}`,
-      );
+      logger.log(`[AI-GRAPHICS] Génération graphique pour: ${prompt.subject} - ${prompt.topic}`);
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -56,17 +52,13 @@ export class AIGraphicGenerator {
 
       const aiResponse = response.choices[0]?.message?.content;
       if (!aiResponse) {
-        throw new Error(
-          "Aucune réponse de l'IA pour la génération de graphique",
-        );
+        throw new Error("Aucune réponse de l'IA pour la génération de graphique");
       }
 
       // Parser la réponse IA (JSON structuré)
       const result = this.parseAIResponse(aiResponse);
 
-      logger.log(
-        `[AI-GRAPHICS] Graphique généré: ${result.type} avec ${result.library}`,
-      );
+      logger.log(`[AI-GRAPHICS] Graphique généré: ${result.type} avec ${result.library}`);
       return result;
     } catch (error) {
       logger.error("[AI-GRAPHICS] Erreur génération:", error);
@@ -293,14 +285,12 @@ Génère uniquement la configuration JSON sécurisée.`;
           "Génère une configuration ApexCharts diagramme énergétique avec niveaux d'énergie. JSON pur.",
         orbitales:
           "Crée une configuration Plotly.js 3D pour visualiser orbitales atomiques. JSON seulement.",
-        default:
-          "Crée une configuration ApexCharts chimique avec données expérimentales en JSON.",
+        default: "Crée une configuration ApexCharts chimique avec données expérimentales en JSON.",
       },
       SVT: {
         physiologie:
           "Génère une configuration ApexCharts de courbes biologiques (croissance, métabolisme). Données réalistes en JSON.",
-        écologie:
-          "Crée une configuration ApexCharts radar pour pyramide écologique. JSON pur.",
+        écologie: "Crée une configuration ApexCharts radar pour pyramide écologique. JSON pur.",
         génétique:
           "Génère une configuration ApexCharts pour arbres généalogiques ou croisements. JSON seulement.",
         anatomie:
@@ -330,9 +320,7 @@ Génère uniquement la configuration JSON sécurisée.`;
       // Extraire le JSON de la réponse
       const jsonMatch = aiResponse.match(/```json\s*([\s\S]*?)\s*```/);
       if (!jsonMatch) {
-        logger.log(
-          "[AI-GRAPHICS] Pas de bloc JSON trouvé, essai parsing direct...",
-        );
+        logger.log("[AI-GRAPHICS] Pas de bloc JSON trouvé, essai parsing direct...");
         // Fallback: essayer de parser directement si pas de bloc code
         const directMatch = aiResponse.match(/\{[\s\S]*\}/);
         if (!directMatch) {
@@ -356,8 +344,7 @@ Génère uniquement la configuration JSON sécurisée.`;
       return this.validateParsedResponse(parsed);
     } catch (error) {
       logger.error("[AI-GRAPHICS] Erreur parsing:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "Erreur de parsing inconnue";
+      const errorMessage = error instanceof Error ? error.message : "Erreur de parsing inconnue";
       throw new Error(`Impossible de parser la réponse IA: ${errorMessage}`);
     }
   }
@@ -382,10 +369,7 @@ Génère uniquement la configuration JSON sécurisée.`;
     );
 
     // Supprimer d'autres propriétés avec des fonctions
-    jsonStr = jsonStr.replace(
-      /"\w+"\s*:\s*function\s*\([^)]*\)\s*\{[^}]*\}/g,
-      "",
-    );
+    jsonStr = jsonStr.replace(/"\w+"\s*:\s*function\s*\([^)]*\)\s*\{[^}]*\}/g, "");
 
     // Enlever les virgules traînantes
     jsonStr = jsonStr.replace(/,(\s*[}\]])/g, "$1");
@@ -396,18 +380,15 @@ Génère uniquement la configuration JSON sécurisée.`;
     jsonStr = jsonStr.replace(/,\s*\}/g, "}");
 
     // Corriger les guillemets non échappés dans le code
-    jsonStr = jsonStr.replace(
-      /"code"\s*:\s*"([\s\S]*?)"(?=\s*[,}])/g,
-      (match, codeContent) => {
-        // Échapper les guillemets qui ne sont pas déjà échappés
-        const escapedCode = codeContent
-          .replace(/\\"/g, "___ESCAPED_QUOTE___") // Temporairement marquer les guillemets déjà échappés
-          .replace(/"/g, '\\"') // Échapper les guillemets non échappés
-          .replace(/___ESCAPED_QUOTE___/g, '\\"'); // Restaurer les guillemets échappés
+    jsonStr = jsonStr.replace(/"code"\s*:\s*"([\s\S]*?)"(?=\s*[,}])/g, (match, codeContent) => {
+      // Échapper les guillemets qui ne sont pas déjà échappés
+      const escapedCode = codeContent
+        .replace(/\\"/g, "___ESCAPED_QUOTE___") // Temporairement marquer les guillemets déjà échappés
+        .replace(/"/g, '\\"') // Échapper les guillemets non échappés
+        .replace(/___ESCAPED_QUOTE___/g, '\\"'); // Restaurer les guillemets échappés
 
-        return `"code": "${escapedCode}"`;
-      },
-    );
+      return `"code": "${escapedCode}"`;
+    });
 
     // Nettoyer les caractères de contrôle
     jsonStr = jsonStr.replace(/[\x00-\x1F\x7F]/g, "");
@@ -438,9 +419,7 @@ Génère uniquement la configuration JSON sécurisée.`;
 
     // Validation des champs requis (seuls config et type sont absolument requis)
     if (!p.config || !p.type) {
-      throw new Error(
-        "Champs requis manquants dans la réponse IA (config, type)",
-      );
+      throw new Error("Champs requis manquants dans la réponse IA (config, type)");
     }
 
     // Auto-détection de la bibliothèque si manquante
@@ -467,11 +446,7 @@ Génère uniquement la configuration JSON sécurisée.`;
       const configData = p.config.data as unknown[] | undefined;
       const configChart = p.config.chart as Record<string, unknown> | undefined;
 
-      if (
-        p.library === "apexcharts" &&
-        configSeries &&
-        configSeries.length > 0
-      ) {
+      if (p.library === "apexcharts" && configSeries && configSeries.length > 0) {
         const firstSeries = configSeries[0] as Record<string, unknown>;
         if (firstSeries.name) {
           smartDescription += ` représentant ${firstSeries.name}`;
@@ -479,11 +454,7 @@ Génère uniquement la configuration JSON sécurisée.`;
         if (configChart && configChart.type) {
           smartDescription += ` (graphique ${configChart.type})`;
         }
-      } else if (
-        p.library === "plotly" &&
-        configData &&
-        configData.length > 0
-      ) {
+      } else if (p.library === "plotly" && configData && configData.length > 0) {
         const firstData = configData[0] as Record<string, unknown>;
         if (firstData.type) {
           smartDescription += ` de type ${firstData.type}`;
@@ -497,15 +468,11 @@ Génère uniquement la configuration JSON sécurisée.`;
 
     // Validation du type
     if (!["2d", "3d"].includes(p.type)) {
-      throw new Error(
-        `Type de graphique invalide: ${p.type}. Attendu: '2d' ou '3d'`,
-      );
+      throw new Error(`Type de graphique invalide: ${p.type}. Attendu: '2d' ou '3d'`);
     }
 
     if (!["apexcharts", "plotly"].includes(p.library)) {
-      throw new Error(
-        `Bibliothèque invalide: ${p.library}. Attendu: 'apexcharts' ou 'plotly'`,
-      );
+      throw new Error(`Bibliothèque invalide: ${p.library}. Attendu: 'apexcharts' ou 'plotly'`);
     }
 
     // Auto-génération des valeurs de données si manquantes
@@ -542,10 +509,7 @@ Génère uniquement la configuration JSON sécurisée.`;
       }
 
       if (p.dataValues && p.dataValues.length > 0) {
-        logger.log(
-          "🔧 Valeurs de données extraites automatiquement:",
-          p.dataValues,
-        );
+        logger.log("🔧 Valeurs de données extraites automatiquement:", p.dataValues);
       } else {
         p.dataValues = [1, 2, 3];
       }

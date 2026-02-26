@@ -53,13 +53,7 @@ export const PARTIELS_CONFIG = {
       maxDocuments: 2,
     },
     Médecine: {
-      subjects: [
-        "Anatomie",
-        "Physiologie",
-        "Pathologie",
-        "Pharmacologie",
-        "Sémiologie",
-      ],
+      subjects: ["Anatomie", "Physiologie", "Pathologie", "Pharmacologie", "Sémiologie"],
       duration: 120, // 2 heures par matière
       questionCount: 30,
       description: "QCM et questions cliniques",
@@ -108,13 +102,7 @@ export const PARTIELS_CONFIG = {
       maxDocuments: 0,
     },
     Gestion: {
-      subjects: [
-        "Management",
-        "Marketing",
-        "Finance",
-        "Comptabilité",
-        "Ressources humaines",
-      ],
+      subjects: ["Management", "Marketing", "Finance", "Comptabilité", "Ressources humaines"],
       duration: 180, // 3 heures par matière
       questionCount: 25,
       description: "Études de cas d'entreprise",
@@ -135,13 +123,7 @@ export const PARTIELS_CONFIG = {
       questionCount: 25,
       description: "Dissertations et commentaires de documents",
       enableDocuments: true,
-      documentTopics: [
-        "histoire",
-        "moderne",
-        "revolution",
-        "guerre_conflits",
-        "antiquite",
-      ],
+      documentTopics: ["histoire", "moderne", "revolution", "guerre_conflits", "antiquite"],
       documentRatio: 0.6, // 60% questions sur documents
       minDocumentLength: 100,
       maxDocuments: 2,
@@ -164,13 +146,7 @@ export const PARTIELS_CONFIG = {
       maxDocuments: 2,
     },
     Sciences: {
-      subjects: [
-        "Mathématiques",
-        "Physique",
-        "Chimie",
-        "Méthodes expérimentales",
-        "Modélisation",
-      ],
+      subjects: ["Mathématiques", "Physique", "Chimie", "Méthodes expérimentales", "Modélisation"],
       duration: 180, // 3 heures par matière
       questionCount: 25,
       description: "Exercices et problèmes scientifiques",
@@ -250,9 +226,7 @@ Filière à traiter: ${higherEdField}
 `;
 
   try {
-    logger.log(
-      `🎯 Génération de matières IA avec config documentaire pour: ${higherEdField}`,
-    );
+    logger.log(`🎯 Génération de matières IA avec config documentaire pour: ${higherEdField}`);
 
     const response = await AIService.generateContent({
       prompt,
@@ -268,11 +242,7 @@ Filière à traiter: ${higherEdField}
     // Parser le JSON retourné par l'IA
     const parsed = JSON.parse(content);
 
-    if (
-      !parsed.subjects ||
-      !Array.isArray(parsed.subjects) ||
-      parsed.subjects.length !== 5
-    ) {
+    if (!parsed.subjects || !Array.isArray(parsed.subjects) || parsed.subjects.length !== 5) {
       throw new Error("Format de réponse IA incorrect");
     }
 
@@ -311,10 +281,7 @@ Filière à traiter: ${higherEdField}
       subjectsConfig,
     };
   } catch (error) {
-    logger.warn(
-      `⚠️ Erreur génération matières IA pour ${higherEdField}:`,
-      error,
-    );
+    logger.warn(`⚠️ Erreur génération matières IA pour ${higherEdField}:`, error);
 
     // Fallback vers des matières génériques SANS documents (sécurité)
     const fallbackSubjects = [
@@ -359,9 +326,7 @@ export async function createPartielsSequentialConfig(
   higherEdField: string,
 ): Promise<SequentialQuizConfig> {
   const filiereConfig =
-    PARTIELS_CONFIG.filieres[
-      higherEdField as keyof typeof PARTIELS_CONFIG.filieres
-    ];
+    PARTIELS_CONFIG.filieres[higherEdField as keyof typeof PARTIELS_CONFIG.filieres];
 
   interface FiliereConfigType {
     subjects: readonly string[];
@@ -375,9 +340,7 @@ export async function createPartielsSequentialConfig(
 
   if (filiereConfig) {
     // Filière prédéfinie : utiliser la configuration existante
-    logger.log(
-      `📚 Utilisation de la configuration prédéfinie pour: ${higherEdField}`,
-    );
+    logger.log(`📚 Utilisation de la configuration prédéfinie pour: ${higherEdField}`);
     config = filiereConfig;
 
     // Pour les filières prédéfinies, créer la config pour chaque matière
@@ -411,9 +374,7 @@ export async function createPartielsSequentialConfig(
     });
   } else {
     // Filière personnalisée : générer les matières via IA avec configuration documentaire
-    logger.log(
-      `🤖 Génération IA des matières avec config documentaire pour: ${higherEdField}`,
-    );
+    logger.log(`🤖 Génération IA des matières avec config documentaire pour: ${higherEdField}`);
     const aiGenerated = await generateSubjectsForField(higherEdField);
 
     config = {
@@ -472,9 +433,7 @@ export function generatePartielsSubjectRequest(
   }
 
   const filiereConfig =
-    PARTIELS_CONFIG.filieres[
-      config.higherEdField as keyof typeof PARTIELS_CONFIG.filieres
-    ];
+    PARTIELS_CONFIG.filieres[config.higherEdField as keyof typeof PARTIELS_CONFIG.filieres];
 
   // Utiliser la configuration prédéfinie ou une configuration générique
   const configToUse = filiereConfig || {
@@ -485,11 +444,9 @@ export function generatePartielsSubjectRequest(
   };
 
   // Utiliser le nom stocké dans subjectResults pour avoir le vrai nom de la matière
-  const currentSubjectResult =
-    config.subjectResults[config.currentSubjectIndex];
+  const currentSubjectResult = config.subjectResults[config.currentSubjectIndex];
   const currentSubjectName =
-    currentSubjectResult?.subjectName ||
-    configToUse.subjects[config.currentSubjectIndex];
+    currentSubjectResult?.subjectName || configToUse.subjects[config.currentSubjectIndex];
 
   // Récupérer la configuration documentaire pour cette matière spécifique
   const subjectFullConfig = config.subjectResults[config.currentSubjectIndex];
@@ -507,14 +464,8 @@ export function generatePartielsSubjectRequest(
     graphicTypes: [],
   };
 
-  logger.log(
-    `📄 [DOCUMENTS] Configuration pour ${currentSubjectName}:`,
-    documentConfig,
-  );
-  logger.log(
-    `📊 [GRAPHICS] Configuration pour ${currentSubjectName}:`,
-    graphicConfig,
-  );
+  logger.log(`📄 [DOCUMENTS] Configuration pour ${currentSubjectName}:`, documentConfig);
+  logger.log(`📊 [GRAPHICS] Configuration pour ${currentSubjectName}:`, graphicConfig);
 
   return {
     userId,
@@ -537,10 +488,7 @@ export function generatePartielsSubjectRequest(
 /**
  * Génère les prompts spécialisés pour chaque filière des Partiels
  */
-export function getPartielsPrompt(
-  higherEdField: string,
-  subjectName: string,
-): string {
+export function getPartielsPrompt(higherEdField: string, subjectName: string): string {
   const baseContext = `
 Tu es un expert en conception d'examens partiels universitaires de niveau supérieur pour la filière ${higherEdField}.
 L'étudiant est en cursus universitaire (Licence/Master) dans la filière ${higherEdField}.
@@ -559,9 +507,7 @@ Matière évaluée : ${subjectName}
 `;
 
   const filiereConfig =
-    PARTIELS_CONFIG.filieres[
-      higherEdField as keyof typeof PARTIELS_CONFIG.filieres
-    ];
+    PARTIELS_CONFIG.filieres[higherEdField as keyof typeof PARTIELS_CONFIG.filieres];
   if (!filiereConfig) {
     return `${baseContext}
 
@@ -740,22 +686,17 @@ export function getCurrentSubjectName(config: SequentialQuizConfig): string {
   if (!config.higherEdField) return "Matière inconnue";
 
   // NOUVEAU : Utiliser d'abord le nom stocké dans subjectResults
-  const currentSubjectResult =
-    config.subjectResults[config.currentSubjectIndex];
+  const currentSubjectResult = config.subjectResults[config.currentSubjectIndex];
   if (currentSubjectResult && currentSubjectResult.subjectName) {
     return currentSubjectResult.subjectName;
   }
 
   // Fallback vers l'ancienne méthode
   const filiereConfig =
-    PARTIELS_CONFIG.filieres[
-      config.higherEdField as keyof typeof PARTIELS_CONFIG.filieres
-    ];
+    PARTIELS_CONFIG.filieres[config.higherEdField as keyof typeof PARTIELS_CONFIG.filieres];
 
   if (filiereConfig) {
-    return (
-      filiereConfig.subjects[config.currentSubjectIndex] || "Matière inconnue"
-    );
+    return filiereConfig.subjects[config.currentSubjectIndex] || "Matière inconnue";
   }
 
   // Fallback final
@@ -771,14 +712,8 @@ export function calculatePartielsGlobalScore(config: SequentialQuizConfig): {
   grade: number;
   mention?: string;
 } {
-  const totalScore = config.subjectResults.reduce(
-    (sum, result) => sum + (result.score || 0),
-    0,
-  );
-  const maxScore = config.subjectResults.reduce(
-    (sum, result) => sum + (result.maxScore || 0),
-    0,
-  );
+  const totalScore = config.subjectResults.reduce((sum, result) => sum + (result.score || 0), 0);
+  const maxScore = config.subjectResults.reduce((sum, result) => sum + (result.maxScore || 0), 0);
   const grade = maxScore > 0 ? (totalScore / maxScore) * 20 : 0;
 
   let mention: string | undefined;

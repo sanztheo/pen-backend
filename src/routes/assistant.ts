@@ -123,10 +123,7 @@ router.get("/wikipedia/search", wikipediaSearch);
 router.post(
   "/wikipedia/rag-process",
   verifyWorkspaceAccess,
-  async (
-    req: Request<unknown, unknown, WikipediaRagProcessBody>,
-    res: Response,
-  ) => {
+  async (req: Request<unknown, unknown, WikipediaRagProcessBody>, res: Response) => {
     try {
       const { wikipediaRAG } = await import("../services/rag/wikipedia.js");
       const {
@@ -138,9 +135,7 @@ router.post(
       } = req.body;
 
       if (!Array.isArray(pageIds) || pageIds.length === 0) {
-        return res
-          .status(400)
-          .json({ error: "pageIds must be a non-empty array" });
+        return res.status(400).json({ error: "pageIds must be a non-empty array" });
       }
 
       const enrichedResult = await wikipediaRAG.enrichWikipediaContent(
@@ -163,11 +158,7 @@ router.post(
         );
 
         try {
-          await wikipediaRAG.processWikipediaArticles(
-            req.user!.id,
-            workspaceId,
-            articles,
-          );
+          await wikipediaRAG.processWikipediaArticles(req.user!.id, workspaceId, articles);
         } catch (error) {
           logger.warn("Erreur sauvegarde articles RAG:", error);
         }
@@ -199,8 +190,7 @@ router.post(
   async (req: Request<unknown, unknown, RagContextBody>, res: Response) => {
     try {
       const { ragSystem } = await import("../services/rag/index.js");
-      const { sessionMemory } =
-        await import("../services/rag/sessionMemory.js");
+      const { sessionMemory } = await import("../services/rag/sessionMemory.js");
       const { query, workspaceId, sessionKey, selectedSources } = req.body;
 
       if (!query) {
@@ -220,15 +210,10 @@ router.post(
       let activeSessionSources = null;
       if (!hasSelectedSources && req.user) {
         try {
-          const activeSession = await sessionMemory.getActiveSession(
-            req.user.id,
-            workspaceId,
-          );
+          const activeSession = await sessionMemory.getActiveSession(req.user.id, workspaceId);
           if (activeSession && activeSession.id) {
             hasActiveSession = true;
-            activeSessionSources = await sessionMemory.getSessionSources(
-              activeSession.id,
-            );
+            activeSessionSources = await sessionMemory.getSessionSources(activeSession.id);
           }
         } catch (error) {
           logger.error("Erreur vérification session:", error);
@@ -237,10 +222,9 @@ router.post(
 
       // Décider si on doit utiliser RAG
       let shouldUseRAG = false;
-      const isSimpleGreeting =
-        /^(salut|hello|hi|bonjour|bonsoir|coucou|hey)[\s!?]*$/i.test(
-          query.trim(),
-        );
+      const isSimpleGreeting = /^(salut|hello|hi|bonjour|bonsoir|coucou|hey)[\s!?]*$/i.test(
+        query.trim(),
+      );
       const isVeryShort = query.trim().length < 10;
 
       if (hasSelectedSources) {
@@ -248,15 +232,8 @@ router.post(
       } else if (isSimpleGreeting || isVeryShort) {
         shouldUseRAG = false;
       } else {
-        if (
-          hasActiveSession &&
-          activeSessionSources &&
-          activeSessionSources.length > 0
-        ) {
-          shouldUseRAG = await ragSystem.shouldUseRAG(
-            query,
-            activeSessionSources ?? undefined,
-          );
+        if (hasActiveSession && activeSessionSources && activeSessionSources.length > 0) {
+          shouldUseRAG = await ragSystem.shouldUseRAG(query, activeSessionSources ?? undefined);
         } else {
           shouldUseRAG = await ragSystem.shouldUseRAG(query);
         }
@@ -286,16 +263,11 @@ router.post(
       const specificSourceIds: string[] = [];
 
       // Fichiers joints
-      if (
-        (selectedSources?.fileSources?.length ?? 0) > 0 &&
-        selectedSources?.fileSources
-      ) {
+      if ((selectedSources?.fileSources?.length ?? 0) > 0 && selectedSources?.fileSources) {
         for (const file of selectedSources.fileSources) {
           const fileId = file.id ?? "";
           const isValidUUID =
-            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-              fileId,
-            );
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fileId);
 
           const fileRecord = await prismaEmbeddings.rAGSource.findFirst({
             where: isValidUUID
@@ -375,30 +347,16 @@ router.post(
       // Filtrer selon sourcesScope
       if (selectedSources?.sourcesScope === "custom") {
         const mentionedTitles = new Set([
-          ...(selectedSources.wikipediaSources || []).map(
-            (s: SourceReference) => s.title,
-          ),
-          ...(selectedSources.mentionedPages || []).map(
-            (p: SourceReference) => p.title,
-          ),
-          ...(selectedSources.fileSources || []).map(
-            (f: SourceReference) => f.title,
-          ),
+          ...(selectedSources.wikipediaSources || []).map((s: SourceReference) => s.title),
+          ...(selectedSources.mentionedPages || []).map((p: SourceReference) => p.title),
+          ...(selectedSources.fileSources || []).map((f: SourceReference) => f.title),
         ]);
-        searchResults = searchResults.filter((r) =>
-          mentionedTitles.has(r.source.title),
-        );
+        searchResults = searchResults.filter((r) => mentionedTitles.has(r.source.title));
       }
 
       // Construire le contexte
-      const optimizedContext = await ragSystem.buildOptimizedContext(
-        query,
-        searchResults,
-      );
-      const sessionMemoryText = await sessionMemory.getRecentMemory(
-        sessionId,
-        5,
-      );
+      const optimizedContext = await ragSystem.buildOptimizedContext(query, searchResults);
+      const sessionMemoryText = await sessionMemory.getRecentMemory(sessionId, 5);
 
       // Sauvegarder les sources utilisées
       if (sessionId && searchResults.length > 0) {
@@ -410,10 +368,7 @@ router.post(
             type: r.source.sourceType || "wikipedia",
           });
         });
-        await sessionMemory.saveSessionSources(
-          sessionId,
-          Array.from(uniqueSourcesMap.values()),
-        );
+        await sessionMemory.saveSessionSources(sessionId, Array.from(uniqueSourcesMap.values()));
       }
 
       res.json({
@@ -447,9 +402,7 @@ router.post(
       const { pageId, workspaceId } = req.body;
 
       if (!pageId || !workspaceId) {
-        return res
-          .status(400)
-          .json({ error: "pageId and workspaceId are required" });
+        return res.status(400).json({ error: "pageId and workspaceId are required" });
       }
 
       const page = await prisma.page.findFirst({
@@ -509,17 +462,12 @@ router.post(
 router.post(
   "/user-pages/rag-process",
   verifyWorkspaceAccess,
-  async (
-    req: Request<unknown, unknown, UserPagesRagProcessBody>,
-    res: Response,
-  ) => {
+  async (req: Request<unknown, unknown, UserPagesRagProcessBody>, res: Response) => {
     try {
       const { pageIds, workspaceId } = req.body;
 
       if (!Array.isArray(pageIds) || pageIds.length === 0) {
-        return res
-          .status(400)
-          .json({ error: "pageIds must be a non-empty array" });
+        return res.status(400).json({ error: "pageIds must be a non-empty array" });
       }
 
       if (!workspaceId) {
@@ -560,15 +508,10 @@ router.post(
 
             if (content && Array.isArray(content)) {
               const textParts = content
-                .filter(
-                  (block: BlockNoteBlock) =>
-                    block?.type === "paragraph" && block?.content,
-                )
+                .filter((block: BlockNoteBlock) => block?.type === "paragraph" && block?.content)
                 .map((block: BlockNoteBlock) =>
                   Array.isArray(block.content)
-                    ? block.content
-                        .map((item: BlockNoteContentItem) => item?.text || "")
-                        .join("")
+                    ? block.content.map((item: BlockNoteContentItem) => item?.text || "").join("")
                     : "",
                 )
                 .filter(Boolean);
@@ -579,10 +522,7 @@ router.post(
             }
           }
         } catch (error) {
-          logger.error(
-            `Erreur extraction contenu page "${page.title}":`,
-            error,
-          );
+          logger.error(`Erreur extraction contenu page "${page.title}":`, error);
         }
 
         const sourceId = await userPagesRAG.processUserPage({
@@ -642,63 +582,59 @@ function getPdfParseFnFromModule(mod: unknown): PdfParseFn | null {
 }
 
 // Upload simple (extraction texte sans persistance)
-router.post(
-  "/upload",
-  upload.array("files", 5),
-  async (req: Request, res: Response) => {
-    try {
-      const files = (req.files as Express.Multer.File[]) || [];
-      const results: Array<{
-        name: string;
-        mimetype: string;
-        size: number;
-        text: string;
-      }> = [];
+router.post("/upload", upload.array("files", 5), async (req: Request, res: Response) => {
+  try {
+    const files = (req.files as Express.Multer.File[]) || [];
+    const results: Array<{
+      name: string;
+      mimetype: string;
+      size: number;
+      text: string;
+    }> = [];
 
-      for (const f of files) {
-        let text = "";
-        if (f.mimetype === "application/pdf") {
+    for (const f of files) {
+      let text = "";
+      if (f.mimetype === "application/pdf") {
+        try {
+          let pdfParseFn: PdfParseFn;
           try {
-            let pdfParseFn: PdfParseFn;
-            try {
-              const mod: unknown = await import("pdf-parse/lib/pdf-parse.js");
-              const parsed = getPdfParseFnFromModule(mod);
-              if (!parsed) throw new Error("Invalid pdf-parse module");
-              pdfParseFn = parsed;
-            } catch {
-              const mod: unknown = await import("pdf-parse");
-              const parsed = getPdfParseFnFromModule(mod);
-              if (!parsed) throw new Error("Invalid pdf-parse module");
-              pdfParseFn = parsed;
-            }
-            const data = await pdfParseFn(f.buffer);
-            text = data?.text || "";
-          } catch (pdfError) {
-            // 🛡️ SÉCURITÉ: Log l'échec du parsing PDF pour monitoring
-            logger.warn(
-              `⚠️ [ASSISTANT] PDF parsing failed for "${f.originalname}" (${f.size} bytes):`,
-              pdfError instanceof Error ? pdfError.message : "Unknown error",
-            );
-            text = "";
+            const mod: unknown = await import("pdf-parse/lib/pdf-parse.js");
+            const parsed = getPdfParseFnFromModule(mod);
+            if (!parsed) throw new Error("Invalid pdf-parse module");
+            pdfParseFn = parsed;
+          } catch {
+            const mod: unknown = await import("pdf-parse");
+            const parsed = getPdfParseFnFromModule(mod);
+            if (!parsed) throw new Error("Invalid pdf-parse module");
+            pdfParseFn = parsed;
           }
-        } else if (f.mimetype === "text/plain") {
-          text = f.buffer.toString("utf-8");
+          const data = await pdfParseFn(f.buffer);
+          text = data?.text || "";
+        } catch (pdfError) {
+          // 🛡️ SÉCURITÉ: Log l'échec du parsing PDF pour monitoring
+          logger.warn(
+            `⚠️ [ASSISTANT] PDF parsing failed for "${f.originalname}" (${f.size} bytes):`,
+            pdfError instanceof Error ? pdfError.message : "Unknown error",
+          );
+          text = "";
         }
-        results.push({
-          name: f.originalname,
-          mimetype: f.mimetype,
-          size: f.size,
-          text,
-        });
+      } else if (f.mimetype === "text/plain") {
+        text = f.buffer.toString("utf-8");
       }
-
-      res.json({ files: results });
-    } catch (e) {
-      logger.error("upload error", e);
-      res.status(500).json({ error: "Erreur upload fichiers" });
+      results.push({
+        name: f.originalname,
+        mimetype: f.mimetype,
+        size: f.size,
+        text,
+      });
     }
-  },
-);
+
+    res.json({ files: results });
+  } catch (e) {
+    logger.error("upload error", e);
+    res.status(500).json({ error: "Erreur upload fichiers" });
+  }
+});
 
 // Upload RAG (avec embedding)
 router.post(
@@ -781,8 +717,7 @@ router.post("/markdown-to-blocknote", async (req, res) => {
       return res.status(400).json({ error: "Markdown requis" });
     }
 
-    const { toBlockNoteAuto } =
-      await import("../controllers/assistant/helpers/blocknote.js");
+    const { toBlockNoteAuto } = await import("../controllers/assistant/helpers/blocknote.js");
     const blockNote = toBlockNoteAuto(markdown);
 
     res.json({ success: true, blockNote, blocksCount: blockNote.length });

@@ -3,14 +3,7 @@
  * Covers: status cache, heartbeat, waitlist, reactivation, retry serialization
  */
 
-import {
-  afterAll,
-  describe,
-  expect,
-  it,
-  jest,
-  beforeEach,
-} from "@jest/globals";
+import { afterAll, describe, expect, it, jest, beforeEach } from "@jest/globals";
 import { BetaService } from "../BetaService.js";
 import { prisma } from "../../lib/prisma.js";
 import { redis } from "../../lib/redis.js";
@@ -102,12 +95,7 @@ describe("BetaService.getStatus", () => {
     expect(mockUserCount).toHaveBeenCalledWith({
       where: { betaStatus: "active" },
     });
-    expect(mockRedisSet).toHaveBeenCalledWith(
-      "beta:active_count",
-      95,
-      "EX",
-      30,
-    );
+    expect(mockRedisSet).toHaveBeenCalledWith("beta:active_count", 95, "EX", 30);
     expect(result.spotsRemaining).toBe(5);
   });
 
@@ -217,10 +205,10 @@ describe("BetaService.addToWaitlist", () => {
   });
 
   it("should handle duplicate email gracefully (P2002)", async () => {
-    const prismaError = new Prisma.PrismaClientKnownRequestError(
-      "Unique constraint violation",
-      { code: "P2002", clientVersion: "5.0.0" },
-    );
+    const prismaError = new Prisma.PrismaClientKnownRequestError("Unique constraint violation", {
+      code: "P2002",
+      clientVersion: "5.0.0",
+    });
     mockWaitlistCreate.mockRejectedValue(prismaError);
     mockWaitlistFindUnique.mockResolvedValue({
       joinedAt: TEST_DATE,
@@ -237,9 +225,7 @@ describe("BetaService.addToWaitlist", () => {
     const otherError = new Error("Database connection lost");
     mockWaitlistCreate.mockRejectedValue(otherError);
 
-    await expect(BetaService.addToWaitlist(validInput)).rejects.toThrow(
-      "Database connection lost",
-    );
+    await expect(BetaService.addToWaitlist(validInput)).rejects.toThrow("Database connection lost");
   });
 
   // BM-003: Race condition guard — conditional updateMany
@@ -330,9 +316,7 @@ describe("BetaService.reactivateUser", () => {
     mockUserFindUnique.mockResolvedValue({ betaStatus: "inactive" });
     mockTransaction.mockRejectedValue(new Error("Connection timeout"));
 
-    await expect(BetaService.reactivateUser("user-inactive")).rejects.toThrow(
-      "Connection timeout",
-    );
+    await expect(BetaService.reactivateUser("user-inactive")).rejects.toThrow("Connection timeout");
   });
 
   it("should invalidate Redis cache after successful reactivation", async () => {
@@ -380,10 +364,10 @@ describe("BetaService — waitlist position calculation", () => {
   });
 
   it("should return 0 when entry not found", async () => {
-    const prismaError = new Prisma.PrismaClientKnownRequestError(
-      "Unique constraint violation",
-      { code: "P2002", clientVersion: "5.0.0" },
-    );
+    const prismaError = new Prisma.PrismaClientKnownRequestError("Unique constraint violation", {
+      code: "P2002",
+      clientVersion: "5.0.0",
+    });
     mockWaitlistCreate.mockRejectedValue(prismaError);
     mockWaitlistFindUnique.mockResolvedValue(null);
 

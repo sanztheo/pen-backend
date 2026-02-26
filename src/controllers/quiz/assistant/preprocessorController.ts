@@ -63,24 +63,18 @@ export class PreprocessorController {
 
         if (personalizationData) {
           // Utiliser les données de personnalisation
-          schoolLevel =
-            personalizationData.classe || bodySchoolLevel || "COLLEGE";
+          schoolLevel = personalizationData.classe || bodySchoolLevel || "COLLEGE";
 
-          logger.log(
-            "[PREPROCESSOR] 👤 Personnalisation récupérée depuis DB:",
-            {
-              classe: personalizationData.classe,
-              etude: personalizationData.etude,
-              filiere: personalizationData.filiere,
-              presentation: personalizationData.presentation?.slice(0, 50),
-              attente: personalizationData.attente?.slice(0, 50),
-              resolvedSchoolLevel: schoolLevel,
-            },
-          );
+          logger.log("[PREPROCESSOR] 👤 Personnalisation récupérée depuis DB:", {
+            classe: personalizationData.classe,
+            etude: personalizationData.etude,
+            filiere: personalizationData.filiere,
+            presentation: personalizationData.presentation?.slice(0, 50),
+            attente: personalizationData.attente?.slice(0, 50),
+            resolvedSchoolLevel: schoolLevel,
+          });
         } else {
-          logger.log(
-            "[PREPROCESSOR] ⚠️ Aucune personnalisation trouvée pour l'utilisateur",
-          );
+          logger.log("[PREPROCESSOR] ⚠️ Aucune personnalisation trouvée pour l'utilisateur");
         }
       }
 
@@ -136,8 +130,7 @@ export class PreprocessorController {
       // 3. Mapper les paramètres frontend → preprocessor
       const preprocessorParams: PreprocessorPromptParams = {
         schoolLevel: schoolLevel,
-        studyLevel:
-          PreprocessorController.mapSchoolLevelToStudyLevel(schoolLevel),
+        studyLevel: PreprocessorController.mapSchoolLevelToStudyLevel(schoolLevel),
         quizType: quizType,
         sourceSummary: sourceAnalysis.summary,
         sourceTopics: sourceAnalysis.topics,
@@ -223,7 +216,7 @@ export class PreprocessorController {
     hasDefinitions: boolean;
   }> {
     let allText = "";
-    let topics: Set<string> = new Set();
+    const topics: Set<string> = new Set();
     let hasFormulas = false;
     let hasDefinitions = false;
 
@@ -261,11 +254,7 @@ export class PreprocessorController {
                 const text = Array.isArray(block.content)
                   ? block.content
                       .map((item: unknown) => {
-                        if (
-                          typeof item === "object" &&
-                          item !== null &&
-                          "text" in item
-                        ) {
+                        if (typeof item === "object" && item !== null && "text" in item) {
                           return String((item as { text: unknown }).text ?? "");
                         }
                         return "";
@@ -328,14 +317,8 @@ export class PreprocessorController {
                   const text = Array.isArray(block.content)
                     ? block.content
                         .map((item: unknown) => {
-                          if (
-                            typeof item === "object" &&
-                            item !== null &&
-                            "text" in item
-                          ) {
-                            return String(
-                              (item as { text: unknown }).text ?? "",
-                            );
+                          if (typeof item === "object" && item !== null && "text" in item) {
+                            return String((item as { text: unknown }).text ?? "");
                           }
                           return "";
                         })
