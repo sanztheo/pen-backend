@@ -14,6 +14,7 @@ import {
   isInputJsonValue,
 } from "./BetaService.types.js";
 import type {
+  BetaProgressData,
   BetaStatusResponse,
   WaitlistInput,
   WaitlistResult,
@@ -51,12 +52,18 @@ export class BetaService {
     const spotsRemaining = Math.max(0, TOTAL_BETA_SPOTS - activeCount);
 
     let userStatus: BetaStatus | undefined;
+    let progress: BetaProgressData | undefined;
+
     if (userId) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { betaStatus: true },
-      });
+      const [user, userProgress] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { betaStatus: true },
+        }),
+        BetaService.getProgress(userId),
+      ]);
       userStatus = user?.betaStatus;
+      progress = userProgress;
     }
 
     return {
@@ -64,6 +71,42 @@ export class BetaService {
       totalSpots: TOTAL_BETA_SPOTS,
       isFull: spotsRemaining === 0,
       userStatus,
+      ...(progress !== undefined && { progress }),
+    };
+  }
+
+  /**
+   * Returns onboarding progress: which key actions the user has completed
+   */
+  static async getProgress(userId: string): Promise<BetaProgressData> {
+    const [page, contentPage, aiConversation, quiz] = await Promise.all([
+      prisma.page.findFirst({
+        where: { createdBy: userId, isArchived: false },
+        select: { id: true },
+      }),
+      prisma.page.findFirst({
+        where: {
+          createdBy: userId,
+          isArchived: false,
+          blockNoteContent: { not: Prisma.DbNull },
+        },
+        select: { id: true },
+      }),
+      prisma.aIConversation.findFirst({
+        where: { userId },
+        select: { id: true },
+      }),
+      prisma.quiz.findFirst({
+        where: { userId },
+        select: { id: true },
+      }),
+    ]);
+
+    return {
+      hasCreatedPage: page !== null,
+      hasWrittenContent: contentPage !== null,
+      hasUsedAI: aiConversation !== null,
+      hasGeneratedQuiz: quiz !== null,
     };
   }
 

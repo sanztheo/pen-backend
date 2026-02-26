@@ -11,11 +11,19 @@ export const SERIALIZATION_MAX_RETRIES = 3;
 export const SERIALIZATION_BASE_DELAY_MS = 50;
 
 // ─── Interfaces ───────────────────────────────────────────
+export interface BetaProgressData {
+  hasCreatedPage: boolean;
+  hasWrittenContent: boolean;
+  hasUsedAI: boolean;
+  hasGeneratedQuiz: boolean;
+}
+
 export interface BetaStatusResponse {
   spotsRemaining: number;
   totalSpots: number;
   isFull: boolean;
   userStatus: BetaStatus | undefined;
+  progress?: BetaProgressData;
 }
 
 export interface WaitlistInput {
