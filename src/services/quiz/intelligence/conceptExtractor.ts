@@ -8,6 +8,7 @@ import OpenAI from "openai";
 import { prisma } from "../../../lib/prisma.js";
 import { extractTextFromBlockNote } from "../../../controllers/assistant/helpers/blocknote.js";
 import { z } from "zod";
+import { MODELS } from "../../../config/models.js";
 import {
   type ExtractedConcepts,
   type Difficulty,
@@ -347,7 +348,7 @@ export class ConceptExtractorService {
     const openai = getOpenAI();
 
     const response = await openai.embeddings.create({
-      model: "text-embedding-3-small",
+      model: MODELS.EMBEDDING,
       input: text.slice(0, 8000), // Limiter la taille
       dimensions: EMBEDDING_DIMENSION,
     });

@@ -54,6 +54,8 @@ import { closeQueues } from "./lib/queues.js";
 import { startMonitoring, stopMonitoring } from "./lib/monitoring.js";
 import { logger } from "./utils/logger.js";
 import { initFuturaScheduler, stopFuturaScheduler } from "./lib/futuraScheduler.js";
+import { startAlertsCron, stopAlertsCron } from "./cron/alertsCron.js";
+import { startRetentionCron, stopRetentionCron } from "./cron/retentionCron.js";
 
 // 🛡️ RATE LIMITING IMPORTS
 import {
@@ -735,6 +737,12 @@ server.listen(PORT, async () => {
       // 📊 Démarrer le monitoring système (toutes les 5 minutes)
       startMonitoring(5);
 
+      // 🔔 Démarrer le CRON des alertes admin (toutes les 5 minutes)
+      startAlertsCron();
+
+      // 📊 Démarrer le CRON de calcul des cohortes de rétention (dimanche minuit)
+      startRetentionCron();
+
       // 🏓 Test automatique du webhook Paddle
       await testPaddleWebhookRoute();
     } else {
@@ -752,6 +760,8 @@ server.listen(PORT, async () => {
 process.on("SIGTERM", async () => {
   logger.log("🛑 [SHUTDOWN] Signal SIGTERM reçu, arrêt gracieux...");
   stopMonitoring();
+  stopAlertsCron();
+  stopRetentionCron();
   await stopFuturaScheduler();
   await stopWorkers();
   await closeQueues();
@@ -761,6 +771,8 @@ process.on("SIGTERM", async () => {
 process.on("SIGINT", async () => {
   logger.log("🛑 [SHUTDOWN] Signal SIGINT reçu, arrêt gracieux...");
   stopMonitoring();
+  stopAlertsCron();
+  stopRetentionCron();
   await stopFuturaScheduler();
   await stopWorkers();
   await closeQueues();

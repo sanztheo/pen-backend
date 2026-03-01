@@ -18,6 +18,7 @@ import {
 import { autocomplete } from "../controllers/ai/autocomplete.js";
 import { aiConcurrencyLimit } from "../middlewares/aiConcurrencyLimit.js";
 import { dailyTokenQuota } from "../middlewares/dailyTokenQuota.js";
+import { MODELS, getSupportedModels, isFixedTempModel } from "../config/models.js";
 
 // 🎯 Imports BullMQ pour jobs asynchrones
 import { aiGenerationQueue } from "../lib/queues.js";
@@ -38,7 +39,7 @@ const router = Router();
 // Assoupli pour accepter les champs OpenAI/compatibles générés par @ai-sdk/openai
 const OpenAIProxySchema = z
   .object({
-    model: z.string().optional(),
+    model: z.enum(getSupportedModels()).optional(),
     messages: z
       .array(
         z.object({
@@ -336,8 +337,7 @@ router.post("/chat", requireAICredits({ cost: 1.0, action: "openai_proxy" }), as
     }
 
     // Configuration du modèle OpenAI avec l'API key
-    const modelName =
-      process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL || "gpt-4o-mini";
+    const modelName = MODELS.CONTENT_DEFAULT;
 
     const openaiProvider = createOpenAI({
       apiKey: process.env.OPENAI_API_KEY,
@@ -441,12 +441,12 @@ router.post(
       }
 
       const body = validationResult.data;
-      const model = body.model || process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL;
-      const isFixedTempModel = typeof model === "string" && /(o1|o3|nano)/i.test(model);
+      const model = body.model || MODELS.CONTENT_DEFAULT;
+      const isFixedTemp = isFixedTempModel(model);
 
       const payload: Record<string, unknown> = { ...body };
       if (
-        isFixedTempModel &&
+        isFixedTemp &&
         Object.prototype.hasOwnProperty.call(payload, "temperature") &&
         payload.temperature !== 1
       ) {
@@ -454,7 +454,7 @@ router.post(
       }
 
       // Adapter les paramètres incompatibles pour les modèles o1/o3/nano
-      if (isFixedTempModel) {
+      if (isFixedTemp) {
         if (payload.max_tokens && !payload.max_completion_tokens) {
           payload.max_completion_tokens = payload.max_tokens;
           delete payload.max_tokens;

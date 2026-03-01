@@ -1,8 +1,14 @@
 import Redis from "ioredis";
 import { logger } from "../../utils/logger.js";
 
-// Configuration Redis (Railway ou local)
-const redisUrl = process.env.REDIS_URL || process.env.REDIS_PUBLIC_URL || "redis://localhost:6379";
+// Redis URL: fallback to localhost only in test; crash otherwise to surface misconfiguration
+const redisUrl =
+  process.env.REDIS_URL ??
+  process.env.REDIS_PUBLIC_URL ??
+  (() => {
+    if (process.env.NODE_ENV === "test") return "redis://localhost:6379";
+    throw new Error("REDIS_URL manquant — vérifier Infisical /Backend");
+  })();
 
 const redis = new Redis(redisUrl, {
   retryStrategy: (times: number) => {
@@ -11,7 +17,7 @@ const redis = new Redis(redisUrl, {
   },
   maxRetriesPerRequest: 3,
   enableReadyCheck: true,
-  lazyConnect: false,
+  lazyConnect: process.env.NODE_ENV === "test",
   // Timeouts pour éviter les blocages
   connectTimeout: 10000,
   commandTimeout: 5000,

@@ -4,6 +4,7 @@
  */
 
 import { logger } from "../../../utils/logger.js";
+import { MODELS } from "../../../config/models.js";
 import {
   QuizGenerationRequest,
   GeneratedQuiz,
@@ -191,7 +192,7 @@ export class GraphicBasedQuizGenerator {
         graphicsData: graphics, // Nouveauté : graphiques intégrés
         metadata: {
           generatedAt: new Date(),
-          aiModel: "gpt-4o-mini",
+          aiModel: MODELS.GRAPHICS,
           generationTime: Date.now() - startTime,
         },
       };

@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { logger } from "../../../utils/logger.js";
+import { MODELS } from "../../../config/models.js";
 
 // Configuration OpenAI
 const openai = new OpenAI({
@@ -38,7 +39,7 @@ export class AIGraphicGenerator {
       logger.log(`[AI-GRAPHICS] Génération graphique pour: ${prompt.subject} - ${prompt.topic}`);
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: MODELS.GRAPHICS,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

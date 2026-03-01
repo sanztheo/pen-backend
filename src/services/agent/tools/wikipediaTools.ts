@@ -1,10 +1,10 @@
-// 📚 Wikipedia Tools - Intégration pgvector avec text-embedding-3-small
 import { tool } from "ai";
 import { z } from "zod";
 import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
 import { wikipediaRAG, type WikipediaArticle } from "../../rag/wikipedia.js";
 import { ragSystem } from "../../rag/index.js";
 import { logger } from "../../../utils/logger.js";
+import { MODELS, EMBEDDING_DIMENSION } from "../../../config/models.js";
 
 /**
  * Context utilisateur injecté via closure
@@ -402,7 +402,7 @@ Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les reche
 
           return {
             count: uniqueResults.length,
-            model: "text-embedding-3-small (1536D)",
+            model: `${MODELS.EMBEDDING} (${EMBEDDING_DIMENSION}D)`,
             chunks: uniqueResults.map((r) => ({
               content: r.clean_content,
               section: r.section_title,

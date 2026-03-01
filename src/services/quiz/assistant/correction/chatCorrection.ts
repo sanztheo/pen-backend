@@ -3,6 +3,7 @@
 import OpenAI from "openai";
 import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 import { AIService } from "../../../ai/base.js";
+import { isReasoningModel } from "../../../../config/models.js";
 import { logger } from "../../../../utils/logger.js";
 import {
   QUIZ_CORRECTION_STANDARD_SCHEMA,
@@ -105,16 +106,15 @@ export class ChatCorrection {
         },
       };
 
-      // Configuration spécifique GPT-5
-      if (correctionModel.includes("gpt-5")) {
+      // Configuration spécifique reasoning models (GPT-5, o1, o3, …)
+      if (isReasoningModel(correctionModel)) {
         apiConfig.reasoning_effort = "low";
         apiConfig.max_completion_tokens = 4000;
-        // GPT-5 n'accepte que temperature=1 (défaut), on ne le spécifie pas
         logger.log(
-          "🧠 [CORRECTION] GPT-5-mini détecté : reasoning_effort=low, max_completion_tokens=4000, temperature=1 (défaut)",
+          "🧠 [CORRECTION] Reasoning model détecté : reasoning_effort=low, max_completion_tokens=4000, temperature=1 (défaut)",
         );
       } else {
-        apiConfig.temperature = 0.3; // Plus faible pour la correction
+        apiConfig.temperature = 0.3;
         apiConfig.max_tokens = 4000;
       }
 
@@ -190,13 +190,12 @@ export class ChatCorrection {
         },
       };
 
-      // Configuration spécifique GPT-5
-      if (correctionModel.includes("gpt-5")) {
+      // Configuration spécifique reasoning models (GPT-5, o1, o3, …)
+      if (isReasoningModel(correctionModel)) {
         apiConfig.reasoning_effort = "low";
         apiConfig.max_completion_tokens = 6000;
-        // GPT-5 n'accepte que temperature=1 (défaut), on ne le spécifie pas
         logger.log(
-          "🧠 [CORRECTION] GPT-5-mini détecté : reasoning_effort=low, max_completion_tokens=6000, temperature=1 (défaut)",
+          "🧠 [CORRECTION] Reasoning model détecté : reasoning_effort=low, max_completion_tokens=6000, temperature=1 (défaut)",
         );
       } else {
         apiConfig.temperature = 0.3;

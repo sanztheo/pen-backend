@@ -199,6 +199,8 @@ Return the optimal quiz parameters as JSON.`;
 // MODEL CONFIGURATION
 // ============================================================================
 
-export const PREPROCESSOR_MODEL = "gpt-4o-mini";
+import { MODELS } from "../../../config/models.js";
+
+export const PREPROCESSOR_MODEL = MODELS.PREPROCESSOR;
 export const PREPROCESSOR_TEMPERATURE = 0.3;
 export const PREPROCESSOR_MAX_TOKENS = 800;

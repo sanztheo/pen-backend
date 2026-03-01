@@ -10,6 +10,12 @@ import type { CompletionUsage } from "openai/resources/completions";
 import { AIService, AIGenerationOptions, AIGenerationResult } from "./base.js";
 import { CodeDetectionService } from "./codeDetection.js";
 import { OpenAIQuotaManager } from "./quotaManager.js";
+import {
+  isFixedTempModel,
+  isNanoModel,
+  isReasoningModel,
+  getModelProvider,
+} from "../../config/models.js";
 
 /**
  * Extended delta type to support reasoning_content from Grok/xAI and other reasoning models
@@ -154,20 +160,18 @@ export class ContentGenerationService {
         tokens: `${quotaCheck.usage?.tokens}/${quotaCheck.limits?.maxTokens} tokens`,
         cost: `$${quotaCheck.usage?.cost.toFixed(4)}/$${quotaCheck.limits?.maxCost}`,
       });
-      // Modèle nano : tokens généreux car coût très faible (0.40¢/1M tokens)
-      const isNanoModel = typeof model === "string" && /nano/i.test(model);
-      const MIN_COMPLETION_TOKENS = isNanoModel ? 5000 : 2000;
+      const isNano = typeof model === "string" && isNanoModel(model);
+      const MIN_COMPLETION_TOKENS = isNano ? 5000 : 2000;
       // Cap dur côté provider ~32768 tokens de complétion → garder une marge de sécurité
       const PROVIDER_HARD_CAP = 32768;
-      const MAX_COMPLETION_TOKENS = isNanoModel ? Math.min(32000, PROVIDER_HARD_CAP) : 6000;
+      const MAX_COMPLETION_TOKENS = isNano ? Math.min(32000, PROVIDER_HARD_CAP) : 6000;
       const targetTokens = Math.min(
         Math.max(options.maxTokens || 0, MIN_COMPLETION_TOKENS),
         MAX_COMPLETION_TOKENS,
       );
 
-      // 🧠 SÉLECTION DU CLIENT (OpenAI vs Grok)
       let client: OpenAI;
-      const isGrok = typeof model === "string" && model.toLowerCase().includes("grok");
+      const isGrok = typeof model === "string" && getModelProvider(model) === "xai";
 
       if (isGrok) {
         logger.log("🧠 [PROVIDER] Utilisation de xAI (Grok)");
@@ -194,26 +198,23 @@ export class ContentGenerationService {
           });
         }
 
-        const isFixedTempModelStream =
-          typeof model === "string" && /(o1|o3|nano|gpt-5)/i.test(model);
+        const isFixedTempStream = typeof model === "string" && isFixedTempModel(model);
         const payloadStream: ChatCompletionStreamPayload = {
           model,
           messages,
           stream: true,
         };
 
-        if (isFixedTempModelStream) {
+        if (isFixedTempStream) {
           // Ne jamais dépasser la limite provider
           payloadStream.max_completion_tokens = Math.min(
             Math.max(targetTokens, 5000),
             PROVIDER_HARD_CAP,
           );
-          // GPT-5 utilise également reasoning_effort si nécessaire
-          if (model.includes("gpt-5")) {
+          if (isReasoningModel(model)) {
             payloadStream.reasoning_effort = "low";
           }
         } else {
-          // Pour Grok et autres modèles standards
           payloadStream.max_tokens = targetTokens;
           payloadStream.temperature = options.temperature ?? 0.7;
         }
@@ -249,8 +250,6 @@ export class ContentGenerationService {
               if (options.onThinking) {
                 options.onThinking(reasoning);
               }
-              // Log live thinking chunks (stdout pour voir le flux en temps réel)
-              process.stdout.write(reasoning);
             }
 
             if (content) {
@@ -325,13 +324,12 @@ export class ContentGenerationService {
               messages: followupMessages,
               stream: true,
             };
-            const maxFollowTokens = isNanoModel
+            const maxFollowTokens = isNano
               ? Math.min(PROVIDER_HARD_CAP, options.maxTokens || 30000)
               : Math.min(6000, options.maxTokens || 2000);
-            if (isFixedTempModelStream) {
+            if (isFixedTempStream) {
               payloadFollow.max_completion_tokens = maxFollowTokens;
-              // GPT-5 utilise également reasoning_effort si nécessaire
-              if (model.includes("gpt-5")) {
+              if (isReasoningModel(model)) {
                 payloadFollow.reasoning_effort = "low";
               }
             } else {
@@ -388,14 +386,11 @@ export class ContentGenerationService {
         });
       }
 
-      // Adapter la charge utile pour les modèles o1/o3/nano/gpt-5 (température fixe et champ max_completion_tokens)
-      const isFixedTempModel = typeof model === "string" && /(o1|o3|nano|gpt-5)/i.test(model);
+      const isFixedTemp = typeof model === "string" && isFixedTempModel(model);
       const payload: ChatCompletionPayload = { model, messages };
-      if (isFixedTempModel) {
+      if (isFixedTemp) {
         payload.max_completion_tokens = targetTokens;
-        // Ne pas envoyer temperature (non supporté / fixé pour ces modèles)
-        // GPT-5 utilise également reasoning_effort si nécessaire
-        if (model.includes("gpt-5")) {
+        if (isReasoningModel(model)) {
           payload.reasoning_effort = "low";
         }
       } else {
@@ -482,7 +477,7 @@ export class ContentGenerationService {
             },
           ];
 
-          const maxContinuationTokens = isNanoModel
+          const maxContinuationTokens = isNano
             ? Math.min(PROVIDER_HARD_CAP, options.maxTokens || 30000)
             : Math.min(6000, options.maxTokens || 2000);
 
@@ -490,7 +485,7 @@ export class ContentGenerationService {
             model,
             messages: continuationMessages,
           };
-          if (isFixedTempModel) {
+          if (isFixedTemp) {
             continuationPayload.max_completion_tokens = maxContinuationTokens;
           } else {
             continuationPayload.max_tokens = maxContinuationTokens;

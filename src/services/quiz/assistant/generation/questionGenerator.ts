@@ -3,6 +3,7 @@
 import OpenAI from "openai";
 import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 import { AIService } from "../../../ai/base.js";
+import { isReasoningModel } from "../../../../config/models.js";
 import { logger } from "../../../../utils/logger.js";
 import {
   getPersonalizationContextForUser,
@@ -144,7 +145,7 @@ export class QuestionGenerator {
       };
 
       // Configuration spécifique GPT-5
-      if (generationModel.includes("gpt-5")) {
+      if (isReasoningModel(generationModel)) {
         apiConfig.reasoning_effort = "low";
         apiConfig.max_completion_tokens = 2000;
         // GPT-5 n'accepte que temperature=1 (défaut), on ne le spécifie pas

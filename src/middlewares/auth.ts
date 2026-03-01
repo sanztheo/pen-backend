@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { AuthService, AuthUser } from "../services/auth.js";
 import { UserSyncService } from "../services/userSync.js";
+import { ImpersonationService } from "../services/admin/impersonationService.js";
+import { prisma } from "../lib/prisma.js";
 import { createClerkClient } from "@clerk/backend";
 import { SecureLogger } from "./secureLogging.js";
 import { logger } from "../utils/logger.js";
@@ -78,11 +80,11 @@ const clerkClient = process.env.CLERK_SECRET_KEY
   ? createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
   : null;
 
-// Extension de l'interface Request pour inclure l'utilisateur
 declare global {
   namespace Express {
     interface Request {
       user?: AuthUser;
+      impersonatedBy?: string;
     }
   }
 }
@@ -113,7 +115,40 @@ async function loadTestUser(clerkUserId: string): Promise<AuthUser | null> {
   }
 }
 
-// Middleware d'authentification
+/**
+ * If an active impersonation session exists, swap req.user to the target user.
+ * Skipped for /api/admin/* routes so the admin retains their identity for admin actions.
+ */
+async function applyImpersonation(req: Request): Promise<void> {
+  const impToken = req.headers["x-impersonation-token"] as string | undefined;
+  if (!impToken || !req.user || req.originalUrl.startsWith("/api/admin")) return;
+
+  const payload = ImpersonationService.verifyImpersonationToken(impToken);
+  if (!payload || payload.adminId !== req.user.id) return;
+
+  const active = await ImpersonationService.isSessionActive(payload.adminId);
+  if (!active) return;
+
+  const target = await prisma.user.findUnique({
+    where: { id: payload.sub },
+    select: { id: true, email: true, firstName: true, lastName: true, avatarUrl: true },
+  });
+  if (!target) return;
+
+  req.impersonatedBy = req.user.id;
+  req.user = {
+    id: target.id,
+    email: target.email,
+    user_metadata: {
+      firstName: target.firstName || "",
+      lastName: target.lastName || "",
+      avatar: target.avatarUrl || "",
+      displayName: `${target.firstName || ""} ${target.lastName || ""}`.trim(),
+    },
+  };
+  logger.log(`[AUTH] Impersonation active: admin ${payload.adminId} → user ${target.id}`);
+}
+
 export const authenticateToken = async (req: Request, res: Response, next: NextFunction) => {
   try {
     // 🛡️ Mode test: Sécurité multicouche obligatoire
@@ -174,16 +209,16 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
 
     const lastSync = userSyncCache.get(user.id);
     if (lastSync && Date.now() - lastSync < CACHE_DURATION_MS) {
-      // Le cache est récent, on évite la synchronisation
       req.user = user;
+      await applyImpersonation(req);
       return next();
     }
 
-    // Synchroniser l'utilisateur avec PostgreSQL
     try {
       const syncedUser = await UserSyncService.syncUser(user);
-      userSyncCache.set(user.id, Date.now()); // Mettre à jour le cache
+      userSyncCache.set(user.id, Date.now());
       req.user = { ...user, id: syncedUser.id } as AuthUser;
+      await applyImpersonation(req);
       next();
     } catch (error) {
       logger.error("❌ [AUTH] ÉCHEC CRITIQUE sync utilisateur:", error);
@@ -224,15 +259,4 @@ export const requireUser = (req: Request, res: Response, next: NextFunction) => 
     return res.status(401).json({ error: "Utilisateur non authentifié", code: "USER_REQUIRED" });
   }
   next();
-};
-
-// Middleware pour vérifier les rôles
-export const requireRole = (roles: string[]) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user) {
-      return res.status(401).json({ error: "Authentification requise", code: "AUTH_REQUIRED" });
-    }
-    // TODO: Implémenter la vérification des rôles
-    next();
-  };
 };

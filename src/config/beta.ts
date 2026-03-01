@@ -4,4 +4,4 @@
  * Set to `true` when the beta system is fully ready.
  * Remove this file entirely once beta is permanently live.
  */
-export const BETA_LIVE = false as const;
+export const BETA_LIVE = true as const;

@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 import { logger } from "../../utils/logger.js";
+import { MODELS } from "../../config/models.js";
 
-const DEFAULT_MODEL = process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL;
+const DEFAULT_MODEL = MODELS.CONTENT_DEFAULT;
 
 // 🔥 LAZY INITIALIZATION: N'initialise les clients que quand nécessaire
 let openai: OpenAI | null = null;
@@ -75,10 +76,7 @@ export class AIService {
    * Vérifier si l'IA est configurée correctement
    */
   static isConfigured(): boolean {
-    return (
-      !!process.env.OPENAI_API_KEY &&
-      !!(process.env.OPENAI_DASHBOARD_MODEL || process.env.OPENAI_MODEL)
-    );
+    return !!process.env.OPENAI_API_KEY;
   }
 
   /**
@@ -137,7 +135,7 @@ export class AIService {
    * - ✅ reasoning_effort supporté (low, medium, high)
    */
   static getQuizGenerationModel(): string {
-    return process.env.OPENAI_QUIZ_GENERATION || "gpt-5-mini";
+    return MODELS.QUIZ_GENERATION;
   }
 
   /**
@@ -145,7 +143,7 @@ export class AIService {
    * 🆕 GPT-5-mini : reasoning model avec restrictions
    */
   static getQuizCorrectionModel(): string {
-    return process.env.OPENAI_QUIZ_CORRECTION || "gpt-5-mini";
+    return MODELS.QUIZ_CORRECTION;
   }
 
   /** Assistant dédié à la sélection de pages (function calling) */

@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { AIService } from "../../services/ai/index.js";
 import { secureError } from "../../lib/secureLogging.js";
+import { getSupportedModels } from "../../config/models.js";
 
 // Utilitaire pour timeout
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -13,15 +14,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 const AI_TIMEOUT_MS = process.env.AI_TIMEOUT_MS ? parseInt(process.env.AI_TIMEOUT_MS, 10) : 60000; // 60s par défaut
 
-// 🛡️ Liste des modèles OpenAI supportés, chargée depuis l'environnement
-const modelsFromEnv = process.env.AI_SUPPORTED_MODELS?.split(",")
-  .map((m) => m.trim())
-  .filter(Boolean);
-const SUPPORTED_MODELS = (
-  modelsFromEnv && modelsFromEnv.length > 0
-    ? modelsFromEnv
-    : ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"]
-) as [string, ...string[]];
+const SUPPORTED_MODELS = getSupportedModels();
 
 // Schémas de validation
 const generateContentSchema = z.object({
