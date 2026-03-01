@@ -3,6 +3,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import OpenAI from "openai";
 import { logger } from "../../../utils/logger.js";
+import { MODELS } from "../../../config/models.js";
 
 /**
  * Context utilisateur injecté via closure
@@ -106,7 +107,7 @@ Idéal pour des questions sur l'actualité, des faits récents, ou des informati
         try {
           // Utiliser l'API Responses avec web_search_preview
           const response = await openaiClient.responses.create({
-            model: "gpt-4o-mini",
+            model: MODELS.WEB_SEARCH,
             input: query,
             tools: [
               {

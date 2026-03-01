@@ -83,11 +83,13 @@ export const EXTRACTION_PROMPT = `<system>
 </output>
 </example>`;
 
+import { MODELS, EMBEDDING_DIMENSION as _EMBEDDING_DIM } from "../../../config/models.js";
+
 // Modèle à utiliser pour l'extraction
-export const EXTRACTION_MODEL = "gpt-4o-mini";
+export const EXTRACTION_MODEL = MODELS.EXTRACTION;
 
 // Dimension des embeddings OpenAI
-export const EMBEDDING_DIMENSION = 1536;
+export const EMBEDDING_DIMENSION = _EMBEDDING_DIM;
 
 // ─────────────────────────────────────────────────────────────
 // PEN-17: Smart Content Selection Types

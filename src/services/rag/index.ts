@@ -1,6 +1,24 @@
 // 🚀 RAG System - Service Principal
 import { prismaEmbeddings, type RAGSourceType, type Prisma } from "../../lib/prismaEmbeddings.js";
 import { logger } from "../../utils/logger.js";
+import { MODELS, isNanoModel as _isNano } from "../../config/models.js";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const CLERK_ID_RE = /^user_[a-zA-Z0-9]+$/;
+
+function assertUUID(value: string, label: string): string {
+  if (!UUID_RE.test(value)) {
+    throw new Error(`Invalid UUID for ${label}: ${value}`);
+  }
+  return value;
+}
+
+function assertClerkId(value: string, label: string): string {
+  if (!CLERK_ID_RE.test(value)) {
+    throw new Error(`Invalid Clerk ID for ${label}: ${value}`);
+  }
+  return value;
+}
 
 // Type pour la réponse de l'API OpenAI
 interface OpenAIChatCompletion {
@@ -287,7 +305,7 @@ Si AUCUNE source n'est pertinente (ex: sources sur "Caca" pour une question sur 
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: process.env.OPENAI_DETECTION_MODEL || "gpt-4o-mini",
+          model: MODELS.DETECTION,
           messages: [{ role: "user", content: prompt }],
           temperature: 0,
           max_tokens: 10,
@@ -373,13 +391,11 @@ QUESTION : "${query}"
 
 Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU {"type": "FACTUELLE"}`;
 
-      // 🔍 Debug complet de l'appel OpenAI
-      const isGpt5Nano = process.env.OPENAI_DETECTION_MODEL?.includes("gpt-5-nano");
+      const detectionModel = MODELS.DETECTION;
+      const isNano = _isNano(detectionModel);
       logger.log(`🔑 [API-DEBUG] OPENAI_API_KEY présente: ${!!process.env.OPENAI_API_KEY}`);
-      logger.log(
-        `🤖 [API-DEBUG] Model utilisé: ${process.env.OPENAI_DETECTION_MODEL || "gpt-4o-mini"}`,
-      );
-      logger.log(`⚙️ [API-DEBUG] Mode gpt-5-nano détecté: ${isGpt5Nano}`);
+      logger.log(`🤖 [API-DEBUG] Model utilisé: ${detectionModel}`);
+      logger.log(`⚙️ [API-DEBUG] Mode nano détecté: ${isNano}`);
 
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -388,17 +404,11 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: process.env.OPENAI_DETECTION_MODEL || "gpt-4o-mini",
+          model: detectionModel,
           messages: [{ role: "user", content: prompt }],
-          // 🔧 Fix température pour gpt-5-nano-2025-08-07 (seul default=1 supporté)
-          ...(process.env.OPENAI_DETECTION_MODEL?.includes("gpt-5-nano")
-            ? {} // Pas de température pour gpt-5-nano (utilise default=1)
-            : { temperature: 0 }), // temperature=0 pour autres modèles
-          // 🔧 Fix max_tokens pour gpt-5-nano-2025-08-07
-          ...(process.env.OPENAI_DETECTION_MODEL?.includes("gpt-5-nano")
-            ? { max_completion_tokens: 30 }
-            : { max_tokens: 30 }),
-          response_format: { type: "json_object" }, // 🚀 Force JSON strict
+          ...(isNano ? {} : { temperature: 0 }),
+          ...(isNano ? { max_completion_tokens: 30 } : { max_tokens: 30 }),
+          response_format: { type: "json_object" },
         }),
       });
 
@@ -774,22 +784,22 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       let sqlWhere = "WHERE c.source_id = s.id AND s.status = 'COMPLETED'";
 
       if (specificSourceIds && specificSourceIds.length > 0) {
-        sqlWhere += ` AND c.source_id IN (${specificSourceIds.map((id) => `'${id}'`).join(",")})`;
+        sqlWhere += ` AND c.source_id IN (${specificSourceIds.map((id) => `'${assertUUID(id, "sourceId")}'`).join(",")})`;
       } else if (specificPageIds && specificPageIds.length > 0) {
-        sqlWhere += ` AND c.source_id IN (${specificPageIds.map((id) => `'${id}'`).join(",")})`;
+        sqlWhere += ` AND c.source_id IN (${specificPageIds.map((id) => `'${assertUUID(id, "pageId")}'`).join(",")})`;
         if (userId && workspaceId) {
-          sqlWhere += ` AND s.user_id = '${userId}' AND s.workspace_id = '${workspaceId}' AND s.is_global = false`;
+          sqlWhere += ` AND s.user_id = '${assertClerkId(userId, "userId")}' AND s.workspace_id = '${assertUUID(workspaceId, "workspaceId")}' AND s.is_global = false`;
         }
       } else {
         if (userId && workspaceId) {
-          sqlWhere += ` AND (s.is_global = true OR (s.user_id = '${userId}' AND s.workspace_id = '${workspaceId}' AND s.is_global = false))`;
+          sqlWhere += ` AND (s.is_global = true OR (s.user_id = '${assertClerkId(userId, "userId")}' AND s.workspace_id = '${assertUUID(workspaceId, "workspaceId")}' AND s.is_global = false))`;
         } else {
           sqlWhere += ` AND s.is_global = true`;
         }
       }
 
       if (sources.length > 0 && !(specificPageIds && specificPageIds.length > 0)) {
-        sqlWhere += ` AND s.id IN (${sources.map((id) => `'${id}'`).join(",")})`;
+        sqlWhere += ` AND s.id IN (${sources.map((id) => `'${assertUUID(id, "sourceId")}'`).join(",")})`;
       }
 
       // 🚀 Requête pgvector avec opérateur de distance cosinus (<=>)
@@ -1101,9 +1111,8 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 }
 
-// 🚀 Service d'embeddings optimisé - OpenAI text-embedding-3-small
 class EmbeddingService {
-  private static readonly OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
+  private static readonly OPENAI_EMBEDDING_MODEL = MODELS.EMBEDDING;
   private static readonly OPENAI_API_URL = "https://api.openai.com/v1/embeddings";
 
   constructor() {

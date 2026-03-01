@@ -11,13 +11,9 @@
 
 import { logger } from "../../utils/logger.js";
 import { generateText, stepCountIs } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createRagTools } from "./tools/ragTools.js";
-
-// Créer le provider Google avec la clé API explicite
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-});
+import { MODELS as MODEL_IDS } from "../../config/models.js";
+import { google } from "../../config/providers.js";
 import { createWebTools } from "./tools/webTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createPageTools } from "./tools/pageTools.js";
@@ -65,10 +61,19 @@ interface ContentDraft {
 // MODELS
 // ============================================================================
 
+function requireGoogle() {
+  if (!google) throw new Error("[Workflows] GEMINI_API_KEY is not configured");
+  return google;
+}
+
 const MODELS = {
-  fast: google("gemini-2.0-flash"),
-  thinking: google("gemini-3-flash"),
-} as const;
+  get fast() {
+    return requireGoogle()(MODEL_IDS.AGENT_FAST);
+  },
+  get thinking() {
+    return requireGoogle()(MODEL_IDS.AGENT_THINKING);
+  },
+};
 
 // ============================================================================
 // HELPER: Extract tool output

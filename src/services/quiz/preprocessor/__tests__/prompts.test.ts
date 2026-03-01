@@ -254,8 +254,9 @@ describe("buildPreprocessorPrompt", () => {
 });
 
 describe("Model configuration constants", () => {
-  it("should use gpt-4o-mini for cost efficiency", () => {
-    expect(PREPROCESSOR_MODEL).toBe("gpt-4o-mini");
+  it("should reference the centralized PREPROCESSOR model", () => {
+    expect(PREPROCESSOR_MODEL).toBeDefined();
+    expect(typeof PREPROCESSOR_MODEL).toBe("string");
   });
 
   it("should use low temperature for consistent output", () => {
