@@ -3,13 +3,19 @@ import { prisma } from "./prisma.js";
 import { prismaEmbeddings } from "./prismaEmbeddings.js";
 import { logger } from "../utils/logger.js";
 
-// 🚀 Configuration Redis avec fallback gracieux
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+// Redis URL: fallback to localhost only in test; crash otherwise to surface misconfiguration
+const REDIS_URL =
+  process.env.REDIS_URL ??
+  (() => {
+    if (process.env.NODE_ENV === "test") return "redis://localhost:6379";
+    throw new Error("REDIS_URL manquant — vérifier Infisical /Backend");
+  })();
 
 // Créer instance Redis avec retry automatique
 // 🎯 maxRetriesPerRequest: null requis pour BullMQ (commandes bloquantes)
 export const redis = new Redis(REDIS_URL, {
   maxRetriesPerRequest: null, // BullMQ requirement pour BLPOP/BRPOPLPUSH
+  lazyConnect: process.env.NODE_ENV === "test",
   retryStrategy(times) {
     const delay = Math.min(times * 50, 2000);
     return delay;
@@ -32,6 +38,17 @@ redis.on("error", (err) => {
 redis.on("ready", () => {
   logger.log("🚀 [REDIS] Prêt à recevoir des commandes");
 });
+
+async function scanKeys(pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = "0";
+  do {
+    const [nextCursor, batch] = await redis.scan(cursor, "MATCH", pattern, "COUNT", 100);
+    cursor = nextCursor;
+    keys.push(...batch);
+  } while (cursor !== "0");
+  return keys;
+}
 
 // ============================================
 // 🎯 CACHE FUNCTIONS
@@ -185,7 +202,7 @@ export const cacheDefaultWorkspaceId = async (userId: string): Promise<string | 
  */
 export const clearUserCache = async (userId: string) => {
   try {
-    const keys = await redis.keys(`*:${userId}*`);
+    const keys = await scanKeys(`*:${userId}*`);
     if (keys.length > 0) {
       await redis.del(...keys);
       logger.log(`🗑️ [REDIS-CACHE] Cleared ${keys.length} keys for user ${userId}`);
@@ -520,8 +537,7 @@ export const saveQuizHistoryCache = async (
  */
 export const invalidateQuizHistoryCache = async (userId: string) => {
   try {
-    // Supprimer toutes les clés d'historique pour cet utilisateur
-    const keys = await redis.keys(`quiz-history:${userId}:*`);
+    const keys = await scanKeys(`quiz-history:${userId}:*`);
     if (keys.length > 0) {
       await redis.del(...keys);
       logger.log(
