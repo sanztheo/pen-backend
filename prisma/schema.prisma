@@ -53,8 +53,8 @@ model User {
   // 🎯 Beta Waitlist
   betaWaitlistEntries      BetaWaitlist[]
   // 📝 Admin Notes
-  adminNotesOnUser         AdminNote[]     @relation("AdminNotesOnUser")
-  adminNotesByAdmin        AdminNote[]     @relation("AdminNotesByAdmin")
+  adminNotesOnUser         AdminNote[]          @relation("AdminNotesOnUser")
+  adminNotesByAdmin        AdminNote[]          @relation("AdminNotesByAdmin")
 
   @@index([betaStatus])
   @@index([lastLoginAt])
@@ -692,15 +692,15 @@ enum AIMessageRole {
 
 // 🔔 Admin Alerts — automated monitoring alerts
 model AdminAlert {
-  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  type         AdminAlertType
-  severity     AlertSeverity
-  message      String         @db.Text
-  metadata     Json           @default("{}")
-  acknowledged Boolean        @default(false)
-  acknowledgedBy String?      @map("acknowledged_by") @db.VarChar(255)
-  acknowledgedAt DateTime?    @map("acknowledged_at") @db.Timestamptz(6)
-  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type           AdminAlertType
+  severity       AlertSeverity
+  message        String         @db.Text
+  metadata       Json           @default("{}")
+  acknowledged   Boolean        @default(false)
+  acknowledgedBy String?        @map("acknowledged_by") @db.VarChar(255)
+  acknowledgedAt DateTime?      @map("acknowledged_at") @db.Timestamptz(6)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([type, createdAt])
   @@index([acknowledged, createdAt])
