@@ -12,9 +12,10 @@ import type {
 } from "./AccountDeletionService.types.js";
 
 // ─── Lazy Clerk singleton ─────────────────────────────────
-let clerkInstance: ReturnType<typeof createClerkClient> | undefined;
+type ClerkClient = ReturnType<typeof createClerkClient>;
+let clerkInstance: ClerkClient | undefined;
 
-function getClerk(): ReturnType<typeof createClerkClient> {
+function getClerk(): ClerkClient {
   if (!clerkInstance) {
     const secretKey = process.env.CLERK_SECRET_KEY;
     if (!secretKey) {
@@ -23,6 +24,11 @@ function getClerk(): ReturnType<typeof createClerkClient> {
     clerkInstance = createClerkClient({ secretKey });
   }
   return clerkInstance;
+}
+
+/** @internal Test seam — override the Clerk singleton for unit tests */
+export function _setClerkForTest(client: ClerkClient | undefined): void {
+  clerkInstance = client;
 }
 
 // ─── Constants ───────────────────────────────────────────
