@@ -3,6 +3,7 @@ import { z } from "zod";
 import { AIGraphicGenerator } from "../services/quiz/graphics/aiGraphicGenerator.js";
 import { secureError } from "../lib/secureLogging.js";
 import { logger } from "../utils/logger.js";
+import { MODELS } from "../config/models.js";
 
 // 🛡️ Liste des bibliothèques de graphiques supportées
 const SUPPORTED_LIBRARIES = [
@@ -66,7 +67,7 @@ export class GraphicsController {
         data: graphic,
         metadata: {
           generatedAt: new Date().toISOString(),
-          model: "gpt-4o-mini",
+          model: MODELS.GRAPHICS,
           subject: validatedData.subject,
           topic: validatedData.topic,
           level: validatedData.level,

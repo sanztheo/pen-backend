@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma.js";
 import { cacheQuotaUsage, invalidateQuotaUsageCache } from "../../lib/redis.js";
 import { logger } from "../../utils/logger.js";
+import { getModelPricing } from "../../config/models.js";
 
 // Types pour le gestionnaire de quotas
 interface QuotaUsage {
@@ -8,6 +9,10 @@ interface QuotaUsage {
   tokens: number;
   cost: number;
   windowStart: Date;
+}
+
+interface CachedQuotaUsage extends QuotaUsage {
+  cachedAt: number;
 }
 
 interface QuotaLimits {
@@ -21,7 +26,8 @@ interface QuotaLimits {
  * 🛡️ Gestionnaire de quotas OpenAI pour éviter les dépassements
  */
 export class OpenAIQuotaManager {
-  private static quotaCache = new Map<string, QuotaUsage>();
+  private static quotaCache = new Map<string, CachedQuotaUsage>();
+  private static readonly CACHE_TTL_MS = 120_000;
 
   /**
    * Obtenir les limites configurées pour l'environnement
@@ -43,17 +49,7 @@ export class OpenAIQuotaManager {
     promptTokens: number,
     completionTokens: number,
   ): number {
-    // Prix approximatifs par 1K tokens (à jour 2024)
-    const pricing: Record<string, { input: number; output: number }> = {
-      "gpt-4o": { input: 0.0025, output: 0.01 },
-      "gpt-4o-mini": { input: 0.00015, output: 0.0006 },
-      "gpt-4-turbo": { input: 0.01, output: 0.03 },
-      "gpt-4": { input: 0.03, output: 0.06 },
-      "gpt-3.5-turbo": { input: 0.0005, output: 0.0015 },
-      "gpt-3.5-turbo-16k": { input: 0.003, output: 0.004 },
-    };
-
-    const modelPricing = pricing[model] || pricing["gpt-3.5-turbo"]; // fallback
+    const modelPricing = getModelPricing(model);
     return (
       (promptTokens / 1000) * modelPricing.input + (completionTokens / 1000) * modelPricing.output
     );
@@ -62,20 +58,34 @@ export class OpenAIQuotaManager {
   /**
    * Obtenir l'usage actuel depuis Redis cache ou la DB
    */
+  private static pruneExpiredEntries(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.quotaCache) {
+      if (now - entry.cachedAt > this.CACHE_TTL_MS) {
+        this.quotaCache.delete(key);
+      }
+    }
+  }
+
   private static async getCurrentUsage(key: string = "global"): Promise<QuotaUsage> {
+    this.pruneExpiredEntries();
     const now = new Date();
     const limits = this.getLimits();
 
     // 🚀 REDIS CACHE: Récupérer depuis cache (2min TTL)
     const redisUsage = await cacheQuotaUsage(key);
     if (redisUsage) {
-      this.quotaCache.set(key, redisUsage);
+      this.quotaCache.set(key, { ...redisUsage, cachedAt: Date.now() });
       return redisUsage;
     }
 
     // Vérifier le cache mémoire si Redis échoue
     const cached = this.quotaCache.get(key);
-    if (cached && now.getTime() - cached.windowStart.getTime() < limits.windowDurationMs) {
+    if (
+      cached &&
+      Date.now() - cached.cachedAt < this.CACHE_TTL_MS &&
+      now.getTime() - cached.windowStart.getTime() < limits.windowDurationMs
+    ) {
       return cached;
     }
 
@@ -108,7 +118,7 @@ export class OpenAIQuotaManager {
         windowStart: windowStart,
       };
 
-      this.quotaCache.set(key, result);
+      this.quotaCache.set(key, { ...result, cachedAt: Date.now() });
       logger.log(
         `📊 [QUOTA] Usage depuis DB: ${result.requests} requêtes, ${result.tokens} tokens, $${result.cost.toFixed(4)}`,
       );
@@ -124,7 +134,7 @@ export class OpenAIQuotaManager {
         windowStart: windowStart,
       };
 
-      this.quotaCache.set(key, result);
+      this.quotaCache.set(key, { ...result, cachedAt: Date.now() });
       return result;
     }
   }
@@ -202,7 +212,7 @@ export class OpenAIQuotaManager {
     usage.requests += 1;
     usage.tokens += totalTokens;
     usage.cost += cost;
-    this.quotaCache.set(quotaKey, usage);
+    this.quotaCache.set(quotaKey, { ...usage, cachedAt: Date.now() });
 
     // Enregistrer en DB si possible
     try {

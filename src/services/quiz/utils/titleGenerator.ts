@@ -1,10 +1,11 @@
 /**
- * Quiz Title Generator using gpt-4.1-nano
+ * Quiz Title Generator
  * Generates intelligent, descriptive titles based on quiz content
  */
 
 import OpenAI from "openai";
 import { SecureLogger } from "../../../middlewares/secureLogging.js";
+import { MODELS } from "../../../config/models.js";
 
 const openai = new OpenAI();
 
@@ -87,7 +88,7 @@ export async function generateQuizTitle(params: TitleGeneratorParams): Promise<s
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4.1-nano",
+      model: MODELS.LIGHTWEIGHT,
       messages: [
         { role: "system", content: TITLE_GENERATION_PROMPT },
         { role: "user", content: userMessage },

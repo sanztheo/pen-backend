@@ -12,19 +12,17 @@ export class WaitlistController {
   static async addToWaitlist(req: Request, res: Response): Promise<void> {
     try {
       const body: unknown = req.body;
-      const {
-        email,
-        name,
-        phone,
-        metadata,
-      }: {
-        email?: string;
-        name?: string;
-        phone?: string;
-        metadata?: Record<string, unknown>;
-      } = typeof body === "object" && body !== null ? body : {};
+      const raw =
+        typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
 
-      // Normalize and sanitize inputs
+      const email = typeof raw.email === "string" ? raw.email : undefined;
+      const name = typeof raw.name === "string" ? raw.name : undefined;
+      const phone = typeof raw.phone === "string" ? raw.phone : undefined;
+      const metadata =
+        typeof raw.metadata === "object" && raw.metadata !== null && !Array.isArray(raw.metadata)
+          ? (raw.metadata as Record<string, unknown>)
+          : undefined;
+
       const trimmedEmail = email?.trim().toLowerCase();
       const trimmedName = name !== undefined ? stripHtmlTags(name.trim()) : undefined;
 

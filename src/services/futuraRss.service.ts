@@ -2,6 +2,7 @@ import Parser from "rss-parser";
 import { prisma } from "../lib/prisma.js";
 import OpenAI from "openai";
 import { logger } from "../utils/logger.js";
+import { MODELS } from "../config/models.js";
 
 // Types pour les articles RSS
 interface FuturaArticle {
@@ -306,7 +307,7 @@ export class FuturaRssService {
       lastAICallTime = Date.now();
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4.1-nano",
+        model: MODELS.RSS_VALIDATION,
         messages: [
           {
             role: "system",

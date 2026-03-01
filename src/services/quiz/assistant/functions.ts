@@ -2,6 +2,7 @@
 import { documentSearchService } from "../documentSearchService.js";
 import { z } from "zod";
 import { logger } from "../../../utils/logger.js";
+import { MODELS } from "../../../config/models.js";
 
 /**
  * Type pour les appels de fonction OpenAI
@@ -1336,7 +1337,7 @@ MISSION: Trouve le MEILLEUR article Wikipedia pour un quiz ${subject} niveau ${l
     logger.log(`🔍 IA génère des termes de recherche...`);
 
     const searchResponse = await openaiInstance.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: MODELS.ASSISTANT_FUNCTIONS,
       messages: [
         { role: "system", content: getSystemPrompt() },
         {
@@ -1402,7 +1403,7 @@ MISSION: Trouve le MEILLEUR article Wikipedia pour un quiz ${subject} niveau ${l
     logger.log(`🧠 IA analyse les titres...`);
 
     const scoringResponse = await openaiInstance.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: MODELS.ASSISTANT_FUNCTIONS,
       messages: [
         { role: "system", content: getSystemPrompt() },
         {
@@ -1483,7 +1484,7 @@ Réponds: {numéro}|{justification courte et précise}`,
 
     // 6. Extraction intelligente 6500 caractères par l'IA
     const extractionResponse = await openaiInstance.chat.completions.create({
-      model: "gpt-4o-mini", // Ton modèle avec contexte élevé
+      model: MODELS.ASSISTANT_FUNCTIONS,
       messages: [
         {
           role: "system",
