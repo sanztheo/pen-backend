@@ -52,8 +52,14 @@ model User {
   dashboardLayout          UserDashboardLayout?
   // 🎯 Beta Waitlist
   betaWaitlistEntries      BetaWaitlist[]
+  // 📝 Admin Notes
+  adminNotesOnUser         AdminNote[]     @relation("AdminNotesOnUser")
+  adminNotesByAdmin        AdminNote[]     @relation("AdminNotesByAdmin")
 
   @@index([betaStatus])
+  @@index([lastLoginAt])
+  @@index([totalActiveTimeSeconds])
+  @@index([betaJoinedAt])
   @@map("users")
 }
 
@@ -682,6 +688,68 @@ model WebhookEvent {
 enum AIMessageRole {
   USER
   ASSISTANT
+}
+
+// 🔔 Admin Alerts — automated monitoring alerts
+model AdminAlert {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type         AdminAlertType
+  severity     AlertSeverity
+  message      String         @db.Text
+  metadata     Json           @default("{}")
+  acknowledged Boolean        @default(false)
+  acknowledgedBy String?      @map("acknowledged_by") @db.VarChar(255)
+  acknowledgedAt DateTime?    @map("acknowledged_at") @db.Timestamptz(6)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([type, createdAt])
+  @@index([acknowledged, createdAt])
+  @@map("admin_alerts")
+}
+
+enum AdminAlertType {
+  CHURN_SPIKE
+  ERROR_RATE_HIGH
+  REVENUE_DROP
+  SIGNUPS_SPIKE
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+// 📊 Retention Cohorts — pre-computed weekly retention data
+model RetentionCohort {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cohortWeek    String   @map("cohort_week") @db.VarChar(10) // "2026-W09"
+  weekNumber    Int      @map("week_number") // 0 = signup week, 1, 2, 3...
+  totalUsers    Int      @map("total_users")
+  retainedUsers Int      @map("retained_users")
+  retentionRate Float    @map("retention_rate") // 0.0 to 100.0
+  computedAt    DateTime @default(now()) @map("computed_at") @db.Timestamptz(6)
+
+  @@unique([cohortWeek, weekNumber])
+  @@index([cohortWeek])
+  @@map("retention_cohorts")
+}
+
+// 📝 Admin Notes — internal annotations on users
+model AdminNote {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.VarChar(255)
+  adminId   String   @map("admin_id") @db.VarChar(255)
+  content   String   @db.VarChar(2000)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user  User @relation("AdminNotesOnUser", fields: [userId], references: [id], onDelete: Cascade)
+  admin User @relation("AdminNotesByAdmin", fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([adminId])
+  @@map("admin_notes")
 }
 
 // 📊 Quiz Dashboard Layout - Sauvegarde de la disposition personnalisée

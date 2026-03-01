@@ -12,7 +12,23 @@ import { AdminStatsService } from "../services/admin/adminStatsService.js";
 import { HealthCheckService } from "../services/admin/healthCheckService.js";
 import { getExportCSV } from "../workers/export.worker.js";
 import { z } from "zod";
-import { ModerationFilters, UserListFilters, AdminExportJobData } from "../types/admin.types.js";
+import {
+  ModerationFilters,
+  UserListFilters,
+  AdminExportJobData,
+  BetaUserListFilters,
+  TrendPeriod,
+  AlertType,
+  AlertFilters,
+} from "../types/admin.types.js";
+import { BetaAdminService } from "../services/admin/betaAdminService.js";
+import { TrendsMetricsService } from "../services/admin/trendsMetricsService.js";
+import { AlertsService } from "../services/admin/alertsService.js";
+import { ImpersonationService } from "../services/admin/impersonationService.js";
+import { RetentionCohortService } from "../services/admin/retentionCohortService.js";
+import { AdminNotesService } from "../services/admin/adminNotesService.js";
+import { UserBulkService } from "../services/admin/userBulkService.js";
+import { LtvService } from "../services/admin/ltvService.js";
 
 export class AdminController {
   /**
@@ -142,7 +158,7 @@ export class AdminController {
 
       const filters: ModerationFilters = {
         page: isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage,
-        limit: isNaN(parsedLimit) || parsedLimit < 1 ? 50 : parsedLimit,
+        limit: Math.min(isNaN(parsedLimit) || parsedLimit < 1 ? 50 : parsedLimit, 100),
         userId: req.query.userId as string | undefined,
         action: req.query.action as string | undefined,
         startDate,
@@ -238,7 +254,7 @@ export class AdminController {
 
       const filters: UserListFilters = {
         page: isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage,
-        limit: isNaN(parsedLimit) || parsedLimit < 1 ? 50 : parsedLimit,
+        limit: Math.min(isNaN(parsedLimit) || parsedLimit < 1 ? 50 : parsedLimit, 100),
         search: searchTerm,
         isActive: req.query.isActive !== undefined ? req.query.isActive === "true" : undefined,
       };
@@ -275,7 +291,7 @@ export class AdminController {
       const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
 
       const page = isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
-      const limit = isNaN(parsedLimit) || parsedLimit < 1 ? 50 : parsedLimit;
+      const limit = Math.min(isNaN(parsedLimit) || parsedLimit < 1 ? 50 : parsedLimit, 100);
 
       const result = await AdminStatsService.getUserPages(userId, page, limit);
       res.status(200).json({ success: true, data: result });
@@ -464,6 +480,543 @@ export class AdminController {
       res.status(500).json({
         success: false,
         error: "Erreur lors du téléchargement",
+      });
+    }
+  }
+
+  // ─── Trends Metrics ─────────────────────────────────────────────
+
+  private static readonly TrendPeriodSchema = z.enum(["7d", "30d", "90d"]);
+
+  /**
+   * GET /api/admin/metrics/trends
+   * Query param: period (7d | 30d | 90d, default 30d)
+   */
+  static async getTrendsMetrics(req: Request, res: Response): Promise<void> {
+    try {
+      const rawPeriod = (req.query.period as string) || "30d";
+      const parsed = AdminController.TrendPeriodSchema.safeParse(rawPeriod);
+
+      if (!parsed.success) {
+        res.status(400).json({
+          success: false,
+          error: "period invalide — valeurs acceptées : 7d, 30d, 90d",
+        });
+        return;
+      }
+
+      const period: TrendPeriod = parsed.data;
+      const metrics = await TrendsMetricsService.getTrends(period);
+      res.status(200).json({ success: true, data: metrics });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getTrendsMetrics error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération des tendances",
+      });
+    }
+  }
+
+  // ─── Retention Cohorts ──────────────────────────────────────────
+
+  /**
+   * GET /api/admin/metrics/cohorts
+   * Query param: weeks (1-12, default 12)
+   */
+  static async getRetentionCohorts(req: Request, res: Response): Promise<void> {
+    try {
+      const rawWeeks = req.query.weeks ? parseInt(req.query.weeks as string, 10) : 12;
+      const weeks = isNaN(rawWeeks) || rawWeeks < 1 ? 12 : Math.min(rawWeeks, 12);
+
+      const data = await RetentionCohortService.getCohorts(weeks);
+      res.status(200).json({ success: true, data });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getRetentionCohorts error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération des cohortes de rétention",
+      });
+    }
+  }
+
+  // ─── LTV Metrics ──────────────────────────────────────────────────
+
+  /**
+   * GET /api/admin/metrics/ltv
+   */
+  static async getLtvMetrics(req: Request, res: Response): Promise<void> {
+    try {
+      const data = await LtvService.getLtvMetrics();
+      res.status(200).json({ success: true, data });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getLtvMetrics error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération des métriques LTV",
+      });
+    }
+  }
+
+  // ─── Alerts ────────────────────────────────────────────────────
+
+  private static readonly AlertTypeSchema = z.enum([
+    "CHURN_SPIKE",
+    "ERROR_RATE_HIGH",
+    "REVENUE_DROP",
+    "SIGNUPS_SPIKE",
+  ]);
+
+  /**
+   * GET /api/admin/alerts
+   * Query params: page, limit, type, acknowledged
+   */
+  static async getAlerts(req: Request, res: Response): Promise<void> {
+    try {
+      const parsedPage = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+
+      const rawType = req.query.type as string | undefined;
+      let alertType: AlertType | undefined;
+      if (rawType) {
+        const parsed = AdminController.AlertTypeSchema.safeParse(rawType);
+        if (!parsed.success) {
+          res.status(400).json({
+            success: false,
+            error:
+              "type invalide — valeurs acceptées : CHURN_SPIKE, ERROR_RATE_HIGH, REVENUE_DROP, SIGNUPS_SPIKE",
+          });
+          return;
+        }
+        alertType = parsed.data;
+      }
+
+      const filters: AlertFilters = {
+        page: isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage,
+        limit: Math.min(isNaN(parsedLimit) || parsedLimit < 1 ? 50 : parsedLimit, 100),
+        type: alertType,
+        acknowledged:
+          req.query.acknowledged !== undefined ? req.query.acknowledged === "true" : undefined,
+      };
+
+      const result = await AlertsService.getAlerts(filters);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getAlerts error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération des alertes",
+      });
+    }
+  }
+
+  /**
+   * PATCH /api/admin/alerts/:id/acknowledge
+   */
+  static async acknowledgeAlert(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+
+      if (!id || id.length > 255) {
+        res.status(400).json({ success: false, error: "id requis" });
+        return;
+      }
+
+      const result = await AlertsService.acknowledgeAlert(id, req.user!.id);
+
+      if (!result.success) {
+        res.status(404).json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "Alerte acquittée",
+      });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] acknowledgeAlert error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de l'acquittement de l'alerte",
+      });
+    }
+  }
+
+  // ─── Impersonation ──────────────────────────────────────────────
+
+  /**
+   * POST /api/admin/impersonate/:userId
+   * Generates a temporary impersonation token (15 min).
+   */
+  static async startImpersonation(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+
+      if (!userId || userId.length > 255) {
+        res.status(400).json({ success: false, error: "userId requis" });
+        return;
+      }
+
+      const result = await ImpersonationService.startImpersonation(req.user!.id, userId);
+
+      if (!result.success) {
+        res.status(400).json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] startImpersonation error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors du démarrage de l'impersonation",
+      });
+    }
+  }
+
+  /**
+   * POST /api/admin/impersonate/end
+   * Ends the current impersonation session.
+   */
+  static async endImpersonation(req: Request, res: Response): Promise<void> {
+    try {
+      const result = await ImpersonationService.endImpersonation(req.user!.id);
+
+      if (!result.success) {
+        res.status(400).json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, message: "Session d'impersonation terminée" });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] endImpersonation error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la fin de l'impersonation",
+      });
+    }
+  }
+
+  // ─── User Bulk Actions ────────────────────────────────────────────
+
+  private static readonly UserBulkActionSchema = z.object({
+    userIds: z.array(z.string().min(1).max(255)).min(1).max(100),
+    action: z.enum(["activate", "deactivate"]),
+  });
+
+  /**
+   * POST /api/admin/users/bulk
+   * Body: { userIds: string[], action: "activate" | "deactivate" }
+   */
+  static async bulkUserAction(req: Request, res: Response): Promise<void> {
+    try {
+      const parsed = AdminController.UserBulkActionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          success: false,
+          error: "Données invalides: " + parsed.error.issues.map((i) => i.message).join(", "),
+        });
+        return;
+      }
+
+      const { userIds, action } = parsed.data;
+
+      // Prevent admin from bulk-acting on themselves
+      if (userIds.includes(req.user!.id)) {
+        res.status(400).json({
+          success: false,
+          error: "Vous ne pouvez pas vous inclure dans une action en masse",
+        });
+        return;
+      }
+
+      const result = await UserBulkService.bulkAction(userIds, action, req.user!.id);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] bulkUserAction error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de l'action en masse",
+      });
+    }
+  }
+
+  // ─── Admin Notes ──────────────────────────────────────────────────
+
+  private static readonly CreateNoteSchema = z.object({
+    content: z
+      .string()
+      .min(1, "Le contenu est requis")
+      .max(2000, "Le contenu ne peut pas dépasser 2000 caractères"),
+  });
+
+  /**
+   * GET /api/admin/users/:userId/notes
+   * Query params: page, limit
+   */
+  static async getUserNotes(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+
+      if (!userId || userId.length > 255) {
+        res.status(400).json({ success: false, error: "userId requis" });
+        return;
+      }
+
+      const parsedPage = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+
+      const page = isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
+      const limit = Math.min(isNaN(parsedLimit) || parsedLimit < 1 ? 20 : parsedLimit, 100);
+
+      const result = await AdminNotesService.getNotes(userId, page, limit);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getUserNotes error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération des notes",
+      });
+    }
+  }
+
+  /**
+   * POST /api/admin/users/:userId/notes
+   * Body: { content: string }
+   */
+  static async createUserNote(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+
+      if (!userId || userId.length > 255) {
+        res.status(400).json({ success: false, error: "userId requis" });
+        return;
+      }
+
+      const parsed = AdminController.CreateNoteSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          success: false,
+          error: parsed.error.issues.map((i) => i.message).join(", "),
+        });
+        return;
+      }
+
+      const result = await AdminNotesService.createNote(userId, req.user!.id, parsed.data.content);
+
+      if (!result.success) {
+        res.status(400).json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(201).json({ success: true, data: result.note });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] createUserNote error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la création de la note",
+      });
+    }
+  }
+
+  /**
+   * DELETE /api/admin/notes/:noteId
+   */
+  static async deleteNote(req: Request, res: Response): Promise<void> {
+    try {
+      const { noteId } = req.params;
+
+      if (!noteId || noteId.length > 255) {
+        res.status(400).json({ success: false, error: "noteId requis" });
+        return;
+      }
+
+      const result = await AdminNotesService.deleteNote(noteId, req.user!.id);
+
+      if (!result.success) {
+        res.status(404).json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, message: "Note supprimée" });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] deleteNote error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la suppression de la note",
+      });
+    }
+  }
+
+  // ─── Beta Management ────────────────────────────────────────────
+
+  /**
+   * GET /api/admin/beta/metrics
+   * Query param: period (7 or 30, default 30)
+   */
+  static async getBetaMetrics(req: Request, res: Response): Promise<void> {
+    try {
+      const rawPeriod = req.query.period ? parseInt(req.query.period as string, 10) : 30;
+      const period = rawPeriod === 7 ? 7 : 30;
+
+      const metrics = await BetaAdminService.getBetaMetrics(period);
+      res.status(200).json({ success: true, data: metrics });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getBetaMetrics error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération des métriques beta",
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/beta/users
+   * Query params: page, limit, search, betaStatus, sortBy, sortOrder
+   */
+  static async getBetaUsers(req: Request, res: Response): Promise<void> {
+    try {
+      const searchTerm = req.query.search as string | undefined;
+      if (searchTerm && searchTerm.length > 100) {
+        res.status(400).json({
+          success: false,
+          error: "Terme de recherche trop long (max 100 caractères)",
+        });
+        return;
+      }
+
+      const parsedPage = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+
+      const filters: BetaUserListFilters = {
+        page: isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage,
+        limit: Math.min(isNaN(parsedLimit) || parsedLimit < 1 ? 20 : parsedLimit, 100),
+        search: searchTerm,
+        betaStatus: req.query.betaStatus as string | undefined,
+        sortBy: req.query.sortBy as string | undefined,
+        sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
+      };
+
+      const result = await BetaAdminService.getBetaUsers(filters);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getBetaUsers error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération des utilisateurs beta",
+      });
+    }
+  }
+
+  /**
+   * POST /api/admin/beta/users/:userId/kick
+   * Body: { reason?: string }
+   */
+  static async kickBetaUser(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+
+      if (!userId || userId.length > 255) {
+        res.status(400).json({ success: false, error: "userId requis" });
+        return;
+      }
+
+      if (userId === req.user?.id) {
+        res.status(400).json({
+          success: false,
+          error: "Vous ne pouvez pas vous exclure vous-même",
+        });
+        return;
+      }
+
+      const reason =
+        typeof req.body.reason === "string" ? req.body.reason.slice(0, 500) : undefined;
+
+      const result = await BetaAdminService.kickUser(userId, req.user!.id, reason);
+
+      if (!result.success) {
+        res.status(400).json({ success: false, error: result.error });
+        return;
+      }
+
+      res.status(200).json({ success: true, data: { message: "Utilisateur exclu de la beta" } });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] kickBetaUser error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de l'exclusion de l'utilisateur",
+      });
+    }
+  }
+
+  /**
+   * POST /api/admin/beta/users/:userId/promote
+   */
+  static async promoteBetaUser(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+
+      if (!userId || userId.length > 255) {
+        res.status(400).json({ success: false, error: "userId requis" });
+        return;
+      }
+
+      const result = await BetaAdminService.promoteUser(userId, req.user!.id);
+
+      if (!result.success) {
+        res.status(400).json({ success: false, error: result.error });
+        return;
+      }
+
+      res
+        .status(200)
+        .json({ success: true, data: { message: "Utilisateur promu en beta active" } });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] promoteBetaUser error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la promotion de l'utilisateur",
+      });
+    }
+  }
+
+  /**
+   * POST /api/admin/beta/bulk
+   * Body: { userIds: string[], action: "kick" | "promote", reason?: string }
+   */
+  static async bulkBetaAction(req: Request, res: Response): Promise<void> {
+    try {
+      const BulkActionSchema = z.object({
+        userIds: z.array(z.string().min(1).max(255)).min(1).max(50),
+        action: z.enum(["kick", "promote"]),
+        reason: z.string().max(500).optional(),
+      });
+
+      const parsed = BulkActionSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          success: false,
+          error: "Données invalides: " + parsed.error.issues.map((i) => i.message).join(", "),
+        });
+        return;
+      }
+
+      const { userIds, action, reason } = parsed.data;
+
+      if (userIds.includes(req.user!.id)) {
+        res.status(400).json({
+          success: false,
+          error: "Vous ne pouvez pas vous inclure dans une action en masse",
+        });
+        return;
+      }
+
+      const result = await BetaAdminService.bulkAction(userIds, action, req.user!.id, reason);
+      res.status(200).json({ success: true, data: result });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] bulkBetaAction error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de l'action groupée",
       });
     }
   }
