@@ -65,14 +65,6 @@ const mockRedisSet = jest.fn();
 // ─── Clerk Mock ─────────────────────────────────────────────────
 const mockClerkDeleteUser = jest.fn();
 
-jest.mock("@clerk/backend", () => ({
-  createClerkClient: () => ({
-    users: {
-      deleteUser: mockClerkDeleteUser,
-    },
-  }),
-}));
-
 // ─── Suppress logger output in tests ────────────────────────────
 jest.mock("../../utils/logger.js", () => ({
   logger: {
@@ -84,8 +76,8 @@ jest.mock("../../utils/logger.js", () => ({
   },
 }));
 
-// ─── Import service (jest.mock is hoisted above imports) ─────────
-import { AccountDeletionService } from "../AccountDeletionService.js";
+// ─── Import service ─────────────────────────────────────────────
+import { AccountDeletionService, _setClerkForTest } from "../AccountDeletionService.js";
 
 // ─── Test Helpers ───────────────────────────────────────────────
 const TEST_USER_ID = "user-delete-001";
@@ -129,6 +121,8 @@ beforeEach(() => {
   // Default: no shared pages/projects
   mockPageFindMany.mockResolvedValue([]);
   mockProjectFindMany.mockResolvedValue([]);
+  // Inject mock Clerk client via test seam (ESM-safe, no jest.mock needed)
+  _setClerkForTest({ users: { deleteUser: mockClerkDeleteUser } } as never);
 });
 
 afterAll(async () => {
@@ -139,9 +133,13 @@ afterAll(async () => {
 // deleteUserCompletely
 // ═══════════════════════════════════════════════════════════════
 describe("AccountDeletionService.deleteUserCompletely", () => {
-  // Must run FIRST: getClerk() uses a lazy singleton — once initialised, it stays cached
   it("should throw when CLERK_SECRET_KEY is missing", async () => {
+    _setClerkForTest(undefined); // Reset singleton so getClerk() checks env
     mockUserFindUnique.mockResolvedValue(makeMockUser());
+    setupTransactionExecution();
+    mockActivityLogDeleteMany.mockResolvedValue({ count: 0 });
+    mockWorkspaceMemberUpdateMany.mockResolvedValue({ count: 0 });
+    mockUserDelete.mockResolvedValue({});
     delete process.env.CLERK_SECRET_KEY;
 
     await expect(AccountDeletionService.deleteUserCompletely(TEST_USER_ID)).rejects.toThrow(
