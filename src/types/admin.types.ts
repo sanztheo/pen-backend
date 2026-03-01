@@ -127,3 +127,180 @@ export interface AdminExportJobResult {
   rowCount?: number;
   error?: string;
 }
+
+// ─── Beta Admin Types ───────────────────────────────────────────────────
+
+export interface BetaMetricsCards {
+  spotsUsed: number;
+  totalSpots: number;
+  waitlistCount: number;
+  activeThisWeek: number;
+  inactive7d: number;
+  expired: number;
+}
+
+export interface BetaTrendPoint {
+  date: string;
+  active: number;
+  waitlist: number;
+  newActivations: number;
+}
+
+export interface BetaMetricsResponse {
+  cards: BetaMetricsCards;
+  trend: BetaTrendPoint[];
+}
+
+export interface BetaUserListFilters {
+  page?: number;
+  limit?: number;
+  search?: string;
+  betaStatus?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+}
+
+export interface BetaUserListItem {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  betaStatus: string;
+  lastHeartbeatAt: Date | null;
+  weeklyActiveTimeSeconds: number;
+  totalActiveTimeSeconds: number;
+  betaJoinedAt: Date | null;
+  betaDeactivatedAt: Date | null;
+}
+
+export interface PaginatedBetaUsers {
+  users: BetaUserListItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface BetaActionResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface BetaBulkResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  errors: Array<{ userId: string; error: string }>;
+}
+
+// ─── User Bulk Action Types ─────────────────────────────────────────────
+
+export type UserBulkAction = "activate" | "deactivate";
+
+export interface UserBulkResult {
+  total: number;
+  succeeded: number;
+  failed: number;
+  errors: Array<{ userId: string; error: string }>;
+}
+
+// ─── LTV Types ─────────────────────────────────────────────────────────────
+
+export interface LtvSegment {
+  name: string;
+  userCount: number;
+  arpu: number; // Average Revenue Per User (monthly)
+  churnRate: number; // % of users who churned in last 90 days
+  ltv: number; // ARPU × (1 / churnRate) — estimated lifetime value
+}
+
+export interface LtvMetricsResponse {
+  segments: LtvSegment[];
+  computedAt: string; // ISO date
+}
+
+// ─── Trends Metrics Types ─────────────────────────────────────────────────
+
+export type TrendPeriod = "7d" | "30d" | "90d";
+
+export interface TrendDataPoint {
+  date: string; // ISO date string (YYYY-MM-DD or YYYY-WXX for weeks)
+  value: number;
+}
+
+export interface TrendsMetricsResponse {
+  period: TrendPeriod;
+  granularity: "day" | "week";
+  metrics: {
+    users: TrendDataPoint[];
+    mrr: TrendDataPoint[];
+    credits: TrendDataPoint[];
+    quizzes: TrendDataPoint[];
+  };
+}
+
+// ─── Admin Alerts Types ───────────────────────────────────────────────────
+
+export type AlertType = "CHURN_SPIKE" | "ERROR_RATE_HIGH" | "REVENUE_DROP" | "SIGNUPS_SPIKE";
+export type AlertSeverityLevel = "INFO" | "WARNING" | "CRITICAL";
+
+export interface AdminAlertItem {
+  id: string;
+  type: AlertType;
+  severity: AlertSeverityLevel;
+  message: string;
+  metadata: Record<string, unknown>;
+  acknowledged: boolean;
+  acknowledgedBy: string | null;
+  acknowledgedAt: Date | null;
+  createdAt: Date;
+}
+
+export interface PaginatedAlerts {
+  alerts: AdminAlertItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface AlertFilters {
+  page?: number;
+  limit?: number;
+  type?: AlertType;
+  acknowledged?: boolean;
+}
+
+// ─── Admin Notes Types ──────────────────────────────────────────────────
+
+export interface AdminNoteItem {
+  id: string;
+  userId: string;
+  adminId: string;
+  adminEmail: string;
+  adminName: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PaginatedAdminNotes {
+  notes: AdminNoteItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+// ─── Retention Cohorts Types ──────────────────────────────────────────────
+
+export interface CohortRetention {
+  week: string; // "2026-W09"
+  totalUsers: number;
+  retention: number[]; // [100, 72, 58, 45] — percentage per week
+}
+
+export interface RetentionCohortsResponse {
+  cohorts: CohortRetention[];
+  maxWeeks: number;
+}

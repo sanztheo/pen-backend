@@ -29,6 +29,7 @@ import {
 } from "../services/agent/workflows.js";
 import { AICreditsService } from "../services/credits/aiCreditsService.js";
 import { verifyWorkspaceAccess } from "../middlewares/workspaceAccess.js";
+import { MODELS } from "../config/models.js";
 
 // Interface pour les résultats des workflows
 interface WorkflowResult {
@@ -197,7 +198,7 @@ router.post(
       const estimatedTokens = Math.ceil(JSON.stringify(messages).length / 4);
 
       const quotaCheck = await OpenAIQuotaManager.checkQuota(
-        "gemini-3-flash",
+        MODELS.AGENT_THINKING,
         estimatedTokens,
         estimateOutputTokens(mode), // Estimation dynamique selon le mode
         userId, // Quota par utilisateur
@@ -269,7 +270,7 @@ router.post(
             const outputTokens = Math.ceil(JSON.stringify(allMessages).length / 4);
 
             await OpenAIQuotaManager.recordUsage(
-              "gemini-3-flash",
+              MODELS.AGENT_THINKING,
               estimatedTokens,
               outputTokens,
               userId, // Quota par utilisateur
@@ -462,7 +463,7 @@ router.post(
       // 🛡️ Vérification quota
       const estimatedTokens = Math.ceil(prompt.length / 4);
       const quotaCheck = await OpenAIQuotaManager.checkQuota(
-        "gemini-3-flash",
+        MODELS.AGENT_THINKING,
         estimatedTokens,
         estimateOutputTokens(mode),
         userId,
@@ -495,7 +496,7 @@ router.post(
 
         // Enregistrer l'usage
         await OpenAIQuotaManager.recordUsage(
-          "gemini-3-flash",
+          MODELS.AGENT_THINKING,
           estimatedTokens,
           Math.ceil(result.content.length / 4),
           userId,
@@ -529,7 +530,7 @@ router.post(
         );
 
         await OpenAIQuotaManager.recordUsage(
-          "gemini-3-flash",
+          MODELS.AGENT_THINKING,
           estimatedTokens,
           Math.ceil(result.content.length / 4),
           userId,
@@ -559,7 +560,7 @@ router.post(
         );
 
         await OpenAIQuotaManager.recordUsage(
-          "gemini-3-flash",
+          MODELS.AGENT_THINKING,
           estimatedTokens,
           Math.ceil(result.content.length / 4),
           userId,

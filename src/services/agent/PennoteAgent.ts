@@ -1,29 +1,13 @@
 // 🤖 Pennote Agent - Vercel AI SDK v5
 import { streamText, stepCountIs, type ToolSet } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createOpenAI } from "@ai-sdk/openai";
 import { createRagTools } from "./tools/ragTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createWebTools } from "./tools/webTools.js";
 import { createPageTools } from "./tools/pageTools.js";
 import { createWikipediaTools } from "./tools/wikipediaTools.js";
 import { logger } from "../../utils/logger.js";
-
-// Créer le provider Google avec la clé API explicite
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-});
-
-// Créer le provider OpenAI
-const openai = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Créer le provider DeepSeek via API compatible OpenAI
-const deepseekProvider = createOpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: "https://api.deepseek.com",
-});
+import { MODELS } from "../../config/models.js";
+import { google } from "../../config/providers.js";
 
 // Types et configuration
 import {
@@ -86,7 +70,7 @@ export async function runPennoteAgent(request: AgentRequest, callbacks?: AgentSt
 
   // Utiliser Gemini 3 Flash Preview avec thinking
   const { thinkingConfig } = MODE_CONFIG[mode];
-  const modelName = "gemini-3-flash-preview";
+  const modelName = MODELS.AGENT_PRIMARY;
 
   logger.log(`🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`);
   logger.log(`🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`);
@@ -96,7 +80,7 @@ export async function runPennoteAgent(request: AgentRequest, callbacks?: AgentSt
 
   let stepNumber = 0;
 
-  // Créer le modèle Gemini 2.5 Flash
+  if (!google) throw new Error("[PennoteAgent] GEMINI_API_KEY is not configured");
   const model = google(modelName);
 
   // Exécuter streamText avec Gemini 2.5 Flash

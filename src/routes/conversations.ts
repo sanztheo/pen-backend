@@ -8,6 +8,7 @@ import {
   verifyWorkspaceOwnership,
 } from "../middlewares/workspaceAccess.js";
 import OpenAI from "openai";
+import { MODELS } from "../config/models.js";
 
 // Interface pour les données de création de page dans les messages
 interface PageCreationData {
@@ -131,10 +132,9 @@ router.post("/", verifyWorkspaceAccess, async (req, res) => {
       },
     });
 
-    // Générer le titre automatiquement avec GPT-4.1-nano
     try {
       const titleResponse = await openai.chat.completions.create({
-        model: "gpt-4o-mini", // Plus rapide et moins cher pour la génération de titres
+        model: MODELS.CONVERSATION_TITLE,
         messages: [
           {
             role: "system",
@@ -762,7 +762,7 @@ router.post("/:id/generate-title", verifyConversationAccess, async (req, res) =>
 
     // Générer le nouveau titre
     const titleResponse = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: MODELS.CONVERSATION_TITLE,
       messages: [
         {
           role: "system",

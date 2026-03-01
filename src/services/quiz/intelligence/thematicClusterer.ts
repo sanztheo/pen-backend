@@ -6,6 +6,7 @@
 import { logger } from "../../../utils/logger.js";
 import OpenAI from "openai";
 import { prisma } from "../../../lib/prisma.js";
+import { MODELS } from "../../../config/models.js";
 import {
   kMeans,
   dbscan,
@@ -379,7 +380,7 @@ Page titles: ${cluster.pages
 
       try {
         const response = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: MODELS.CLUSTERING,
           messages: [
             { role: "system", content: CLUSTER_NAMING_PROMPT },
             { role: "user", content: context },

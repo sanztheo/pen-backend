@@ -1,5 +1,6 @@
 import { AIService } from "../../ai/base.js";
 import { logger } from "../../../utils/logger.js";
+import { MODELS } from "../../../config/models.js";
 import {
   QuizGenerationRequest,
   GeneratedQuiz,
@@ -563,7 +564,7 @@ export class QuizGenerator {
         subjectBased: true, // NOUVEAU: Indicateur du système utilisé
         metadata: {
           generatedAt: new Date(),
-          aiModel: "gpt-4o-mini",
+          aiModel: MODELS.PREPROCESSOR,
           generationTime: Date.now() - startTime,
         },
       };

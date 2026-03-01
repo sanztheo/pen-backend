@@ -7,6 +7,7 @@
 import { logger } from "../../utils/logger.js";
 import { Pool } from "pg";
 import { AIService } from "../ai/base.js";
+import { MODELS } from "../../config/models.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -160,7 +161,7 @@ export class DocumentSearchService {
   /**
    * 🚀 Configuration OpenAI embeddings (remplace Xenova)
    */
-  private static readonly OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
+  private static readonly OPENAI_EMBEDDING_MODEL = MODELS.EMBEDDING;
   private static readonly OPENAI_API_URL = "https://api.openai.com/v1/embeddings";
 
   private validateOpenAIConfig(): void {
