@@ -14,27 +14,27 @@ datasource db {
 
 // 🚀 RAG SYSTEM - Sources et Chunks avec pgvector
 model RAGSource {
-  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String?          @map("user_id") @db.VarChar(255)
-  workspaceId  String?          @map("workspace_id") @db.Uuid
-  sourceType   RAGSourceType    @map("source_type")
-  title        String           @db.VarChar(500)
-  originalUrl  String?          @map("original_url") @db.Text
-  fileName     String?          @map("file_name") @db.VarChar(255)
-  fileSize     Int?             @map("file_size")
-  mimeType     String?          @map("mime_type") @db.VarChar(100)
-  totalPages   Int?             @map("total_pages")
-  totalChunks  Int              @default(0) @map("total_chunks")
-  metadata     Json             @default("{}")
-  status       RAGSourceStatus  @default(PROCESSING)
-  errorMessage String?          @map("error_message") @db.Text
-  isGlobal     Boolean          @default(false) @map("is_global")
-  lastUsedAt   DateTime?        @map("last_used_at") @db.Timestamptz(6)
-  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String?         @map("user_id") @db.VarChar(255)
+  workspaceId  String?         @map("workspace_id") @db.Uuid
+  sourceType   RAGSourceType   @map("source_type")
+  title        String          @db.VarChar(500)
+  originalUrl  String?         @map("original_url") @db.Text
+  fileName     String?         @map("file_name") @db.VarChar(255)
+  fileSize     Int?            @map("file_size")
+  mimeType     String?         @map("mime_type") @db.VarChar(100)
+  totalPages   Int?            @map("total_pages")
+  totalChunks  Int             @default(0) @map("total_chunks")
+  metadata     Json            @default("{}")
+  status       RAGSourceStatus @default(PROCESSING)
+  errorMessage String?         @map("error_message") @db.Text
+  isGlobal     Boolean         @default(false) @map("is_global")
+  lastUsedAt   DateTime?       @map("last_used_at") @db.Timestamptz(6)
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  chunks       RAGChunk[]
-  sessions     RAGSession[]     @relation("SessionSources")
+  chunks   RAGChunk[]
+  sessions RAGSession[] @relation("SessionSources")
 
   @@index([userId, sourceType])
   @@index([workspaceId])
@@ -45,28 +45,28 @@ model RAGSource {
 }
 
 model RAGChunk {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  sourceId      String    @map("source_id") @db.Uuid
-  chunkIndex    Int       @map("chunk_index")
-  content       String    @db.Text
-  cleanContent  String    @map("clean_content") @db.Text
+  id           String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceId     String                       @map("source_id") @db.Uuid
+  chunkIndex   Int                          @map("chunk_index")
+  content      String                       @db.Text
+  cleanContent String                       @map("clean_content") @db.Text
   // Stockage des embeddings avec pgvector
-  embedding     Unsupported("vector(1536)")?
-  tokenCount    Int       @map("token_count")
+  embedding    Unsupported("vector(1536)")?
+  tokenCount   Int                          @map("token_count")
 
   // Métadonnées contextuelles
-  pageNumber    Int?      @map("page_number")
-  sectionTitle  String?   @map("section_title") @db.VarChar(255)
-  startOffset   Int?      @map("start_offset")
-  endOffset     Int?      @map("end_offset")
+  pageNumber   Int?    @map("page_number")
+  sectionTitle String? @map("section_title") @db.VarChar(255)
+  startOffset  Int?    @map("start_offset")
+  endOffset    Int?    @map("end_offset")
 
   // Qualité du chunk
-  quality       Float     @default(1.0)
-  language      String    @default("fr") @db.VarChar(5)
+  quality  Float  @default(1.0)
+  language String @default("fr") @db.VarChar(5)
 
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  source        RAGSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  source RAGSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@unique([sourceId, chunkIndex])
   @@index([sourceId])
@@ -76,24 +76,24 @@ model RAGChunk {
 
 // 🧠 Mémoire de session persistante
 model RAGSession {
-  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId      String      @map("user_id") @db.VarChar(255)
-  workspaceId String?     @map("workspace_id") @db.Uuid
-  sessionKey  String      @unique @map("session_key") @db.VarChar(100)
-  title       String?     @db.VarChar(255)
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String  @map("user_id") @db.VarChar(255)
+  workspaceId String? @map("workspace_id") @db.Uuid
+  sessionKey  String  @unique @map("session_key") @db.VarChar(100)
+  title       String? @db.VarChar(255)
 
-  queries     Json        @default("[]")
-  responses   Json        @default("[]")
-  context     Json        @default("{}")
+  queries   Json @default("[]")
+  responses Json @default("[]")
+  context   Json @default("{}")
 
   sourcesUsed RAGSource[] @relation("SessionSources")
 
-  totalQueries     Int      @default(0) @map("total_queries")
-  lastQueryAt      DateTime? @map("last_query_at") @db.Timestamptz(6)
-  isActive         Boolean  @default(true) @map("is_active")
+  totalQueries Int       @default(0) @map("total_queries")
+  lastQueryAt  DateTime? @map("last_query_at") @db.Timestamptz(6)
+  isActive     Boolean   @default(true) @map("is_active")
 
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@index([userId])
   @@index([workspaceId])
