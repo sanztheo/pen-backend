@@ -369,7 +369,10 @@ export class BetaAdminService {
   }
 
   /**
-   * Execute bulk kick or promote actions on multiple users
+   * Execute bulk kick or promote actions on multiple users.
+   * NOTE: Sequential loop is intentional here — each promote requires a
+   * Serializable-isolation transaction that checks available spots, so they
+   * cannot be batched with updateMany without risking overselling beta spots.
    */
   static async bulkAction(
     userIds: string[],
