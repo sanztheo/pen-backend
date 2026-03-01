@@ -316,6 +316,52 @@ export const betaWaitlistRateLimit = rateLimit({
 });
 
 /**
+ * 10. RATE LIMIT ACCOUNT DELETE
+ * Destructive action — 1 request per hour per user
+ */
+const ACCOUNT_DELETE_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const ACCOUNT_DELETE_MAX = 1;
+
+export const accountDeleteRateLimit = rateLimit({
+  ...createBaseConfig("rl:acct-del:"),
+  windowMs: ACCOUNT_DELETE_WINDOW_MS,
+  max: ACCOUNT_DELETE_MAX,
+  message: {
+    success: false,
+    error: "ACCOUNT_DELETE_RATE_LIMIT_EXCEEDED",
+    message: "Account deletion rate limit reached. Please try again later.",
+    retryAfter: "1 hour",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `acct_del_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
+ * 11. RATE LIMIT ACCOUNT EXPORT
+ * Data export — 1 request per day per user
+ */
+const ACCOUNT_EXPORT_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+const ACCOUNT_EXPORT_MAX = 1;
+
+export const accountExportRateLimit = rateLimit({
+  ...createBaseConfig("rl:acct-exp:"),
+  windowMs: ACCOUNT_EXPORT_WINDOW_MS,
+  max: ACCOUNT_EXPORT_MAX,
+  message: {
+    success: false,
+    error: "ACCOUNT_EXPORT_RATE_LIMIT_EXCEEDED",
+    message: "Account export rate limit reached. Please try again tomorrow.",
+    retryAfter: "24 hours",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `acct_exp_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
  * Helper pour vérifier si le rate limiting est activé
  */
 export const isRateLimitEnabled = (): boolean => {
