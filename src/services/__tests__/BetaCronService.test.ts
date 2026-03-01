@@ -30,8 +30,10 @@ const mockTransaction = jest.fn();
 
 // ─── Redis Mocks ────────────────────────────────────────────────
 const mockRedisDel = jest.fn();
+const mockRedisSet = jest.fn();
 
 (redis as unknown as Record<string, jest.Mock>).del = mockRedisDel;
+(redis as unknown as Record<string, jest.Mock>).set = mockRedisSet;
 
 // ─── Suppress logger output in tests ────────────────────────────
 jest.unstable_mockModule("../../utils/logger.js", () => ({
@@ -51,6 +53,7 @@ const FOURTEEN_DAYS_MS = 14 * 24 * 60 * 60 * 1000;
 beforeEach(() => {
   jest.clearAllMocks();
   mockRedisDel.mockResolvedValue(1);
+  mockRedisSet.mockResolvedValue("OK"); // distributed lock acquired
 });
 
 afterAll(async () => {
