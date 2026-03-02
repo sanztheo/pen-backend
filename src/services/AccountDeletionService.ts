@@ -5,11 +5,7 @@ import { createClerkClient } from "@clerk/backend";
 import { Prisma } from "@prisma/client";
 
 import { DELETION_MAX_RETRIES, DELETION_BASE_DELAY_MS } from "./AccountDeletionService.types.js";
-import type {
-  DeletionResult,
-  DeletionAuditData,
-  UserExportData,
-} from "./AccountDeletionService.types.js";
+import type { DeletionResult, DeletionAuditData } from "./AccountDeletionService.types.js";
 
 // ─── Lazy Clerk singleton ─────────────────────────────────
 type ClerkClient = ReturnType<typeof createClerkClient>;
@@ -28,6 +24,9 @@ function getClerk(): ClerkClient {
 
 /** @internal Test seam — override the Clerk singleton for unit tests */
 export function _setClerkForTest(client: ClerkClient | undefined): void {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("[ACCOUNT_DELETION] _setClerkForTest is only available in test environment");
+  }
   clerkInstance = client;
 }
 
@@ -37,8 +36,6 @@ const ADMIN_METRICS_PATTERN = "admin:beta:metrics:*";
 const REDIS_SCAN_BATCH_SIZE = 100;
 const TRANSACTION_TIMEOUT_MS = 30_000;
 const TRANSACTION_MAX_WAIT_MS = 10_000;
-const EXPORT_MAX_ITEMS = 5_000;
-
 /** Redact email for logs — shows first 3 chars only */
 function redactEmail(email: string): string {
   const atIndex = email.indexOf("@");
@@ -70,10 +67,11 @@ export class AccountDeletionService {
       throw new Error(`[ACCOUNT_DELETION] User not found: ${userId}`);
     }
 
-    // 2. Build audit data BEFORE deletion
+    // 2. Build audit data BEFORE deletion — never store raw PII
     const deletedAt = new Date();
+    const masked = redactEmail(user.email);
     const audit: DeletionAuditData = {
-      email: user.email,
+      maskedEmail: masked,
       betaStatus: user.betaStatus,
       createdAt: user.createdAt,
       plan: user.subscription?.plan ?? null,
@@ -81,7 +79,7 @@ export class AccountDeletionService {
     };
 
     logger.log(
-      `[ACCOUNT_DELETION] Starting deletion for user ${userId} (email: ${redactEmail(user.email)}, beta: ${user.betaStatus}, plan: ${audit.plan ?? "none"})`,
+      `[ACCOUNT_DELETION] Starting deletion for user ${userId} (email: ${masked}, beta: ${user.betaStatus}, plan: ${audit.plan ?? "none"})`,
     );
 
     // 3. Prisma transaction first (atomic, rollbackable on failure)
@@ -95,51 +93,10 @@ export class AccountDeletionService {
 
     // 6. Log result
     logger.log(
-      `[ACCOUNT_DELETION] Successfully deleted user ${userId} (email: ${redactEmail(audit.email)})`,
+      `[ACCOUNT_DELETION] Successfully deleted user ${userId} (email: ${audit.maskedEmail})`,
     );
 
     return { success: true, deletedUserId: userId, audit };
-  }
-
-  /**
-   * Exports all user data for GDPR compliance (right to data portability).
-   */
-  static async exportUserData(userId: string): Promise<UserExportData> {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      throw new Error(`[ACCOUNT_DELETION] User not found for export: ${userId}`);
-    }
-
-    const [profile, workspaces, pages, quizzes, conversations, activityLogs, subscription] =
-      await Promise.all([
-        AccountDeletionService.fetchProfile(userId),
-        AccountDeletionService.fetchWorkspaces(userId),
-        AccountDeletionService.fetchPages(userId),
-        AccountDeletionService.fetchQuizzes(userId),
-        AccountDeletionService.fetchConversations(userId),
-        AccountDeletionService.fetchActivityLogs(userId),
-        AccountDeletionService.fetchSubscription(userId),
-      ]);
-
-    const truncated =
-      pages.length >= EXPORT_MAX_ITEMS ||
-      activityLogs.length >= EXPORT_MAX_ITEMS ||
-      conversations.length >= EXPORT_MAX_ITEMS;
-
-    return {
-      profile,
-      workspaces,
-      pages,
-      quizzes,
-      conversations,
-      activityLogs,
-      subscription,
-      truncated,
-    };
   }
 
   // ─── Private: Clerk deletion ────────────────────────────
@@ -169,17 +126,20 @@ export class AccountDeletionService {
             // a) Delete activity logs (no cascade from User)
             await tx.activityLog.deleteMany({ where: { userId } });
 
-            // b) Reassign shared pages and projects to workspace owners
+            // b) Transfer owned workspaces that have other members
+            await AccountDeletionService.transferOwnedWorkspaces(tx, userId);
+
+            // c) Reassign shared pages and projects to workspace owners
             await AccountDeletionService.reassignSharedEntities(tx, userId, "page");
             await AccountDeletionService.reassignSharedEntities(tx, userId, "project");
 
-            // c) Nullify invitedBy references (no cascade from User)
+            // d) Nullify invitedBy references (no cascade from User)
             await tx.workspaceMember.updateMany({
               where: { invitedBy: userId },
               data: { invitedBy: null },
             });
 
-            // d) Delete user — cascade handles owned workspaces, quizzes, etc.
+            // e) Delete user — cascade handles solo workspaces, quizzes, etc.
             await tx.user.delete({ where: { id: userId } });
           },
           {
@@ -204,6 +164,50 @@ export class AccountDeletionService {
         );
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
+    }
+  }
+
+  /**
+   * Transfers ownership of the user's workspaces to the next eligible member.
+   * Without this, cascade-delete would destroy ALL content (pages, projects, conversations)
+   * belonging to OTHER members in the deleted user's workspaces.
+   * Solo workspaces (no other members) are left for cascade-delete.
+   */
+  private static async transferOwnedWorkspaces(
+    tx: Prisma.TransactionClient,
+    userId: string,
+  ): Promise<void> {
+    const ownedWorkspaces = await tx.workspace.findMany({
+      where: { ownerId: userId },
+      select: {
+        id: true,
+        members: {
+          where: { userId: { not: userId }, isActive: true },
+          select: { userId: true, role: true },
+          orderBy: { joinedAt: "asc" },
+        },
+      },
+    });
+
+    for (const ws of ownedWorkspaces) {
+      if (ws.members.length === 0) continue; // solo workspace — cascade is fine
+
+      // Prefer admin member, fallback to oldest active member
+      const newOwner = ws.members.find((m) => m.role === "admin") ?? ws.members[0];
+
+      await tx.workspace.update({
+        where: { id: ws.id },
+        data: { ownerId: newOwner.userId },
+      });
+
+      // Remove the departing user's membership
+      await tx.workspaceMember.deleteMany({
+        where: { workspaceId: ws.id, userId },
+      });
+
+      logger.log(
+        `[ACCOUNT_DELETION] Transferred workspace ${ws.id} from ${userId} to ${newOwner.userId}`,
+      );
     }
   }
 
@@ -255,133 +259,6 @@ export class AccountDeletionService {
     } catch (error: unknown) {
       logger.warn("[ACCOUNT_DELETION] Redis cache invalidation failed:", error);
     }
-  }
-
-  // ─── Private: Export helpers ─────────────────────────────
-
-  private static async fetchProfile(userId: string): Promise<UserExportData["profile"]> {
-    return prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        avatarUrl: true,
-        createdAt: true,
-        lastLoginAt: true,
-        betaStatus: true,
-        betaJoinedAt: true,
-        onboardingCompleted: true,
-        settings: true,
-      },
-    });
-  }
-
-  private static async fetchWorkspaces(userId: string): Promise<UserExportData["workspaces"]> {
-    return prisma.workspace.findMany({
-      where: { ownerId: userId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        color: true,
-        createdAt: true,
-        isArchived: true,
-        members: {
-          select: {
-            userId: true,
-            role: true,
-            joinedAt: true,
-          },
-        },
-      },
-    });
-  }
-
-  private static async fetchPages(userId: string): Promise<UserExportData["pages"]> {
-    return prisma.page.findMany({
-      where: { createdBy: userId },
-      select: {
-        id: true,
-        title: true,
-        createdAt: true,
-        updatedAt: true,
-        workspaceId: true,
-        projectId: true,
-        blockNoteContent: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: EXPORT_MAX_ITEMS,
-    });
-  }
-
-  private static async fetchQuizzes(userId: string): Promise<UserExportData["quizzes"]> {
-    return prisma.quiz.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        title: true,
-        createdAt: true,
-        isCompleted: true,
-        completedAt: true,
-        questions: true,
-        userAnswers: true,
-      },
-    });
-  }
-
-  private static async fetchConversations(
-    userId: string,
-  ): Promise<UserExportData["conversations"]> {
-    return prisma.aIConversation.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        title: true,
-        createdAt: true,
-        messageCount: true,
-        messages: {
-          select: {
-            id: true,
-            role: true,
-            content: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: "asc" },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: EXPORT_MAX_ITEMS,
-    });
-  }
-
-  private static async fetchActivityLogs(userId: string): Promise<UserExportData["activityLogs"]> {
-    return prisma.activityLog.findMany({
-      where: { userId },
-      select: {
-        id: true,
-        action: true,
-        entityType: true,
-        entityId: true,
-        createdAt: true,
-        details: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: EXPORT_MAX_ITEMS,
-    });
-  }
-
-  private static async fetchSubscription(userId: string): Promise<UserExportData["subscription"]> {
-    return prisma.userSubscription.findUnique({
-      where: { userId },
-      select: {
-        plan: true,
-        status: true,
-        currentPeriodStart: true,
-        currentPeriodEnd: true,
-      },
-    });
   }
 }
 
