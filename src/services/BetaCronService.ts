@@ -13,6 +13,8 @@ import {
 // ─── Cron-specific configuration ─────────────────────────────────
 const INACTIVITY_THRESHOLD_DAYS = 7;
 const REACTIVATION_WINDOW_DAYS = 14;
+const DELETION_BATCH_SIZE = 50;
+const CRON_LOCK_TTL_SECONDS = 300; // 5 minutes
 
 // ─── Result types ──────────────────────────────────────────────
 interface CronJobResult {
@@ -194,6 +196,24 @@ export class BetaCronService {
    * Runs hourly.
    */
   static async cleanupExpiredAccounts(): Promise<CronJobResult> {
+    const lockKey = "cron:lock:cleanupExpiredAccounts";
+    const acquired = await redis.set(lockKey, "1", "EX", CRON_LOCK_TTL_SECONDS, "NX");
+
+    if (!acquired) {
+      logger.log("[BETA_CRON] cleanupExpiredAccounts: skipped (another instance holds the lock)");
+      return { processed: 0, errors: 0 };
+    }
+
+    try {
+      return await BetaCronService._cleanupExpiredAccountsLocked();
+    } finally {
+      await redis.del(lockKey).catch((err: unknown) => {
+        logger.warn("[BETA_CRON] Failed to release cleanup lock:", err);
+      });
+    }
+  }
+
+  private static async _cleanupExpiredAccountsLocked(): Promise<CronJobResult> {
     const now = new Date();
 
     const expiredUsers = await prisma.user.findMany({
@@ -202,6 +222,7 @@ export class BetaCronService {
         betaReactivationDeadline: { lt: now },
       },
       select: { id: true, email: true, betaReactivationDeadline: true },
+      take: DELETION_BATCH_SIZE,
     });
 
     if (expiredUsers.length === 0) {
@@ -233,7 +254,41 @@ export class BetaCronService {
 
     logger.log(`[BETA_CRON] cleanupExpiredAccounts: ${updateResult.count} accounts expired`);
 
+    // ─── Optional: permanently delete expired accounts ────
+    if (process.env.ENABLE_ACCOUNT_DELETION === "true") {
+      const { deletedCount, deleteErrors } = await BetaCronService.deleteExpiredUsers(expiredUsers);
+      logger.log(`[BETA_CRON] Account deletion: ${deletedCount} deleted, ${deleteErrors} errors`);
+      return { processed: updateResult.count + deletedCount, errors: deleteErrors };
+    }
+
     return { processed: updateResult.count, errors: 0 };
+  }
+
+  /**
+   * Permanently deletes expired user accounts via AccountDeletionService.
+   * Uses dynamic import to avoid circular dependency at module load.
+   */
+  private static async deleteExpiredUsers(
+    users: Array<{ id: string; email: string }>,
+  ): Promise<{ deletedCount: number; deleteErrors: number }> {
+    const { AccountDeletionService } = await import("./AccountDeletionService.js");
+
+    let deletedCount = 0;
+    let deleteErrors = 0;
+
+    for (const user of users) {
+      try {
+        await AccountDeletionService.deleteUserCompletely(user.id);
+        deletedCount++;
+        logger.log(`[BETA_CRON] Permanently deleted expired user ${user.id}`);
+      } catch (error: unknown) {
+        deleteErrors++;
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error(`[BETA_CRON] Failed to delete expired user ${user.id}: ${message}`);
+      }
+    }
+
+    return { deletedCount, deleteErrors };
   }
 
   /**
