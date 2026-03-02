@@ -233,6 +233,15 @@ export class BetaCronService {
 
     logger.log(`[BETA_CRON] cleanupExpiredAccounts: ${updateResult.count} accounts expired`);
 
+    // Feature flag: delete expired users if enabled
+    if (process.env.ENABLE_ACCOUNT_DELETION === "true") {
+      import("./AccountDeletionService.js")
+        .then(({ AccountDeletionService }) => AccountDeletionService.deleteExpiredUsers())
+        .catch((err: unknown) => {
+          logger.error("[BETA_CRON] Failed to run expired user deletion:", err);
+        });
+    }
+
     return { processed: updateResult.count, errors: 0 };
   }
 

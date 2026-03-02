@@ -1,4 +1,5 @@
 import { logger } from "../utils/logger.js";
+import { maskEmail } from "../utils/maskEmail.js";
 import {
   EMAIL_FROM_DEFAULT,
   WEBSITE_BASE_URL,
@@ -34,16 +35,6 @@ function escapeHtml(str: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function maskEmail(email: string): string {
-  const [local, domain] = email.split("@");
-  if (!local || !domain) return "***";
-  const maskedLocal =
-    local.length <= 2
-      ? "*".repeat(local.length)
-      : `${local[0]}${"*".repeat(local.length - 2)}${local[local.length - 1]}`;
-  return `${maskedLocal}@${domain}`;
 }
 
 // ─── Email Templates ─────────────────────────────────────────

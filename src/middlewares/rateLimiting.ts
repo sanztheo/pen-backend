@@ -316,6 +316,46 @@ export const betaWaitlistRateLimit = rateLimit({
 });
 
 /**
+ * 10. RATE LIMIT ACCOUNT DELETE
+ * 1 request per hour per user — prevents accidental double-deletion
+ */
+export const accountDeleteRateLimit = rateLimit({
+  ...createBaseConfig("rl:acct-del:"),
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 1,
+  message: {
+    success: false,
+    error: "ACCOUNT_DELETE_RATE_LIMIT_EXCEEDED",
+    message: "Account deletion already requested. Please try again later.",
+    retryAfter: "1 hour",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `acct_del_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
+ * 11. RATE LIMIT ACCOUNT EXPORT
+ * 1 request per day per user — prevents abuse of data export
+ */
+export const accountExportRateLimit = rateLimit({
+  ...createBaseConfig("rl:acct-exp:"),
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  max: 1,
+  message: {
+    success: false,
+    error: "ACCOUNT_EXPORT_RATE_LIMIT_EXCEEDED",
+    message: "Data export already requested today. Please try again tomorrow.",
+    retryAfter: "24 hours",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `acct_exp_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
  * Helper pour vérifier si le rate limiting est activé
  */
 export const isRateLimitEnabled = (): boolean => {

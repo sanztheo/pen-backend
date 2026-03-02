@@ -1,12 +1,19 @@
 import { Router } from "express";
 import type { RequestHandler } from "express";
 import { authenticateToken, optionalAuth } from "../middlewares/auth.js";
-import { betaHeartbeatRateLimit, betaWaitlistRateLimit } from "../middlewares/rateLimiting.js";
+import {
+  betaHeartbeatRateLimit,
+  betaWaitlistRateLimit,
+  accountDeleteRateLimit,
+  accountExportRateLimit,
+} from "../middlewares/rateLimiting.js";
 import {
   StatusController,
   HeartbeatController,
   WaitlistController,
   ReactivateController,
+  DeleteAccountController,
+  ExportAccountController,
 } from "../controllers/beta/index.js";
 import { BETA_LIVE } from "../config/beta.js";
 
@@ -43,5 +50,21 @@ router.post("/waitlist", betaWaitlistRateLimit, optionalAuth, WaitlistController
 
 // POST /api/beta/reactivate — auth required
 router.post("/reactivate", authenticateToken, ReactivateController.reactivate);
+
+// DELETE /api/beta/account — auth required + strict rate limit (1/hour)
+router.delete(
+  "/account",
+  authenticateToken,
+  accountDeleteRateLimit,
+  DeleteAccountController.deleteAccount,
+);
+
+// GET /api/beta/account/export — auth required + daily rate limit (1/day)
+router.get(
+  "/account/export",
+  authenticateToken,
+  accountExportRateLimit,
+  ExportAccountController.exportData,
+);
 
 export { router as betaRouter };
