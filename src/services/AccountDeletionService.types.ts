@@ -6,7 +6,8 @@ export const DELETION_BASE_DELAY_MS = 50;
 
 // ─── Deletion Audit ───────────────────────────────────────
 export interface DeletionAuditData {
-  email: string;
+  /** Redacted email — never store raw PII in audit logs */
+  maskedEmail: string;
   betaStatus: BetaStatus;
   createdAt: Date;
   plan: SubscriptionPlan | null;

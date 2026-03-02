@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { AccountDeletionService } from "../../services/AccountDeletionService.js";
+import { AccountExportService } from "../../services/AccountExportService.js";
 import { logger } from "../../utils/logger.js";
 
 export class ExportAccountController {
@@ -24,7 +24,7 @@ export class ExportAccountController {
         return;
       }
 
-      const data = await AccountDeletionService.exportUserData(userId);
+      const data = await AccountExportService.exportUserData(userId);
 
       res.status(200).json({ success: true, data });
     } catch (error) {
