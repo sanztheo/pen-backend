@@ -22,7 +22,9 @@ const mockPageUpdate = jest.fn();
 const mockProjectFindMany = jest.fn();
 const mockProjectUpdate = jest.fn();
 const mockWorkspaceFindMany = jest.fn();
+const mockWorkspaceUpdate = jest.fn();
 const mockWorkspaceMemberUpdateMany = jest.fn();
+const mockWorkspaceMemberDeleteMany = jest.fn();
 const mockQuizFindMany = jest.fn();
 const mockAIConversationFindMany = jest.fn();
 const mockUserSubscriptionFindUnique = jest.fn();
@@ -43,7 +45,9 @@ const mockTransaction = jest.fn();
 (prisma.project as any).findMany = mockProjectFindMany;
 (prisma.project as any).update = mockProjectUpdate;
 (prisma.workspace as any).findMany = mockWorkspaceFindMany;
+(prisma.workspace as any).update = mockWorkspaceUpdate;
 (prisma.workspaceMember as any).updateMany = mockWorkspaceMemberUpdateMany;
+(prisma.workspaceMember as any).deleteMany = mockWorkspaceMemberDeleteMany;
 (prisma.quiz as any).findMany = mockQuizFindMany;
 (prisma.aIConversation as any).findMany = mockAIConversationFindMany;
 (prisma.userSubscription as any).findUnique = mockUserSubscriptionFindUnique;
@@ -76,8 +80,9 @@ jest.mock("../../utils/logger.js", () => ({
   },
 }));
 
-// ─── Import service ─────────────────────────────────────────────
+// ─── Import services ────────────────────────────────────────────
 import { AccountDeletionService, _setClerkForTest } from "../AccountDeletionService.js";
+import { AccountExportService } from "../AccountExportService.js";
 
 // ─── Test Helpers ───────────────────────────────────────────────
 const TEST_USER_ID = "user-delete-001";
@@ -100,9 +105,13 @@ function setupTransactionExecution(): void {
     if (typeof callback === "function") {
       const txClient = {
         activityLog: { deleteMany: mockActivityLogDeleteMany },
+        workspace: { findMany: mockWorkspaceFindMany, update: mockWorkspaceUpdate },
         page: { findMany: mockPageFindMany, update: mockPageUpdate },
         project: { findMany: mockProjectFindMany, update: mockProjectUpdate },
-        workspaceMember: { updateMany: mockWorkspaceMemberUpdateMany },
+        workspaceMember: {
+          updateMany: mockWorkspaceMemberUpdateMany,
+          deleteMany: mockWorkspaceMemberDeleteMany,
+        },
         user: { delete: mockUserDelete },
       };
       return callback(txClient);
@@ -118,7 +127,8 @@ beforeEach(() => {
   mockRedisDel.mockResolvedValue(1);
   mockRedisScan.mockResolvedValue(["0", []]);
   mockRedisSet.mockResolvedValue("OK"); // distributed lock acquired
-  // Default: no shared pages/projects
+  // Default: no shared pages/projects, no owned workspaces
+  mockWorkspaceFindMany.mockResolvedValue([]);
   mockPageFindMany.mockResolvedValue([]);
   mockProjectFindMany.mockResolvedValue([]);
   // Inject mock Clerk client via test seam (ESM-safe, no jest.mock needed)
@@ -159,7 +169,7 @@ describe("AccountDeletionService.deleteUserCompletely", () => {
 
     expect(result.success).toBe(true);
     expect(result.deletedUserId).toBe(TEST_USER_ID);
-    expect(result.audit.email).toBe("delete-me@test.com");
+    expect(result.audit.maskedEmail).toContain("***");
     expect(mockClerkDeleteUser).toHaveBeenCalledWith(TEST_USER_ID);
     expect(mockTransaction).toHaveBeenCalled();
     expect(mockRedisDel).toHaveBeenCalledWith("beta:active_count");
@@ -226,9 +236,13 @@ describe("AccountDeletionService.deleteUserCompletely", () => {
       if (typeof callback === "function") {
         const txClient = {
           activityLog: { deleteMany: mockActivityLogDeleteMany },
+          workspace: { findMany: mockWorkspaceFindMany, update: mockWorkspaceUpdate },
           page: { findMany: mockPageFindMany, update: mockPageUpdate },
           project: { findMany: mockProjectFindMany, update: mockProjectUpdate },
-          workspaceMember: { updateMany: mockWorkspaceMemberUpdateMany },
+          workspaceMember: {
+            updateMany: mockWorkspaceMemberUpdateMany,
+            deleteMany: mockWorkspaceMemberDeleteMany,
+          },
           user: { delete: mockUserDelete },
         };
         return callback(txClient);
@@ -272,12 +286,16 @@ describe("AccountDeletionService.deleteUserCompletely", () => {
         ];
         const txClient = {
           activityLog: { deleteMany: mockActivityLogDeleteMany },
+          workspace: { findMany: mockWorkspaceFindMany, update: mockWorkspaceUpdate },
           page: {
             findMany: jest.fn<() => Promise<typeof sharedPages>>().mockResolvedValue(sharedPages),
             update: mockPageUpdate,
           },
           project: { findMany: mockProjectFindMany, update: mockProjectUpdate },
-          workspaceMember: { updateMany: mockWorkspaceMemberUpdateMany },
+          workspaceMember: {
+            updateMany: mockWorkspaceMemberUpdateMany,
+            deleteMany: mockWorkspaceMemberDeleteMany,
+          },
           user: { delete: mockUserDelete },
         };
         return callback(txClient);
@@ -310,6 +328,7 @@ describe("AccountDeletionService.deleteUserCompletely", () => {
         const sharedProjects = [{ id: "proj-1", workspace: { ownerId: "owner-C" } }];
         const txClient = {
           activityLog: { deleteMany: mockActivityLogDeleteMany },
+          workspace: { findMany: mockWorkspaceFindMany, update: mockWorkspaceUpdate },
           page: { findMany: mockPageFindMany, update: mockPageUpdate },
           project: {
             findMany: jest
@@ -317,7 +336,10 @@ describe("AccountDeletionService.deleteUserCompletely", () => {
               .mockResolvedValue(sharedProjects),
             update: mockProjectUpdate,
           },
-          workspaceMember: { updateMany: mockWorkspaceMemberUpdateMany },
+          workspaceMember: {
+            updateMany: mockWorkspaceMemberUpdateMany,
+            deleteMany: mockWorkspaceMemberDeleteMany,
+          },
           user: { delete: mockUserDelete },
         };
         return callback(txClient);
@@ -366,9 +388,13 @@ describe("AccountDeletionService.deleteUserCompletely", () => {
               return { count: 5 };
             }),
           },
+          workspace: { findMany: mockWorkspaceFindMany, update: mockWorkspaceUpdate },
           page: { findMany: mockPageFindMany, update: mockPageUpdate },
           project: { findMany: mockProjectFindMany, update: mockProjectUpdate },
-          workspaceMember: { updateMany: mockWorkspaceMemberUpdateMany },
+          workspaceMember: {
+            updateMany: mockWorkspaceMemberUpdateMany,
+            deleteMany: mockWorkspaceMemberDeleteMany,
+          },
           user: {
             delete: jest
               .fn<() => Promise<Record<string, unknown>>>()
@@ -447,7 +473,7 @@ describe("AccountDeletionService.deleteUserCompletely", () => {
     const result = await AccountDeletionService.deleteUserCompletely(TEST_USER_ID);
 
     // Audit data is populated from the user record fetched before deletion
-    expect(result.audit.email).toBe("delete-me@test.com");
+    expect(result.audit.maskedEmail).toContain("***");
     expect(result.audit.betaStatus).toBe("active");
     expect(result.audit.plan).toBe("free");
     expect(result.audit.deletedAt).toBeInstanceOf(Date);
@@ -457,7 +483,7 @@ describe("AccountDeletionService.deleteUserCompletely", () => {
 // ═══════════════════════════════════════════════════════════════
 // exportUserData
 // ═══════════════════════════════════════════════════════════════
-describe("AccountDeletionService.exportUserData", () => {
+describe("AccountExportService.exportUserData", () => {
   it("should export all user data tables populated", async () => {
     mockUserFindUnique.mockResolvedValue({ id: TEST_USER_ID });
     mockUserFindUniqueOrThrow.mockResolvedValue({
@@ -535,7 +561,7 @@ describe("AccountDeletionService.exportUserData", () => {
       currentPeriodEnd: TEST_DATE,
     });
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.profile.email).toBe("export@test.com");
     expect(data.workspaces).toHaveLength(1);
@@ -550,8 +576,8 @@ describe("AccountDeletionService.exportUserData", () => {
   it("should throw error when user not found for export", async () => {
     mockUserFindUnique.mockResolvedValue(null);
 
-    await expect(AccountDeletionService.exportUserData("nonexistent")).rejects.toThrow(
-      "User not found for export",
+    await expect(AccountExportService.exportUserData("nonexistent")).rejects.toThrow(
+      "User not found",
     );
   });
 
@@ -577,7 +603,7 @@ describe("AccountDeletionService.exportUserData", () => {
     mockActivityLogFindMany.mockResolvedValue([]);
     mockUserSubscriptionFindUnique.mockResolvedValue(null);
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.profile.email).toBe("empty@test.com");
     expect(data.workspaces).toEqual([]);
@@ -615,7 +641,7 @@ describe("AccountDeletionService.exportUserData", () => {
       currentPeriodEnd: new Date("2026-03-06T12:00:00Z"),
     });
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.subscription?.plan).toBe("pro");
     expect(data.subscription?.status).toBe("active");
@@ -655,7 +681,7 @@ describe("AccountDeletionService.exportUserData", () => {
     mockActivityLogFindMany.mockResolvedValue([]);
     mockUserSubscriptionFindUnique.mockResolvedValue(null);
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.conversations).toHaveLength(1);
     expect(data.conversations[0].messages).toHaveLength(3);
@@ -717,9 +743,13 @@ describe("Integration — cron + controllers", () => {
         if (typeof callbackOrArray === "function") {
           const txClient = {
             activityLog: { deleteMany: mockActivityLogDeleteMany },
+            workspace: { findMany: mockWorkspaceFindMany, update: mockWorkspaceUpdate },
             page: { findMany: mockPageFindMany, update: mockPageUpdate },
             project: { findMany: mockProjectFindMany, update: mockProjectUpdate },
-            workspaceMember: { updateMany: mockWorkspaceMemberUpdateMany },
+            workspaceMember: {
+              updateMany: mockWorkspaceMemberUpdateMany,
+              deleteMany: mockWorkspaceMemberDeleteMany,
+            },
             user: { delete: mockUserDelete },
           };
           return callbackOrArray(txClient);
@@ -750,9 +780,13 @@ describe("Integration — cron + controllers", () => {
         if (typeof callbackOrArray === "function") {
           const txClient = {
             activityLog: { deleteMany: mockActivityLogDeleteMany },
+            workspace: { findMany: mockWorkspaceFindMany, update: mockWorkspaceUpdate },
             page: { findMany: mockPageFindMany, update: mockPageUpdate },
             project: { findMany: mockProjectFindMany, update: mockProjectUpdate },
-            workspaceMember: { updateMany: mockWorkspaceMemberUpdateMany },
+            workspaceMember: {
+              updateMany: mockWorkspaceMemberUpdateMany,
+              deleteMany: mockWorkspaceMemberDeleteMany,
+            },
             user: { delete: mockUserDelete },
           };
           return callbackOrArray(txClient);
@@ -1018,6 +1052,7 @@ describe("AccountDeletionService.deleteUserCompletely — additional edge cases"
         const sharedProjects = [{ id: "proj-shared-1", workspace: { ownerId: "owner-Y" } }];
         const txClient = {
           activityLog: { deleteMany: mockActivityLogDeleteMany },
+          workspace: { findMany: mockWorkspaceFindMany, update: mockWorkspaceUpdate },
           page: {
             findMany: jest.fn<() => Promise<typeof sharedPages>>().mockResolvedValue(sharedPages),
             update: mockPageUpdate,
@@ -1028,7 +1063,10 @@ describe("AccountDeletionService.deleteUserCompletely — additional edge cases"
               .mockResolvedValue(sharedProjects),
             update: mockProjectUpdate,
           },
-          workspaceMember: { updateMany: mockWorkspaceMemberUpdateMany },
+          workspaceMember: {
+            updateMany: mockWorkspaceMemberUpdateMany,
+            deleteMany: mockWorkspaceMemberDeleteMany,
+          },
           user: { delete: mockUserDelete },
         };
         return callback(txClient);
@@ -1109,9 +1147,159 @@ describe("AccountDeletionService.deleteUserCompletely — additional edge cases"
 });
 
 // ═══════════════════════════════════════════════════════════════
+// Workspace ownership transfer
+// ═══════════════════════════════════════════════════════════════
+describe("AccountDeletionService — workspace transfer", () => {
+  it("should transfer workspace to admin member when available", async () => {
+    mockUserFindUnique.mockResolvedValue(makeMockUser());
+    mockClerkDeleteUser.mockResolvedValue({});
+
+    mockTransaction.mockImplementation(async (callback: unknown) => {
+      if (typeof callback === "function") {
+        const txClient = {
+          activityLog: { deleteMany: mockActivityLogDeleteMany },
+          workspace: {
+            findMany: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([
+              {
+                id: "ws-shared",
+                members: [
+                  { userId: "member-regular", role: "member" },
+                  { userId: "member-admin", role: "admin" },
+                ],
+              },
+            ]),
+            update: mockWorkspaceUpdate,
+          },
+          page: { findMany: mockPageFindMany, update: mockPageUpdate },
+          project: { findMany: mockProjectFindMany, update: mockProjectUpdate },
+          workspaceMember: {
+            updateMany: mockWorkspaceMemberUpdateMany,
+            deleteMany: mockWorkspaceMemberDeleteMany,
+          },
+          user: { delete: mockUserDelete },
+        };
+        return callback(txClient);
+      }
+    });
+    mockActivityLogDeleteMany.mockResolvedValue({ count: 0 });
+    mockWorkspaceMemberUpdateMany.mockResolvedValue({ count: 0 });
+    mockUserDelete.mockResolvedValue({});
+
+    await AccountDeletionService.deleteUserCompletely(TEST_USER_ID);
+
+    expect(mockWorkspaceUpdate).toHaveBeenCalledWith({
+      where: { id: "ws-shared" },
+      data: { ownerId: "member-admin" },
+    });
+    expect(mockWorkspaceMemberDeleteMany).toHaveBeenCalledWith({
+      where: { workspaceId: "ws-shared", userId: TEST_USER_ID },
+    });
+  });
+
+  it("should fallback to oldest member when no admin exists", async () => {
+    mockUserFindUnique.mockResolvedValue(makeMockUser());
+    mockClerkDeleteUser.mockResolvedValue({});
+
+    mockTransaction.mockImplementation(async (callback: unknown) => {
+      if (typeof callback === "function") {
+        const txClient = {
+          activityLog: { deleteMany: mockActivityLogDeleteMany },
+          workspace: {
+            findMany: jest.fn<() => Promise<unknown[]>>().mockResolvedValue([
+              {
+                id: "ws-no-admin",
+                members: [
+                  { userId: "oldest-member", role: "member" },
+                  { userId: "newer-member", role: "member" },
+                ],
+              },
+            ]),
+            update: mockWorkspaceUpdate,
+          },
+          page: { findMany: mockPageFindMany, update: mockPageUpdate },
+          project: { findMany: mockProjectFindMany, update: mockProjectUpdate },
+          workspaceMember: {
+            updateMany: mockWorkspaceMemberUpdateMany,
+            deleteMany: mockWorkspaceMemberDeleteMany,
+          },
+          user: { delete: mockUserDelete },
+        };
+        return callback(txClient);
+      }
+    });
+    mockActivityLogDeleteMany.mockResolvedValue({ count: 0 });
+    mockWorkspaceMemberUpdateMany.mockResolvedValue({ count: 0 });
+    mockUserDelete.mockResolvedValue({});
+
+    await AccountDeletionService.deleteUserCompletely(TEST_USER_ID);
+
+    expect(mockWorkspaceUpdate).toHaveBeenCalledWith({
+      where: { id: "ws-no-admin" },
+      data: { ownerId: "oldest-member" },
+    });
+  });
+
+  it("should skip solo workspaces (no other active members)", async () => {
+    mockUserFindUnique.mockResolvedValue(makeMockUser());
+    mockClerkDeleteUser.mockResolvedValue({});
+
+    mockTransaction.mockImplementation(async (callback: unknown) => {
+      if (typeof callback === "function") {
+        const txClient = {
+          activityLog: { deleteMany: mockActivityLogDeleteMany },
+          workspace: {
+            findMany: jest
+              .fn<() => Promise<unknown[]>>()
+              .mockResolvedValue([{ id: "ws-solo", members: [] }]),
+            update: mockWorkspaceUpdate,
+          },
+          page: { findMany: mockPageFindMany, update: mockPageUpdate },
+          project: { findMany: mockProjectFindMany, update: mockProjectUpdate },
+          workspaceMember: {
+            updateMany: mockWorkspaceMemberUpdateMany,
+            deleteMany: mockWorkspaceMemberDeleteMany,
+          },
+          user: { delete: mockUserDelete },
+        };
+        return callback(txClient);
+      }
+    });
+    mockActivityLogDeleteMany.mockResolvedValue({ count: 0 });
+    mockWorkspaceMemberUpdateMany.mockResolvedValue({ count: 0 });
+    mockUserDelete.mockResolvedValue({});
+
+    await AccountDeletionService.deleteUserCompletely(TEST_USER_ID);
+
+    // workspace.update should NOT be called — solo workspace left for cascade
+    expect(mockWorkspaceUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// _setClerkForTest NODE_ENV guard
+// ═══════════════════════════════════════════════════════════════
+describe("_setClerkForTest", () => {
+  it("should be allowed in test environment", () => {
+    expect(() => _setClerkForTest(undefined)).not.toThrow();
+  });
+
+  it("should throw outside test environment", () => {
+    const original = process.env.NODE_ENV;
+    try {
+      process.env.NODE_ENV = "production";
+      expect(() => _setClerkForTest(undefined)).toThrow(
+        "_setClerkForTest is only available in test environment",
+      );
+    } finally {
+      process.env.NODE_ENV = original;
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
 // Additional coverage: export data shape validation
 // ═══════════════════════════════════════════════════════════════
-describe("AccountDeletionService.exportUserData — data shape validation", () => {
+describe("AccountExportService.exportUserData — data shape validation", () => {
   const setupExportMocks = (overrides: Record<string, unknown> = {}): void => {
     mockUserFindUnique.mockResolvedValue({ id: TEST_USER_ID });
     mockUserFindUniqueOrThrow.mockResolvedValue({
@@ -1139,7 +1327,7 @@ describe("AccountDeletionService.exportUserData — data shape validation", () =
   it("should preserve null fields in profile (avatarUrl, lastLoginAt)", async () => {
     setupExportMocks();
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.profile.avatarUrl).toBeNull();
     expect(data.profile.lastLoginAt).toBeNull();
@@ -1148,7 +1336,7 @@ describe("AccountDeletionService.exportUserData — data shape validation", () =
   it("should preserve Date instances in profile", async () => {
     setupExportMocks();
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.profile.createdAt).toBeInstanceOf(Date);
     expect(data.profile.betaJoinedAt).toBeInstanceOf(Date);
@@ -1157,7 +1345,7 @@ describe("AccountDeletionService.exportUserData — data shape validation", () =
   it("should include settings object in profile", async () => {
     setupExportMocks();
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.profile.settings).toEqual({ theme: "dark" });
   });
@@ -1177,7 +1365,7 @@ describe("AccountDeletionService.exportUserData — data shape validation", () =
       },
     ]);
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.pages[0].blockNoteContent).toEqual(blockContent);
     expect(data.pages[0].projectId).toBeNull();
@@ -1199,7 +1387,7 @@ describe("AccountDeletionService.exportUserData — data shape validation", () =
       },
     ]);
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.quizzes[0].questions).toEqual(questions);
     expect(data.quizzes[0].userAnswers).toEqual(answers);
@@ -1223,7 +1411,7 @@ describe("AccountDeletionService.exportUserData — data shape validation", () =
       },
     ]);
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.workspaces[0].members).toHaveLength(2);
     expect(data.workspaces[0].members[0].role).toBe("owner");
@@ -1246,7 +1434,7 @@ describe("AccountDeletionService.exportUserData — data shape validation", () =
       },
     ]);
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.activityLogs[0].details).toEqual(logDetails);
     expect(data.activityLogs[0].action).toBe("PAGE_RENAMED");
@@ -1266,7 +1454,7 @@ describe("AccountDeletionService.exportUserData — data shape validation", () =
       },
     ]);
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.quizzes[0].isCompleted).toBe(false);
     expect(data.quizzes[0].completedAt).toBeNull();
@@ -1297,7 +1485,7 @@ describe("AccountDeletionService.exportUserData — data shape validation", () =
       },
     ]);
 
-    const data = await AccountDeletionService.exportUserData(TEST_USER_ID);
+    const data = await AccountExportService.exportUserData(TEST_USER_ID);
 
     expect(data.workspaces).toHaveLength(2);
     expect(data.workspaces[0].isArchived).toBe(false);
