@@ -84,6 +84,7 @@
     "railway": "^2.0.17",
     "rate-limit-redis": "^4.2.3",
     "redis": "^4.6.8",
+    "resend": "^4.8.0",
     "rss-parser": "^3.13.0",
     "sharp": "^0.34.4",
     "socket.io": "^4.7.2",
