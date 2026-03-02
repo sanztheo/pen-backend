@@ -140,6 +140,7 @@ model Project {
   parent         Project?      @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children       Project[]     @relation("ProjectHierarchy")
 
+  @@index([createdBy])
   @@map("projects")
 }
 
@@ -170,6 +171,7 @@ model Page {
   // 🧠 Quiz Intelligence - Concepts pré-extraits pour génération optimisée
   concepts         PageConcepts?
 
+  @@index([createdBy])
   @@map("pages")
 }
 
@@ -224,6 +226,7 @@ model ActivityLog {
   user        User       @relation(fields: [userId], references: [id])
   workspace   Workspace? @relation(fields: [workspaceId], references: [id])
 
+  @@index([userId])
   @@map("activity_logs")
 }
 
