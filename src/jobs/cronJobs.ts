@@ -337,6 +337,25 @@ export function startCronJobs() {
     }
   }
 
+  const tasks = [
+    healthCheckTask,
+    ragCleanupTask,
+    dailyArticleTask,
+    monthlyResetTask,
+    dailyLimitsResetTask,
+    ...(BETA_LIVE
+      ? [
+          betaCheckInactiveTask,
+          betaWeeklyResetTask,
+          betaProcessWaitlistTask,
+          betaCleanupExpiredTask,
+        ]
+      : []),
+  ].filter((t): t is ReturnType<typeof cron.schedule> => t != null);
+
+  // Stocker les tâches pour pouvoir les arrêter proprement
+  activeTasks.push(...tasks);
+
   return {
     healthCheck: healthCheckTask,
     ragCleanup: ragCleanupTask,
@@ -354,9 +373,15 @@ export function startCronJobs() {
   };
 }
 
+// Référence vers les tâches actives pour le shutdown
+const activeTasks: ReturnType<typeof cron.schedule>[] = [];
+
 export function stopCronJobs() {
-  logger.log("🛑 Arrêt des tâches CRON...");
-  // Note: Les tâches seront arrêtées automatiquement à l'arrêt du processus
+  logger.log(`🛑 Arrêt de ${activeTasks.length} tâches CRON...`);
+  for (const task of activeTasks) {
+    task.stop();
+  }
+  activeTasks.length = 0;
   logger.log("✅ Tâches CRON arrêtées");
 }
 
