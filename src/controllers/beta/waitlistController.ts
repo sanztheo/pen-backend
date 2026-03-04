@@ -109,6 +109,21 @@ export class WaitlistController {
         userId,
       );
 
+      // Fire-and-forget: confirmation email for NEW signups only
+      if (!result.rejected && !result.alreadyExists) {
+        import("../../services/EmailService.js")
+          .then(({ EmailService }) =>
+            EmailService.sendWaitlistConfirmation({
+              to: finalEmail,
+              name: trimmedName,
+              position: result.position,
+            }),
+          )
+          .catch((err: unknown) => {
+            logger.error("[BETA_WAITLIST] Email confirmation import failed:", err);
+          });
+      }
+
       if (result.rejected) {
         // BM-002: Indistinguishable response — prevents email enumeration
         // Active users silently get 201 without actually being added to waitlist
