@@ -10,6 +10,18 @@ import { logger } from "../utils/logger.js";
 // Cache en mémoire pour la synchronisation utilisateur (userId -> timestamp)
 const userSyncCache = new Map<string, number>();
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+// Éviction périodique des entrées expirées (toutes les 5 minutes)
+const userSyncCleanupInterval = setInterval(() => {
+  const now = Date.now();
+  for (const [userId, timestamp] of userSyncCache) {
+    if (now - timestamp > CACHE_DURATION_MS) {
+      userSyncCache.delete(userId);
+    }
+  }
+}, CACHE_DURATION_MS);
+
+// Ne pas empêcher le process de s'arrêter
+userSyncCleanupInterval.unref();
 
 // ============================================================================
 // 🛡️ TEST AUTH - SÉCURITÉ MULTICOUCHE

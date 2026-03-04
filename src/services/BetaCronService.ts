@@ -134,7 +134,7 @@ export class BetaCronService {
       where: { userId: { not: null } },
       orderBy: { joinedAt: "asc" },
       take: availableSpots,
-      select: { id: true, userId: true, email: true },
+      select: { id: true, userId: true, email: true, name: true },
     });
 
     if (waitlistEntries.length === 0) {
@@ -142,12 +142,15 @@ export class BetaCronService {
       return { processed: 0, errors: 0 };
     }
 
+    const promotedUsers: { email: string; name: string }[] = [];
+
     for (const entry of waitlistEntries) {
       if (!entry.userId) continue;
 
       try {
         await BetaCronService.executeWaitlistPromotion(entry.userId, entry.id);
         promoted++;
+        promotedUsers.push({ email: entry.email, name: entry.name });
 
         logger.log(`[BETA_CRON] Promoted user ${entry.userId} from waitlist`);
       } catch (error: unknown) {
@@ -161,6 +164,19 @@ export class BetaCronService {
 
         logger.error(`[BETA_CRON] Failed to promote user ${entry.userId}: ${message}`);
       }
+    }
+
+    // Fire-and-forget: send spot-available emails sequentially (respects Resend rate limits)
+    if (promotedUsers.length > 0) {
+      import("./EmailService.js")
+        .then(async ({ EmailService }) => {
+          for (const user of promotedUsers) {
+            await EmailService.sendSpotAvailable({ to: user.email, name: user.name });
+          }
+        })
+        .catch((emailErr: unknown) => {
+          logger.warn("[BETA_CRON] Batch email notification failed:", emailErr);
+        });
     }
 
     if (promoted > 0) {

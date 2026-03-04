@@ -41,6 +41,20 @@ const aiValidationCache = new Map<
 >();
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 heures
 
+// Éviction périodique des entrées expirées (toutes les 6h)
+const aiCacheCleanupInterval = setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, entry] of aiValidationCache) {
+      if (now - entry.timestamp > CACHE_DURATION) {
+        aiValidationCache.delete(key);
+      }
+    }
+  },
+  6 * 60 * 60 * 1000,
+);
+aiCacheCleanupInterval.unref();
+
 // Rate limiting pour l'API OpenAI
 let lastAICallTime = 0;
 const MIN_CALL_INTERVAL = 3000; // 3 secondes entre chaque appel pour gpt-4.1-nano
