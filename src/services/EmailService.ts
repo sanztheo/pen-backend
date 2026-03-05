@@ -4,16 +4,14 @@ import {
   WEBSITE_BASE_URL,
   type WaitlistConfirmationInput,
   type SpotAvailableInput,
+  type BetaAccessGrantedInput,
+  type BetaAccessRevokedInput,
 } from "./EmailService.types.js";
 
-// ─── Lazy-initialized Resend client ──────────────────────────
-let resendInstance: import("resend").Resend | null = null;
-let initAttempted = false;
+// ─── Lazy-initialized Resend client (Promise singleton) ─────
+let initPromise: Promise<import("resend").Resend | null> | null = null;
 
-async function getResendClient(): Promise<import("resend").Resend | null> {
-  if (initAttempted) return resendInstance;
-  initAttempted = true;
-
+async function doInit(): Promise<import("resend").Resend | null> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
     logger.warn("[EmailService] RESEND_API_KEY not set — emails disabled");
@@ -21,8 +19,12 @@ async function getResendClient(): Promise<import("resend").Resend | null> {
   }
 
   const { Resend } = await import("resend");
-  resendInstance = new Resend(apiKey);
-  return resendInstance;
+  return new Resend(apiKey);
+}
+
+function getResendClient(): Promise<import("resend").Resend | null> {
+  if (!initPromise) initPromise = doInit();
+  return initPromise;
 }
 
 // ─── HTML Utilities ──────────────────────────────────────────
@@ -34,6 +36,16 @@ function escapeHtml(str: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function sanitizeResendError(error: unknown): { message: string; name: string } {
+  if (error !== null && typeof error === "object") {
+    const obj = error as Record<string, unknown>;
+    const message = "message" in error && typeof obj.message === "string" ? obj.message : "unknown";
+    const name = "name" in error && typeof obj.name === "string" ? obj.name : "unknown";
+    return { message, name };
+  }
+  return { message: String(error), name: "unknown" };
 }
 
 function maskEmail(email: string): string {
@@ -129,6 +141,89 @@ function buildSpotAvailableHtml(name: string): string {
 </html>`;
 }
 
+function buildBetaAccessGrantedHtml(name: string): string {
+  const safeName = escapeHtml(name);
+  const ctaUrl = `${WEBSITE_BASE_URL}/fr/dashboard`;
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:40px 20px;">
+  <tr><td align="center">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+      <tr><td style="background-color:#18181b;padding:32px 40px;text-align:center;">
+        <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">Pennote</h1>
+      </td></tr>
+      <tr><td style="padding:40px;">
+        <h2 style="margin:0 0 16px;color:#18181b;font-size:20px;">Bienvenue dans la beta, ${safeName} !</h2>
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:16px;line-height:1.6;">
+          Votre compte beta est maintenant actif. Vous pouvez accéder à toutes les fonctionnalités de Pennote dès maintenant.
+        </p>
+        <div style="margin:24px 0;padding:16px;background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;text-align:center;">
+          <p style="margin:0;color:#166534;font-size:16px;font-weight:600;">Votre compte beta est maintenant actif !</p>
+        </div>
+        <div style="margin:24px 0;text-align:center;">
+          <a href="${ctaUrl}" style="display:inline-block;padding:14px 32px;background-color:#18181b;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;border-radius:8px;">
+            Accéder à Pennote
+          </a>
+        </div>
+        <p style="margin:0;color:#a1a1aa;font-size:14px;line-height:1.5;">
+          Vous recevez cet email car un administrateur a activé votre accès beta Pennote.
+        </p>
+      </td></tr>
+      <tr><td style="padding:24px 40px;background-color:#fafafa;text-align:center;">
+        <p style="margin:0;color:#a1a1aa;font-size:12px;">© ${new Date().getFullYear()} Pennote. Tous droits réservés.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+}
+
+function buildBetaAccessRevokedHtml(name: string, deadlineDays: number): string {
+  const safeName = escapeHtml(name);
+  const safeDeadline = escapeHtml(String(deadlineDays));
+  const ctaUrl = `${WEBSITE_BASE_URL}/fr/join`;
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:40px 20px;">
+  <tr><td align="center">
+    <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+      <tr><td style="background-color:#18181b;padding:32px 40px;text-align:center;">
+        <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">Pennote</h1>
+      </td></tr>
+      <tr><td style="padding:40px;">
+        <h2 style="margin:0 0 16px;color:#18181b;font-size:20px;">${safeName}, votre accès beta a été désactivé</h2>
+        <p style="margin:0 0 16px;color:#3f3f46;font-size:16px;line-height:1.6;">
+          Un administrateur a désactivé votre accès beta Pennote. Vous pouvez réactiver votre compte en vous reconnectant.
+        </p>
+        <div style="margin:24px 0;padding:16px;background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
+          <p style="margin:0;color:#991b1b;font-size:14px;line-height:1.5;">
+            <strong>⏰ Important :</strong> Vous avez <strong>${safeDeadline} jours</strong> pour vous reconnecter. Passé ce délai, votre place sera libérée pour un autre utilisateur.
+          </p>
+        </div>
+        <div style="margin:24px 0;text-align:center;">
+          <a href="${ctaUrl}" style="display:inline-block;padding:14px 32px;background-color:#18181b;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;border-radius:8px;">
+            Réactiver mon compte
+          </a>
+        </div>
+        <p style="margin:0;color:#a1a1aa;font-size:14px;line-height:1.5;">
+          Vous recevez cet email car votre accès beta Pennote a été modifié.
+        </p>
+      </td></tr>
+      <tr><td style="padding:24px 40px;background-color:#fafafa;text-align:center;">
+        <p style="margin:0;color:#a1a1aa;font-size:12px;">© ${new Date().getFullYear()} Pennote. Tous droits réservés.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+}
+
 // ─── Public API ──────────────────────────────────────────────
 
 export class EmailService {
@@ -148,7 +243,10 @@ export class EmailService {
       });
 
       if (error) {
-        logger.error("[EmailService] Resend API error (waitlist confirmation):", error);
+        logger.error(
+          "[EmailService] Resend API error (waitlist confirmation):",
+          sanitizeResendError(error),
+        );
         return;
       }
 
@@ -174,7 +272,10 @@ export class EmailService {
       });
 
       if (error) {
-        logger.error("[EmailService] Resend API error (spot available):", error);
+        logger.error(
+          "[EmailService] Resend API error (spot available):",
+          sanitizeResendError(error),
+        );
         return;
       }
 
@@ -183,13 +284,70 @@ export class EmailService {
       logger.error("[EmailService] Failed to send spot available notification:", err);
     }
   }
+
+  static async sendBetaAccessGranted(input: BetaAccessGrantedInput): Promise<void> {
+    try {
+      const client = await getResendClient();
+      if (!client) return;
+
+      const from = process.env.RESEND_FROM_EMAIL || EMAIL_FROM_DEFAULT;
+      const html = buildBetaAccessGrantedHtml(input.name);
+
+      const { error } = await client.emails.send({
+        from,
+        to: input.to,
+        subject: "Pennote — Bienvenue dans la beta !",
+        html,
+      });
+
+      if (error) {
+        logger.error(
+          "[EmailService] Resend API error (beta access granted):",
+          sanitizeResendError(error),
+        );
+        return;
+      }
+
+      logger.log(`[EmailService] Beta access granted email sent to ${maskEmail(input.to)}`);
+    } catch (err: unknown) {
+      logger.error("[EmailService] Failed to send beta access granted email:", err);
+    }
+  }
+
+  static async sendBetaAccessRevoked(input: BetaAccessRevokedInput): Promise<void> {
+    try {
+      const client = await getResendClient();
+      if (!client) return;
+
+      const from = process.env.RESEND_FROM_EMAIL || EMAIL_FROM_DEFAULT;
+      const html = buildBetaAccessRevokedHtml(input.name, input.reactivationDeadlineDays);
+
+      const { error } = await client.emails.send({
+        from,
+        to: input.to,
+        subject: "Pennote — Votre accès beta a été désactivé",
+        html,
+      });
+
+      if (error) {
+        logger.error(
+          "[EmailService] Resend API error (beta access revoked):",
+          sanitizeResendError(error),
+        );
+        return;
+      }
+
+      logger.log(`[EmailService] Beta access revoked email sent to ${maskEmail(input.to)}`);
+    } catch (err: unknown) {
+      logger.error("[EmailService] Failed to send beta access revoked email:", err);
+    }
+  }
 }
 
 // ─── Test Seam ───────────────────────────────────────────────
 /** @internal — for unit tests only */
 export function _resetForTest(): void {
-  resendInstance = null;
-  initAttempted = false;
+  initPromise = null;
 }
 
 export { escapeHtml as _escapeHtmlForTest };
