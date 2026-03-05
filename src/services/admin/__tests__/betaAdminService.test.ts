@@ -53,6 +53,10 @@ jest.unstable_mockModule("../../../utils/logger.js", () => ({
 beforeEach(() => {
   jest.clearAllMocks();
   mockInvalidate.mockResolvedValue(true);
+  // Default: findUnique returns null so fire-and-forget email skips gracefully
+  mockUserFindUnique.mockResolvedValue(null);
+  // Reset dedup map between tests
+  BetaAdminService._resetNotificationDedupForTest();
 });
 
 afterAll(async () => {
@@ -305,6 +309,45 @@ describe("BetaAdminService.kickUser", () => {
   });
 });
 
+describe("BetaAdminService.kickUser — email notification", () => {
+  it("should call prisma.user.findUnique after successful kick to fetch email", async () => {
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        user: { updateMany: jest.fn().mockReturnValue(Promise.resolve({ count: 1 })) },
+        activityLog: { create: jest.fn().mockReturnValue(Promise.resolve({})) },
+      };
+      return fn(tx);
+    });
+    mockUserFindUnique.mockResolvedValue({ email: "kicked@test.com", firstName: "Alice" });
+
+    await BetaAdminService.kickUser("user-1", "admin-1", "Inactif");
+
+    // Allow fire-and-forget promise to resolve
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(mockUserFindUnique).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      select: { email: true, firstName: true },
+    });
+  });
+
+  it("should NOT call prisma.user.findUnique when kick fails", async () => {
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        user: { updateMany: jest.fn().mockReturnValue(Promise.resolve({ count: 0 })) },
+        activityLog: { create: jest.fn() },
+      };
+      return fn(tx);
+    });
+
+    await BetaAdminService.kickUser("user-1", "admin-1");
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(mockUserFindUnique).not.toHaveBeenCalled();
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════
 // promoteUser
 // ═══════════════════════════════════════════════════════════════
@@ -428,6 +471,51 @@ describe("BetaAdminService.promoteUser", () => {
   });
 });
 
+describe("BetaAdminService.promoteUser — email notification", () => {
+  it("should call prisma.user.findUnique after successful promote to fetch email", async () => {
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        user: {
+          count: jest.fn().mockReturnValue(Promise.resolve(50)),
+          findUnique: jest.fn().mockReturnValue(Promise.resolve({ betaStatus: "waitlist" })),
+          update: jest.fn().mockReturnValue(Promise.resolve({})),
+        },
+        betaWaitlist: { deleteMany: jest.fn().mockReturnValue(Promise.resolve({ count: 1 })) },
+        activityLog: { create: jest.fn().mockReturnValue(Promise.resolve({})) },
+      };
+      return fn(tx);
+    });
+    mockUserFindUnique.mockResolvedValue({ email: "promoted@test.com", firstName: "Bob" });
+
+    await BetaAdminService.promoteUser("user-1", "admin-1");
+
+    // Allow fire-and-forget promise to resolve
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(mockUserFindUnique).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      select: { email: true, firstName: true },
+    });
+  });
+
+  it("should NOT call prisma.user.findUnique when promote fails (no spots)", async () => {
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        user: {
+          count: jest.fn().mockReturnValue(Promise.resolve(100)),
+        },
+      };
+      return fn(tx);
+    });
+
+    await BetaAdminService.promoteUser("user-1", "admin-1");
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(mockUserFindUnique).not.toHaveBeenCalled();
+  });
+});
+
 // ═══════════════════════════════════════════════════════════════
 // bulkAction
 // ═══════════════════════════════════════════════════════════════
@@ -519,5 +607,39 @@ describe("BetaAdminService.bulkAction", () => {
 
     // Cache invalidated by kickUser + final bulkAction invalidation
     expect(mockInvalidate).toHaveBeenCalled();
+  });
+
+  it("should send sequential emails for succeeded users only", async () => {
+    let callIdx = 0;
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+      callIdx++;
+      if (callIdx === 2) {
+        // Second user fails
+        const tx = {
+          user: { updateMany: jest.fn().mockReturnValue(Promise.resolve({ count: 0 })) },
+          activityLog: { create: jest.fn() },
+        };
+        return fn(tx);
+      }
+      const tx = {
+        user: { updateMany: jest.fn().mockReturnValue(Promise.resolve({ count: 1 })) },
+        activityLog: { create: jest.fn().mockReturnValue(Promise.resolve({})) },
+      };
+      return fn(tx);
+    });
+    mockUserFindUnique.mockResolvedValue({ email: "bulk@test.com", firstName: "Bulk" });
+
+    await BetaAdminService.bulkAction(["user-1", "user-2", "user-3"], "kick", "admin-1");
+
+    // findUnique called for user-1 and user-3 (succeeded), NOT user-2 (failed)
+    expect(mockUserFindUnique).toHaveBeenCalledTimes(2);
+    expect(mockUserFindUnique).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      select: { email: true, firstName: true },
+    });
+    expect(mockUserFindUnique).toHaveBeenCalledWith({
+      where: { id: "user-3" },
+      select: { email: true, firstName: true },
+    });
   });
 });

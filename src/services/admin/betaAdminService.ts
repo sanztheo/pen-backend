@@ -19,7 +19,55 @@ import {
   TOTAL_BETA_SPOTS,
   SERIALIZATION_MAX_RETRIES,
   SERIALIZATION_BASE_DELAY_MS,
+  REACTIVATION_WINDOW_DAYS,
 } from "../BetaService.types.js";
+
+// ─── Email notification dedup (60s window) ──────────────────────
+const DEDUP_WINDOW_MS = 60_000;
+const recentNotifications = new Map<string, number>();
+
+function isRecentlyNotified(key: string): boolean {
+  const now = Date.now();
+  // Cleanup expired entries on each check
+  for (const [k, v] of recentNotifications) {
+    if (now - v > DEDUP_WINDOW_MS) recentNotifications.delete(k);
+  }
+  const lastSent = recentNotifications.get(key);
+  return lastSent !== undefined && now - lastSent < DEDUP_WINDOW_MS;
+}
+
+function markNotified(key: string): void {
+  recentNotifications.set(key, Date.now());
+}
+
+/** Send kick/promote email. Awaitable for sequential use in bulk. */
+async function sendBetaNotification(userId: string, type: "kick" | "promote"): Promise<void> {
+  const dedupKey = `${type}:${userId}`;
+  if (isRecentlyNotified(dedupKey)) return;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, firstName: true },
+  });
+  if (!user) return;
+
+  // Record dedup AFTER confirming user exists — avoids poisoning window on transient errors
+  markNotified(dedupKey);
+
+  const { EmailService } = await import("../EmailService.js");
+  if (type === "kick") {
+    await EmailService.sendBetaAccessRevoked({
+      to: user.email,
+      name: user.firstName,
+      reactivationDeadlineDays: REACTIVATION_WINDOW_DAYS,
+    });
+  } else {
+    await EmailService.sendBetaAccessGranted({
+      to: user.email,
+      name: user.firstName,
+    });
+  }
+}
 
 // ─── Cache configuration ────────────────────────────────────────
 const CACHE_NAMESPACE = "admin";
@@ -224,9 +272,12 @@ export class BetaAdminService {
     userId: string,
     adminId: string,
     reason?: string,
+    options?: { skipCacheInvalidation?: boolean; skipEmailNotification?: boolean },
   ): Promise<BetaActionResult> {
     const now = new Date();
-    const reactivationDeadline = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const reactivationDeadline = new Date(
+      now.getTime() + REACTIVATION_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    );
 
     const result = await prisma.$transaction(async (tx) => {
       const updated = await tx.user.updateMany({
@@ -256,7 +307,16 @@ export class BetaAdminService {
     });
 
     if (result.success) {
-      await BetaAdminService.invalidateMetricsCache();
+      if (!options?.skipCacheInvalidation) {
+        await BetaAdminService.invalidateMetricsCache();
+      }
+
+      if (!options?.skipEmailNotification) {
+        // Fire-and-forget email notification (deduped)
+        sendBetaNotification(userId, "kick").catch((err: unknown) => {
+          logger.warn("[BETA_ADMIN] Failed to send kick notification email:", err);
+        });
+      }
     }
 
     return result;
@@ -266,7 +326,11 @@ export class BetaAdminService {
    * Promote a user to active beta status using serializable transaction
    * with P2034 retry (same pattern as BetaCronService.executeWaitlistPromotion)
    */
-  static async promoteUser(userId: string, adminId: string): Promise<BetaActionResult> {
+  static async promoteUser(
+    userId: string,
+    adminId: string,
+    options?: { skipCacheInvalidation?: boolean; skipEmailNotification?: boolean },
+  ): Promise<BetaActionResult> {
     for (let attempt = 1; attempt <= SERIALIZATION_MAX_RETRIES; attempt++) {
       try {
         await prisma.$transaction(
@@ -327,7 +391,17 @@ export class BetaAdminService {
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
 
-        await BetaAdminService.invalidateMetricsCache();
+        if (!options?.skipCacheInvalidation) {
+          await BetaAdminService.invalidateMetricsCache();
+        }
+
+        if (!options?.skipEmailNotification) {
+          // Fire-and-forget email notification (deduped)
+          sendBetaNotification(userId, "promote").catch((err: unknown) => {
+            logger.warn("[BETA_ADMIN] Failed to send promote notification email:", err);
+          });
+        }
+
         return { success: true };
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
@@ -386,16 +460,19 @@ export class BetaAdminService {
       failed: 0,
       errors: [],
     };
+    const succeededUserIds: string[] = [];
 
+    const skipOpts = { skipCacheInvalidation: true, skipEmailNotification: true };
     for (const userId of userIds) {
       try {
         const actionResult =
           action === "kick"
-            ? await BetaAdminService.kickUser(userId, adminId, reason)
-            : await BetaAdminService.promoteUser(userId, adminId);
+            ? await BetaAdminService.kickUser(userId, adminId, reason, skipOpts)
+            : await BetaAdminService.promoteUser(userId, adminId, skipOpts);
 
         if (actionResult.success) {
           result.succeeded++;
+          succeededUserIds.push(userId);
         } else {
           result.failed++;
           result.errors.push({
@@ -413,7 +490,21 @@ export class BetaAdminService {
     // Single cache invalidation at the end
     await BetaAdminService.invalidateMetricsCache();
 
+    // Sequential email sending (respects Resend rate limits)
+    for (const userId of succeededUserIds) {
+      try {
+        await sendBetaNotification(userId, action);
+      } catch (err: unknown) {
+        logger.warn(`[BETA_ADMIN] Failed to send ${action} notification email in bulk:`, err);
+      }
+    }
+
     return result;
+  }
+
+  /** @internal — for unit tests only */
+  static _resetNotificationDedupForTest(): void {
+    recentNotifications.clear();
   }
 
   /**

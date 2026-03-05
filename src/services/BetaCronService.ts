@@ -8,11 +8,11 @@ import {
   STATUS_CACHE_KEY,
   SERIALIZATION_MAX_RETRIES,
   SERIALIZATION_BASE_DELAY_MS,
+  REACTIVATION_WINDOW_DAYS,
 } from "./BetaService.types.js";
 
 // ─── Cron-specific configuration ─────────────────────────────────
 const INACTIVITY_THRESHOLD_DAYS = 7;
-const REACTIVATION_WINDOW_DAYS = 14;
 const DELETION_BATCH_SIZE = 50;
 const CRON_LOCK_TTL_SECONDS = 300; // 5 minutes
 
