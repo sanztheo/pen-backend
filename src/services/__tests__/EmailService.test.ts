@@ -106,6 +106,92 @@ describe("EmailService.sendSpotAvailable", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
+//  sendBetaAccessGranted
+// ═══════════════════════════════════════════════════════════════
+
+describe("EmailService.sendBetaAccessGranted", () => {
+  it("sends correct payload with CTA to dashboard", async () => {
+    await EmailService.sendBetaAccessGranted({
+      to: "user@example.com",
+      name: "Alice",
+    });
+
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const call = mockSend.mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.to).toBe("user@example.com");
+    expect(call.subject).toContain("Bienvenue dans la beta");
+    expect(call.html).toContain("Alice");
+    expect(call.html).toContain("https://pennote.fr/fr/dashboard");
+  });
+
+  it("contains the green accent box", async () => {
+    await EmailService.sendBetaAccessGranted({
+      to: "user@example.com",
+      name: "Bob",
+    });
+
+    const call = mockSend.mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.html).toContain("maintenant actif");
+  });
+
+  it("escapes HTML in user name", async () => {
+    await EmailService.sendBetaAccessGranted({
+      to: "user@example.com",
+      name: '<script>alert("xss")</script>',
+    });
+
+    const call = mockSend.mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.html).not.toContain("<script>");
+    expect(call.html).toContain("&lt;script&gt;");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  sendBetaAccessRevoked
+// ═══════════════════════════════════════════════════════════════
+
+describe("EmailService.sendBetaAccessRevoked", () => {
+  it("sends correct payload with deadline and CTA to join", async () => {
+    await EmailService.sendBetaAccessRevoked({
+      to: "user@example.com",
+      name: "Diana",
+      reactivationDeadlineDays: 14,
+    });
+
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const call = mockSend.mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.to).toBe("user@example.com");
+    expect(call.subject).toContain("désactivé");
+    expect(call.html).toContain("Diana");
+    expect(call.html).toContain("14 jours");
+    expect(call.html).toContain("https://pennote.fr/fr/join");
+  });
+
+  it("uses custom deadline days", async () => {
+    await EmailService.sendBetaAccessRevoked({
+      to: "user@example.com",
+      name: "Eve",
+      reactivationDeadlineDays: 7,
+    });
+
+    const call = mockSend.mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.html).toContain("7 jours");
+  });
+
+  it("escapes HTML in user name", async () => {
+    await EmailService.sendBetaAccessRevoked({
+      to: "user@example.com",
+      name: '<img src=x onerror="alert(1)">',
+      reactivationDeadlineDays: 14,
+    });
+
+    const call = mockSend.mock.calls[0]![0] as Record<string, unknown>;
+    expect(call.html).not.toContain("<img src=x");
+    expect(call.html).toContain("&lt;img");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
 //  Graceful degrade — no API key
 // ═══════════════════════════════════════════════════════════════
 
@@ -129,6 +215,29 @@ describe("Graceful degrade without RESEND_API_KEY", () => {
     await EmailService.sendSpotAvailable({
       to: "user@example.com",
       name: "Frank",
+    });
+
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("does not crash for sendBetaAccessGranted without API key", async () => {
+    delete process.env.RESEND_API_KEY;
+
+    await EmailService.sendBetaAccessGranted({
+      to: "user@example.com",
+      name: "Grace",
+    });
+
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("does not crash for sendBetaAccessRevoked without API key", async () => {
+    delete process.env.RESEND_API_KEY;
+
+    await EmailService.sendBetaAccessRevoked({
+      to: "user@example.com",
+      name: "Hank",
+      reactivationDeadlineDays: 14,
     });
 
     expect(mockSend).not.toHaveBeenCalled();
