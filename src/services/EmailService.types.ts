@@ -13,3 +13,14 @@ export interface SpotAvailableInput {
   to: string;
   name: string;
 }
+
+export interface BetaAccessGrantedInput {
+  to: string;
+  name: string;
+}
+
+export interface BetaAccessRevokedInput {
+  to: string;
+  name: string;
+  reactivationDeadlineDays: number;
+}
