@@ -1,8 +1,6 @@
-import { PrismaClient } from "@prisma/client";
 import * as Y from "yjs";
 import { Awareness } from "y-protocols/awareness";
-
-const prisma = new PrismaClient();
+import { prisma } from "./prisma.js";
 
 function toBuffer(arr: Uint8Array): Uint8Array<ArrayBuffer> {
   return new Uint8Array(arr.buffer as ArrayBuffer, arr.byteOffset, arr.byteLength);
