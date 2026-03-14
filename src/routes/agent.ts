@@ -352,6 +352,7 @@ router.post(
               estimatedTokens,
               outputTokens,
               userId, // Quota par utilisateur
+              userId, // Track per-user cost
             );
             logger.log(
               `📊 [QUOTA] Usage enregistré pour ${userId}: ~${estimatedTokens + outputTokens} tokens`,
@@ -589,6 +590,7 @@ router.post(
           estimatedTokens,
           Math.ceil(result.content.length / 4),
           userId,
+          userId,
         );
 
         return res.json({
@@ -623,6 +625,7 @@ router.post(
           estimatedTokens,
           Math.ceil(result.content.length / 4),
           userId,
+          userId,
         );
 
         return res.json({
@@ -652,6 +655,7 @@ router.post(
           MODELS.AGENT_THINKING,
           estimatedTokens,
           Math.ceil(result.content.length / 4),
+          userId,
           userId,
         );
 

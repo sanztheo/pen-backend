@@ -50,6 +50,7 @@ export interface AIGenerationOptions {
   model?: string;
   context?: string;
   signal?: AbortSignal;
+  userId?: string;
   // 🚀 Nouveau : Support du streaming
   onStream?: (chunk: string) => void;
   // 🧠 Nouveau : Support du reasoning/thinking (Grok, o1, etc.)

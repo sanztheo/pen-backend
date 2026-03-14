@@ -65,6 +65,9 @@ router.patch("/alerts/:id/acknowledge", AdminController.acknowledgeAlert);
 router.post("/impersonate/end", AdminController.endImpersonation);
 router.post("/impersonate/:userId", AdminController.startImpersonation);
 
+// AI Costs
+router.get("/metrics/ai-costs", AdminController.getAICosts);
+
 // Beta management
 router.get("/beta/metrics", AdminController.getBetaMetrics);
 router.get("/beta/users", AdminController.getBetaUsers);
