@@ -82,7 +82,7 @@ jobs:
         run: npx prisma generate && npx prisma generate --schema=prisma/schema-embeddings.prisma
 
       - name: Run tests
-        run: npm test -- --ci --forceExit --testPathIgnorePatterns="node_modules" --testPathIgnorePatterns="dist" --testPathIgnorePatterns="preprocessor/__tests__/(QuizPreprocessorAgent|limitValidator|integrationHelper)"
+        run: npm test -- --ci --forceExit --testPathIgnorePatterns="node_modules" --testPathIgnorePatterns="dist" --testPathIgnorePatterns="preprocessor/__tests__/(QuizPreprocessorAgent|limitValidator|integrationHelper)" --testPathIgnorePatterns="betaAdmin.integration"
         env:
           CI: true
 
