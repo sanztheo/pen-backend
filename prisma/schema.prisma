@@ -584,6 +584,7 @@ model DailyArticle {
 model OpenaiUsageLog {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   quotaKey         String   @default("global") @map("quota_key") @db.VarChar(100)
+  userId           String?  @map("user_id") @db.VarChar(100)
   model            String   @db.VarChar(100)
   promptTokens     Int      @map("prompt_tokens")
   completionTokens Int      @map("completion_tokens")
@@ -592,6 +593,8 @@ model OpenaiUsageLog {
 
   @@index([quotaKey, createdAt])
   @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([model, createdAt])
   @@map("openai_usage_log")
 }
 

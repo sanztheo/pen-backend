@@ -304,3 +304,55 @@ export interface RetentionCohortsResponse {
   cohorts: CohortRetention[];
   maxWeeks: number;
 }
+
+// ─── AI Costs Types ─────────────────────────────────────────────────────
+
+export interface AICostByModel {
+  model: string;
+  provider: string;
+  totalCost: number;
+  totalRequests: number;
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
+  avgCostPerRequest: number;
+}
+
+export interface AICostByProvider {
+  provider: string;
+  totalCost: number;
+  totalRequests: number;
+  models: AICostByModel[];
+}
+
+export interface AICostTopUser {
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  totalCost: number;
+  totalRequests: number;
+  aiCreditsUsed: number;
+  topModel: string;
+}
+
+export interface ProviderBalance {
+  provider: string;
+  available: boolean;
+  balance?: number;
+  currency?: string;
+  error?: string;
+}
+
+export interface AICostTrendPoint {
+  date: string;
+  cost: number;
+  requests: number;
+}
+
+export interface AICostsResponse {
+  byModel: AICostByModel[];
+  byProvider: AICostByProvider[];
+  topUsers: AICostTopUser[];
+  trend: AICostTrendPoint[];
+  balances: ProviderBalance[];
+}

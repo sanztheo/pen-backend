@@ -357,7 +357,13 @@ export class ContentGenerationService {
         try {
           const estimatedPromptTokens = Math.ceil(options.prompt.length / 4);
           const estimatedCompletionTokens = Math.ceil(fullContent.length / 4);
-          await AIQuotaManager.recordUsage(model, estimatedPromptTokens, estimatedCompletionTokens);
+          await AIQuotaManager.recordUsage(
+            model,
+            estimatedPromptTokens,
+            estimatedCompletionTokens,
+            "global",
+            options.userId,
+          );
         } catch (err) {
           logger.warn("⚠️ Erreur enregistrement quota (stream):", err);
         }
@@ -453,6 +459,8 @@ export class ContentGenerationService {
           data.model,
           data.usage.prompt_tokens,
           data.usage.completion_tokens,
+          "global",
+          options.userId,
         ).catch((err) => logger.warn("⚠️ Erreur enregistrement quota:", err));
       }
 
@@ -525,6 +533,8 @@ export class ContentGenerationService {
                 continuationData.model,
                 continuationData.usage.prompt_tokens,
                 continuationData.usage.completion_tokens,
+                "global",
+                options.userId,
               ).catch((err) => logger.warn("⚠️ Erreur enregistrement quota continuation:", err));
             }
           }
