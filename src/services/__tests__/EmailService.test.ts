@@ -79,7 +79,7 @@ describe("EmailService.sendWaitlistConfirmation", () => {
     });
 
     expect(logger.log).toHaveBeenCalledWith(
-      expect.stringContaining("Waitlist confirmation sent to u**r@example.com"),
+      expect.stringContaining("waitlist confirmation sent to u**r@example.com"),
     );
   });
 });
