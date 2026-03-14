@@ -604,10 +604,10 @@ model AIConversation {
 
   // État de la conversation
   status         ConversationStatus @default(COMPLETED)
-  activeStreamId String?   @map("active_stream_id") @db.VarChar(100)
-  isActive       Boolean   @default(true) @map("is_active")
-  messageCount   Int       @default(0) @map("message_count")
-  lastMessageAt  DateTime? @map("last_message_at") @db.Timestamptz(6)
+  activeStreamId String?            @map("active_stream_id") @db.VarChar(100)
+  isActive       Boolean            @default(true) @map("is_active")
+  messageCount   Int                @default(0) @map("message_count")
+  lastMessageAt  DateTime?          @map("last_message_at") @db.Timestamptz(6)
 
   // Métadonnées
   metadata Json @default("{}")
