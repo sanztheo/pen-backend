@@ -85,11 +85,6 @@ jobs:
         run: npm test -- --ci --forceExit --testPathIgnorePatterns="node_modules" --testPathIgnorePatterns="dist" --testPathIgnorePatterns="preprocessor/__tests__/(QuizPreprocessorAgent|limitValidator|integrationHelper)"
         env:
           CI: true
-          NODE_OPTIONS: --experimental-vm-modules
-          REDIS_URL: redis://localhost:6379
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
-          OPENAI_API_KEY: sk-test-key
-          NODE_ENV: test
 
   ci-status:
     name: "CI Status"
