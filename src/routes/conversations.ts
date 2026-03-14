@@ -61,31 +61,52 @@ router.get("/", verifyWorkspaceAccess, async (req, res) => {
   }
 });
 
-// 📄 GET /conversations/:id - Récupérer une conversation avec ses messages
+// 📄 GET /conversations/:id - Récupérer une conversation avec messages paginés (cursor-based)
+const MESSAGES_DEFAULT_LIMIT = 50;
+
 router.get("/:id", verifyConversationAccess, async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user!.id;
+    const cursor = req.query.cursor as string | undefined;
+    const limit = Math.min(parseInt(req.query.limit as string, 10) || MESSAGES_DEFAULT_LIMIT, 100);
 
     const conversation = await prisma.aIConversation.findFirst({
-      where: {
-        id,
-        userId,
-        isActive: true,
-      },
-      include: {
-        messages: {
-          orderBy: { createdAt: "asc" },
-        },
-      },
+      where: { id, userId, isActive: true },
     });
 
     if (!conversation) {
       return res.status(404).json({ error: "Conversation non trouvée" });
     }
 
-    res.json({ conversation });
-  } catch (error) {
+    // Cursor-based pagination: load latest messages, exclude heavy fields
+    const messages = await prisma.aIMessage.findMany({
+      where: { conversationId: id },
+      orderBy: { createdAt: "asc" },
+      take: limit,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      select: {
+        id: true,
+        role: true,
+        content: true,
+        createdAt: true,
+        mode: true,
+        pageId: true,
+        pageTitle: true,
+        isPageDeleted: true,
+        projectId: true,
+        pageCreationData: true,
+        // Exclude heavy fields: thinking, toolCalls, intermediateThinkingBlocks
+      },
+    });
+
+    const nextCursor = messages.length === limit ? messages[messages.length - 1]?.id : null;
+
+    res.json({
+      conversation: { ...conversation, messages },
+      pagination: { nextCursor, limit },
+    });
+  } catch (error: unknown) {
     logger.error("[GET /conversations/:id] error", error);
     res.status(500).json({ error: "Erreur lors de la récupération de la conversation" });
   }

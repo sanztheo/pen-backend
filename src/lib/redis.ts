@@ -174,9 +174,9 @@ export const cacheDefaultWorkspaceId = async (userId: string): Promise<string | 
     logger.log(`❌ [REDIS-CACHE] DefaultWorkspace MISS: ${userId}`);
     const workspace = await prisma.workspace.findFirst({
       where: {
-        OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
+        ownerId: userId,
+        name: "Mon Espace",
       },
-      orderBy: { createdAt: "asc" },
     });
 
     if (workspace?.id) {
@@ -189,9 +189,9 @@ export const cacheDefaultWorkspaceId = async (userId: string): Promise<string | 
     logger.error("⚠️ [REDIS] Fallback to DB (cache error):", error);
     const workspace = await prisma.workspace.findFirst({
       where: {
-        OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
+        ownerId: userId,
+        name: "Mon Espace",
       },
-      orderBy: { createdAt: "asc" },
     });
     return workspace?.id || null;
   }
@@ -483,8 +483,8 @@ export const saveSidebarContent = async (userId: string, content: unknown) => {
  */
 export const invalidateSidebarCache = async (userId: string) => {
   try {
-    await redis.del(`sidebar:${userId}`);
-    logger.log(`🗑️ [REDIS-CACHE] Sidebar invalidated: ${userId}`);
+    await redis.del(`sidebar:${userId}`, `default-workspace:${userId}`);
+    logger.log(`🗑️ [REDIS-CACHE] Sidebar + DefaultWorkspace invalidated: ${userId}`);
   } catch (error) {
     logger.error("⚠️ [REDIS] Erreur invalidation cache Sidebar:", error);
   }

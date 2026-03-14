@@ -56,6 +56,7 @@ import { logger } from "./utils/logger.js";
 import { initFuturaScheduler, stopFuturaScheduler } from "./lib/futuraScheduler.js";
 import { startAlertsCron, stopAlertsCron } from "./cron/alertsCron.js";
 import { startRetentionCron, stopRetentionCron } from "./cron/retentionCron.js";
+import { LRUCache } from "lru-cache";
 
 // 🛡️ RATE LIMITING IMPORTS
 import {
@@ -260,8 +261,26 @@ const authenticateTokenWS = async (token: string) => {
 const setupYjsWebSocket = (server: http.Server) => {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 }); // 1 MB
   const persistence = new PrismaPersistence();
-  const docs = new Map<string, Y.Doc>();
   const connections = new Map<string, number>(); // Compteur de connexions par document
+
+  // LRU cache for Yjs docs: max 500 docs, 30min idle TTL, flush+destroy on eviction
+  const YJS_MAX_DOCS = 500;
+  const YJS_TTL_MS = 30 * 60 * 1000;
+  const docs = new LRUCache<string, Y.Doc>({
+    max: YJS_MAX_DOCS,
+    ttl: YJS_TTL_MS,
+    dispose: (doc: Y.Doc, pageId: string) => {
+      // Only evict if no active connections
+      const activeConns = connections.get(pageId) || 0;
+      if (activeConns > 0) return;
+      persistence.flushDocument(pageId);
+      doc.destroy();
+      connections.delete(pageId);
+      logger.log(`[Yjs] LRU evicted doc ${pageId}`);
+    },
+    noDisposeOnSet: true,
+    updateAgeOnGet: true,
+  });
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
   wss.on("connection", async (ws, req) => {

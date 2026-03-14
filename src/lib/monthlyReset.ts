@@ -2,166 +2,102 @@ import { prisma } from "./prisma.js";
 import { logger } from "../utils/logger.js";
 
 /**
- * Fonction de maintenance pour réinitialiser les limites mensuellement
- * À exécuter via un CRON job quotidien
+ * Batch monthly reset: single SQL statements instead of N+1 individual transactions.
+ * Resets usage counters for free users whose period has elapsed.
  */
-export async function processMonthlyResets() {
-  logger.log("🔄 [Monthly Reset] Démarrage du processus de reset mensuel...");
+export async function processMonthlyResets(): Promise<{
+  resetCount: number;
+  downgradeCount: number;
+}> {
+  logger.log("[Monthly Reset] Starting batch reset...");
 
   try {
     const now = new Date();
+    const newPeriodEnd = new Date(now);
+    newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
 
-    // Récupérer tous les utilisateurs avec un plan gratuit qui pourraient nécessiter un reset
-    const usersToCheck = await prisma.user.findMany({
-      where: {
-        subscription: {
-          plan: "free_user",
-        },
-      },
-      include: {
-        subscription: true,
-        userLimits: true,
-      },
-    });
+    // Batch reset: single SQL updates user_limits + user_subscriptions
+    // for all free users whose period has ended (next reset date <= now)
+    const [resetLimitsResult] = await prisma.$transaction([
+      prisma.$executeRaw`
+        UPDATE user_limits ul
+        SET "aiCreditsUsed" = 0,
+            "customQuizzesUsed" = 0,
+            "presetSequencesUsed" = 0,
+            "lastResetAt" = ${now}
+        FROM user_subscriptions us
+        WHERE ul."userId" = us."userId"
+          AND us.plan = 'free_user'
+          AND (
+            us."currentPeriodEnd" IS NOT NULL AND us."currentPeriodEnd" <= ${now}
+            OR us."currentPeriodEnd" IS NULL AND ul."lastResetAt" + INTERVAL '1 month' <= ${now}
+          )
+      `,
+      prisma.$executeRaw`
+        UPDATE user_subscriptions us
+        SET "currentPeriodStart" = ${now},
+            "currentPeriodEnd" = ${newPeriodEnd}
+        WHERE us.plan = 'free_user'
+          AND (
+            us."currentPeriodEnd" IS NOT NULL AND us."currentPeriodEnd" <= ${now}
+            OR us."currentPeriodEnd" IS NULL
+          )
+      `,
+    ]);
 
-    let resetCount = 0;
-
-    for (const user of usersToCheck) {
-      if (!user.userLimits || !user.subscription) continue;
-
-      const limits = user.userLimits;
-      const subscription = user.subscription;
-
-      // Utiliser la date de début de période comme référence
-      const referenceDate = subscription.currentPeriodStart || new Date(limits.lastResetAt);
-
-      // Calculer la prochaine date de reset (même jour du mois suivant)
-      // Amélioration: gérer les fins de mois correctement
-      const nextResetDate = new Date(referenceDate);
-      const originalDay = referenceDate.getDate();
-      nextResetDate.setMonth(nextResetDate.getMonth() + 1);
-
-      // Si le jour a changé (ex: 31 jan → 3 mars), ajuster au dernier jour du mois
-      if (nextResetDate.getDate() !== originalDay) {
-        nextResetDate.setDate(0); // Dernier jour du mois précédent
-      }
-
-      // Si on a dépassé la date de reset, réinitialiser
-      if (now >= nextResetDate) {
-        logger.log(`🔄 [Monthly Reset] Reset pour utilisateur ${user.id}`, {
-          lastReset: limits.lastResetAt,
-          currentPeriodStart: subscription.currentPeriodStart?.toISOString(),
-          nextReset: nextResetDate.toISOString(),
-          subscription: subscription.plan,
-        });
-
-        // Calculer la nouvelle période
-        const newPeriodStart = new Date(now);
-        const newPeriodEnd = new Date(now);
-        newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
-
-        // Ajuster si fin de mois problématique
-        const newOriginalDay = newPeriodStart.getDate();
-        if (newPeriodEnd.getDate() !== newOriginalDay) {
-          newPeriodEnd.setDate(0);
-        }
-
-        // Mettre à jour les limites ET la période de subscription
-        await prisma.$transaction([
-          prisma.userLimits.update({
-            where: { userId: user.id },
-            data: {
-              // Reset uniquement les crédits consommables
-              aiCreditsUsed: 0,
-              customQuizzesUsed: 0,
-              presetSequencesUsed: 0,
-              lastResetAt: now,
-            },
-          }),
-          prisma.userSubscription.update({
-            where: { userId: user.id },
-            data: {
-              currentPeriodStart: newPeriodStart,
-              currentPeriodEnd: newPeriodEnd,
-            },
-          }),
-        ]);
-
-        resetCount++;
-      }
-    }
-
-    // Traitement des downgrades programmés (cancelAtPeriodEnd = true)
+    const resetCount = Number(resetLimitsResult);
     const downgradeCount = await processScheduledDowngrades(now);
 
-    logger.log(
-      `✅ [Monthly Reset] Terminé: ${resetCount} resets effectués, ${downgradeCount} downgrades traités`,
-    );
+    logger.log(`[Monthly Reset] Done: ${resetCount} resets, ${downgradeCount} downgrades`);
 
     return { resetCount, downgradeCount };
-  } catch (error) {
-    logger.error("❌ [Monthly Reset] Erreur:", error);
+  } catch (error: unknown) {
+    logger.error("[Monthly Reset] Error:", error);
     throw error;
   }
 }
 
 /**
- * Traite les downgrades programmés (cancelAtPeriodEnd = true)
+ * Batch-process scheduled downgrades (cancelAtPeriodEnd = true).
+ * Processes in chunks to avoid long-running transactions.
  */
-async function processScheduledDowngrades(now: Date) {
-  const subscriptionsToDowngrade = await prisma.userSubscription.findMany({
-    where: {
-      cancelAtPeriodEnd: true,
-      currentPeriodEnd: {
-        lte: now, // Période terminée
-      },
-    },
-  });
+async function processScheduledDowngrades(now: Date): Promise<number> {
+  const newPeriodEnd = new Date(now);
+  newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
 
-  let downgradeCount = 0;
+  // Batch update subscriptions to free_user
+  const downgradeSubsCount = await prisma.$executeRaw`
+    UPDATE user_subscriptions
+    SET plan = 'free_user',
+        "cancelAtPeriodEnd" = false,
+        "currentPeriodStart" = ${now},
+        "currentPeriodEnd" = ${newPeriodEnd}
+    WHERE "cancelAtPeriodEnd" = true
+      AND "currentPeriodEnd" <= ${now}
+  `;
 
-  for (const subscription of subscriptionsToDowngrade) {
-    logger.log(
-      `📉 [Scheduled Downgrade] Downgrade utilisateur ${subscription.userId} vers free_user`,
-    );
-
-    // Calculer la nouvelle période mensuelle
-    const newPeriodStart = now;
-    const newPeriodEnd = new Date(now);
-    newPeriodEnd.setMonth(newPeriodEnd.getMonth() + 1);
-
-    // Downgrade vers free_user
-    await prisma.userSubscription.update({
-      where: { id: subscription.id },
-      data: {
-        plan: "free_user",
-        cancelAtPeriodEnd: false,
-        currentPeriodStart: newPeriodStart,
-        currentPeriodEnd: newPeriodEnd,
-      },
-    });
-
-    // Réappliquer les limites FREE
-    await prisma.userLimits.update({
-      where: { userId: subscription.userId },
-      data: {
-        aiCreditsLimit: 50,
-        workspacesLimit: 2,
-        projectsLimit: -1,
-        customQuizzesLimit: 5,
-        presetSequencesLimit: 1,
-        // Reset des crédits consommables
-        aiCreditsUsed: 0,
-        customQuizzesUsed: 0,
-        presetSequencesUsed: 0,
-        lastResetAt: now,
-      },
-    });
-
-    downgradeCount++;
+  // Batch reset limits for downgraded users
+  if (downgradeSubsCount > 0) {
+    await prisma.$executeRaw`
+      UPDATE user_limits ul
+      SET "aiCreditsLimit" = 50,
+          "workspacesLimit" = 2,
+          "projectsLimit" = -1,
+          "customQuizzesLimit" = 5,
+          "presetSequencesLimit" = 1,
+          "aiCreditsUsed" = 0,
+          "customQuizzesUsed" = 0,
+          "presetSequencesUsed" = 0,
+          "lastResetAt" = ${now}
+      FROM user_subscriptions us
+      WHERE ul."userId" = us."userId"
+        AND us.plan = 'free_user'
+        AND us."cancelAtPeriodEnd" = false
+        AND us."currentPeriodStart" = ${now}
+    `;
   }
 
-  return downgradeCount;
+  return Number(downgradeSubsCount);
 }
 
 /**

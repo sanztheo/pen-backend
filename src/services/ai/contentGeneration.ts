@@ -9,7 +9,7 @@ import type {
 import type { CompletionUsage } from "openai/resources/completions";
 import { AIService, AIGenerationOptions, AIGenerationResult } from "./base.js";
 import { CodeDetectionService } from "./codeDetection.js";
-import { OpenAIQuotaManager } from "./quotaManager.js";
+import { AIQuotaManager } from "./quotaManager.js";
 import {
   isFixedTempModel,
   isNanoModel,
@@ -144,7 +144,7 @@ export class ContentGenerationService {
       const estimatedPromptTokens = Math.ceil(options.prompt.length / 4); // approximation 1 token ≈ 4 chars
       const estimatedCompletionTokens = options.maxTokens || 1000;
 
-      const quotaCheck = await OpenAIQuotaManager.checkQuota(
+      const quotaCheck = await AIQuotaManager.checkQuota(
         model,
         estimatedPromptTokens,
         estimatedCompletionTokens,
@@ -262,7 +262,7 @@ export class ContentGenerationService {
                 let buffer = "";
                 for (const word of words) {
                   buffer += word;
-                  if (buffer.length >= 30 || /[\n\.\,\;\!\?]/.test(word)) {
+                  if (buffer.length >= 30 || /[\n.,;!?]/.test(word)) {
                     options.onStream(buffer);
                     buffer = "";
                   }
@@ -357,11 +357,7 @@ export class ContentGenerationService {
         try {
           const estimatedPromptTokens = Math.ceil(options.prompt.length / 4);
           const estimatedCompletionTokens = Math.ceil(fullContent.length / 4);
-          await OpenAIQuotaManager.recordUsage(
-            model,
-            estimatedPromptTokens,
-            estimatedCompletionTokens,
-          );
+          await AIQuotaManager.recordUsage(model, estimatedPromptTokens, estimatedCompletionTokens);
         } catch (err) {
           logger.warn("⚠️ Erreur enregistrement quota (stream):", err);
         }
@@ -453,7 +449,7 @@ export class ContentGenerationService {
 
       // 🛡️ ENREGISTRER L'USAGE POUR LE QUOTA
       if (data.usage?.prompt_tokens && data.usage?.completion_tokens) {
-        await OpenAIQuotaManager.recordUsage(
+        await AIQuotaManager.recordUsage(
           data.model,
           data.usage.prompt_tokens,
           data.usage.completion_tokens,
@@ -525,7 +521,7 @@ export class ContentGenerationService {
               continuationData.usage?.prompt_tokens &&
               continuationData.usage?.completion_tokens
             ) {
-              await OpenAIQuotaManager.recordUsage(
+              await AIQuotaManager.recordUsage(
                 continuationData.model,
                 continuationData.usage.prompt_tokens,
                 continuationData.usage.completion_tokens,

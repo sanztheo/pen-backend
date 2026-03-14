@@ -1,8 +1,9 @@
 /**
  * 💬 Conversation Service - Persistance des conversations AI
  *
- * Sauvegarde et chargement des conversations au format UIMessage (Vercel AI SDK v5)
+ * Sauvegarde et chargement des conversations au format UIMessage (Vercel AI SDK v6)
  * Compatible avec useChat() côté frontend.
+ * Supporte le status-based polling pour la résilience au refresh.
  *
  * @see https://ai-sdk.dev/docs/ai-sdk-ui/chatbot-message-persistence
  */
@@ -10,6 +11,7 @@
 import { logger } from "../../utils/logger.js";
 import { prisma } from "../../lib/prisma.js";
 import type { UIMessage } from "ai";
+import type { ConversationStatus } from "@prisma/client";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -29,7 +31,7 @@ function isUIMessage(value: unknown): value is UIMessage {
 
 /**
  * Sauvegarde les messages d'une conversation
- * Appelé dans onFinish de toUIMessageStreamResponse
+ * Appelé avant le stream (status=STREAMING) et dans onFinish (status=COMPLETED)
  */
 export async function saveConversation({
   conversationId,
@@ -37,14 +39,18 @@ export async function saveConversation({
   workspaceId,
   messages,
   mode,
+  status = "COMPLETED",
 }: {
   conversationId: string;
   userId: string;
   workspaceId: string;
   messages: UIMessage[];
   mode?: string;
+  status?: ConversationStatus;
 }): Promise<void> {
-  logger.log(`💾 [CONVERSATION] Sauvegarde: ${conversationId}, ${messages.length} messages`);
+  logger.log(
+    `💾 [CONVERSATION] Sauvegarde: ${conversationId}, ${messages.length} messages, status=${status}`,
+  );
 
   try {
     // Extraire le titre du premier message utilisateur
@@ -59,14 +65,18 @@ export async function saveConversation({
         userId,
         workspaceId,
         title,
+        status,
         messageCount: messages.length,
         lastMessageAt: new Date(),
         metadata: { mode },
       },
       update: {
+        status,
         messageCount: messages.length,
         lastMessageAt: new Date(),
         metadata: { mode },
+        // Clear activeStreamId quand le stream est terminé
+        ...(status === "COMPLETED" && { activeStreamId: null }),
       },
     });
 
@@ -101,13 +111,68 @@ export async function saveConversation({
 }
 
 /**
+ * Met à jour l'activeStreamId d'une conversation
+ * Appelé au début du stream (set) et à la fin (clear avec null)
+ */
+export async function updateActiveStreamId(
+  conversationId: string,
+  activeStreamId: string | null,
+): Promise<void> {
+  try {
+    await prisma.aIConversation.update({
+      where: { id: conversationId },
+      data: { activeStreamId },
+    });
+  } catch (error) {
+    logger.error("[CONVERSATION] Erreur update activeStreamId:", error);
+  }
+}
+
+/**
+ * Met à jour le status d'une conversation (STREAMING → COMPLETED / ERROR)
+ */
+export async function updateConversationStatus(
+  conversationId: string,
+  status: ConversationStatus,
+): Promise<void> {
+  try {
+    await prisma.aIConversation.update({
+      where: { id: conversationId },
+      data: { status },
+    });
+    logger.log(`🔄 [CONVERSATION] Status: ${conversationId} → ${status}`);
+  } catch (error) {
+    logger.error(`❌ [CONVERSATION] Erreur update status:`, error);
+  }
+}
+
+/**
+ * Récupère le status d'une conversation pour le polling frontend
+ */
+export async function getConversationStatus(
+  conversationId: string,
+  userId: string,
+): Promise<{ status: ConversationStatus; messageCount: number } | null> {
+  try {
+    const conversation = await prisma.aIConversation.findFirst({
+      where: { id: conversationId, userId },
+      select: { status: true, messageCount: true },
+    });
+    return conversation;
+  } catch (error) {
+    logger.error(`❌ [CONVERSATION] Erreur get status:`, error);
+    return null;
+  }
+}
+
+/**
  * Charge les messages d'une conversation
- * Retourne un tableau de UIMessage pour initialMessages de useChat
+ * Retourne un tableau de UIMessage + le status pour le polling frontend
  */
 export async function loadConversation(
   conversationId: string,
   userId: string,
-): Promise<UIMessage[] | null> {
+): Promise<{ messages: UIMessage[]; status: ConversationStatus; mode?: string } | null> {
   logger.log(`📖 [CONVERSATION] Chargement: ${conversationId}`);
 
   try {
@@ -145,8 +210,14 @@ export async function loadConversation(
       }
     });
 
-    logger.log(`✅ [CONVERSATION] Chargé: ${conversationId}, ${messages.length} messages`);
-    return messages;
+    // Extraire le mode depuis les métadonnées
+    const metadata = conversation.metadata as Record<string, unknown> | null;
+    const mode = typeof metadata?.mode === "string" ? metadata.mode : undefined;
+
+    logger.log(
+      `✅ [CONVERSATION] Chargé: ${conversationId}, ${messages.length} messages, status=${conversation.status}, mode=${mode}`,
+    );
+    return { messages, status: conversation.status, mode };
   } catch (error) {
     logger.error(`❌ [CONVERSATION] Erreur chargement:`, error);
     return null;
@@ -164,6 +235,7 @@ export async function listConversations(
   Array<{
     id: string;
     title: string;
+    status: ConversationStatus;
     messageCount: number;
     lastMessageAt: Date | null;
     createdAt: Date;
@@ -180,6 +252,7 @@ export async function listConversations(
     select: {
       id: true,
       title: true,
+      status: true,
       messageCount: true,
       lastMessageAt: true,
       createdAt: true,

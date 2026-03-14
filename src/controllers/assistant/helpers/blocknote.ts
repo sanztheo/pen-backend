@@ -360,7 +360,9 @@ export function toBlockNote(content: string): BlockNoteBlock[] {
             continue;
           }
         }
-      } catch {}
+      } catch {
+        // Intentionally swallowed: malformed JSONL line, fall through to plain text parsing
+      }
     }
 
     // Suppression de la conversion automatique des lignes mixtes $$...$$ en blocs
@@ -540,7 +542,9 @@ export function toBlockNoteAuto(input: string): BlockNoteBlock[] {
     try {
       const o = JSON.parse(t);
       if (o && typeof o.t === "string") ok++;
-    } catch {}
+    } catch {
+      // Intentionally swallowed: invalid JSON line, skip and check next sample
+    }
   }
   if (ok >= 3) {
     return toBlockNoteFromJSONL(input);

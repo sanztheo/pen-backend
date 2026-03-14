@@ -8,7 +8,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createXai } from "@ai-sdk/xai";
-import { createKimi } from "kimi-vercel-ai-sdk-provider";
+import { createMoonshotAI } from "@ai-sdk/moonshotai";
 import { getModelProvider, type Provider } from "./models.js";
 
 // ── Provider instances ─────────────────────────────────────────────────────
@@ -36,8 +36,10 @@ export const xaiProvider = process.env.XAI_API_KEY
   ? createXai({ apiKey: process.env.XAI_API_KEY })
   : undefined;
 
-export const kimiProvider = process.env.KIMI_API_KEY
-  ? createKimi({ apiKey: process.env.KIMI_API_KEY })
+// Kimi via provider officiel @ai-sdk/moonshotai (spec v3, compatible AI SDK v6)
+const MOONSHOT_KEY = process.env.MOONSHOT_API_KEY || process.env.KIMI_API_KEY;
+export const moonshotProvider = MOONSHOT_KEY
+  ? createMoonshotAI({ apiKey: MOONSHOT_KEY })
   : undefined;
 
 // ── Provider resolution ────────────────────────────────────────────────────
@@ -45,10 +47,10 @@ export const kimiProvider = process.env.KIMI_API_KEY
 type AnyProvider =
   | ReturnType<typeof createGoogleGenerativeAI>
   | ReturnType<typeof createOpenAI>
+  | ReturnType<typeof createMoonshotAI>
   | ReturnType<typeof createDeepSeek>
   | ReturnType<typeof createAnthropic>
   | ReturnType<typeof createXai>
-  | ReturnType<typeof createKimi>
   | undefined;
 
 const PROVIDER_MAP: Record<Provider, AnyProvider> = {
@@ -56,7 +58,7 @@ const PROVIDER_MAP: Record<Provider, AnyProvider> = {
   google,
   anthropic: anthropicProvider,
   deepseek: deepseekProvider,
-  moonshot: kimiProvider,
+  moonshot: moonshotProvider,
   xai: xaiProvider,
 };
 
