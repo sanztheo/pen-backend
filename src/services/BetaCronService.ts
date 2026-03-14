@@ -15,6 +15,8 @@ import {
 const INACTIVITY_THRESHOLD_DAYS = 7;
 const DELETION_BATCH_SIZE = 50;
 const CRON_LOCK_TTL_SECONDS = 300; // 5 minutes
+const EMAIL_BATCH_SIZE = 5;
+const EMAIL_BATCH_DELAY_MS = 1_000;
 
 // ─── Result types ──────────────────────────────────────────────
 interface CronJobResult {
@@ -166,17 +168,12 @@ export class BetaCronService {
       }
     }
 
-    // Fire-and-forget: send spot-available emails sequentially (respects Resend rate limits)
+    // Send spot-available emails in batches of 5 with 1s delay between batches
+    // to respect Resend rate limits and avoid unbounded concurrency
     if (promotedUsers.length > 0) {
-      import("./EmailService.js")
-        .then(async ({ EmailService }) => {
-          for (const user of promotedUsers) {
-            await EmailService.sendSpotAvailable({ to: user.email, name: user.name });
-          }
-        })
-        .catch((emailErr: unknown) => {
-          logger.warn("[BETA_CRON] Batch email notification failed:", emailErr);
-        });
+      BetaCronService.sendPromotionEmailsBatched(promotedUsers).catch((emailErr: unknown) => {
+        logger.warn("[BETA_CRON] Batch email notification failed:", emailErr);
+      });
     }
 
     if (promoted > 0) {
@@ -221,7 +218,7 @@ export class BetaCronService {
         betaStatus: "inactive",
         betaReactivationDeadline: { lt: now },
       },
-      select: { id: true, email: true, betaReactivationDeadline: true },
+      select: { id: true, betaReactivationDeadline: true },
       take: DELETION_BATCH_SIZE,
     });
 
@@ -269,7 +266,7 @@ export class BetaCronService {
    * Uses dynamic import to avoid circular dependency at module load.
    */
   private static async deleteExpiredUsers(
-    users: Array<{ id: string; email: string }>,
+    users: Array<{ id: string }>,
   ): Promise<{ deletedCount: number; deleteErrors: number }> {
     const { AccountDeletionService } = await import("./AccountDeletionService.js");
 
@@ -355,6 +352,30 @@ export class BetaCronService {
           `[BETA_CRON] Serialization conflict on promotion (attempt ${attempt}/${SERIALIZATION_MAX_RETRIES}), retrying in ${delayMs}ms`,
         );
         await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  /**
+   * Sends promotion emails in chunks to respect Resend rate limits.
+   * Processes EMAIL_BATCH_SIZE emails concurrently, then waits EMAIL_BATCH_DELAY_MS.
+   */
+  private static async sendPromotionEmailsBatched(
+    users: Array<{ email: string; name: string }>,
+  ): Promise<void> {
+    const { EmailService } = await import("./EmailService.js");
+
+    for (let i = 0; i < users.length; i += EMAIL_BATCH_SIZE) {
+      const chunk = users.slice(i, i + EMAIL_BATCH_SIZE);
+
+      await Promise.all(
+        chunk.map((user) => EmailService.sendSpotAvailable({ to: user.email, name: user.name })),
+      );
+
+      // Delay between batches (skip after last batch)
+      const hasMoreBatches = i + EMAIL_BATCH_SIZE < users.length;
+      if (hasMoreBatches) {
+        await new Promise((resolve) => setTimeout(resolve, EMAIL_BATCH_DELAY_MS));
       }
     }
   }

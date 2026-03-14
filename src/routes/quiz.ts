@@ -11,7 +11,9 @@ import { quizStatsRouter } from "./quizStats.js";
 
 const router = Router();
 
-// Route de streaming SSE (SANS authentification middleware car EventSource ne peut pas envoyer de headers)
+// SSE streaming: EventSource can't send Authorization headers, so authenticateToken
+// middleware won't work. Auth is handled inside the controller via ?token= query param
+// (JWT verified + session ownership checked in QuizStreamingController.streamQuizGeneration)
 router.get("/stream/:sessionId", QuizStreamingController.streamQuizGeneration);
 
 // Middleware d'authentification pour toutes les autres routes quiz

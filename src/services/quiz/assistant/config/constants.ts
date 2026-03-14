@@ -1,14 +1,5 @@
 // assistant/config/constants.ts - Constantes et labels pour l'assistant quiz
 
-/**
- * Configuration des Assistants OpenAI
- * Placé ici pour éviter les dépendances circulaires
- * IMPORTANT: Ces IDs doivent être définis dans les variables d'environnement
- */
-export const ASSISTANT_ID = process.env.ASSISTANT_ID;
-export const ASSISTANT_ID_DOCUMENTS = process.env.ASSISTANT_ID_DOCUMENTS;
-export const ASSISTANT_ID_2 = process.env.ASSISTANT_ID_2;
-
 export const SPECIALTY_LABELS: Record<string, string> = {
   MATHEMATIQUES: "Mathématiques",
   PHYSIQUE_CHIMIE: "Physique-Chimie",

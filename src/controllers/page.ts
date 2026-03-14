@@ -240,17 +240,12 @@ export const createPage = async (req: Request, res: Response) => {
       logger.error("🧠 [RAG] Service non disponible:", error);
     }
 
-    // 🗑️ REDIS CACHE INVALIDATION: Invalider le cache asynchrone (non-bloquant)
-    void (async () => {
-      try {
-        await redisCache.invalidatePattern(`recent-pages:${req.user!.id}:*`, {
-          namespace: "pages",
-        });
-        logger.log(`🗑️ [Cache] Pages récentes invalidées pour user ${req.user!.id}`);
-      } catch (error) {
-        logger.warn("⚠️ [Cache] Échec invalidation:", error);
-      }
-    })();
+    // 🗑️ REDIS CACHE INVALIDATION: Invalider sidebar + pages récentes AVANT la réponse
+    const { invalidateSidebarCache } = await import("../lib/redis.js");
+    await invalidateSidebarCache(req.user!.id);
+    await redisCache.invalidatePattern(`recent-pages:${req.user!.id}:*`, {
+      namespace: "pages",
+    });
 
     logger.log(`⏱️  [PERF] TOTAL createPage: ${Date.now() - startTime}ms`);
     res.status(201).json({

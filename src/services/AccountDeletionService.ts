@@ -122,26 +122,7 @@ export class AccountDeletionService {
     for (let attempt = 1; attempt <= DELETION_MAX_RETRIES; attempt++) {
       try {
         await prisma.$transaction(
-          async (tx) => {
-            // a) Delete activity logs (no cascade from User)
-            await tx.activityLog.deleteMany({ where: { userId } });
-
-            // b) Transfer owned workspaces that have other members
-            await AccountDeletionService.transferOwnedWorkspaces(tx, userId);
-
-            // c) Reassign shared pages and projects to workspace owners
-            await AccountDeletionService.reassignSharedEntities(tx, userId, "page");
-            await AccountDeletionService.reassignSharedEntities(tx, userId, "project");
-
-            // d) Nullify invitedBy references (no cascade from User)
-            await tx.workspaceMember.updateMany({
-              where: { invitedBy: userId },
-              data: { invitedBy: null },
-            });
-
-            // e) Delete user — cascade handles solo workspaces, quizzes, etc.
-            await tx.user.delete({ where: { id: userId } });
-          },
+          (tx) => AccountDeletionService.buildDeletionOperations(tx, userId),
           {
             isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
             timeout: TRANSACTION_TIMEOUT_MS,
@@ -165,6 +146,31 @@ export class AccountDeletionService {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
+  }
+
+  /** All deletion operations inside a single Serializable transaction */
+  private static async buildDeletionOperations(
+    tx: Prisma.TransactionClient,
+    userId: string,
+  ): Promise<void> {
+    // a) Delete activity logs (no cascade from User)
+    await tx.activityLog.deleteMany({ where: { userId } });
+
+    // b) Transfer owned workspaces that have other members
+    await AccountDeletionService.transferOwnedWorkspaces(tx, userId);
+
+    // c) Reassign shared pages and projects to workspace owners
+    await AccountDeletionService.reassignSharedEntities(tx, userId, "page");
+    await AccountDeletionService.reassignSharedEntities(tx, userId, "project");
+
+    // d) Nullify invitedBy references (no cascade from User)
+    await tx.workspaceMember.updateMany({
+      where: { invitedBy: userId },
+      data: { invitedBy: null },
+    });
+
+    // e) Delete user — cascade handles solo workspaces, quizzes, etc.
+    await tx.user.delete({ where: { id: userId } });
   }
 
   /**

@@ -351,7 +351,7 @@ router.post("/chat", requireAICredits({ cost: 1.0, action: "openai_proxy" }), as
 
     // ✅ BlockNote v0.45+: injectDocumentStateMessages + systemPrompt + convertToModelMessages
     const injectedMessages = injectDocumentStateMessages(messages);
-    const convertedMessages = convertToModelMessages(injectedMessages);
+    const convertedMessages = await convertToModelMessages(injectedMessages);
     logger.log("📋 [AI-CHAT] Messages convertis:", {
       originalCount: messages.length,
       injectedCount: injectedMessages.length,

@@ -6,7 +6,7 @@
 import { logger } from "../utils/logger.js";
 import { Router } from "express";
 import { z } from "zod";
-import { authenticateToken } from "../middlewares/auth.js";
+import { authenticateToken, blockImpersonation } from "../middlewares/auth.js";
 import { SimplifiedContentService } from "../services/simplifiedContent.js";
 import { prisma } from "../lib/prisma.js";
 
@@ -42,6 +42,7 @@ const updatePageSchema = z.object({
 router.get("/", authenticateToken, async (req, res) => {
   try {
     const userId = req.user!.id;
+    res.setHeader("Cache-Control", "private, no-cache, no-store");
     const { cacheSidebarContent, saveSidebarContent } = await import("../lib/redis.js");
 
     // 🚀 Essayer de récupérer depuis le cache Redis
@@ -56,9 +57,7 @@ router.get("/", authenticateToken, async (req, res) => {
     const content = await SimplifiedContentService.getUserContent(userId);
 
     // 💾 Sauvegarder dans le cache pour les prochaines requêtes
-    saveSidebarContent(userId, content).catch((err) =>
-      logger.warn("⚠️ [CONTENT-API] Échec sauvegarde cache:", err),
-    );
+    await saveSidebarContent(userId, content);
 
     res.json(content);
   } catch (error: unknown) {
@@ -148,11 +147,9 @@ router.post("/projects", authenticateToken, async (req, res) => {
 
     const project = await SimplifiedContentService.createProject(userId, validatedData);
 
-    // 🗑️ Invalider le cache sidebar après création
+    // 🗑️ Invalider le cache sidebar AVANT la réponse (garantit la fraîcheur au reload)
     const { invalidateSidebarCache } = await import("../lib/redis.js");
-    invalidateSidebarCache(userId).catch((err) =>
-      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
-    );
+    await invalidateSidebarCache(userId);
 
     res.status(201).json({
       success: true,
@@ -201,11 +198,9 @@ router.post("/pages", authenticateToken, async (req, res) => {
       blockNoteContent: validatedData.blockNoteContent,
     });
 
-    // 🗑️ Invalider le cache sidebar après création
+    // 🗑️ Invalider le cache sidebar AVANT la réponse (garantit la fraîcheur au reload)
     const { invalidateSidebarCache } = await import("../lib/redis.js");
-    invalidateSidebarCache(userId).catch((err) =>
-      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
-    );
+    await invalidateSidebarCache(userId);
 
     res.status(201).json({
       success: true,
@@ -258,11 +253,9 @@ router.put("/projects/:id", authenticateToken, async (req, res) => {
       },
     });
 
-    // 🗑️ Invalider le cache sidebar après modification
+    // 🗑️ Invalider le cache sidebar AVANT la réponse
     const { invalidateSidebarCache } = await import("../lib/redis.js");
-    invalidateSidebarCache(userId).catch((err) =>
-      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
-    );
+    await invalidateSidebarCache(userId);
 
     res.json({
       success: true,
@@ -290,18 +283,16 @@ router.put("/projects/:id", authenticateToken, async (req, res) => {
  * DELETE /api/content/projects/:id
  * Supprime un projet
  */
-router.delete("/projects/:id", authenticateToken, async (req, res) => {
+router.delete("/projects/:id", authenticateToken, blockImpersonation, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
 
     await SimplifiedContentService.deleteProject(userId, id);
 
-    // 🗑️ Invalider le cache sidebar après suppression
+    // 🗑️ Invalider le cache sidebar AVANT la réponse
     const { invalidateSidebarCache } = await import("../lib/redis.js");
-    invalidateSidebarCache(userId).catch((err) =>
-      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
-    );
+    await invalidateSidebarCache(userId);
 
     res.json({
       success: true,
@@ -320,18 +311,16 @@ router.delete("/projects/:id", authenticateToken, async (req, res) => {
  * DELETE /api/content/pages/:id
  * Supprime une page
  */
-router.delete("/pages/:id", authenticateToken, async (req, res) => {
+router.delete("/pages/:id", authenticateToken, blockImpersonation, async (req, res) => {
   try {
     const userId = req.user!.id;
     const { id } = req.params;
 
     await SimplifiedContentService.deletePage(userId, id);
 
-    // 🗑️ Invalider le cache sidebar après suppression
+    // 🗑️ Invalider le cache sidebar AVANT la réponse
     const { invalidateSidebarCache } = await import("../lib/redis.js");
-    invalidateSidebarCache(userId).catch((err) =>
-      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
-    );
+    await invalidateSidebarCache(userId);
 
     res.json({
       success: true,
@@ -394,11 +383,9 @@ router.patch("/projects/:id/pin", authenticateToken, async (req, res) => {
       },
     });
 
-    // 🗑️ Invalider le cache sidebar après modification
+    // 🗑️ Invalider le cache sidebar AVANT la réponse
     const { invalidateSidebarCache } = await import("../lib/redis.js");
-    invalidateSidebarCache(userId).catch((err) =>
-      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
-    );
+    await invalidateSidebarCache(userId);
 
     res.json({
       message: updatedProject.isPinned ? "Projet épinglé" : "Projet désépinglé",
@@ -456,11 +443,9 @@ router.patch("/pages/:id/pin", authenticateToken, async (req, res) => {
       },
     });
 
-    // 🗑️ Invalider le cache sidebar après modification
+    // 🗑️ Invalider le cache sidebar AVANT la réponse
     const { invalidateSidebarCache } = await import("../lib/redis.js");
-    invalidateSidebarCache(userId).catch((err) =>
-      logger.warn("⚠️ [CONTENT-API] Échec invalidation cache:", err),
-    );
+    await invalidateSidebarCache(userId);
 
     res.json({
       message: updatedPage.isPinned ? "Page épinglée" : "Page désépinglée",

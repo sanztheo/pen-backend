@@ -473,21 +473,6 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
       maxOutputTokens: 16_384,
     },
   },
-  "kimi-k2.5-thinking": {
-    // $0.45 / $2.20
-    id: "kimi-k2.5-thinking",
-    provider: "moonshot",
-    pricing: { input: 0.45, output: 2.2 },
-    capabilities: {
-      reasoning: true,
-      streaming: true,
-      structuredOutput: true,
-      vision: true,
-      toolCalling: true,
-      maxContextTokens: 262_000,
-      maxOutputTokens: 16_384,
-    },
-  },
   "kimi-k2-0905": {
     // $0.40 / $2.00
     id: "kimi-k2-0905",

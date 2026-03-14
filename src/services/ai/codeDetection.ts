@@ -167,7 +167,9 @@ export class CodeDetectionService {
       try {
         JSON.parse(code);
         return "json";
-      } catch {}
+      } catch {
+        // Intentionally swallowed: invalid JSON means this isn't JSON, fall through to other detections
+      }
     }
 
     // PHP
