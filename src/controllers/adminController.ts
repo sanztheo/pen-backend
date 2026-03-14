@@ -29,6 +29,7 @@ import { RetentionCohortService } from "../services/admin/retentionCohortService
 import { AdminNotesService } from "../services/admin/adminNotesService.js";
 import { UserBulkService } from "../services/admin/userBulkService.js";
 import { LtvService } from "../services/admin/ltvService.js";
+import { AICostService } from "../services/admin/aiCostService.js";
 
 export class AdminController {
   /**
@@ -513,6 +514,37 @@ export class AdminController {
       res.status(500).json({
         success: false,
         error: "Erreur lors de la récupération des tendances",
+      });
+    }
+  }
+
+  // ─── AI Costs ──────────────────────────────────────────────────
+
+  /**
+   * GET /api/admin/metrics/ai-costs?period=30d
+   */
+  static async getAICosts(req: Request, res: Response): Promise<void> {
+    try {
+      const rawPeriod = (req.query.period as string) || "30d";
+      const parsed = AdminController.TrendPeriodSchema.safeParse(rawPeriod);
+
+      if (!parsed.success) {
+        res.status(400).json({
+          success: false,
+          error: "period invalide — valeurs acceptées : 7d, 30d, 90d",
+        });
+        return;
+      }
+
+      const period: TrendPeriod = parsed.data;
+      const data = await AICostService.getAICosts(period);
+      res.status(200).json({ success: true, data });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("[ADMIN_CONTROLLER] getAICosts error:", { message });
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération des coûts AI",
       });
     }
   }
