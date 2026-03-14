@@ -22,15 +22,17 @@ const getDatabaseUrl = (): string => {
   const params = new URLSearchParams();
 
   if (isProduction) {
-    // 🚀 PRODUCTION: Configuration pour 1000+ utilisateurs simultanés
-    params.set("connection_limit", "50"); // Max 50 connexions par instance
-    params.set("pool_timeout", "20"); // 20s max d'attente pour connexion
-    params.set("connect_timeout", "10"); // 10s timeout connexion initiale
-    params.set("statement_timeout", "30000"); // 30s max par requête SQL
-    params.set("idle_in_transaction_session_timeout", "60000"); // Ferme transactions inactives après 60s
+    // PRODUCTION: sized for SSE streaming + WebSocket + cron + BullMQ workers + normal traffic
+    // At 10k users, SSE holds connections open, WS saves trigger queries, cron/workers need headroom.
+    // 100 connections handles ~10k concurrent users; consider PgBouncer for further scaling.
+    params.set("connection_limit", "100");
+    params.set("pool_timeout", "10"); // Fail-fast: 10s to surface pool exhaustion early
+    params.set("connect_timeout", "10");
+    params.set("statement_timeout", "30000");
+    params.set("idle_in_transaction_session_timeout", "60000");
   } else {
-    // 💻 DÉVELOPPEMENT: Configuration optimisée (streaming + tools + workers)
-    params.set("connection_limit", "30"); // 🔥 Optimisé: 30 connexions (streaming SSE + tools + workers + cleanup)
+    // DEVELOPMENT: lower pool, same timeouts
+    params.set("connection_limit", "30");
     params.set("pool_timeout", "20");
     params.set("connect_timeout", "10");
     params.set("statement_timeout", "30000");
@@ -229,7 +231,7 @@ logger.log("━━━━━━━━━━━━━━━━━━━━━━�
 logger.log("🗄️  CONFIGURATION DATABASE PRISMA");
 logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 logger.log(`📍 Environnement: ${isProduction ? "🚀 PRODUCTION" : "💻 DEVELOPMENT"}`);
-logger.log(`🔗 Connection Pool: ${isProduction ? "50 connexions max" : "30 connexions max"}`);
+logger.log(`🔗 Connection Pool: ${isProduction ? "100 connexions max" : "30 connexions max"}`);
 logger.log(`⏱️  Timeouts: 30s statement, 60s idle transaction`);
 logger.log(`🔄 Auto-retry: Activé (3 tentatives max)`);
 logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

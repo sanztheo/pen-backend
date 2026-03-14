@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { OpenAIQuotaManager } from "../../services/ai/quotaManager.js";
+import { AIQuotaManager } from "../../services/ai/quotaManager.js";
 import { logger } from "../../utils/logger.js";
 
 /**
@@ -11,7 +11,7 @@ export const getQuotaStats = async (req: Request, res: Response) => {
       return res.status(401).json({ error: "Utilisateur non authentifié" });
     }
 
-    const stats = await OpenAIQuotaManager.getUsageStats();
+    const stats = await AIQuotaManager.getUsageStats();
 
     res.json({
       message: "Statistiques de quota récupérées",
@@ -71,7 +71,7 @@ export const resetQuota = async (req: Request, res: Response) => {
     //   return res.status(403).json({ error: 'Accès administrateur requis' });
     // }
 
-    OpenAIQuotaManager.resetCache();
+    AIQuotaManager.resetCache();
 
     res.json({
       message: "Cache de quotas réinitialisé avec succès",

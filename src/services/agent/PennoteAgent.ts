@@ -1,5 +1,5 @@
-// 🤖 Pennote Agent - Vercel AI SDK v5
-import { streamText, stepCountIs, type ToolSet } from "ai";
+// 🤖 Pennote Agent - Vercel AI SDK v6
+import { streamText, stepCountIs, type ToolSet, type StreamTextResult } from "ai";
 import { createRagTools } from "./tools/ragTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createWebTools } from "./tools/webTools.js";
@@ -7,14 +7,15 @@ import { createPageTools } from "./tools/pageTools.js";
 import { createWikipediaTools } from "./tools/wikipediaTools.js";
 import { logger } from "../../utils/logger.js";
 import { MODELS } from "../../config/models.js";
-import { google } from "../../config/providers.js";
+import { getProviderInstance } from "../../config/providers.js";
+import { getModelProvider } from "../../config/models/helpers.js";
 
 // Types et configuration
 import {
   MODE_CONFIG,
-  type AgentMode,
   type AgentRequest,
   type AgentStreamCallbacks,
+  type ThinkingLevel,
 } from "./types.js";
 
 // System prompts
@@ -23,10 +24,57 @@ import { buildSystemPrompt } from "./systemPrompts.js";
 // Re-export types
 export type { AgentMode, AgentRequest, AgentStreamCallbacks } from "./types.js";
 
+// ── Provider-specific thinking config ────────────────────────────────────────
+
+/**
+ * Sélectionne le modèle en fonction du niveau de thinking.
+ * Tous les providers (Moonshot, Google, etc.) utilisent le même modèle —
+ * le thinking est contrôlé via providerOptions.
+ */
+function resolveModelForThinking(_thinking: ThinkingLevel): string {
+  return MODELS.AGENT_PRIMARY;
+}
+
+/**
+ * Construit les providerOptions spécifiques au provider pour le thinking.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildProviderOptions(modelId: string, thinking: ThinkingLevel): any {
+  const provider = getModelProvider(modelId);
+
+  if (provider === "google") {
+    return {
+      google: {
+        thinkingConfig: { thinkingLevel: thinking, includeThoughts: true },
+      },
+    };
+  }
+
+  // Moonshot K2.5: thinking contrôlé via providerOptions (pas de modèle séparé)
+  if (provider === "moonshot") {
+    const useThinking = thinking === "medium" || thinking === "high";
+    if (useThinking) {
+      const budgetTokens = thinking === "high" ? 8192 : 4096;
+      return {
+        moonshotai: {
+          thinking: { type: "enabled", budgetTokens },
+        },
+      };
+    }
+    return {};
+  }
+
+  return {};
+}
+
 /**
  * Exécute l'agent Pennote avec streaming
  */
-export async function runPennoteAgent(request: AgentRequest, callbacks?: AgentStreamCallbacks) {
+export function runPennoteAgent(
+  request: AgentRequest,
+  callbacks?: AgentStreamCallbacks,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): StreamTextResult<any, any> {
   const {
     messages,
     mode,
@@ -68,22 +116,29 @@ export async function runPennoteAgent(request: AgentRequest, callbacks?: AgentSt
     conversationHistory,
   });
 
-  // Utiliser Gemini 3 Flash Preview avec thinking
-  const { thinkingConfig } = MODE_CONFIG[mode];
-  const modelName = MODELS.AGENT_PRIMARY;
+  // Résoudre modèle + provider dynamiquement selon le thinking level
+  const { thinking } = MODE_CONFIG[mode];
+  const modelName = resolveModelForThinking(thinking);
+  const providerInstance = getProviderInstance(modelName);
+  const providerName = getModelProvider(modelName) || "unknown";
+
+  if (!providerInstance) {
+    throw new Error(
+      `[PennoteAgent] Provider "${providerName}" not configured for model "${modelName}". Check API key.`,
+    );
+  }
+
+  const model = providerInstance(modelName);
+  const providerOptions = buildProviderOptions(modelName, thinking);
 
   logger.log(`🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`);
   logger.log(`🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`);
   logger.log(
-    `🤖 [PennoteAgent] Provider: Google, Model: ${modelName}, Thinking: ${thinkingConfig?.thinkingLevel || "auto"}`,
+    `🤖 [PennoteAgent] Provider: ${providerName}, Model: ${modelName}, Thinking: ${thinking}`,
   );
 
   let stepNumber = 0;
 
-  if (!google) throw new Error("[PennoteAgent] GEMINI_API_KEY is not configured");
-  const model = google(modelName);
-
-  // Exécuter streamText avec Gemini 2.5 Flash
   const result = streamText({
     model,
     system: systemPrompt,
@@ -92,10 +147,7 @@ export async function runPennoteAgent(request: AgentRequest, callbacks?: AgentSt
     maxOutputTokens: maxTokens,
     stopWhen: stepCountIs(maxSteps),
     toolChoice: "auto",
-    // Activer le thinking mode Gemini
-    providerOptions: {
-      google: { thinkingConfig },
-    },
+    providerOptions,
 
     // Callback global à la fin du stream
     onFinish: ({ text, finishReason, usage, reasoning, sources }) => {

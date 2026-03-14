@@ -16,6 +16,8 @@ export function sseWriteData(res: Response, text: string) {
   if (hasFlush(res)) {
     try {
       res.flush();
-    } catch {}
+    } catch {
+      // Intentionally swallowed: flush may fail if response is already closed
+    }
   }
 }

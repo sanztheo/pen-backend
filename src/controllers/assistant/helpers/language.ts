@@ -14,7 +14,9 @@ export function detectPreferredLanguage(req: Request): { code: string; name: str
       if (typeof p?.langue === "string" && p.langue.trim()) {
         personaLang = String(p.langue).trim();
       }
-    } catch {}
+    } catch {
+      // Intentionally swallowed: malformed JSON in header, fall through to body check
+    }
   }
 
   // 2) Tenter le body.personalization.langue si non défini en header
@@ -28,7 +30,9 @@ export function detectPreferredLanguage(req: Request): { code: string; name: str
           ? body.personalization.langue
           : undefined;
       if (typeof bodyLang === "string" && bodyLang.trim()) personaLang = String(bodyLang).trim();
-    } catch {}
+    } catch {
+      // Intentionally swallowed: body parsing may fail, fall through to header-based detection
+    }
   }
 
   const raw =

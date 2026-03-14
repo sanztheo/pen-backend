@@ -15,43 +15,47 @@ function env(key: string): string | undefined {
 // Each key = a use-case in Pennote. Override via env var where noted.
 
 export const MODELS = {
-  /** Chat agent principal (Gemini thinking) */
-  AGENT_PRIMARY: env("AGENT_MODEL") || "gemini-3-flash-preview",
-  /** Workflows — steps rapides */
-  AGENT_FAST: "gemini-2.0-flash",
-  /** Workflows — steps complexes (thinking) */
-  AGENT_THINKING: "gemini-3-flash",
+  // ── Agent (chat principal) ────────────────────────────────────────────────
+  /** Chat agent principal — thinking contrôlé via providerOptions */
+  AGENT_PRIMARY: env("AGENT_MODEL") || "kimi-k2.5",
+  /** Workflows — steps rapides, pas de thinking */
+  AGENT_FAST: "kimi-k2.5",
+  /** Workflows — steps complexes (thinking via providerOptions) */
+  AGENT_THINKING: "kimi-k2.5",
 
-  /** Generation de questions quiz */
-  QUIZ_GENERATION: env("OPENAI_QUIZ_GENERATION") || "gpt-5-mini",
-  /** Correction de quiz */
-  QUIZ_CORRECTION: env("OPENAI_QUIZ_CORRECTION") || "gpt-5-mini",
-
-  /** Preprocessor quiz */
-  PREPROCESSOR: "gpt-4o-mini",
+  // ── Quiz ──────────────────────────────────────────────────────────────────
+  /** Generation de questions quiz — thinking pour qualite */
+  QUIZ_GENERATION: env("OPENAI_QUIZ_GENERATION") || "kimi-k2.5",
+  /** Correction de quiz — thinking pour precision */
+  QUIZ_CORRECTION: env("OPENAI_QUIZ_CORRECTION") || "kimi-k2.5",
+  /** Preprocessor quiz — pas de thinking necessaire */
+  PREPROCESSOR: "kimi-k2.5",
   /** Extraction de concepts */
-  EXTRACTION: "gpt-4o-mini",
+  EXTRACTION: "kimi-k2.5",
   /** Clustering thematique */
-  CLUSTERING: "gpt-4o-mini",
+  CLUSTERING: "kimi-k2.5",
   /** Graphiques quiz + controller */
-  GRAPHICS: "gpt-4o-mini",
+  GRAPHICS: "kimi-k2.5",
   /** Fonctions assistant quiz */
-  ASSISTANT_FUNCTIONS: "gpt-4o-mini",
+  ASSISTANT_FUNCTIONS: "kimi-k2.5",
 
+  // ── Taches legeres ────────────────────────────────────────────────────────
   /** Taches legeres (titres quiz, RSS, micro-taches) */
-  LIGHTWEIGHT: "gpt-4.1-nano",
+  LIGHTWEIGHT: "kimi-k2.5",
   /** Validation pertinence RSS */
-  RSS_VALIDATION: "gpt-4.1-nano",
+  RSS_VALIDATION: "kimi-k2.5",
 
+  // ── Contenu & detection ───────────────────────────────────────────────────
   /** Generation contenu editeur (dashboard) */
-  CONTENT_DEFAULT: env("OPENAI_DASHBOARD_MODEL") || env("OPENAI_MODEL") || "gpt-4o-mini",
+  CONTENT_DEFAULT: env("OPENAI_DASHBOARD_MODEL") || "kimi-k2.5",
   /** Detection type question RAG */
-  DETECTION: env("OPENAI_DETECTION_MODEL") || "gpt-4o-mini",
+  DETECTION: env("OPENAI_DETECTION_MODEL") || "kimi-k2.5",
   /** Titre de conversation */
-  CONVERSATION_TITLE: "gpt-4o-mini",
-  /** Recherche web (OpenAI Responses API) */
+  CONVERSATION_TITLE: "kimi-k2.5",
+  /** Recherche web (OpenAI Responses API — reste sur OpenAI) */
   WEB_SEARCH: "gpt-4o-mini",
 
+  // ── Embeddings (OpenAI — Kimi n'a pas de modele embeddings) ───────────────
   /** Embeddings RAG + concepts + documents */
   EMBEDDING: "text-embedding-3-small",
 } as const;
@@ -77,5 +81,5 @@ export function getSupportedModels(): [string, ...string[]] {
       return validated as [string, ...string[]];
     }
   }
-  return ["gpt-4o", "gpt-4o-mini", "gpt-4.1-mini", "gpt-5-mini"];
+  return ["kimi-k2.5", "gpt-4o-mini", "gpt-5-mini"];
 }

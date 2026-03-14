@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
 import { wikipediaRAG, type WikipediaArticle } from "../../rag/wikipedia.js";
 import { ragSystem } from "../../rag/index.js";
@@ -354,6 +355,9 @@ Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les reche
           // Générer l'embedding de la requête
           const queryEmbedding = await ragSystem.embeddingService.generateEmbedding(query);
           const embeddingStr = `[${queryEmbedding.join(",")}]`;
+          // Prisma.raw() pour le cast ::vector (même pattern que ragSystem.search)
+          const vectorCast = Prisma.raw(`'${embeddingStr}'::vector`);
+          const safeLimit = Math.max(1, Math.floor(limit * 2));
 
           // Recherche vectorielle UNIQUEMENT sur les sources Wikipedia
           const results = await prismaEmbeddings.$queryRaw<
@@ -371,7 +375,7 @@ Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les reche
               c.id,
               c.clean_content,
               c.section_title,
-              1 - (c.embedding <=> ${embeddingStr}::vector) as similarity,
+              1 - (c.embedding <=> ${vectorCast}) as similarity,
               s.id as source_id,
               s.title as source_title,
               s.original_url as source_url
@@ -380,9 +384,9 @@ Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les reche
             WHERE s.source_type = 'WIKIPEDIA'
               AND s.status = 'COMPLETED'
               AND (s.is_global = true OR (s.user_id = ${ctx.userId} AND s.workspace_id = ${ctx.workspaceId}))
-              AND 1 - (c.embedding <=> ${embeddingStr}::vector) >= ${threshold}
-            ORDER BY c.embedding <=> ${embeddingStr}::vector
-            LIMIT ${limit * 2}
+              AND 1 - (c.embedding <=> ${vectorCast}) >= ${threshold}
+            ORDER BY c.embedding <=> ${vectorCast}
+            LIMIT ${safeLimit}
           `;
 
           // Dédupliquer et limiter

@@ -4,6 +4,8 @@ import { logger } from "../../utils/logger.js";
 import { sanitizeObjectKeys, stripHtmlTags } from "../../utils/sanitize.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** RFC 5321: max 254 chars for a valid email address */
+const MAX_EMAIL_LENGTH = 254;
 const PHONE_REGEX = /^\+?[\d\s\-().]{0,30}$/;
 const MAX_PHONE_LENGTH = 32;
 const MAX_METADATA_SIZE_BYTES = 4096;
@@ -36,7 +38,7 @@ export class WaitlistController {
         return;
       }
 
-      if (!EMAIL_REGEX.test(trimmedEmail)) {
+      if (trimmedEmail.length > MAX_EMAIL_LENGTH || !EMAIL_REGEX.test(trimmedEmail)) {
         res.status(400).json({
           success: false,
           error: "Invalid email format",

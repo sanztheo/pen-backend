@@ -272,3 +272,17 @@ export const requireUser = (req: Request, res: Response, next: NextFunction) => 
   }
   next();
 };
+
+/**
+ * Blocks destructive actions during admin impersonation sessions.
+ * Use on routes like delete account, cancel subscription, delete workspace, etc.
+ */
+export const blockImpersonation = (req: Request, res: Response, next: NextFunction) => {
+  if (req.impersonatedBy) {
+    return res.status(403).json({
+      error: "This action is not allowed during impersonation",
+      code: "IMPERSONATION_BLOCKED",
+    });
+  }
+  next();
+};
