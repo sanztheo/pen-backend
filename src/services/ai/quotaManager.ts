@@ -204,12 +204,14 @@ export class AIQuotaManager {
     promptTokens: number,
     completionTokens: number,
     quotaKey: string = "global",
+    userId?: string,
   ): Promise<void> {
     logger.log(`📝 [QUOTA] recordUsage() appelée:`, {
       model,
       promptTokens,
       completionTokens,
       quotaKey,
+      userId,
     });
 
     const cost = this.calculateCost(model, promptTokens, completionTokens);
@@ -242,6 +244,7 @@ export class AIQuotaManager {
       await prisma.openaiUsageLog.create({
         data: {
           quotaKey,
+          userId,
           model,
           promptTokens,
           completionTokens,
