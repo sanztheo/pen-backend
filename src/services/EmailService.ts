@@ -2,11 +2,16 @@ import { logger } from "../utils/logger.js";
 import {
   EMAIL_FROM_DEFAULT,
   WEBSITE_BASE_URL,
+  isValidEmail,
   type WaitlistConfirmationInput,
   type SpotAvailableInput,
   type BetaAccessGrantedInput,
   type BetaAccessRevokedInput,
 } from "./EmailService.types.js";
+
+// ─── Retry configuration ────────────────────────────────────
+const RETRY_DELAY_MS = 1_000;
+const RETRYABLE_STATUS_CODES = new Set([429, 503]);
 
 // ─── Lazy-initialized Resend client (Promise singleton) ─────
 let initPromise: Promise<import("resend").Resend | null> | null = null;
@@ -27,9 +32,9 @@ function getResendClient(): Promise<import("resend").Resend | null> {
   return initPromise;
 }
 
-// ─── HTML Utilities ──────────────────────────────────────────
+// ─── Utilities ──────────────────────────────────────────────
 
-function escapeHtml(str: string): string {
+export function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -38,17 +43,7 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function sanitizeResendError(error: unknown): { message: string; name: string } {
-  if (error !== null && typeof error === "object") {
-    const obj = error as Record<string, unknown>;
-    const message = "message" in error && typeof obj.message === "string" ? obj.message : "unknown";
-    const name = "name" in error && typeof obj.name === "string" ? obj.name : "unknown";
-    return { message, name };
-  }
-  return { message: String(error), name: "unknown" };
-}
-
-function maskEmail(email: string): string {
+export function maskEmail(email: string): string {
   const [local, domain] = email.split("@");
   if (!local || !domain) return "***";
   const maskedLocal =
@@ -58,7 +53,151 @@ function maskEmail(email: string): string {
   return `${maskedLocal}@${domain}`;
 }
 
-// ─── Email Templates ─────────────────────────────────────────
+function sanitizeResendError(error: unknown): { message: string; name: string } {
+  if (error !== null && typeof error === "object") {
+    const obj = error as Record<string, unknown>;
+    const message = "message" in obj && typeof obj.message === "string" ? obj.message : "unknown";
+    const name = "name" in obj && typeof obj.name === "string" ? obj.name : "unknown";
+    return { message, name };
+  }
+  return { message: String(error), name: "unknown" };
+}
+
+function isRetryableError(error: unknown): boolean {
+  if (error !== null && typeof error === "object") {
+    const obj = error as Record<string, unknown>;
+    if ("statusCode" in obj && typeof obj.statusCode === "number") {
+      return RETRYABLE_STATUS_CODES.has(obj.statusCode);
+    }
+  }
+  return false;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// ─── Core send helper (shared logic + retry) ────────────────
+
+interface SendEmailParams {
+  to: string;
+  subject: string;
+  html: string;
+  label: string;
+}
+
+async function sendEmail(params: SendEmailParams): Promise<void> {
+  if (!isValidEmail(params.to)) {
+    logger.warn(`[EmailService] Invalid recipient email for ${params.label}, skipping`);
+    return;
+  }
+
+  const client = await getResendClient();
+  if (!client) return;
+
+  const from = process.env.RESEND_FROM_EMAIL || EMAIL_FROM_DEFAULT;
+  const masked = maskEmail(params.to);
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const { error } = await client.emails.send({
+        from,
+        to: params.to,
+        subject: params.subject,
+        html: params.html,
+      });
+
+      if (error) {
+        if (attempt === 1 && isRetryableError(error)) {
+          logger.warn(
+            `[EmailService] Retryable error on ${params.label}, retrying in ${RETRY_DELAY_MS}ms`,
+          );
+          await delay(RETRY_DELAY_MS);
+          continue;
+        }
+        logger.error(
+          `[EmailService] Resend API error (${params.label}):`,
+          sanitizeResendError(error),
+        );
+        return;
+      }
+
+      logger.log(`[EmailService] ${params.label} sent to ${masked}`);
+      return;
+    } catch (err: unknown) {
+      if (attempt === 1 && isRetryableError(err)) {
+        logger.warn(
+          `[EmailService] Retryable exception on ${params.label}, retrying in ${RETRY_DELAY_MS}ms`,
+        );
+        await delay(RETRY_DELAY_MS);
+        continue;
+      }
+      logger.error(`[EmailService] Failed to send ${params.label}:`, err);
+      return;
+    }
+  }
+}
+
+// ─── Public API ──────────────────────────────────────────────
+
+export class EmailService {
+  static async sendWaitlistConfirmation(input: WaitlistConfirmationInput): Promise<void> {
+    return sendEmail({
+      to: input.to,
+      subject: "Pennote — Inscription waitlist confirmée",
+      html: buildWaitlistConfirmationHtml(input.name, input.position),
+      label: "waitlist confirmation",
+    });
+  }
+
+  static async sendSpotAvailable(input: SpotAvailableInput): Promise<void> {
+    return sendEmail({
+      to: input.to,
+      subject: "Pennote — Une place s'est libérée !",
+      html: buildSpotAvailableHtml(input.name),
+      label: "spot available",
+    });
+  }
+
+  static async sendBetaAccessGranted(input: BetaAccessGrantedInput): Promise<void> {
+    return sendEmail({
+      to: input.to,
+      subject: "Pennote — Bienvenue dans la beta !",
+      html: buildBetaAccessGrantedHtml(input.name),
+      label: "beta access granted",
+    });
+  }
+
+  static async sendBetaAccessRevoked(input: BetaAccessRevokedInput): Promise<void> {
+    return sendEmail({
+      to: input.to,
+      subject: "Pennote — Votre accès beta a été désactivé",
+      html: buildBetaAccessRevokedHtml(input.name, input.reactivationDeadlineDays),
+      label: "beta access revoked",
+    });
+  }
+}
+
+// ─── Test Seams ─────────────────────────────────────────────
+/** @internal — for unit tests only */
+export function _resetForTest(): void {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("_resetForTest is only available in test environment");
+  }
+  initPromise = null;
+}
+
+/** @internal — for unit tests only */
+export function _escapeHtmlForTest(str: string): string {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("_escapeHtmlForTest is only available in test environment");
+  }
+  return escapeHtml(str);
+}
+
+// ─── Email Templates (private) ──────────────────────────────
+// Templates are below the public API for readability.
+// They are long HTML strings — line count is inherently high.
 
 function buildWaitlistConfirmationHtml(name: string, position: number): string {
   const safeName = escapeHtml(name);
@@ -90,7 +229,7 @@ function buildWaitlistConfirmationHtml(name: string, position: number): string {
         </p>
       </td></tr>
       <tr><td style="padding:24px 40px;background-color:#fafafa;text-align:center;">
-        <p style="margin:0;color:#a1a1aa;font-size:12px;">© ${new Date().getFullYear()} Pennote. Tous droits réservés.</p>
+        <p style="margin:0;color:#a1a1aa;font-size:12px;">&copy; ${new Date().getFullYear()} Pennote. Tous droits réservés.</p>
       </td></tr>
     </table>
   </td></tr>
@@ -124,7 +263,7 @@ function buildSpotAvailableHtml(name: string): string {
         </div>
         <div style="margin:24px 0;padding:16px;background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
           <p style="margin:0;color:#991b1b;font-size:14px;line-height:1.5;">
-            <strong>⏰ Important :</strong> Vous avez <strong>14 jours</strong> pour vous reconnecter. Passé ce délai, votre place sera libérée pour un autre utilisateur.
+            <strong>&#9200; Important :</strong> Vous avez <strong>14 jours</strong> pour vous reconnecter. Passé ce délai, votre place sera libérée pour un autre utilisateur.
           </p>
         </div>
         <p style="margin:0;color:#a1a1aa;font-size:14px;line-height:1.5;">
@@ -132,7 +271,7 @@ function buildSpotAvailableHtml(name: string): string {
         </p>
       </td></tr>
       <tr><td style="padding:24px 40px;background-color:#fafafa;text-align:center;">
-        <p style="margin:0;color:#a1a1aa;font-size:12px;">© ${new Date().getFullYear()} Pennote. Tous droits réservés.</p>
+        <p style="margin:0;color:#a1a1aa;font-size:12px;">&copy; ${new Date().getFullYear()} Pennote. Tous droits réservés.</p>
       </td></tr>
     </table>
   </td></tr>
@@ -172,7 +311,7 @@ function buildBetaAccessGrantedHtml(name: string): string {
         </p>
       </td></tr>
       <tr><td style="padding:24px 40px;background-color:#fafafa;text-align:center;">
-        <p style="margin:0;color:#a1a1aa;font-size:12px;">© ${new Date().getFullYear()} Pennote. Tous droits réservés.</p>
+        <p style="margin:0;color:#a1a1aa;font-size:12px;">&copy; ${new Date().getFullYear()} Pennote. Tous droits réservés.</p>
       </td></tr>
     </table>
   </td></tr>
@@ -202,7 +341,7 @@ function buildBetaAccessRevokedHtml(name: string, deadlineDays: number): string 
         </p>
         <div style="margin:24px 0;padding:16px;background-color:#fef2f2;border:1px solid #fecaca;border-radius:8px;">
           <p style="margin:0;color:#991b1b;font-size:14px;line-height:1.5;">
-            <strong>⏰ Important :</strong> Vous avez <strong>${safeDeadline} jours</strong> pour vous reconnecter. Passé ce délai, votre place sera libérée pour un autre utilisateur.
+            <strong>&#9200; Important :</strong> Vous avez <strong>${safeDeadline} jours</strong> pour vous reconnecter. Passé ce délai, votre place sera libérée pour un autre utilisateur.
           </p>
         </div>
         <div style="margin:24px 0;text-align:center;">
@@ -215,7 +354,7 @@ function buildBetaAccessRevokedHtml(name: string, deadlineDays: number): string 
         </p>
       </td></tr>
       <tr><td style="padding:24px 40px;background-color:#fafafa;text-align:center;">
-        <p style="margin:0;color:#a1a1aa;font-size:12px;">© ${new Date().getFullYear()} Pennote. Tous droits réservés.</p>
+        <p style="margin:0;color:#a1a1aa;font-size:12px;">&copy; ${new Date().getFullYear()} Pennote. Tous droits réservés.</p>
       </td></tr>
     </table>
   </td></tr>
@@ -223,131 +362,3 @@ function buildBetaAccessRevokedHtml(name: string, deadlineDays: number): string 
 </body>
 </html>`;
 }
-
-// ─── Public API ──────────────────────────────────────────────
-
-export class EmailService {
-  static async sendWaitlistConfirmation(input: WaitlistConfirmationInput): Promise<void> {
-    try {
-      const client = await getResendClient();
-      if (!client) return;
-
-      const from = process.env.RESEND_FROM_EMAIL || EMAIL_FROM_DEFAULT;
-      const html = buildWaitlistConfirmationHtml(input.name, input.position);
-
-      const { error } = await client.emails.send({
-        from,
-        to: input.to,
-        subject: "Pennote — Inscription waitlist confirmée",
-        html,
-      });
-
-      if (error) {
-        logger.error(
-          "[EmailService] Resend API error (waitlist confirmation):",
-          sanitizeResendError(error),
-        );
-        return;
-      }
-
-      logger.log(`[EmailService] Waitlist confirmation sent to ${maskEmail(input.to)}`);
-    } catch (err: unknown) {
-      logger.error("[EmailService] Failed to send waitlist confirmation:", err);
-    }
-  }
-
-  static async sendSpotAvailable(input: SpotAvailableInput): Promise<void> {
-    try {
-      const client = await getResendClient();
-      if (!client) return;
-
-      const from = process.env.RESEND_FROM_EMAIL || EMAIL_FROM_DEFAULT;
-      const html = buildSpotAvailableHtml(input.name);
-
-      const { error } = await client.emails.send({
-        from,
-        to: input.to,
-        subject: "Pennote — Une place s'est libérée !",
-        html,
-      });
-
-      if (error) {
-        logger.error(
-          "[EmailService] Resend API error (spot available):",
-          sanitizeResendError(error),
-        );
-        return;
-      }
-
-      logger.log(`[EmailService] Spot available notification sent to ${maskEmail(input.to)}`);
-    } catch (err: unknown) {
-      logger.error("[EmailService] Failed to send spot available notification:", err);
-    }
-  }
-
-  static async sendBetaAccessGranted(input: BetaAccessGrantedInput): Promise<void> {
-    try {
-      const client = await getResendClient();
-      if (!client) return;
-
-      const from = process.env.RESEND_FROM_EMAIL || EMAIL_FROM_DEFAULT;
-      const html = buildBetaAccessGrantedHtml(input.name);
-
-      const { error } = await client.emails.send({
-        from,
-        to: input.to,
-        subject: "Pennote — Bienvenue dans la beta !",
-        html,
-      });
-
-      if (error) {
-        logger.error(
-          "[EmailService] Resend API error (beta access granted):",
-          sanitizeResendError(error),
-        );
-        return;
-      }
-
-      logger.log(`[EmailService] Beta access granted email sent to ${maskEmail(input.to)}`);
-    } catch (err: unknown) {
-      logger.error("[EmailService] Failed to send beta access granted email:", err);
-    }
-  }
-
-  static async sendBetaAccessRevoked(input: BetaAccessRevokedInput): Promise<void> {
-    try {
-      const client = await getResendClient();
-      if (!client) return;
-
-      const from = process.env.RESEND_FROM_EMAIL || EMAIL_FROM_DEFAULT;
-      const html = buildBetaAccessRevokedHtml(input.name, input.reactivationDeadlineDays);
-
-      const { error } = await client.emails.send({
-        from,
-        to: input.to,
-        subject: "Pennote — Votre accès beta a été désactivé",
-        html,
-      });
-
-      if (error) {
-        logger.error(
-          "[EmailService] Resend API error (beta access revoked):",
-          sanitizeResendError(error),
-        );
-        return;
-      }
-
-      logger.log(`[EmailService] Beta access revoked email sent to ${maskEmail(input.to)}`);
-    } catch (err: unknown) {
-      logger.error("[EmailService] Failed to send beta access revoked email:", err);
-    }
-  }
-}
-
-// ─── Test Seam ───────────────────────────────────────────────
-/** @internal — for unit tests only */
-export function _resetForTest(): void {
-  initPromise = null;
-}
-
-export { escapeHtml as _escapeHtmlForTest };

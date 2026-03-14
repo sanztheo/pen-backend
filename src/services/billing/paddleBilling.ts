@@ -8,21 +8,26 @@ import { logger } from "../../utils/logger.js";
  * Configuration des plans Paddle
  * Les prix sont gérés dans le Paddle Dashboard
  */
+import { PADDLE_CONFIG } from "../../config/paddle.js";
+
+const PADDLE_API_KEY = process.env.PADDLE_API_KEY;
+if (!PADDLE_API_KEY) throw new Error("Missing required env var: PADDLE_API_KEY");
+
 export const PADDLE_PLANS = {
   free_user: {
     name: "Gratuit",
-    paddlePriceId: null, // Pas de subscription Paddle pour le plan gratuit
+    paddlePriceId: null,
   },
   premium: {
     name: "Premium",
-    paddlePriceId: process.env.PADDLE_PREMIUM_PRICE_ID || "", // pri_xxxxx depuis Paddle Dashboard
+    paddlePriceId: PADDLE_CONFIG.prices.premiumMonthly,
   },
 } as const;
 
 /**
  * Client Paddle SDK initialisé avec les credentials
  */
-export const paddle = new Paddle(process.env.PADDLE_API_KEY || "", {
+export const paddle = new Paddle(PADDLE_API_KEY, {
   environment:
     process.env.PADDLE_ENVIRONMENT === "production" ? Environment.production : Environment.sandbox,
 });

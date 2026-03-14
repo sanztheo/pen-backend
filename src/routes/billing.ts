@@ -1,7 +1,7 @@
 import express from "express";
 import { logger } from "../utils/logger.js";
 import { PaddleBillingService, paddle } from "../services/billing/paddleBilling.js";
-import { authenticateToken } from "../middlewares/auth.js";
+import { authenticateToken, blockImpersonation } from "../middlewares/auth.js";
 import { validateEmail } from "../middlewares/validateEmail.js";
 import { prisma } from "../lib/prisma.js";
 import { PADDLE_CONFIG } from "../config/paddle.js";
@@ -200,7 +200,7 @@ router.get("/portal-url", authenticateToken, async (req, res) => {
  * POST /api/billing/cancel
  * Annule l'abonnement Paddle de l'utilisateur
  */
-router.post("/cancel", authenticateToken, async (req, res) => {
+router.post("/cancel", authenticateToken, blockImpersonation, async (req, res) => {
   try {
     const userId = req.user?.id;
 

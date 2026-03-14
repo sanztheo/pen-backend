@@ -9,7 +9,7 @@ import {
 } from "../controllers/workspace.js";
 import { Router as _Router } from "express";
 import { prisma } from "../lib/prisma.js";
-import { authenticateToken, requireUser } from "../middlewares/auth.js";
+import { authenticateToken, requireUser, blockImpersonation } from "../middlewares/auth.js";
 
 const router = Router();
 
@@ -22,7 +22,7 @@ router.post("/", createWorkspace);
 router.get("/", getWorkspaces);
 router.get("/:id", getWorkspaceById);
 router.put("/:id", updateWorkspace);
-router.delete("/:id", deleteWorkspace);
+router.delete("/:id", blockImpersonation, deleteWorkspace);
 
 // 🔎 Pages d'un workspace (pour le menu "Toutes les sources")
 // 🛡️ SÉCURITÉ: Vérification d'accès au workspace avant de retourner les pages

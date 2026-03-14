@@ -9,33 +9,36 @@ import type { ModelMessage } from "ai";
 // ============================================
 
 /**
- * Configuration de l'agent par mode avec Gemini 3 thinkingLevel
- * Options: "minimal" | "low" | "medium" | "high"
+ * Niveau de réflexion par mode — provider-agnostic.
+ * Kimi K2.5: thinking contrôlé via providerOptions (un seul modèle)
+ * Google: mapped to thinkingConfig.thinkingLevel
  */
+export type ThinkingLevel = "minimal" | "low" | "medium" | "high";
+
 export const MODE_CONFIG = {
   ask: {
     maxSteps: 10,
     maxTokens: 4096,
     description: "Questions simples avec RAG",
-    thinkingConfig: { thinkingLevel: "minimal", includeThoughts: true },
+    thinking: "minimal" as ThinkingLevel,
   },
   search: {
     maxSteps: 25,
     maxTokens: 8192,
     description: "Recherche approfondie avec web",
-    thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
+    thinking: "high" as ThinkingLevel,
   },
   "create-quick": {
     maxSteps: 10,
     maxTokens: 8192,
     description: "Génération rapide de contenu",
-    thinkingConfig: { thinkingLevel: "low", includeThoughts: true },
+    thinking: "low" as ThinkingLevel,
   },
   "create-deep": {
     maxSteps: 30,
     maxTokens: 32000,
     description: "Génération complète avec recherche",
-    thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
+    thinking: "high" as ThinkingLevel,
   },
 } as const;
 

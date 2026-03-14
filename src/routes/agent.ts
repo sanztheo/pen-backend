@@ -1,5 +1,5 @@
 /**
- * 🤖 Route Agent Chat - Vercel AI SDK v5
+ * 🤖 Route Agent Chat - Vercel AI SDK v6
  *
  * Endpoint principal pour l'agent Pennote avec streaming SSE.
  * Compatible avec useChat() côté frontend.
@@ -18,9 +18,14 @@ import {
   loadConversation,
   listConversations,
   deleteConversation,
+  updateConversationStatus,
+  updateActiveStreamId,
+  getConversationStatus,
 } from "../services/agent/conversationService.js";
-import { OpenAIQuotaManager } from "../services/ai/quotaManager.js";
-import { convertToModelMessages } from "ai";
+import { getStreamContext } from "../services/agent/resumableStreamService.js";
+import { prisma } from "../lib/prisma.js";
+import { AIQuotaManager } from "../services/ai/quotaManager.js";
+import { convertToModelMessages, generateId } from "ai";
 import type { UIMessage } from "ai";
 import {
   runDeepResearchWorkflow,
@@ -52,8 +57,52 @@ const router = Router();
 
 // Authentification requise pour toutes les routes
 router.use(authenticateToken);
-router.use(aiConcurrencyLimit);
-router.use(dailyTokenQuota);
+
+// 🔄 GET /chat/:id/stream — Reprise de stream après refresh
+// DOIT être AVANT les middlewares AI (pas de coût AI sur ce endpoint)
+router.get("/chat/:id/stream", async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: "Non authentifié" });
+
+  const conversation = await prisma.aIConversation.findFirst({
+    where: { id: req.params.id, userId },
+    select: { activeStreamId: true },
+  });
+
+  if (!conversation?.activeStreamId) {
+    return res.status(204).end();
+  }
+
+  const ctx = getStreamContext();
+  const resumed = await ctx.resumeExistingStream(conversation.activeStreamId);
+
+  if (!resumed) {
+    await updateActiveStreamId(req.params.id, null);
+    return res.status(204).end();
+  }
+
+  // Headers SSE standard (même format que le AI SDK)
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Vercel-AI-UI-Message-Stream": "v1",
+    "X-Accel-Buffering": "no",
+  });
+
+  const reader = resumed.getReader();
+  try {
+    let chunk = await reader.read();
+    while (!chunk.done) {
+      res.write(chunk.value);
+      chunk = await reader.read();
+    }
+  } catch (err) {
+    logger.error("[RESUME-STREAM] Erreur lecture:", err);
+  } finally {
+    res.end();
+  }
+});
 
 /**
  * 💰 Calcul dynamique du coût en crédits basé sur le mode
@@ -113,6 +162,8 @@ const estimateOutputTokens = (mode: string): number => {
  */
 router.post(
   "/chat",
+  aiConcurrencyLimit,
+  dailyTokenQuota,
   verifyWorkspaceAccess,
   requireAICredits({ dynamicCost: calculateDynamicCost, action: "agent_chat" }),
   async (req: Request, res: Response) => {
@@ -197,7 +248,7 @@ router.post(
       // Estimation: ~4 caractères par token
       const estimatedTokens = Math.ceil(JSON.stringify(messages).length / 4);
 
-      const quotaCheck = await OpenAIQuotaManager.checkQuota(
+      const quotaCheck = await AIQuotaManager.checkQuota(
         MODELS.AGENT_THINKING,
         estimatedTokens,
         estimateOutputTokens(mode), // Estimation dynamique selon le mode
@@ -214,8 +265,22 @@ router.post(
         });
       }
 
+      // 💾 Sauvegarder la conversation AVANT le stream (status=STREAMING)
+      // Ainsi, si l'utilisateur refresh pendant le streaming, la conversation existe en DB
+      // Le frontend détecte status=STREAMING et poll jusqu'à COMPLETED
+      if (conversationId) {
+        await saveConversation({
+          conversationId,
+          userId,
+          workspaceId,
+          messages: messages as UIMessage[],
+          mode,
+          status: "STREAMING",
+        });
+      }
+
       // Convertir UIMessage[] (format frontend) vers ModelMessage[] (format AI SDK)
-      const modelMessages = convertToModelMessages(messages as UIMessage[]);
+      const modelMessages = await convertToModelMessages(messages as UIMessage[]);
 
       // Exécuter l'agent Pennote
       const result = await runPennoteAgent(
@@ -237,7 +302,7 @@ router.post(
               hasText: !!text,
             });
           },
-          onToolCall: (toolName, args) => {
+          onToolCall: (toolName, _args) => {
             logger.log(`🔧 [AGENT-CHAT] Tool call: ${toolName}`);
           },
         },
@@ -247,12 +312,23 @@ router.post(
       const cost = req.aiCredits?.cost ?? calculateDynamicCost(req);
       logger.log(`✅ [AUDIT] Agent chat: userId=${userId}, mode=${mode}, cost=${cost}`);
 
-      // 🔥 Vercel AI SDK v5: pipeUIMessageStreamToResponse avec onFinish pour persister
+      // 🔥 Vercel AI SDK v6: pipeUIMessageStreamToResponse avec onFinish pour persister
       // C'est la méthode recommandée pour Express - gère automatiquement le streaming
       result.pipeUIMessageStreamToResponse(res, {
         originalMessages: messages as UIMessage[],
         sendReasoning: true,
-        // 💾 Sauvegarder la conversation après la fin du stream
+        generateMessageId: generateId,
+        // 🔄 Resumable streams: sauvegarder une copie du stream SSE dans Redis
+        // Permet au client de reprendre le stream après un refresh
+        async consumeSseStream({ stream }) {
+          if (!conversationId) return;
+          const streamId = generateId();
+          const ctx = getStreamContext();
+          await ctx.createNewResumableStream(streamId, () => stream);
+          await updateActiveStreamId(conversationId, streamId);
+          logger.log(`🔄 [RESUME] Stream créé: ${streamId} pour ${conversationId}`);
+        },
+        // 💾 Sauvegarder la conversation complète (status=COMPLETED)
         onFinish: async ({ messages: allMessages }) => {
           logger.log(`💾 [AGENT-CHAT] onFinish - Sauvegarde de ${allMessages.length} messages`);
           if (conversationId) {
@@ -262,14 +338,16 @@ router.post(
               workspaceId,
               messages: allMessages,
               mode,
+              status: "COMPLETED",
             });
+            await updateActiveStreamId(conversationId, null);
           }
 
           // 📊 Enregistrer l'usage des tokens pour le quota par utilisateur
           try {
             const outputTokens = Math.ceil(JSON.stringify(allMessages).length / 4);
 
-            await OpenAIQuotaManager.recordUsage(
+            await AIQuotaManager.recordUsage(
               MODELS.AGENT_THINKING,
               estimatedTokens,
               outputTokens,
@@ -292,6 +370,13 @@ router.post(
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error("❌ [AGENT-CHAT] Erreur:", error);
+
+      // Marquer la conversation en erreur et clear le stream
+      const failedConvId = req.body?.conversationId;
+      if (failedConvId) {
+        updateConversationStatus(failedConvId, "ERROR").catch(() => {});
+        updateActiveStreamId(failedConvId, null).catch(() => {});
+      }
 
       const creditsCost = req.aiCredits?.cost;
       const refundUserId = req.user?.id;
@@ -323,6 +408,8 @@ router.post(
  */
 router.post(
   "/chat/simple",
+  aiConcurrencyLimit,
+  dailyTokenQuota,
   verifyWorkspaceAccess,
   requireAICredits({
     dynamicCost: calculateDynamicCost,
@@ -365,7 +452,7 @@ router.post(
       const { runPennoteAgentSimple } = await import("../services/agent/index.js");
 
       // Convertir UIMessage[] vers ModelMessage[]
-      const modelMessages = convertToModelMessages(messages as UIMessage[]);
+      const modelMessages = await convertToModelMessages(messages as UIMessage[]);
 
       const result = await runPennoteAgentSimple({
         messages: modelMessages,
@@ -421,6 +508,8 @@ router.post(
  */
 router.post(
   "/workflow",
+  aiConcurrencyLimit,
+  dailyTokenQuota,
   verifyWorkspaceAccess,
   requireAICredits({
     dynamicCost: calculateDynamicCost,
@@ -462,7 +551,7 @@ router.post(
 
       // 🛡️ Vérification quota
       const estimatedTokens = Math.ceil(prompt.length / 4);
-      const quotaCheck = await OpenAIQuotaManager.checkQuota(
+      const quotaCheck = await AIQuotaManager.checkQuota(
         MODELS.AGENT_THINKING,
         estimatedTokens,
         estimateOutputTokens(mode),
@@ -495,7 +584,7 @@ router.post(
         );
 
         // Enregistrer l'usage
-        await OpenAIQuotaManager.recordUsage(
+        await AIQuotaManager.recordUsage(
           MODELS.AGENT_THINKING,
           estimatedTokens,
           Math.ceil(result.content.length / 4),
@@ -529,7 +618,7 @@ router.post(
           prompt,
         );
 
-        await OpenAIQuotaManager.recordUsage(
+        await AIQuotaManager.recordUsage(
           MODELS.AGENT_THINKING,
           estimatedTokens,
           Math.ceil(result.content.length / 4),
@@ -559,7 +648,7 @@ router.post(
           prompt,
         );
 
-        await OpenAIQuotaManager.recordUsage(
+        await AIQuotaManager.recordUsage(
           MODELS.AGENT_THINKING,
           estimatedTokens,
           Math.ceil(result.content.length / 4),
@@ -680,7 +769,7 @@ router.get("/conversations", async (req: Request, res: Response) => {
 /**
  * GET /api/agent/conversations/:id
  *
- * Charge une conversation avec ses messages (format UIMessage)
+ * Charge une conversation avec ses messages + status
  */
 router.get("/conversations/:id", async (req: Request, res: Response) => {
   try {
@@ -691,13 +780,18 @@ router.get("/conversations/:id", async (req: Request, res: Response) => {
 
     const { id } = req.params;
 
-    const messages = await loadConversation(id, userId);
+    const result = await loadConversation(id, userId);
 
-    if (!messages) {
+    if (!result) {
       return res.status(404).json({ error: "Conversation non trouvée" });
     }
 
-    res.json({ success: true, messages });
+    res.json({
+      success: true,
+      messages: result.messages,
+      status: result.status,
+      mode: result.mode,
+    });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error("❌ [CONVERSATIONS] Erreur chargement:", error);
@@ -706,6 +800,32 @@ router.get("/conversations/:id", async (req: Request, res: Response) => {
         ? "Erreur lors du chargement de la conversation"
         : errorMessage;
     res.status(500).json({ error: safeMessage });
+  }
+});
+
+/**
+ * GET /api/agent/conversations/:id/status
+ *
+ * Endpoint léger de polling — retourne uniquement le status + messageCount
+ * Le frontend poll toutes les 2s quand status=STREAMING
+ */
+router.get("/conversations/:id/status", async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Non authentifié" });
+    }
+
+    const result = await getConversationStatus(req.params.id, userId);
+
+    if (!result) {
+      return res.status(404).json({ error: "Conversation non trouvée" });
+    }
+
+    res.json(result);
+  } catch (error: unknown) {
+    logger.error("❌ [CONVERSATIONS] Erreur status:", error);
+    res.status(500).json({ error: "Erreur serveur" });
   }
 });
 

@@ -26,13 +26,6 @@ interface AuthenticatedRequest extends Request {
   };
 }
 
-// Type for BlockNote node during tree traversal
-type BlockNoteNode = Record<string, unknown>;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 // Type for page with BlockNote content from Prisma
 interface PageWithBlockNote {
   id: string;
@@ -187,95 +180,56 @@ router.get("/search", async (req, res) => {
   }
 });
 
-// 🔎 Recherche dans le contenu des pages (BlockNote)
+// 🔎 Recherche dans le contenu des pages — PostgreSQL-level ILIKE (no in-memory loading)
+const SEARCH_CONTENT_MAX_RESULTS = 50;
+
+interface SearchContentRow {
+  id: string;
+  title: string;
+  excerpt: string;
+}
+
 router.get("/search-content", async (req, res) => {
   try {
     const { q } = req.query as { q?: string };
     const query = (q || "").toString().trim();
     if (!query) return res.json({ results: [] });
 
-    // Récupérer pages avec contenu JSON (filtrées par workspace de l'utilisateur)
     const userId = (req as AuthenticatedRequest).user?.id;
-    const pages = await prisma.page.findMany({
-      where: {
-        isArchived: false,
-        workspace: {
-          OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
-        },
-      },
-      select: { id: true, title: true, blockNoteContent: true },
-      take: 500,
-    });
+    if (!userId) return res.status(401).json({ error: "Non authentifié" });
 
-    const qLower = query.toLowerCase();
+    // Filter at PostgreSQL level: cast JSON to text + ILIKE
+    // Only matching rows are returned — no bulk memory loading
+    const searchPattern = `%${query}%`;
 
-    const blocksToText = (blocks: unknown[]): string => {
-      let text = "";
-      const walk = (node: unknown): void => {
-        if (!node) return;
-        // Inline content
-        if (Array.isArray(node)) {
-          node.forEach(walk);
-          return;
-        }
-        if (typeof node === "string") {
-          text += node + " ";
-          return;
-        }
-        if (!isRecord(node)) return;
-        if (typeof node.text === "string") {
-          text += node.text + " ";
-        }
-        if ("content" in node) {
-          walk(node.content);
-        }
-        if (Array.isArray(node.children)) {
-          walk(node.children);
-        }
-      };
-      try {
-        walk(blocks);
-      } catch {
-        // Ignore parse errors
-      }
-      return text.replace(/\s+/g, " ").trim();
-    };
-
-    const results: Array<{ id: string; title: string; excerpt: string }> = [];
-
-    for (const p of pages) {
-      try {
-        const raw: unknown = p.blockNoteContent;
-        let contentArr: unknown[] | null = null;
-        if (Array.isArray(raw)) {
-          contentArr = raw;
-        } else if (typeof raw === "string") {
-          try {
-            const parsed: unknown = JSON.parse(raw);
-            contentArr = Array.isArray(parsed) ? parsed : null;
-          } catch {
-            contentArr = null;
-          }
-        }
-        if (!Array.isArray(contentArr) || contentArr.length === 0) continue;
-        const plain = blocksToText(contentArr);
-        const idx = plain.toLowerCase().indexOf(qLower);
-        if (idx !== -1) {
-          const start = Math.max(0, idx - 80);
-          const end = Math.min(plain.length, idx + qLower.length + 80);
-          const excerpt = plain.substring(start, end).trim();
-          results.push({ id: p.id, title: p.title, excerpt });
-        }
-      } catch {
-        // ignorer page invalide
-      }
-      if (results.length >= 50) break;
-    }
+    const results = await prisma.$queryRaw<SearchContentRow[]>`
+      SELECT
+        p.id,
+        p.title,
+        SUBSTRING(
+          p."blockNoteContent"::text
+          FROM GREATEST(1, POSITION(LOWER(${query}) IN LOWER(p."blockNoteContent"::text)) - 80)
+          FOR ${query.length + 160}
+        ) AS excerpt
+      FROM pages p
+      INNER JOIN workspaces w ON p."workspaceId" = w.id
+      LEFT JOIN workspace_members wm
+        ON wm."workspaceId" = w.id
+        AND wm."userId" = ${userId}
+        AND wm."isActive" = true
+      WHERE p."isArchived" = false
+        AND (w."ownerId" = ${userId} OR wm."userId" IS NOT NULL)
+        AND (
+          p.title ILIKE ${searchPattern}
+          OR p."blockNoteContent"::text ILIKE ${searchPattern}
+        )
+      LIMIT ${SEARCH_CONTENT_MAX_RESULTS}
+    `;
 
     res.json({ results });
   } catch (error: unknown) {
     logger.error(
-      "Erreur /pages/search-content",
+      "[PAGES] Erreur /pages/search-content",
       error instanceof Error ? error.message : String(error),
     );
     res.status(500).json({ error: "Erreur recherche contenu pages" });
@@ -294,10 +248,25 @@ router.delete("/cleanup/archived", cleanupArchivedPages);
 router.post("/:pageId/import-html", validateUUID("pageId"), async (req, res) => {
   try {
     const { pageId } = req.params;
+    const userId = (req as AuthenticatedRequest).user?.id;
     const { html } = req.body;
 
     if (!html || typeof html !== "string") {
       return res.status(400).json({ error: "HTML requis" });
+    }
+
+    // 🔒 AUTHORIZATION: Verify user has access to this page's workspace
+    const pageAccess = await prisma.page.findFirst({
+      where: {
+        id: pageId,
+        workspace: {
+          OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
+        },
+      },
+      select: { id: true },
+    });
+    if (!pageAccess) {
+      return res.status(403).json({ error: "Accès refusé" });
     }
 
     logger.log("📄 [API] Import HTML vers BlockNote:", {
@@ -364,6 +333,7 @@ router.put("/:pageId/blocknote-content", validateUUID("pageId"), saveBlockNoteCo
 async function saveBlockNoteContent(req: Request, res: Response): Promise<void> {
   try {
     const { pageId } = req.params;
+    const userId = (req as AuthenticatedRequest).user?.id;
     const { content, changedBlocks, isDifferential } = req.body as {
       content?: unknown[];
       changedBlocks?: unknown[];
@@ -372,6 +342,21 @@ async function saveBlockNoteContent(req: Request, res: Response): Promise<void> 
 
     if (!content || !Array.isArray(content)) {
       res.status(400).json({ error: "Contenu BlockNote requis" });
+      return;
+    }
+
+    // 🔒 AUTHORIZATION: Verify user has access to this page's workspace
+    const pageAccess = await prisma.page.findFirst({
+      where: {
+        id: pageId,
+        workspace: {
+          OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
+        },
+      },
+      select: { id: true },
+    });
+    if (!pageAccess) {
+      res.status(403).json({ error: "Accès refusé" });
       return;
     }
 
@@ -528,10 +513,25 @@ router.get("/:pageId/blocknote-content", authenticateToken, async (req, res) => 
 });
 
 // 🎨 METTRE À JOUR L'ICÔNE D'UNE PAGE
-router.patch("/:id/icon", async (req, res) => {
+router.patch("/:id/icon", validateUUID("id"), async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = (req as AuthenticatedRequest).user?.id;
     const { icon, iconColor } = req.body;
+
+    // 🔒 AUTHORIZATION: Verify user has access to this page's workspace
+    const pageAccess = await prisma.page.findFirst({
+      where: {
+        id,
+        workspace: {
+          OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
+        },
+      },
+      select: { id: true },
+    });
+    if (!pageAccess) {
+      return res.status(403).json({ error: "Accès refusé" });
+    }
 
     logger.log("🎨 [API] Mise à jour icône page:", {
       pageId: id,
@@ -540,14 +540,6 @@ router.patch("/:id/icon", async (req, res) => {
       hasIcon: !!icon,
       hasColor: !!iconColor,
     });
-
-    // Validation de l'UUID
-    if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
-      return res.status(400).json({
-        error: "PageId doit être un UUID valide",
-        received: id,
-      });
-    }
 
     // Validation des données d'icône
     if (icon && typeof icon !== "string") {

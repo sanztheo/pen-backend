@@ -1,5 +1,5 @@
 // 🚀 RAG System - Service Principal
-import { prismaEmbeddings, type RAGSourceType, type Prisma } from "../../lib/prismaEmbeddings.js";
+import { prismaEmbeddings, Prisma, type RAGSourceType } from "../../lib/prismaEmbeddings.js";
 import { logger } from "../../utils/logger.js";
 import { MODELS, isNanoModel as _isNano } from "../../config/models.js";
 
@@ -780,32 +780,52 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       logger.log(`🔍 [RAG-SEARCH] WhereClause:`, JSON.stringify(whereClause, null, 2));
 
       // 3. 🚀 Recherche vectorielle avec pgvector (native PostgreSQL)
-      // Construire la clause WHERE SQL à partir du whereClause
-      let sqlWhere = "WHERE c.source_id = s.id AND s.status = 'COMPLETED'";
+      // Construire la clause WHERE avec Prisma.sql (paramétrisé, anti-injection)
+      const whereClauses: Prisma.Sql[] = [
+        Prisma.sql`c.source_id = s.id AND s.status = 'COMPLETED'`,
+      ];
 
       if (specificSourceIds && specificSourceIds.length > 0) {
-        sqlWhere += ` AND c.source_id IN (${specificSourceIds.map((id) => `'${assertUUID(id, "sourceId")}'`).join(",")})`;
+        const validIds = specificSourceIds.map(
+          (id) => Prisma.sql`${assertUUID(id, "sourceId")}::uuid`,
+        );
+        whereClauses.push(Prisma.sql`c.source_id IN (${Prisma.join(validIds)})`);
       } else if (specificPageIds && specificPageIds.length > 0) {
-        sqlWhere += ` AND c.source_id IN (${specificPageIds.map((id) => `'${assertUUID(id, "pageId")}'`).join(",")})`;
+        const validIds = specificPageIds.map((id) => Prisma.sql`${assertUUID(id, "pageId")}::uuid`);
+        whereClauses.push(Prisma.sql`c.source_id IN (${Prisma.join(validIds)})`);
         if (userId && workspaceId) {
-          sqlWhere += ` AND s.user_id = '${assertClerkId(userId, "userId")}' AND s.workspace_id = '${assertUUID(workspaceId, "workspaceId")}' AND s.is_global = false`;
+          const safeUserId = assertClerkId(userId, "userId");
+          const safeWsId = assertUUID(workspaceId, "workspaceId");
+          whereClauses.push(
+            Prisma.sql`s.user_id = ${safeUserId} AND s.workspace_id = ${safeWsId}::uuid AND s.is_global = false`,
+          );
         }
       } else {
         if (userId && workspaceId) {
-          sqlWhere += ` AND (s.is_global = true OR (s.user_id = '${assertClerkId(userId, "userId")}' AND s.workspace_id = '${assertUUID(workspaceId, "workspaceId")}' AND s.is_global = false))`;
+          const safeUserId = assertClerkId(userId, "userId");
+          const safeWsId = assertUUID(workspaceId, "workspaceId");
+          whereClauses.push(
+            Prisma.sql`(s.is_global = true OR (s.user_id = ${safeUserId} AND s.workspace_id = ${safeWsId}::uuid AND s.is_global = false))`,
+          );
         } else {
-          sqlWhere += ` AND s.is_global = true`;
+          whereClauses.push(Prisma.sql`s.is_global = true`);
         }
       }
 
       if (sources.length > 0 && !(specificPageIds && specificPageIds.length > 0)) {
-        sqlWhere += ` AND s.id IN (${sources.map((id) => `'${assertUUID(id, "sourceId")}'`).join(",")})`;
+        const validIds = sources.map((id) => Prisma.sql`${assertUUID(id, "sourceId")}::uuid`);
+        whereClauses.push(Prisma.sql`s.id IN (${Prisma.join(validIds)})`);
       }
 
       // 🚀 Requête pgvector avec opérateur de distance cosinus (<=>)
       // 1 - cosine_distance = cosine_similarity
       const embeddingStr = `[${queryEmbedding.join(",")}]`;
-      const sql = `
+      const vectorCast = Prisma.raw(`'${embeddingStr}'::vector`);
+      const safeLimit = Math.max(1, Math.floor(limit * 2));
+      const whereFragment = Prisma.join(whereClauses, " AND ");
+
+      logger.log(`🚀 [PGVECTOR] Executing vector similarity search...`);
+      const rawResults = await prismaEmbeddings.$queryRaw<PgVectorSearchResult[]>`
         SELECT
           c.id,
           c.clean_content,
@@ -815,16 +835,13 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
           s.title as source_title,
           s.source_type,
           s.file_name,
-          1 - (c.embedding <=> '${embeddingStr}'::vector) as similarity
+          1 - (c.embedding <=> ${vectorCast}) as similarity
         FROM rag_chunks c
         JOIN rag_sources s ON c.source_id = s.id
-        ${sqlWhere}
-        ORDER BY c.embedding <=> '${embeddingStr}'::vector
-        LIMIT ${limit * 2}
+        WHERE ${whereFragment}
+        ORDER BY c.embedding <=> ${vectorCast}
+        LIMIT ${safeLimit}
       `;
-
-      logger.log(`🚀 [PGVECTOR] Executing vector similarity search...`);
-      const rawResults = await prismaEmbeddings.$queryRawUnsafe<PgVectorSearchResult[]>(sql);
 
       logger.log(
         `🚀 [PGVECTOR] Found ${rawResults.length} chunks (top 3 similarities):`,

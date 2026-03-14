@@ -146,11 +146,6 @@ export class AIService {
     return MODELS.QUIZ_CORRECTION;
   }
 
-  /** Assistant dédié à la sélection de pages (function calling) */
-  static getSearchAssistantId(): string | undefined {
-    return process.env.ASSISTANT_ID_SEARCH_FILE;
-  }
-
   // ==========================================
   // MÉTHODES DÉLÉGUÉES AUX SERVICES SPÉCIALISÉS
   // ==========================================

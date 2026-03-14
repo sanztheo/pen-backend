@@ -23,9 +23,9 @@ interface QuotaLimits {
 }
 
 /**
- * 🛡️ Gestionnaire de quotas OpenAI pour éviter les dépassements
+ * 🛡️ Gestionnaire de quotas AI (tous providers) pour éviter les dépassements
  */
-export class OpenAIQuotaManager {
+export class AIQuotaManager {
   private static quotaCache = new Map<string, CachedQuotaUsage>();
   private static readonly CACHE_TTL_MS = 120_000;
 
@@ -34,10 +34,18 @@ export class OpenAIQuotaManager {
    */
   private static getLimits(): QuotaLimits {
     return {
-      maxRequests: parseInt(process.env.OPENAI_MAX_REQUESTS_PER_HOUR || "1000"),
-      maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS_PER_HOUR || "500000"),
-      maxCost: parseFloat(process.env.OPENAI_MAX_COST_PER_HOUR || "10.0"),
-      windowDurationMs: parseInt(process.env.OPENAI_QUOTA_WINDOW_MS || "3600000"), // 1h
+      maxRequests: parseInt(
+        process.env.AI_MAX_REQUESTS_PER_HOUR || process.env.OPENAI_MAX_REQUESTS_PER_HOUR || "1000",
+      ),
+      maxTokens: parseInt(
+        process.env.AI_MAX_TOKENS_PER_HOUR || process.env.OPENAI_MAX_TOKENS_PER_HOUR || "500000",
+      ),
+      maxCost: parseFloat(
+        process.env.AI_MAX_COST_PER_HOUR || process.env.OPENAI_MAX_COST_PER_HOUR || "10.0",
+      ),
+      windowDurationMs: parseInt(
+        process.env.AI_QUOTA_WINDOW_MS || process.env.OPENAI_QUOTA_WINDOW_MS || "3600000",
+      ), // 1h
     };
   }
 
@@ -251,9 +259,7 @@ export class OpenAIQuotaManager {
       );
     } catch (error) {
       logger.error("❌ [QUOTA] Erreur enregistrement DB:", error);
-      logger.log(
-        "💾 Cache mémoire utilisé pour l'usage OpenAI - Client Prisma doit être régénéré !",
-      );
+      logger.log("💾 Cache mémoire utilisé pour l'usage AI - Client Prisma doit être régénéré !");
     }
   }
 

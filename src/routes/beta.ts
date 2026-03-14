@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type { RequestHandler } from "express";
-import { authenticateToken, optionalAuth } from "../middlewares/auth.js";
+import { authenticateToken, optionalAuth, blockImpersonation } from "../middlewares/auth.js";
 import {
   betaHeartbeatRateLimit,
   betaWaitlistRateLimit,
@@ -55,6 +55,7 @@ router.post("/reactivate", authenticateToken, ReactivateController.reactivate);
 router.delete(
   "/account",
   authenticateToken,
+  blockImpersonation,
   accountDeleteRateLimit,
   DeleteAccountController.deleteAccount,
 );
@@ -63,6 +64,7 @@ router.delete(
 router.get(
   "/account/export",
   authenticateToken,
+  blockImpersonation,
   accountExportRateLimit,
   ExportAccountController.exportAccount,
 );
