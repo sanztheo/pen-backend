@@ -357,7 +357,6 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
           },
         ],
         max_completion_tokens: 150,
-        temperature: 0,
         response_format: { type: "json_object" },
       });
 
