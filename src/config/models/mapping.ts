@@ -43,7 +43,7 @@ export const MODELS = {
   /** Taches legeres (titres quiz, RSS, micro-taches) */
   LIGHTWEIGHT: "kimi-k2.5",
   /** Validation pertinence RSS */
-  RSS_VALIDATION: "kimi-k2.5",
+  RSS_VALIDATION: "gpt-5-nano",
 
   // ── Contenu & detection ───────────────────────────────────────────────────
   /** Generation contenu editeur (dashboard) */
