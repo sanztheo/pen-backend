@@ -205,6 +205,7 @@ export class AIQuotaManager {
     completionTokens: number,
     quotaKey: string = "global",
     userId?: string,
+    source?: string,
   ): Promise<void> {
     logger.log(`📝 [QUOTA] recordUsage() appelée:`, {
       model,
@@ -212,6 +213,7 @@ export class AIQuotaManager {
       completionTokens,
       quotaKey,
       userId,
+      source,
     });
 
     const cost = this.calculateCost(model, promptTokens, completionTokens);
@@ -249,6 +251,7 @@ export class AIQuotaManager {
           promptTokens,
           completionTokens,
           estimatedCost: cost,
+          source,
           createdAt: new Date(),
         },
       });
