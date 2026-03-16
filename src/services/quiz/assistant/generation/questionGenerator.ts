@@ -1,9 +1,8 @@
 // assistant/generation/questionGenerator.ts - Générateur de questions via Chat Completion
 
-import OpenAI from "openai";
 import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 import { AIService } from "../../../ai/base.js";
-import { isReasoningModel } from "../../../../config/models.js";
+import { isReasoningModel, isFixedTempModel } from "../../../../config/models.js";
 import { logger } from "../../../../utils/logger.js";
 import {
   getPersonalizationContextForUser,
@@ -51,17 +50,10 @@ interface ExtendedChatConfig extends ChatCompletionCreateParamsNonStreaming {
 }
 
 /**
- * Classe pour la génération de questions via Chat Completion avec JSON strict
+ * Classe pour la génération de questions via Chat Completion avec JSON strict.
+ * Utilise le client adapté au provider du modèle (OpenAI, Moonshot/Kimi, xAI).
  */
 export class QuestionGenerator {
-  private openai: OpenAI;
-
-  constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-  }
-
   /**
    * Génère une seule question pour le streaming avec chat completion + JSON strict
    */
@@ -144,29 +136,44 @@ export class QuestionGenerator {
         },
       };
 
-      // Configuration spécifique GPT-5
+      // Limite généreuse pour éviter JSON tronqué (question + options + explications)
+      const maxOutputTokens = 4096;
       if (isReasoningModel(generationModel)) {
         apiConfig.reasoning_effort = "low";
-        apiConfig.max_completion_tokens = 2000;
-        // GPT-5 n'accepte que temperature=1 (défaut), on ne le spécifie pas
+        apiConfig.max_completion_tokens = maxOutputTokens;
         logger.log(
-          "🧠 [STREAMING] GPT-5-mini détecté : reasoning_effort=low, max_completion_tokens=2000, temperature=1 (défaut)",
+          `🧠 [STREAMING] Reasoning model : reasoning_effort=low, max_completion_tokens=${maxOutputTokens}, temperature=1 (défaut)`,
+        );
+      } else if (isFixedTempModel(generationModel)) {
+        apiConfig.temperature = 1;
+        apiConfig.max_tokens = maxOutputTokens;
+        logger.log(
+          `🧠 [STREAMING] Modèle fixedTemp (ex. kimi-k2.5) : temperature=1, max_tokens=${maxOutputTokens}`,
         );
       } else {
         apiConfig.temperature = 0.7;
-        apiConfig.max_tokens = 2000;
+        apiConfig.max_tokens = maxOutputTokens;
       }
 
-      // Appel chat completion avec JSON strict
-      const completion = await this.openai.chat.completions.create(apiConfig);
+      // Client selon le provider du modèle (Moonshot pour kimi-k2.5, etc.)
+      const client = AIService.getOpenAICompatibleClient(generationModel);
+      const completion = await client.chat.completions.create(apiConfig);
 
       const responseContent = completion.choices[0]?.message?.content;
       if (!responseContent) {
         throw new Error("Aucune réponse du modèle");
       }
 
-      // Parser la réponse JSON
-      const result: unknown = JSON.parse(responseContent);
+      let result: unknown;
+      try {
+        result = JSON.parse(responseContent);
+      } catch (parseError) {
+        const snippet = responseContent.slice(0, 500) + (responseContent.length > 500 ? "…" : "");
+        logger.error(
+          `❌ [STREAMING] JSON invalide ou tronqué (length=${responseContent.length}). Début: ${snippet}`,
+        );
+        throw parseError;
+      }
 
       if (isSingleQuestionGenerationResult(result) && result.questions.length > 0) {
         logger.log("✅ [STREAMING] Question générée avec succès via chat completion");
@@ -175,8 +182,14 @@ export class QuestionGenerator {
 
       logger.error("❌ [STREAMING] Réponse inattendue du chat completion:", result);
       throw new Error("Aucune question valide générée");
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error("❌ [STREAMING] Erreur génération question:", error);
+      const err = error as { status?: number; type?: string };
+      if (err?.status === 401 || err?.type === "invalid_authentication_error") {
+        logger.log(
+          "💡 [STREAMING] 401 = clé Moonshot rejetée. Vérifiez MOONSHOT_API_KEY dans Infisical. Clé globale → MOONSHOT_BASE_URL=https://api.moonshot.ai/v1 (défaut).",
+        );
+      }
       throw error;
     }
   }
