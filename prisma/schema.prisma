@@ -589,12 +589,14 @@ model OpenaiUsageLog {
   promptTokens     Int      @map("prompt_tokens")
   completionTokens Int      @map("completion_tokens")
   estimatedCost    Float    @map("estimated_cost")
+  source           String?  @map("source") @db.VarChar(50)
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([quotaKey, createdAt])
   @@index([createdAt])
   @@index([userId, createdAt])
   @@index([model, createdAt])
+  @@index([source, createdAt])
   @@map("openai_usage_log")
 }
 

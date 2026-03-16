@@ -363,6 +363,7 @@ export class ContentGenerationService {
             estimatedCompletionTokens,
             "global",
             options.userId,
+            options.source,
           );
         } catch (err) {
           logger.warn("⚠️ Erreur enregistrement quota (stream):", err);
@@ -461,6 +462,7 @@ export class ContentGenerationService {
           data.usage.completion_tokens,
           "global",
           options.userId,
+          options.source,
         ).catch((err) => logger.warn("⚠️ Erreur enregistrement quota:", err));
       }
 
@@ -535,6 +537,7 @@ export class ContentGenerationService {
                 continuationData.usage.completion_tokens,
                 "global",
                 options.userId,
+                options.source,
               ).catch((err) => logger.warn("⚠️ Erreur enregistrement quota continuation:", err));
             }
           }
@@ -647,7 +650,11 @@ print("Bonjour, monde!")
   /**
    * Améliorer/réecrire un contenu existant
    */
-  static async improveContent(content: string, instructions?: string): Promise<AIGenerationResult> {
+  static async improveContent(
+    content: string,
+    instructions?: string,
+    source?: string,
+  ): Promise<AIGenerationResult> {
     const prompt = instructions
       ? `Améliore selon: "${instructions}"\n\nTexte:\n${content}`
       : `Améliore ce texte:\n\n${content}`;
@@ -658,6 +665,7 @@ print("Bonjour, monde!")
         'Améliore le texte tout en gardant une longueur similaire. Utilise "\\n" pour chaque retour à la ligne. Réponds uniquement avec le texte amélioré.',
       maxTokens: Math.min(content.length * 1.5 + 100, 1000), // Plus généreux pour de meilleurs résultats
       temperature: 0.6,
+      source,
     });
   }
 
@@ -667,6 +675,7 @@ print("Bonjour, monde!")
   static async continueContent(
     content: string,
     length: "court" | "moyen" | "long" = "moyen",
+    source?: string,
   ): Promise<AIGenerationResult> {
     const lengthTokens = {
       court: 200, // Paragraphe court
@@ -680,6 +689,7 @@ print("Bonjour, monde!")
         "Continue de façon naturelle. FORMATAGE : utilise \\n pour les retours à la ligne. Réponds directement avec la suite.",
       maxTokens: lengthTokens[length],
       temperature: 0.7,
+      source,
     });
   }
 

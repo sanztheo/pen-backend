@@ -349,10 +349,44 @@ export interface AICostTrendPoint {
   requests: number;
 }
 
+export interface AICostBySource {
+  source: string;
+  totalCost: number;
+  totalRequests: number;
+  avgCostPerRequest: number;
+}
+
+export interface CreditsBySource {
+  source: string;
+  totalCredits: number;
+  totalRecords: number;
+}
+
+export interface PeriodComparison {
+  currentCost: number;
+  previousCost: number;
+  costChangePercent: number;
+  currentCredits: number;
+  previousCredits: number;
+  creditsChangePercent: number;
+  currentRequests: number;
+  previousRequests: number;
+  requestsChangePercent: number;
+}
+
+export interface AICostTrendBySourcePoint {
+  date: string;
+  sources: Record<string, number>;
+}
+
 export interface AICostsResponse {
   byModel: AICostByModel[];
   byProvider: AICostByProvider[];
   topUsers: AICostTopUser[];
   trend: AICostTrendPoint[];
   balances: ProviderBalance[];
+  bySource: AICostBySource[];
+  creditsBySource: CreditsBySource[];
+  comparison: PeriodComparison;
+  trendBySource: AICostTrendBySourcePoint[];
 }
