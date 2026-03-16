@@ -37,3 +37,28 @@ export interface BetaAccessRevokedInput {
   name: string;
   reactivationDeadlineDays: number;
 }
+
+export interface BetaWelcomeInput {
+  to: string;
+  name: string;
+  email: string;
+  temporaryPassword: string;
+}
+
+export interface FeedbackErrorLog {
+  timestamp: string;
+  type: "ERROR" | "FETCH_ERROR" | "UNHANDLED" | "PROMISE_REJECTION";
+  message: string;
+  url?: string;
+  stack?: string;
+}
+
+export interface FeedbackReportInput {
+  userId: string;
+  userEmail: string;
+  type: "bug" | "suggestion" | "other";
+  message: string;
+  currentUrl?: string;
+  userAgent?: string;
+  errorLogs?: FeedbackErrorLog[];
+}
