@@ -8,6 +8,7 @@ import {
   type BetaAccessGrantedInput,
   type BetaAccessRevokedInput,
   type BetaWelcomeInput,
+  type WaitlistPositionUpdateInput,
   type FeedbackReportInput,
 } from "./EmailService.types.js";
 
@@ -179,6 +180,15 @@ export class EmailService {
     });
   }
 
+  static async sendWaitlistPositionUpdate(input: WaitlistPositionUpdateInput): Promise<void> {
+    return sendEmail({
+      to: input.to,
+      subject: `Pennote — Vous êtes maintenant #${input.newPosition} sur la waitlist`,
+      html: buildWaitlistPositionUpdateHtml(input.name, input.newPosition),
+      label: "waitlist position update",
+    });
+  }
+
   static async sendFeedbackReport(input: FeedbackReportInput): Promise<void> {
     const adminEmail =
       process.env.FEEDBACK_EMAIL || process.env.RESEND_FROM_EMAIL || EMAIL_FROM_DEFAULT;
@@ -307,10 +317,25 @@ function buildSpotAvailableHtml(name: string): string {
   const ctaUrl = `${WEBSITE_BASE_URL}/fr/join`;
   return emailShell(`
     ${heading(`Bonne nouvelle, ${safeName}\u00a0!`)}
-    ${bodyText(`Une place s\u2019est lib\u00e9r\u00e9e et votre compte a \u00e9t\u00e9 activ\u00e9. Vous pouvez d\u00e8s maintenant acc\u00e9der \u00e0 Pennote\u00a0!`)}
-    ${ctaButton(ctaUrl, "R\u00e9activer mon compte")}
-    ${alertBox("<strong>&#9200; Important :</strong> Vous avez <strong>14 jours</strong> pour vous reconnecter. Pass\u00e9 ce d\u00e9lai, votre place sera lib\u00e9r\u00e9e pour un autre utilisateur.", "danger")}
+    ${bodyText(`Une place s\u2019est lib\u00e9r\u00e9e sur Pennote\u00a0! Vous pouvez d\u00e8s maintenant cr\u00e9er votre compte et commencer \u00e0 utiliser l\u2019application.`)}
+    ${ctaButton(ctaUrl, "Cr\u00e9er mon compte")}
+    ${alertBox("<strong>&#9200; Important :</strong> Vous avez <strong>14 jours</strong> pour cr\u00e9er votre compte. Pass\u00e9 ce d\u00e9lai, votre place sera lib\u00e9r\u00e9e pour un autre utilisateur.", "warning")}
     ${disclaimer("Vous recevez cet email car vous \u00e9tiez inscrit sur la waitlist Pennote.")}
+  `);
+}
+
+function buildWaitlistPositionUpdateHtml(name: string, position: number): string {
+  const safeName = escapeHtml(name);
+  const safePosition = escapeHtml(String(position));
+  return emailShell(`
+    ${heading(`${safeName}, vous avancez\u00a0!`)}
+    ${bodyText(`Bonne nouvelle\u00a0: vous \u00eates pass\u00e9 en <strong style="color:#191817;">position #${safePosition}</strong> sur la liste d\u2019attente. Plus que quelques places avant votre tour\u00a0!`)}
+    <div style="margin:24px 0;padding:16px;background-color:#F8F8F7;border:1px solid #F0F0F0;border-radius:8px;text-align:center;">
+      <p style="margin:0;color:#74736F;font-size:14px;">Votre nouvelle position</p>
+      <p style="margin:8px 0 0;color:#0075DE;font-size:32px;font-weight:700;">#${safePosition}</p>
+    </div>
+    ${bodyText(`Nous vous pr\u00e9viendrons d\u00e8s qu\u2019une place se lib\u00e8re pour vous.`)}
+    ${disclaimer("Vous recevez cet email car vous \u00eates inscrit sur la waitlist Pennote.")}
   `);
 }
 

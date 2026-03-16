@@ -16,6 +16,7 @@ const DAILY_LIMITS_RESET_SCHEDULE = "0 0 * * *"; // Tous les jours à minuit
 const BETA_CHECK_INACTIVE_SCHEDULE = "0 * * * *"; // :00 — désactive les inactifs en premier
 const BETA_PROCESS_WAITLIST_SCHEDULE = "10 * * * *"; // :10 — promeut depuis la waitlist
 const BETA_CLEANUP_EXPIRED_SCHEDULE = "20 * * * *"; // :20 — nettoie les comptes expirés (après check inactive)
+const BETA_POSITION_UPDATES_SCHEDULE = "30 * * * *"; // :30 — envoie les emails de progression waitlist
 const BETA_WEEKLY_RESET_SCHEDULE = "0 0 * * 1"; // Lundi 00:00 UTC
 const NODE_ENV = process.env.NODE_ENV || "development";
 
@@ -213,6 +214,7 @@ export function startCronJobs() {
   let betaWeeklyResetTask: ReturnType<typeof cron.schedule> | undefined;
   let betaProcessWaitlistTask: ReturnType<typeof cron.schedule> | undefined;
   let betaCleanupExpiredTask: ReturnType<typeof cron.schedule> | undefined;
+  let betaPositionUpdatesTask: ReturnType<typeof cron.schedule> | undefined;
 
   if (BETA_LIVE) {
     // 🔍 Désactivation des utilisateurs inactifs (pas de heartbeat depuis 7 jours)
@@ -306,6 +308,32 @@ export function startCronJobs() {
     );
 
     logger.log(`✅ Tâche beta cleanup programmée: ${BETA_CLEANUP_EXPIRED_SCHEDULE} (UTC)`);
+
+    // 📊 Envoi des emails de progression waitlist (toutes les 10 positions)
+    betaPositionUpdatesTask = cron.schedule(
+      BETA_POSITION_UPDATES_SCHEDULE,
+      async () => {
+        logger.log("\n📊 [CRON] Beta: envoi des mises à jour de position waitlist...");
+        try {
+          const { BetaCronService } = await import("../services/BetaCronService.js");
+
+          const result = await BetaCronService.sendPositionUpdates();
+
+          logger.log(
+            `✅ [CRON] Beta position updates: ${result.processed} notifiés, ${result.errors} erreurs`,
+          );
+        } catch (error) {
+          logger.error("❌ [CRON] Erreur beta position updates:", error);
+        }
+      },
+      {
+        timezone: "UTC",
+      },
+    );
+
+    logger.log(
+      `✅ Tâche beta position updates programmée: ${BETA_POSITION_UPDATES_SCHEDULE} (UTC)`,
+    );
   } else {
     logger.log("⏸️ Beta management cron jobs désactivés (BETA_LIVE = false)");
   }
@@ -349,6 +377,7 @@ export function startCronJobs() {
           betaWeeklyResetTask,
           betaProcessWaitlistTask,
           betaCleanupExpiredTask,
+          betaPositionUpdatesTask,
         ]
       : []),
   ].filter((t): t is ReturnType<typeof cron.schedule> => t != null);
@@ -368,6 +397,7 @@ export function startCronJobs() {
           betaWeeklyReset: betaWeeklyResetTask,
           betaProcessWaitlist: betaProcessWaitlistTask,
           betaCleanupExpired: betaCleanupExpiredTask,
+          betaPositionUpdates: betaPositionUpdatesTask,
         }
       : {}),
   };
