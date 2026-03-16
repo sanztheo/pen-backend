@@ -45,6 +45,12 @@ export interface BetaWelcomeInput {
   temporaryPassword: string;
 }
 
+export interface WaitlistPositionUpdateInput {
+  to: string;
+  name: string;
+  newPosition: number;
+}
+
 export interface FeedbackErrorLog {
   timestamp: string;
   type: "ERROR" | "FETCH_ERROR" | "UNHANDLED" | "PROMISE_REJECTION";
