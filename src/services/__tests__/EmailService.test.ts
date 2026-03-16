@@ -52,7 +52,7 @@ describe("EmailService.sendWaitlistConfirmation", () => {
     expect(mockSend).toHaveBeenCalledTimes(1);
     const call = mockSend.mock.calls[0]![0] as Record<string, unknown>;
     expect(call.to).toBe("user@example.com");
-    expect(call.from).toBe("Pennote <onboarding@resend.dev>");
+    expect(call.from).toBe("Pennote <noreply@pennote.fr>");
     expect(call.subject).toContain("waitlist");
     expect(call.html).toContain("Alice");
     expect(call.html).toContain("#42");

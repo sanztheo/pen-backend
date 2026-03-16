@@ -4,7 +4,7 @@
 export const WEBSITE_BASE_URL: string =
   process.env.WEBSITE_BASE_URL || process.env.CLIENT_URL || "https://pennote.fr";
 
-export const EMAIL_FROM_DEFAULT = "Pennote <onboarding@resend.dev>";
+export const EMAIL_FROM_DEFAULT = "Pennote <noreply@pennote.fr>";
 
 /** RFC 5321 max email length */
 export const MAX_EMAIL_LENGTH = 254;
