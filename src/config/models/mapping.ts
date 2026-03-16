@@ -25,9 +25,9 @@ export const MODELS = {
 
   // ── Quiz ──────────────────────────────────────────────────────────────────
   /** Generation de questions quiz — thinking pour qualite */
-  QUIZ_GENERATION: env("OPENAI_QUIZ_GENERATION") || "kimi-k2.5",
+  QUIZ_GENERATION: "kimi-k2.5",
   /** Correction de quiz — thinking pour precision */
-  QUIZ_CORRECTION: env("OPENAI_QUIZ_CORRECTION") || "kimi-k2.5",
+  QUIZ_CORRECTION: "kimi-k2.5",
   /** Preprocessor quiz — pas de thinking necessaire */
   PREPROCESSOR: "kimi-k2.5",
   /** Extraction de concepts */
