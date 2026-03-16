@@ -1,13 +1,12 @@
 /**
  * Quiz Title Generator
- * Generates intelligent, descriptive titles based on quiz content
+ * Generates intelligent, descriptive titles based on quiz content.
+ * Utilise le client adapté au provider du modèle (Moonshot pour kimi-k2.5, etc.).
  */
 
-import OpenAI from "openai";
 import { SecureLogger } from "../../../middlewares/secureLogging.js";
-import { MODELS } from "../../../config/models.js";
-
-const openai = new OpenAI();
+import { MODELS, isFixedTempModel } from "../../../config/models.js";
+import { AIService } from "../../ai/base.js";
 
 interface TitleGeneratorParams {
   schoolLevel: string;
@@ -87,14 +86,16 @@ export async function generateQuizTitle(params: TitleGeneratorParams): Promise<s
   const userMessage = contextParts.join(", ");
 
   try {
-    const response = await openai.chat.completions.create({
-      model: MODELS.LIGHTWEIGHT,
+    const modelId = MODELS.LIGHTWEIGHT;
+    const client = AIService.getOpenAICompatibleClient(modelId);
+    const response = await client.chat.completions.create({
+      model: modelId,
       messages: [
         { role: "system", content: TITLE_GENERATION_PROMPT },
         { role: "user", content: userMessage },
       ],
       max_tokens: 60,
-      temperature: 0.7,
+      temperature: isFixedTempModel(modelId) ? 1 : 0.7,
     });
 
     const generatedTitle = response.choices[0]?.message?.content?.trim();
@@ -106,8 +107,14 @@ export async function generateQuizTitle(params: TitleGeneratorParams): Promise<s
 
     // Fallback if generation fails
     return getFallbackTitle(params);
-  } catch (error) {
+  } catch (error: unknown) {
     SecureLogger.error("[TITLE-GEN] Error generating title:", error);
+    const err = error as { status?: number; type?: string };
+    if (err?.status === 401 || err?.type === "invalid_authentication_error") {
+      SecureLogger.log(
+        "[TITLE-GEN] 💡 401 = clé API rejetée. Vérifiez MOONSHOT_API_KEY dans Infisical (clé valide sur platform.moonshot.ai). Si clé globale, utilisez MOONSHOT_BASE_URL=https://api.moonshot.ai/v1 (défaut).",
+      );
+    }
     return getFallbackTitle(params);
   }
 }
