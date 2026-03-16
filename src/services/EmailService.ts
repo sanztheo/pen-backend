@@ -1,6 +1,7 @@
 import { logger } from "../utils/logger.js";
 import {
   EMAIL_FROM_DEFAULT,
+  APP_BASE_URL,
   WEBSITE_BASE_URL,
   isValidEmail,
   type WaitlistConfirmationInput,
@@ -341,7 +342,7 @@ function buildWaitlistPositionUpdateHtml(name: string, position: number): string
 
 function buildBetaAccessGrantedHtml(name: string): string {
   const safeName = escapeHtml(name);
-  const ctaUrl = `${WEBSITE_BASE_URL}/fr/dashboard`;
+  const ctaUrl = `${APP_BASE_URL}/`;
   return emailShell(`
     ${heading(`Bienvenue dans la beta, ${safeName}\u00a0!`)}
     ${bodyText(`Votre compte beta est maintenant actif. Vous pouvez acc\u00e9der \u00e0 toutes les fonctionnalit\u00e9s de Pennote d\u00e8s maintenant.`)}
@@ -355,7 +356,7 @@ function buildBetaWelcomeHtml(name: string, email: string, temporaryPassword: st
   const safeName = escapeHtml(name);
   const safeEmail = escapeHtml(email);
   const safePassword = escapeHtml(temporaryPassword);
-  const ctaUrl = `${WEBSITE_BASE_URL}/fr/sign-in`;
+  const ctaUrl = `${APP_BASE_URL}/login`;
   return emailShell(`
     ${heading(`Bienvenue dans la beta, ${safeName}\u00a0!`)}
     ${bodyText(`Votre compte Pennote est pr\u00eat. Connectez-vous avec les identifiants ci-dessous pour commencer.`)}
