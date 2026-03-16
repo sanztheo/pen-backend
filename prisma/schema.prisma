@@ -218,7 +218,7 @@ model ActivityLog {
   pageId      String?    @map("page_id") @db.Uuid
   action      String     @db.VarChar(100)
   entityType  String     @map("entity_type") @db.VarChar(50)
-  entityId    String     @map("entity_id") @db.Uuid
+  entityId    String     @map("entity_id") @db.VarChar(255)
   details     Json       @default("{}")
   createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   page        Page?      @relation(fields: [pageId], references: [id])
