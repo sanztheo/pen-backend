@@ -1,8 +1,6 @@
-// CTA link in emails — env var allows staging/dev override, defaults to production.
-// Hardcoded fallback is intentional: transactional emails MUST always contain a valid URL,
-// even if env vars are misconfigured. Production is the safe default.
-export const WEBSITE_BASE_URL: string =
-  process.env.WEBSITE_BASE_URL || process.env.CLIENT_URL || "https://pennote.fr";
+// Email CTA URLs — hardcoded to production. Never use CLIENT_URL (CORS list, not a single URL).
+export const APP_BASE_URL = "https://app.pennote.fr" as const;
+export const WEBSITE_BASE_URL = "https://www.pennote.fr" as const;
 
 export const EMAIL_FROM_DEFAULT = "Pennote <noreply@pennote.fr>";
 
