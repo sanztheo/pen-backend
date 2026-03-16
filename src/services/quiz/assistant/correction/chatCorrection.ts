@@ -1,9 +1,8 @@
 // assistant/correction/chatCorrection.ts - Correction via Chat Completion avec JSON strict
 
-import OpenAI from "openai";
 import type { ChatCompletionCreateParamsNonStreaming } from "openai/resources/chat/completions";
 import { AIService } from "../../../ai/base.js";
-import { isReasoningModel } from "../../../../config/models.js";
+import { isReasoningModel, isFixedTempModel } from "../../../../config/models.js";
 import { logger } from "../../../../utils/logger.js";
 import {
   QUIZ_CORRECTION_STANDARD_SCHEMA,
@@ -43,17 +42,10 @@ interface ExtendedChatConfig extends ChatCompletionCreateParamsNonStreaming {
 }
 
 /**
- * Classe pour la correction de quiz via Chat Completion avec JSON strict
+ * Classe pour la correction de quiz via Chat Completion avec JSON strict.
+ * Utilise le client adapté au provider du modèle (Moonshot pour kimi-k2.5, etc.).
  */
 export class ChatCorrection {
-  private openai: OpenAI;
-
-  constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
-  }
-
   /**
    * Corrige un quiz standard avec Chat Completion + JSON strict
    */
@@ -106,20 +98,22 @@ export class ChatCorrection {
         },
       };
 
-      // Configuration spécifique reasoning models (GPT-5, o1, o3, …)
       if (isReasoningModel(correctionModel)) {
         apiConfig.reasoning_effort = "low";
         apiConfig.max_completion_tokens = 4000;
         logger.log(
-          "🧠 [CORRECTION] Reasoning model détecté : reasoning_effort=low, max_completion_tokens=4000, temperature=1 (défaut)",
+          "🧠 [CORRECTION] Reasoning model : reasoning_effort=low, max_completion_tokens=4000, temperature=1 (défaut)",
         );
+      } else if (isFixedTempModel(correctionModel)) {
+        apiConfig.temperature = 1;
+        apiConfig.max_tokens = 4000;
       } else {
         apiConfig.temperature = 0.3;
         apiConfig.max_tokens = 4000;
       }
 
-      // Appel chat completion avec JSON strict
-      const completion = await this.openai.chat.completions.create(
+      const client = AIService.getOpenAICompatibleClient(correctionModel);
+      const completion = await client.chat.completions.create(
         apiConfig as ChatCompletionCreateParamsNonStreaming,
       );
 
@@ -190,20 +184,22 @@ export class ChatCorrection {
         },
       };
 
-      // Configuration spécifique reasoning models (GPT-5, o1, o3, …)
       if (isReasoningModel(correctionModel)) {
         apiConfig.reasoning_effort = "low";
         apiConfig.max_completion_tokens = 6000;
         logger.log(
-          "🧠 [CORRECTION] Reasoning model détecté : reasoning_effort=low, max_completion_tokens=6000, temperature=1 (défaut)",
+          "🧠 [CORRECTION] Reasoning model : reasoning_effort=low, max_completion_tokens=6000, temperature=1 (défaut)",
         );
+      } else if (isFixedTempModel(correctionModel)) {
+        apiConfig.temperature = 1;
+        apiConfig.max_tokens = 6000;
       } else {
         apiConfig.temperature = 0.3;
         apiConfig.max_tokens = 6000;
       }
 
-      // Appel chat completion avec JSON strict
-      const completion = await this.openai.chat.completions.create(
+      const client = AIService.getOpenAICompatibleClient(correctionModel);
+      const completion = await client.chat.completions.create(
         apiConfig as ChatCompletionCreateParamsNonStreaming,
       );
 

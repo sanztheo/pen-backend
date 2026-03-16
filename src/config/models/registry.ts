@@ -460,11 +460,12 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
   // ═══════════════════════════════════════════════════════════════════════════
 
   "kimi-k2.5": {
-    // $0.45 / $2.20
+    // $0.45 / $2.20 — API n'accepte que temperature=1
     id: "kimi-k2.5",
     provider: "moonshot",
     pricing: { input: 0.45, output: 2.2 },
     capabilities: {
+      fixedTemp: true,
       streaming: true,
       structuredOutput: true,
       vision: true,

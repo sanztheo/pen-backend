@@ -2,7 +2,8 @@
 import { documentSearchService } from "../documentSearchService.js";
 import { z } from "zod";
 import { logger } from "../../../utils/logger.js";
-import { MODELS } from "../../../config/models.js";
+import { MODELS, isFixedTempModel } from "../../../config/models.js";
+import { AIService } from "../../ai/base.js";
 
 /**
  * Type pour les appels de fonction OpenAI
@@ -1329,14 +1330,12 @@ MISSION: Trouve le MEILLEUR article Wikipedia pour un quiz ${subject} niveau ${l
   };
 
   try {
-    const openaiInstance = new (await import("openai")).OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    const client = AIService.getOpenAICompatibleClient(MODELS.ASSISTANT_FUNCTIONS);
 
     // 2. IA génère les meilleurs termes de recherche
     logger.log(`🔍 IA génère des termes de recherche...`);
 
-    const searchResponse = await openaiInstance.chat.completions.create({
+    const searchResponse = await client.chat.completions.create({
       model: MODELS.ASSISTANT_FUNCTIONS,
       messages: [
         { role: "system", content: getSystemPrompt() },
@@ -1374,7 +1373,7 @@ MISSION: Trouve le MEILLEUR article Wikipedia pour un quiz ${subject} niveau ${l
         },
       ],
       max_tokens: 200,
-      temperature: 0.3,
+      temperature: isFixedTempModel(MODELS.ASSISTANT_FUNCTIONS) ? 1 : 0.3,
     });
 
     const searchTerms = searchResponse.choices[0].message.content?.split(", ") || [];
@@ -1402,7 +1401,7 @@ MISSION: Trouve le MEILLEUR article Wikipedia pour un quiz ${subject} niveau ${l
     // 4. IA analyse titres + scoring intelligent
     logger.log(`🧠 IA analyse les titres...`);
 
-    const scoringResponse = await openaiInstance.chat.completions.create({
+    const scoringResponse = await client.chat.completions.create({
       model: MODELS.ASSISTANT_FUNCTIONS,
       messages: [
         { role: "system", content: getSystemPrompt() },
@@ -1426,7 +1425,7 @@ Réponds: {numéro}|{justification courte et précise}`,
         },
       ],
       max_tokens: 300,
-      temperature: 0.2,
+      temperature: isFixedTempModel(MODELS.ASSISTANT_FUNCTIONS) ? 1 : 0.2,
     });
 
     const scoringResult = scoringResponse.choices[0].message.content?.trim();
@@ -1483,7 +1482,7 @@ Réponds: {numéro}|{justification courte et précise}`,
     logger.log(`🤖 IA extrait 6500 meilleurs caractères...`);
 
     // 6. Extraction intelligente 6500 caractères par l'IA
-    const extractionResponse = await openaiInstance.chat.completions.create({
+    const extractionResponse = await client.chat.completions.create({
       model: MODELS.ASSISTANT_FUNCTIONS,
       messages: [
         {
@@ -1518,7 +1517,7 @@ Extrais les 6500 meilleurs caractères pour un quiz ${subject} niveau ${level}:`
         },
       ],
       max_tokens: 2000,
-      temperature: 0.1,
+      temperature: isFixedTempModel(MODELS.ASSISTANT_FUNCTIONS) ? 1 : 0.1,
     });
 
     const extractedContent = extractionResponse.choices[0].message.content?.trim();

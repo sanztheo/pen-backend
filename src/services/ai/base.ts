@@ -1,12 +1,14 @@
 import OpenAI from "openai";
 import { logger } from "../../utils/logger.js";
 import { MODELS } from "../../config/models.js";
+import { getModelProvider } from "../../config/models.js";
 
 const DEFAULT_MODEL = MODELS.CONTENT_DEFAULT;
 
 // 🔥 LAZY INITIALIZATION: N'initialise les clients que quand nécessaire
 let openai: OpenAI | null = null;
 let grok: OpenAI | null = null;
+let moonshot: OpenAI | null = null;
 
 function getOpenAIInstance(): OpenAI {
   if (!openai) {
@@ -29,6 +31,25 @@ function getGrokInstance(): OpenAI {
     });
   }
   return grok;
+}
+
+/** Moonshot/Kimi — API OpenAI-compatible. Global: api.moonshot.ai, Chine: api.moonshot.cn */
+const MOONSHOT_BASE_URL_DEFAULT = "https://api.moonshot.ai/v1";
+
+function getMoonshotInstance(): OpenAI {
+  if (!moonshot) {
+    const apiKey = process.env.MOONSHOT_API_KEY || process.env.KIMI_API_KEY;
+    if (!apiKey) {
+      logger.warn("⚠️ MOONSHOT_API_KEY manquante, fallback sur OpenAI");
+      return getOpenAIInstance();
+    }
+    const baseURL = process.env.MOONSHOT_BASE_URL || MOONSHOT_BASE_URL_DEFAULT;
+    moonshot = new OpenAI({
+      apiKey: apiKey.trim(),
+      baseURL,
+    });
+  }
+  return moonshot;
 }
 
 // Interface pour les résultats de streaming d'autocomplétion
@@ -120,6 +141,24 @@ export class AIService {
    */
   static getGrok(): OpenAI {
     return getGrokInstance();
+  }
+
+  /**
+   * Obtenir l'instance Moonshot (Kimi) configurée — API OpenAI-compatible
+   */
+  static getMoonshot(): OpenAI {
+    return getMoonshotInstance();
+  }
+
+  /**
+   * Retourne un client OpenAI-compatible pour le modèle donné (openai, moonshot, xai).
+   * À utiliser pour tout appel chat.completions.create avec un modelId du MODELS / registry.
+   */
+  static getOpenAICompatibleClient(modelId: string): OpenAI {
+    const provider = getModelProvider(modelId);
+    if (provider === "moonshot") return getMoonshotInstance();
+    if (provider === "xai") return getGrokInstance();
+    return getOpenAIInstance();
   }
 
   /**
