@@ -37,6 +37,7 @@ import { jobsRouter } from "./routes/jobs.js";
 import { agentRouter } from "./routes/agent.js";
 import { adminRouter } from "./routes/admin.js";
 import { betaRouter } from "./routes/beta.js";
+import { feedbackRouter } from "./routes/feedback.js";
 
 import { startCronJobs } from "./jobs/cronJobs.js";
 import { AuthService } from "./services/auth.js";
@@ -239,6 +240,7 @@ app.use("/api/user", userRouter);
 app.use("/api/jobs", jobsRouter); // 🎯 Récupération résultats jobs BullMQ
 app.use("/api/agent", aiRateLimit, aiBurstRateLimit, agentRouter); // 🤖 Agent Pennote + burst protection
 app.use("/api/beta", betaRouter); // 🎯 Beta management
+app.use("/api/feedback", feedbackRouter); // 📝 Beta feedback reports
 
 app.use("*", (_req, res) => res.status(404).json({ error: "Route non trouvée" }));
 app.use(
