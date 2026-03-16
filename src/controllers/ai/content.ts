@@ -45,7 +45,10 @@ export const generateContent = async (req: Request, res: Response) => {
     const validatedData = generateContentSchema.parse(req.body);
 
     const startTime = Date.now();
-    const result = await withTimeout(AIService.generateContent(validatedData), AI_TIMEOUT_MS);
+    const result = await withTimeout(
+      AIService.generateContent({ ...validatedData, source: req.aiCredits?.action }),
+      AI_TIMEOUT_MS,
+    );
     const responseTime = Date.now() - startTime;
 
     res.json({
@@ -59,7 +62,9 @@ export const generateContent = async (req: Request, res: Response) => {
     secureError("Erreur génération contenu", error);
     res.status(500).json({
       error: "Erreur lors de la génération de contenu",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
+      ...(process.env.NODE_ENV !== "production" && {
+        details: error instanceof Error ? error.message : "Erreur inconnue",
+      }),
     });
   }
 };
@@ -75,7 +80,11 @@ export const improveContent = async (req: Request, res: Response) => {
 
     const startTime = Date.now();
     const result = await withTimeout(
-      AIService.improveContent(validatedData.content, validatedData.instructions),
+      AIService.improveContent(
+        validatedData.content,
+        validatedData.instructions,
+        req.aiCredits?.action,
+      ),
       AI_TIMEOUT_MS,
     );
     const responseTime = Date.now() - startTime;
@@ -91,7 +100,9 @@ export const improveContent = async (req: Request, res: Response) => {
     secureError("Erreur amélioration contenu", error);
     res.status(500).json({
       error: "Erreur lors de l'amélioration du contenu",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
+      ...(process.env.NODE_ENV !== "production" && {
+        details: error instanceof Error ? error.message : "Erreur inconnue",
+      }),
     });
   }
 };
@@ -107,7 +118,7 @@ export const continueContent = async (req: Request, res: Response) => {
 
     const startTime = Date.now();
     const result = await withTimeout(
-      AIService.continueContent(validatedData.content, validatedData.length),
+      AIService.continueContent(validatedData.content, validatedData.length, req.aiCredits?.action),
       AI_TIMEOUT_MS,
     );
     const responseTime = Date.now() - startTime;
@@ -123,7 +134,9 @@ export const continueContent = async (req: Request, res: Response) => {
     secureError("Erreur continuation contenu", error);
     res.status(500).json({
       error: "Erreur lors de la continuation du contenu",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
+      ...(process.env.NODE_ENV !== "production" && {
+        details: error instanceof Error ? error.message : "Erreur inconnue",
+      }),
     });
   }
 };

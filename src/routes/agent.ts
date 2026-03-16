@@ -353,6 +353,7 @@ router.post(
               outputTokens,
               userId, // Quota par utilisateur
               userId, // Track per-user cost
+              req.aiCredits?.action,
             );
             logger.log(
               `📊 [QUOTA] Usage enregistré pour ${userId}: ~${estimatedTokens + outputTokens} tokens`,
@@ -591,6 +592,7 @@ router.post(
           Math.ceil(result.content.length / 4),
           userId,
           userId,
+          req.aiCredits?.action,
         );
 
         return res.json({
@@ -626,6 +628,7 @@ router.post(
           Math.ceil(result.content.length / 4),
           userId,
           userId,
+          req.aiCredits?.action,
         );
 
         return res.json({
@@ -657,6 +660,7 @@ router.post(
           Math.ceil(result.content.length / 4),
           userId,
           userId,
+          req.aiCredits?.action,
         );
 
         return res.json({

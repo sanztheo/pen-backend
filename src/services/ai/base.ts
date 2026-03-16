@@ -51,6 +51,7 @@ export interface AIGenerationOptions {
   context?: string;
   signal?: AbortSignal;
   userId?: string;
+  source?: string;
   // 🚀 Nouveau : Support du streaming
   onStream?: (chunk: string) => void;
   // 🧠 Nouveau : Support du reasoning/thinking (Grok, o1, etc.)
@@ -174,9 +175,13 @@ export class AIService {
   /**
    * Améliorer du contenu existant
    */
-  static async improveContent(content: string, instructions?: string): Promise<AIGenerationResult> {
+  static async improveContent(
+    content: string,
+    instructions?: string,
+    source?: string,
+  ): Promise<AIGenerationResult> {
     const { ContentGenerationService } = await import("./contentGeneration.js");
-    return ContentGenerationService.improveContent(content, instructions);
+    return ContentGenerationService.improveContent(content, instructions, source);
   }
 
   /**
@@ -185,9 +190,10 @@ export class AIService {
   static async continueContent(
     content: string,
     length: "court" | "moyen" | "long" = "moyen",
+    source?: string,
   ): Promise<AIGenerationResult> {
     const { ContentGenerationService } = await import("./contentGeneration.js");
-    return ContentGenerationService.continueContent(content, length);
+    return ContentGenerationService.continueContent(content, length, source);
   }
 
   /**
