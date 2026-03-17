@@ -1052,4 +1052,295 @@ export class AdminController {
       });
     }
   }
+
+  // ─── User Detail Panel ───────────────────────────────────────────
+
+  /**
+   * GET /api/admin/users/:userId/conversations
+   * List AI conversations for a specific user with pagination
+   */
+  static async getUserConversations(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+
+      if (!userId || userId.length > 255) {
+        res.status(400).json({ success: false, error: "userId requis" });
+        return;
+      }
+
+      const parsedPage = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+
+      const page = isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
+      const limit = Math.min(isNaN(parsedLimit) || parsedLimit < 1 ? 20 : parsedLimit, 100);
+      const skip = (page - 1) * limit;
+
+      const [conversations, total] = await Promise.all([
+        prisma.aIConversation.findMany({
+          where: { userId },
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            messageCount: true,
+            lastMessageAt: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: limit,
+          skip,
+        }),
+        prisma.aIConversation.count({ where: { userId } }),
+      ]);
+
+      logger.log("[ADMIN_CONTROLLER] getUserConversations", {
+        adminId: req.user!.id,
+        targetUserId: userId,
+        action: "admin.user.conversations.list",
+        resultCount: conversations.length,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          conversations,
+          total,
+          page,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getUserConversations error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération des conversations",
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/users/:userId/conversations/:conversationId
+   * Get full conversation detail with messages
+   */
+  static async getUserConversationDetail(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId, conversationId } = req.params;
+
+      if (!userId || userId.length > 255) {
+        res.status(400).json({ success: false, error: "userId requis" });
+        return;
+      }
+
+      if (!conversationId || conversationId.length > 255) {
+        res.status(400).json({ success: false, error: "conversationId requis" });
+        return;
+      }
+
+      const conversation = await prisma.aIConversation.findFirst({
+        where: { id: conversationId, userId },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          messageCount: true,
+          messages: {
+            select: {
+              id: true,
+              role: true,
+              content: true,
+              mode: true,
+              createdAt: true,
+            },
+            orderBy: { createdAt: "asc" },
+            take: 500,
+          },
+        },
+      });
+
+      if (!conversation) {
+        res.status(404).json({
+          success: false,
+          error: "Conversation non trouvée pour cet utilisateur",
+        });
+        return;
+      }
+
+      logger.log("[ADMIN_CONTROLLER] getUserConversationDetail", {
+        adminId: req.user!.id,
+        targetUserId: userId,
+        action: "admin.user.conversation.detail",
+        resourceId: conversationId,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: { conversation },
+      });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getUserConversationDetail error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération de la conversation",
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/users/:userId/quizzes
+   * List quizzes for a specific user with pagination and results
+   */
+  static async getUserQuizzes(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+
+      if (!userId || userId.length > 255) {
+        res.status(400).json({ success: false, error: "userId requis" });
+        return;
+      }
+
+      const parsedPage = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const parsedLimit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+
+      const page = isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
+      const limit = Math.min(isNaN(parsedLimit) || parsedLimit < 1 ? 20 : parsedLimit, 100);
+      const skip = (page - 1) * limit;
+
+      const [quizzes, total] = await Promise.all([
+        prisma.quiz.findMany({
+          where: { userId },
+          select: {
+            id: true,
+            title: true,
+            isCompleted: true,
+            schoolLevel: true,
+            timeSpent: true,
+            completedAt: true,
+            createdAt: true,
+            result: {
+              select: {
+                percentage: true,
+                adaptedGrade: true,
+                gradeScale: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: limit,
+          skip,
+        }),
+        prisma.quiz.count({ where: { userId } }),
+      ]);
+
+      logger.log("[ADMIN_CONTROLLER] getUserQuizzes", {
+        adminId: req.user!.id,
+        targetUserId: userId,
+        action: "admin.user.quizzes.list",
+        resultCount: quizzes.length,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          quizzes: quizzes.map((q) => ({
+            id: q.id,
+            title: q.title,
+            isCompleted: q.isCompleted,
+            schoolLevel: q.schoolLevel,
+            timeSpent: q.timeSpent,
+            completedAt: q.completedAt,
+            createdAt: q.createdAt,
+            result: q.result
+              ? {
+                  percentage: q.result.percentage,
+                  adaptedGrade: q.result.adaptedGrade,
+                  gradeScale: q.result.gradeScale,
+                }
+              : null,
+          })),
+          total,
+          page,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getUserQuizzes error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération des quizzes",
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/users/:userId/pages/:pageId/content
+   * Get page content read-only for admin viewing
+   */
+  static async getUserPageContent(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId, pageId } = req.params;
+
+      if (!userId || userId.length > 255) {
+        res.status(400).json({ success: false, error: "userId requis" });
+        return;
+      }
+
+      if (!pageId || pageId.length > 255) {
+        res.status(400).json({ success: false, error: "pageId requis" });
+        return;
+      }
+
+      const page = await prisma.page.findFirst({
+        where: { id: pageId, createdBy: userId },
+        select: {
+          id: true,
+          title: true,
+          icon: true,
+          iconColor: true,
+          blockNoteContent: true,
+          createdAt: true,
+          updatedAt: true,
+          workspace: {
+            select: { name: true },
+          },
+        },
+      });
+
+      if (!page) {
+        res.status(404).json({
+          success: false,
+          error: "Page non trouvée pour cet utilisateur",
+        });
+        return;
+      }
+
+      logger.log("[ADMIN_CONTROLLER] getUserPageContent", {
+        adminId: req.user!.id,
+        targetUserId: userId,
+        action: "admin.user.page.content",
+        resourceId: pageId,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          page: {
+            id: page.id,
+            title: page.title,
+            icon: page.icon,
+            iconColor: page.iconColor,
+            content: page.blockNoteContent,
+            createdAt: page.createdAt,
+            updatedAt: page.updatedAt,
+            workspaceName: page.workspace.name,
+          },
+        },
+      });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getUserPageContent error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération du contenu de la page",
+      });
+    }
+  }
 }
