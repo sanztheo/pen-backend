@@ -28,6 +28,8 @@ export const MODELS = {
   QUIZ_GENERATION: "kimi-k2.5",
   /** Correction de quiz — thinking pour precision */
   QUIZ_CORRECTION: "kimi-k2.5",
+  /** Batch explanation generation during correction (Gemini flash-lite) */
+  QUIZ_EXPLANATION: "gemini-3.1-flash-lite-preview",
   /** Preprocessor quiz — pas de thinking necessaire */
   PREPROCESSOR: "kimi-k2.5",
   /** Extraction de concepts */
