@@ -85,38 +85,54 @@ export async function generateQuizTitle(params: TitleGeneratorParams): Promise<s
 
   const userMessage = contextParts.join(", ");
 
-  try {
-    const modelId = MODELS.LIGHTWEIGHT;
-    const client = AIService.getOpenAICompatibleClient(modelId);
-    const response = await client.chat.completions.create({
-      model: modelId,
-      messages: [
-        { role: "system", content: TITLE_GENERATION_PROMPT },
-        { role: "user", content: userMessage },
-      ],
-      max_tokens: 60,
-      temperature: isFixedTempModel(modelId) ? 1 : 0.7,
-    });
+  const modelId = MODELS.LIGHTWEIGHT;
+  const client = AIService.getOpenAICompatibleClient(modelId);
+  const MAX_RETRIES = 3;
 
-    const generatedTitle = response.choices[0]?.message?.content?.trim();
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await client.chat.completions.create({
+        model: modelId,
+        messages: [
+          { role: "system", content: TITLE_GENERATION_PROMPT },
+          { role: "user", content: userMessage },
+        ],
+        max_tokens: 60,
+        temperature: isFixedTempModel(modelId) ? 1 : 0.7,
+      });
 
-    if (generatedTitle && generatedTitle.length > 0 && generatedTitle.length <= 100) {
-      SecureLogger.log(`[TITLE-GEN] Generated: "${generatedTitle}" from ${userMessage}`);
-      return generatedTitle;
+      const generatedTitle = response.choices[0]?.message?.content?.trim();
+
+      if (generatedTitle && generatedTitle.length > 0 && generatedTitle.length <= 100) {
+        SecureLogger.log(`[TITLE-GEN] Generated: "${generatedTitle}" from ${userMessage}`);
+        return generatedTitle;
+      }
+
+      return getFallbackTitle(params);
+    } catch (error: unknown) {
+      const err = error as { status?: number; type?: string };
+
+      // Retry on 429 (engine overloaded) with exponential backoff
+      if (err?.status === 429 && attempt < MAX_RETRIES - 1) {
+        const delay = 1000 * (attempt + 1);
+        SecureLogger.log(
+          `[TITLE-GEN] 429 overloaded, retry ${attempt + 1}/${MAX_RETRIES - 1} in ${delay}ms...`,
+        );
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+
+      SecureLogger.error("[TITLE-GEN] Error generating title:", error);
+      if (err?.status === 401 || err?.type === "invalid_authentication_error") {
+        SecureLogger.log(
+          "[TITLE-GEN] 💡 401 = clé API rejetée. Vérifiez MOONSHOT_API_KEY dans Infisical (clé valide sur platform.moonshot.ai). Si clé globale, utilisez MOONSHOT_BASE_URL=https://api.moonshot.ai/v1 (défaut).",
+        );
+      }
+      return getFallbackTitle(params);
     }
-
-    // Fallback if generation fails
-    return getFallbackTitle(params);
-  } catch (error: unknown) {
-    SecureLogger.error("[TITLE-GEN] Error generating title:", error);
-    const err = error as { status?: number; type?: string };
-    if (err?.status === 401 || err?.type === "invalid_authentication_error") {
-      SecureLogger.log(
-        "[TITLE-GEN] 💡 401 = clé API rejetée. Vérifiez MOONSHOT_API_KEY dans Infisical (clé valide sur platform.moonshot.ai). Si clé globale, utilisez MOONSHOT_BASE_URL=https://api.moonshot.ai/v1 (défaut).",
-      );
-    }
-    return getFallbackTitle(params);
   }
+
+  return getFallbackTitle(params);
 }
 
 /**
