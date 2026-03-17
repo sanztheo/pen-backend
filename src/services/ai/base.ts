@@ -9,6 +9,7 @@ const DEFAULT_MODEL = MODELS.CONTENT_DEFAULT;
 let openai: OpenAI | null = null;
 let grok: OpenAI | null = null;
 let moonshot: OpenAI | null = null;
+let gemini: OpenAI | null = null;
 
 function getOpenAIInstance(): OpenAI {
   if (!openai) {
@@ -31,6 +32,24 @@ function getGrokInstance(): OpenAI {
     });
   }
   return grok;
+}
+
+/** Google Gemini — OpenAI-compatible endpoint */
+const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/";
+
+function getGeminiInstance(): OpenAI {
+  if (!gemini) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      logger.warn("[AI] GEMINI_API_KEY missing, falling back to OpenAI");
+      return getOpenAIInstance();
+    }
+    gemini = new OpenAI({
+      apiKey,
+      baseURL: GEMINI_BASE_URL,
+    });
+  }
+  return gemini;
 }
 
 /** Moonshot/Kimi — API OpenAI-compatible. Global: api.moonshot.ai, Chine: api.moonshot.cn */
@@ -156,6 +175,7 @@ export class AIService {
    */
   static getOpenAICompatibleClient(modelId: string): OpenAI {
     const provider = getModelProvider(modelId);
+    if (provider === "google") return getGeminiInstance();
     if (provider === "moonshot") return getMoonshotInstance();
     if (provider === "xai") return getGrokInstance();
     return getOpenAIInstance();
@@ -185,6 +205,13 @@ export class AIService {
    */
   static getQuizCorrectionModel(): string {
     return MODELS.QUIZ_CORRECTION;
+  }
+
+  /**
+   * Obtenir le modele pour les batch explanations (Gemini flash-lite)
+   */
+  static getQuizExplanationModel(): string {
+    return MODELS.QUIZ_EXPLANATION;
   }
 
   // ==========================================
