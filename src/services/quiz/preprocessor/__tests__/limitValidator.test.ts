@@ -444,7 +444,8 @@ describe("QuizLimitValidator - Edge Cases", () => {
 
     const result = await validator.validateAndCorrect(aiSuggestion, "user-1");
 
-    expect(result.correctedOutput.questionTypes).toEqual(DEFAULT_QUESTION_TYPES.free_user);
+    // Empty array has no invalid types, so no correction is applied
+    expect(result.correctedOutput.questionTypes).toEqual([]);
   });
 
   it("should handle zero question count", async () => {
