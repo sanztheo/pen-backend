@@ -6,6 +6,7 @@
 import { logger } from "../utils/logger.js";
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
+import { cacheBlockNoteContent } from "../lib/redis.js";
 import { adminExportQueue } from "../lib/queues.js";
 import { markJobPending, getJobResult } from "../lib/jobResults.js";
 import { AdminStatsService } from "../services/admin/adminStatsService.js";
@@ -1277,14 +1278,14 @@ export class AdminController {
         return;
       }
 
-      const page = await prisma.page.findFirst({
+      // Verify page belongs to user + get metadata
+      const pageMeta = await prisma.page.findFirst({
         where: { id: pageId, createdBy: userId },
         select: {
           id: true,
           title: true,
           icon: true,
           iconColor: true,
-          blockNoteContent: true,
           createdAt: true,
           updatedAt: true,
           workspace: {
@@ -1293,13 +1294,17 @@ export class AdminController {
         },
       });
 
-      if (!page) {
+      if (!pageMeta) {
         res.status(404).json({
           success: false,
           error: "Page non trouvée pour cet utilisateur",
         });
         return;
       }
+
+      // Use same cache mechanism as normal endpoint for consistent content
+      const cached = await cacheBlockNoteContent(pageId);
+      const content = cached?.blockNoteContent ?? null;
 
       logger.log("[ADMIN_CONTROLLER] getUserPageContent", {
         adminId: req.user!.id,
@@ -1312,14 +1317,14 @@ export class AdminController {
         success: true,
         data: {
           page: {
-            id: page.id,
-            title: page.title,
-            icon: page.icon,
-            iconColor: page.iconColor,
-            content: page.blockNoteContent,
-            createdAt: page.createdAt,
-            updatedAt: page.updatedAt,
-            workspaceName: page.workspace.name,
+            id: pageMeta.id,
+            title: pageMeta.title,
+            icon: pageMeta.icon,
+            iconColor: pageMeta.iconColor,
+            content,
+            createdAt: pageMeta.createdAt,
+            updatedAt: pageMeta.updatedAt,
+            workspaceName: pageMeta.workspace.name,
           },
         },
       });
