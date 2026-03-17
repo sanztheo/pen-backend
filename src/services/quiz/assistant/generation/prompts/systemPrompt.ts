@@ -75,12 +75,6 @@ Chaque question doit evaluer des competences specifiques tout en respectant les 
 - Aucune erreur factuelle ou scientifique
 </content_quality>
 
-<explanation_quality>
-- Explication detaillee justifiant la reponse correcte
-- Reference aux concepts cles du cours
-- Conseils pour eviter les erreurs courantes
-- Pistes d'approfondissement si pertinent
-</explanation_quality>
 </quality_standards>
 
 <difficulty_calibration>

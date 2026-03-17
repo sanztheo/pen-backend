@@ -13,6 +13,10 @@ import { QUIZ_QUESTION_SCHEMA } from "../config/index.js";
 import { buildSystemPrompt } from "./prompts/systemPrompt.js";
 import { buildSingleQuestionPrompt } from "./prompts/questionPrompt.js";
 
+// Explanations are deferred to correction phase — reduced budget
+const MAX_OUTPUT_TOKENS_GENERATION = 1500;
+const GENERATION_TIMEOUT_MS = 15_000;
+
 type ExistingQuestion = { question: string };
 
 export interface SingleQuestionGenerationRequest {
@@ -136,8 +140,7 @@ export class QuestionGenerator {
         },
       };
 
-      // Limite généreuse pour éviter JSON tronqué (question + options + explications)
-      const maxOutputTokens = 4096;
+      const maxOutputTokens = MAX_OUTPUT_TOKENS_GENERATION;
       if (isReasoningModel(generationModel)) {
         apiConfig.reasoning_effort = "low";
         apiConfig.max_completion_tokens = maxOutputTokens;
@@ -157,7 +160,9 @@ export class QuestionGenerator {
 
       // Client selon le provider du modèle (Moonshot pour kimi-k2.5, etc.)
       const client = AIService.getOpenAICompatibleClient(generationModel);
-      const completion = await client.chat.completions.create(apiConfig);
+      const completion = await client.chat.completions.create(apiConfig, {
+        signal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
+      });
 
       const responseContent = completion.choices[0]?.message?.content;
       if (!responseContent) {

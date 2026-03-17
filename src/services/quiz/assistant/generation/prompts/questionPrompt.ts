@@ -340,7 +340,6 @@ Do NOT put everything in a single compact text block.
 - Respecte exactement le schema JSON strict fourni
 - Remplis TOUS les champs obligatoires avec des valeurs appropriees
 - Les tableaux vides [] sont OBLIGATOIRES pour les champs non utilises
-- L'explication doit etre pedagogique et detaillee
 - Le sujet et le niveau scolaire doivent correspondre aux parametres
 </requirements>
 </execution>

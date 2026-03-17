@@ -116,10 +116,6 @@ export const QUIZ_QUESTION_SCHEMA = {
             description:
               "Pour OPEN_QUESTION : réponse modèle attendue rédigée par l'IA basée sur les documents sources",
           },
-          explanation: {
-            type: "string",
-            description: "Explication détaillée de la réponse correcte",
-          },
           points: {
             type: "integer",
             description: "Points attribués à cette question (toujours 1 pour quiz personnalisés)",
@@ -171,7 +167,6 @@ export const QUIZ_QUESTION_SCHEMA = {
           "rightColumn",
           "correctMatches",
           "expectedAnswer",
-          "explanation",
           "points",
           "subject",
           "schoolLevel",
