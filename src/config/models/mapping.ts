@@ -23,21 +23,23 @@ export const MODELS = {
   /** Workflows — steps complexes (thinking via providerOptions) */
   AGENT_THINKING: "kimi-k2.5",
 
-  // ── Quiz ──────────────────────────────────────────────────────────────────
-  /** Generation de questions quiz — thinking pour qualite */
-  QUIZ_GENERATION: "kimi-k2.5",
-  /** Correction de quiz — thinking pour precision */
-  QUIZ_CORRECTION: "kimi-k2.5",
-  /** Preprocessor quiz — pas de thinking necessaire */
-  PREPROCESSOR: "kimi-k2.5",
+  // ── Quiz (Gemini flash-lite — 382 t/s, 97% JSON compliance) ──────────────
+  /** Generation de questions quiz */
+  QUIZ_GENERATION: "gemini-3.1-flash-lite-preview",
+  /** Correction de quiz */
+  QUIZ_CORRECTION: "gemini-3.1-flash-lite-preview",
+  /** Batch explanation generation during correction */
+  QUIZ_EXPLANATION: "gemini-3.1-flash-lite-preview",
+  /** Preprocessor quiz */
+  PREPROCESSOR: "gemini-3.1-flash-lite-preview",
   /** Extraction de concepts */
-  EXTRACTION: "kimi-k2.5",
+  EXTRACTION: "gemini-3.1-flash-lite-preview",
   /** Clustering thematique */
-  CLUSTERING: "kimi-k2.5",
+  CLUSTERING: "gemini-3.1-flash-lite-preview",
   /** Graphiques quiz + controller */
-  GRAPHICS: "kimi-k2.5",
+  GRAPHICS: "gemini-3.1-flash-lite-preview",
   /** Fonctions assistant quiz */
-  ASSISTANT_FUNCTIONS: "kimi-k2.5",
+  ASSISTANT_FUNCTIONS: "gemini-3.1-flash-lite-preview",
 
   // ── Taches legeres ────────────────────────────────────────────────────────
   /** Taches legeres (titres quiz, RSS, micro-taches) */

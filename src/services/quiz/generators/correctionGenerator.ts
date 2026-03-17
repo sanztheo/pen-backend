@@ -136,12 +136,6 @@ interface AIExerciseResult {
   explanation?: string;
 }
 
-// Type pour les suggestions IA
-interface AISuggestionItem {
-  questionId: string;
-  suggestion: string;
-}
-
 // Type pour les réponses JSON de correction IA
 interface AICorrectionResponse {
   questionResults?: AIQuestionResult[];
@@ -825,45 +819,49 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
     const startTime = Date.now();
 
     try {
-      // 🚀 ÉTAPE 1 : Correction automatique des questions fermées (QCM, Vrai/Faux, Matching)
+      // ── STEP 1: Auto-correct closed questions (instant, no LLM) ──────────
       const autoCorrections = this.correctClosedQuestions(questions, userAnswers);
-      logger.log(
-        `⚡ [HYBRID-STREAMING] Correction automatique : ${autoCorrections.length} questions fermées traitées`,
-      );
+      logger.info(`[CORRECTION] Auto-corrected ${autoCorrections.length} closed questions`);
 
-      // Générer les suggestions IA pour les questions fermées qui ont des points partiels/zéro
-      const closedWithSuggestions = await this.generateSuggestionsForClosedQuestions(
-        autoCorrections,
-        questions,
-        request,
-      );
-
-      // Yielder toutes les questions fermées d'un coup
-      yield {
-        type: "closed-questions",
-        correction: closedWithSuggestions,
-      };
-
-      // 🧠 ÉTAPE 2 : Identifier les questions ouvertes qui nécessitent l'IA
+      // ── STEP 2: Identify open questions ──────────────────────────────────
       const openQuestions = questions.filter((q) => q.type === "OPEN_QUESTION");
-      logger.log(
-        `🤖 [HYBRID-STREAMING] Questions ouvertes nécessitant l'IA : ${openQuestions.length}`,
-      );
+      logger.info(`[CORRECTION] Open questions requiring AI: ${openQuestions.length}`);
+
+      // ── STEP 3: Launch Gemini batch IN PARALLEL with open question corrections ──
+      // Gemini flash-lite enriches closed questions with explanations + suggestions.
+      // It runs concurrently — never blocks the correction flow on failure.
+      let closedWithExplanations: QuestionCorrectionResult[] | null = null;
+      const geminiPromise = (async () => {
+        try {
+          const result = await this.generateSuggestionsForClosedQuestions(
+            autoCorrections,
+            questions,
+          );
+          closedWithExplanations = result;
+          return result;
+        } catch {
+          closedWithExplanations = autoCorrections;
+          return autoCorrections;
+        }
+      })();
 
       const aiCorrections: QuestionCorrectionResult[] = [];
+      let closedYielded = false;
 
-      // Si on a des questions ouvertes, corriger une par une
       if (openQuestions.length > 0) {
         for (let i = 0; i < openQuestions.length; i++) {
+          // Before each open question, check if Gemini batch has resolved
+          if (!closedYielded && closedWithExplanations !== null) {
+            yield { type: "closed-questions", correction: closedWithExplanations };
+            closedYielded = true;
+          }
+
           try {
             const openQuestion = openQuestions[i];
             const userAnswer = userAnswers.find((ua) => ua.questionId === openQuestion.id);
 
-            logger.log(
-              `🧠 [STREAMING] Correction question ouverte ${i + 1}/${openQuestions.length}`,
-            );
+            logger.info(`[CORRECTION] Correcting open question ${i + 1}/${openQuestions.length}`);
 
-            // Corriger cette question ouverte spécifique
             const singleQuestionCorrection = await this.correctSingleOpenQuestion(
               openQuestion,
               userAnswer,
@@ -872,7 +870,6 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
 
             aiCorrections.push(singleQuestionCorrection);
 
-            // Yielder la correction pour affichage progressif
             yield {
               type: "open-question",
               questionNumber: i + 1,
@@ -880,42 +877,44 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
               correction: singleQuestionCorrection,
             };
 
-            logger.log(`✅ [STREAMING] Question ouverte ${i + 1} corrigée et envoyée`);
+            logger.info(`[CORRECTION] Open question ${i + 1} corrected and sent`);
           } catch (error) {
-            logger.error(`❌ [STREAMING] Erreur correction question ouverte ${i + 1}:`, error);
-            // Continuer avec la question suivante
+            logger.error(`[CORRECTION] Failed to correct open question ${i + 1}:`, error);
           }
         }
       } else {
-        logger.log(`⚡ [HYBRID-STREAMING] Aucune question ouverte - correction 100% automatique !`);
+        logger.info(`[CORRECTION] No open questions — fully automatic correction`);
       }
 
-      // 🔗 ÉTAPE 3 : Combiner les corrections automatiques + IA
-      const allCorrections = [...closedWithSuggestions, ...aiCorrections];
-      logger.log(
-        `🎯 [HYBRID-STREAMING] TOTAL: ${allCorrections.length} questions corrigées (${closedWithSuggestions.length} auto + ${aiCorrections.length} IA)`,
+      // Ensure closed questions are yielded (Gemini may still be running or already done)
+      if (!closedYielded) {
+        const closedResult = await geminiPromise;
+        yield { type: "closed-questions", correction: closedResult };
+      }
+
+      // ── STEP 4: Combine all corrections ──────────────────────────────────
+      const resolvedClosed = closedWithExplanations ?? autoCorrections;
+      const allCorrections = [...resolvedClosed, ...aiCorrections];
+      logger.info(
+        `[CORRECTION] Total: ${allCorrections.length} questions (${resolvedClosed.length} closed + ${aiCorrections.length} open)`,
       );
 
-      // Tri des corrections par ordre des questions originales
+      // Sort corrections by original question order
       const sortedCorrections = allCorrections.sort((a, b) => {
         const indexA = questions.findIndex((q) => q.id === a.questionId);
         const indexB = questions.findIndex((q) => q.id === b.questionId);
         return indexA - indexB;
       });
 
-      // Calculer les scores finaux
       const { realTotalScore, realMaxScore, realPercentage, realAdaptedGrade } =
         this.recalculateScores(sortedCorrections);
 
-      logger.log(`🔢 SCORES FINAUX HYBRIDES STREAMING :
-        - Score total : ${realTotalScore}/${realMaxScore}
-        - Pourcentage : ${realPercentage.toFixed(2)}%
-        - Note sur 20 : ${realAdaptedGrade.toFixed(2)}/20
-        - Correction automatique: ${closedWithSuggestions.length} questions
-        - Correction IA: ${aiCorrections.length} questions`);
+      logger.info(
+        `[CORRECTION] Final scores: ${realTotalScore}/${realMaxScore} (${realPercentage.toFixed(1)}%) — ${realAdaptedGrade.toFixed(1)}/20`,
+      );
 
-      // 🧠 ÉTAPE 4 : Générer l'analyse détaillée IA
-      logger.log("🧠 [STREAMING] Génération de l'analyse détaillée IA...");
+      // ── STEP 5: Generate detailed AI analysis ───────────────────────────
+      logger.info("[CORRECTION] Generating detailed analysis...");
       const detailedAnalysis = await this.generateDetailedAnalysis(
         questions,
         sortedCorrections,
@@ -1694,69 +1693,109 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Con
   }
 
   /**
-   * Génère des suggestions IA pour les questions fermées incorrectes
+   * Batch-generate explanations + suggestions for ALL closed questions via Gemini flash-lite.
+   * Runs as a single LLM call for the entire batch — cheap and fast.
+   * On failure → returns autoCorrections unchanged (never blocks correction flow).
    */
   private static async generateSuggestionsForClosedQuestions(
     autoCorrections: QuestionCorrectionResult[],
     questions: Question[],
-    request: QuizCorrectionRequest,
   ): Promise<QuestionCorrectionResult[]> {
-    // Questions qui nécessitent une suggestion (pas parfait)
-    const questionsNeedingSuggestions = autoCorrections.filter((c) => c.score < c.maxScore);
-
-    if (questionsNeedingSuggestions.length === 0) {
-      return autoCorrections; // Toutes les réponses sont parfaites
+    if (autoCorrections.length === 0) {
+      return autoCorrections;
     }
 
-    logger.log(
-      `💡 [SUGGESTIONS] Génération suggestions IA pour ${questionsNeedingSuggestions.length} questions fermées incorrectes`,
+    const GEMINI_TIMEOUT_MS = 30_000;
+    const startTime = Date.now();
+
+    logger.info(
+      `[EXPLANATION-BATCH] Starting Gemini batch for ${autoCorrections.length} closed questions`,
     );
 
     try {
-      // Construire un prompt pour les suggestions
-      const suggestionsPrompt = `Tu es un tuteur pédagogue. Pour chaque question fermée mal répondue ci-dessous, fournis UNE COURTE SUGGESTION (max 50 mots) pour aider l'élève.
+      const model = AIService.getQuizExplanationModel();
+      const client = AIService.getOpenAICompatibleClient(model);
 
-Format: {"questionId": "id", "suggestion": "votre conseil"}
+      const questionsXml = autoCorrections
+        .map((qr) => {
+          const question = questions.find((q) => q.id === qr.questionId);
+          return `<question id="${qr.questionId}">
+  <text>${question?.question ?? "unknown"}</text>
+  <student_answer>${qr.userAnswer}</student_answer>
+  <correct_answer>${qr.correctAnswer}</correct_answer>
+  <is_correct>${qr.isCorrect}</is_correct>
+  <score>${qr.score}/${qr.maxScore}</score>
+</question>`;
+        })
+        .join("\n");
 
-Questions:
-${questionsNeedingSuggestions
-  .map((qr) => {
-    const question = questions.find((q) => q.id === qr.questionId);
-    return `ID: ${qr.questionId}
-Question: ${question?.question}
-Réponse élève: ${qr.userAnswer}
-Bonne réponse: ${qr.correctAnswer}`;
-  })
-  .join("\n---\n")}
+      const prompt = `<task>
+You are a pedagogical tutor. For each closed question below, provide:
+1. An "explanation": a clear, detailed pedagogical explanation (2-4 sentences) justifying the correct answer. Always explain WHY the correct answer is right, even if the student answered correctly.
+2. A "suggestion": if the student answered incorrectly, a short actionable tip (max 50 words) to help them improve. If the student answered correctly, return an empty string "".
+</task>
 
-Réponds UNIQUEMENT en JSON array valide.`;
+<questions>
+${questionsXml}
+</questions>
 
-      const result = await AIService.generateContent({
-        prompt: suggestionsPrompt,
-        maxTokens: Math.min(questionsNeedingSuggestions.length * 150, 3000),
-        temperature: 0.5,
-        model: AIService.getQuizCorrectionModel(),
-      });
+<output_format>
+Respond with a valid JSON array only. Each element:
+{"questionId": "...", "explanation": "...", "suggestion": "..."}
+No markdown, no extra text.
+</output_format>`;
 
-      const suggestionsData = JsonUtils.extractJsonFromText(result.content);
-      const suggestionsMap = new Map();
+      const response = await client.chat.completions.create(
+        {
+          model,
+          messages: [{ role: "user", content: prompt }],
+          max_tokens: Math.min(autoCorrections.length * 250, 4000),
+          temperature: 0.4,
+        },
+        { signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS) },
+      );
 
-      if (Array.isArray(suggestionsData)) {
-        suggestionsData.forEach((item: AISuggestionItem) => {
-          if (item.questionId && item.suggestion) {
-            suggestionsMap.set(item.questionId, item.suggestion);
-          }
+      const raw = response.choices[0]?.message?.content ?? "";
+      const parsed: unknown = JsonUtils.extractJsonFromText(raw);
+      const durationMs = Date.now() - startTime;
+
+      if (!Array.isArray(parsed)) {
+        logger.warn(`[EXPLANATION-BATCH] Gemini returned non-array response, skipping enrichment`, {
+          durationMs,
+        });
+        return autoCorrections;
+      }
+
+      const explanationMap = new Map<string, { explanation: string; suggestion: string }>();
+      for (const item of parsed as unknown[]) {
+        if (item === null || typeof item !== "object") continue;
+        const rec = item as Record<string, unknown>;
+        if (typeof rec.questionId !== "string" || typeof rec.explanation !== "string") continue;
+        explanationMap.set(rec.questionId, {
+          explanation: rec.explanation,
+          suggestion: typeof rec.suggestion === "string" ? rec.suggestion : "",
         });
       }
 
-      // Fusionner les suggestions avec les corrections
-      return autoCorrections.map((correction) => ({
-        ...correction,
-        suggestion: suggestionsMap.get(correction.questionId),
-      }));
-    } catch (error) {
-      logger.error("❌ Erreur génération suggestions:", error);
-      // Retourner sans suggestions si erreur
+      logger.info(
+        `[EXPLANATION-BATCH] Gemini batch completed: ${explanationMap.size}/${autoCorrections.length} questions enriched in ${durationMs}ms`,
+      );
+
+      return autoCorrections.map((correction) => {
+        const enrichment = explanationMap.get(correction.questionId);
+        if (!enrichment) return correction;
+        return {
+          ...correction,
+          explanation: enrichment.explanation || correction.explanation,
+          suggestion: enrichment.suggestion || correction.suggestion,
+        };
+      });
+    } catch (error: unknown) {
+      const durationMs = Date.now() - startTime;
+      logger.warn(
+        `[EXPLANATION-BATCH] Gemini batch failed after ${durationMs}ms, continuing with auto-corrections`,
+        { error: error instanceof Error ? error.message : String(error) },
+      );
       return autoCorrections;
     }
   }
