@@ -11,9 +11,33 @@ import {
 import { quizPreprocessorAgent } from "../QuizPreprocessorAgent.js";
 import { prisma } from "../../../../lib/prisma.js";
 
-// Cast to any for mocking
-const mockPrisma = prisma as any;
-const mockAgent = quizPreprocessorAgent as any;
+// Create mock functions for prisma methods
+const mockPageFindMany = jest.fn();
+const mockWorkspaceFindMany = jest.fn();
+const mockUserLimitsFindUnique = jest.fn();
+
+// Replace prisma methods with mocks
+(prisma.page as any).findMany = mockPageFindMany;
+(prisma.workspace as any).findMany = mockWorkspaceFindMany;
+(prisma.userLimits as any).findUnique = mockUserLimitsFindUnique;
+
+// Mock quizPreprocessorAgent
+const mockAnalyzeAndRecommend = jest.fn();
+(quizPreprocessorAgent as any).analyzeAndRecommend = mockAnalyzeAndRecommend;
+
+// Paragraph text with 60+ words to pass the 50-word content threshold
+const LONG_TEXT =
+  "Photosynthesis is the biological process by which green plants and other organisms convert light energy into chemical energy stored in glucose molecules. This complex process occurs primarily in the chloroplasts of plant cells where chlorophyll pigments absorb sunlight and use it to transform carbon dioxide and water into glucose and oxygen through a series of biochemical reactions that sustain most life on Earth.";
+
+function makeBlockNote(
+  blocks: Array<{
+    type: string;
+    content?: Array<{ text: string }>;
+    props?: Record<string, unknown>;
+  }>,
+): string {
+  return JSON.stringify(blocks);
+}
 
 describe("runPreprocessorForGeneration", () => {
   beforeEach(() => {
@@ -22,35 +46,25 @@ describe("runPreprocessorForGeneration", () => {
 
   it("should successfully process pages and return recommendations", async () => {
     // Mock page data
-    mockPrisma.page.findMany.mockResolvedValue([
+    mockPageFindMany.mockResolvedValue([
       {
         id: "page-1",
         title: "Introduction to Photosynthesis",
-        blockNoteContent: JSON.stringify([
-          {
-            type: "paragraph",
-            content: [{ text: "Photosynthesis is the process..." }],
-          },
-          {
-            type: "heading",
-            content: [{ text: "Key Concepts" }],
-          },
-          {
-            type: "paragraph",
-            content: [{ text: "Chlorophyll absorbs light energy..." }],
-          },
+        blockNoteContent: makeBlockNote([
+          { type: "paragraph", content: [{ text: LONG_TEXT }] },
+          { type: "heading", content: [{ text: "Key Concepts" }] },
         ]),
       },
     ]);
 
     // Mock user limits
-    mockPrisma.userLimits.findUnique.mockResolvedValue({
+    mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-1",
       questionsPerQuizLimit: 10,
     });
 
     // Mock agent response
-    mockAgent.analyzeAndRecommend.mockResolvedValue({
+    mockAnalyzeAndRecommend.mockResolvedValue({
       recommendedQuestionCount: 8,
       questionTypes: [
         "MULTIPLE_CHOICE",
@@ -88,30 +102,27 @@ describe("runPreprocessorForGeneration", () => {
 
   it("should handle workspace selection", async () => {
     // Mock workspace data
-    mockPrisma.workspace.findMany.mockResolvedValue([
+    mockWorkspaceFindMany.mockResolvedValue([
       {
         id: "ws-1",
         name: "Biology Notes",
         pages: [
           {
             title: "Cell Structure",
-            blockNoteContent: JSON.stringify([
-              {
-                type: "paragraph",
-                content: [{ text: "Cells are the basic units of life..." }],
-              },
+            blockNoteContent: makeBlockNote([
+              { type: "paragraph", content: [{ text: LONG_TEXT }] },
             ]),
           },
         ],
       },
     ]);
 
-    mockPrisma.userLimits.findUnique.mockResolvedValue({
+    mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-1",
       questionsPerQuizLimit: 10,
     });
 
-    mockAgent.analyzeAndRecommend.mockResolvedValue({
+    mockAnalyzeAndRecommend.mockResolvedValue({
       recommendedQuestionCount: 10,
       questionTypes: Array(10).fill("MULTIPLE_CHOICE"),
       difficulty: "easy",
@@ -142,7 +153,7 @@ describe("runPreprocessorForGeneration", () => {
 
   it("should throw error if content is insufficient", async () => {
     // Mock empty or minimal content
-    mockPrisma.page.findMany.mockResolvedValue([
+    mockPageFindMany.mockResolvedValue([
       {
         id: "page-1",
         title: "Short",
@@ -155,7 +166,7 @@ describe("runPreprocessorForGeneration", () => {
       },
     ]);
 
-    mockPrisma.userLimits.findUnique.mockResolvedValue({
+    mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-1",
       questionsPerQuizLimit: 10,
     });
@@ -170,33 +181,23 @@ describe("runPreprocessorForGeneration", () => {
   });
 
   it("should detect formulas in content", async () => {
-    mockPrisma.page.findMany.mockResolvedValue([
+    mockPageFindMany.mockResolvedValue([
       {
         id: "page-1",
         title: "Math Formulas",
-        blockNoteContent: JSON.stringify([
-          {
-            type: "paragraph",
-            content: [{ text: "The quadratic formula is used to..." }],
-          },
-          {
-            type: "latex",
-            props: { formula: "x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}" },
-          },
-          {
-            type: "paragraph",
-            content: [{ text: "This formula helps solve quadratic equations..." }],
-          },
+        blockNoteContent: makeBlockNote([
+          { type: "paragraph", content: [{ text: LONG_TEXT }] },
+          { type: "latex", props: { formula: "x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}" } },
         ]),
       },
     ]);
 
-    mockPrisma.userLimits.findUnique.mockResolvedValue({
+    mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-1",
       questionsPerQuizLimit: 10,
     });
 
-    mockAgent.analyzeAndRecommend.mockResolvedValue({
+    mockAnalyzeAndRecommend.mockResolvedValue({
       recommendedQuestionCount: 8,
       questionTypes: Array(8).fill("MULTIPLE_CHOICE"),
       difficulty: "medium",
@@ -222,37 +223,24 @@ describe("runPreprocessorForGeneration", () => {
   });
 
   it("should detect definitions from headings", async () => {
-    mockPrisma.page.findMany.mockResolvedValue([
+    mockPageFindMany.mockResolvedValue([
       {
         id: "page-1",
         title: "Definitions",
-        blockNoteContent: JSON.stringify([
-          {
-            type: "heading",
-            content: [{ text: "Definition of Photosynthesis" }],
-          },
-          {
-            type: "paragraph",
-            content: [{ text: "Photosynthesis is..." }],
-          },
-          {
-            type: "heading",
-            content: [{ text: "Definition of Chlorophyll" }],
-          },
-          {
-            type: "paragraph",
-            content: [{ text: "Chlorophyll is..." }],
-          },
+        blockNoteContent: makeBlockNote([
+          { type: "heading", content: [{ text: "Definition of Photosynthesis" }] },
+          { type: "paragraph", content: [{ text: LONG_TEXT }] },
+          { type: "heading", content: [{ text: "Definition of Chlorophyll" }] },
         ]),
       },
     ]);
 
-    mockPrisma.userLimits.findUnique.mockResolvedValue({
+    mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-1",
       questionsPerQuizLimit: 10,
     });
 
-    mockAgent.analyzeAndRecommend.mockResolvedValue({
+    mockAnalyzeAndRecommend.mockResolvedValue({
       recommendedQuestionCount: 7,
       questionTypes: Array(7).fill("MULTIPLE_CHOICE"),
       difficulty: "easy",
@@ -278,29 +266,25 @@ describe("runPreprocessorForGeneration", () => {
   });
 
   it("should extract topics from page titles", async () => {
-    mockPrisma.page.findMany.mockResolvedValue([
+    mockPageFindMany.mockResolvedValue([
       {
         id: "page-1",
         title: "Photosynthesis",
-        blockNoteContent: JSON.stringify([
-          { type: "paragraph", content: [{ text: "Content..." }] },
-        ]),
+        blockNoteContent: makeBlockNote([{ type: "paragraph", content: [{ text: LONG_TEXT }] }]),
       },
       {
         id: "page-2",
         title: "Cell Respiration",
-        blockNoteContent: JSON.stringify([
-          { type: "paragraph", content: [{ text: "More content..." }] },
-        ]),
+        blockNoteContent: makeBlockNote([{ type: "paragraph", content: [{ text: LONG_TEXT }] }]),
       },
     ]);
 
-    mockPrisma.userLimits.findUnique.mockResolvedValue({
+    mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-1",
       questionsPerQuizLimit: 10,
     });
 
-    mockAgent.analyzeAndRecommend.mockResolvedValue({
+    mockAnalyzeAndRecommend.mockResolvedValue({
       recommendedQuestionCount: 10,
       questionTypes: Array(10).fill("MULTIPLE_CHOICE"),
       difficulty: "medium",
@@ -326,30 +310,21 @@ describe("runPreprocessorForGeneration", () => {
   });
 
   it("should respect user subscription limits", async () => {
-    mockPrisma.page.findMany.mockResolvedValue([
+    mockPageFindMany.mockResolvedValue([
       {
         id: "page-1",
         title: "Test Page",
-        blockNoteContent: JSON.stringify([
-          {
-            type: "paragraph",
-            content: [
-              {
-                text: "This is a longer piece of content with enough words to generate a quiz...",
-              },
-            ],
-          },
-        ]),
+        blockNoteContent: makeBlockNote([{ type: "paragraph", content: [{ text: LONG_TEXT }] }]),
       },
     ]);
 
     // Free user with 10 questions limit
-    mockPrisma.userLimits.findUnique.mockResolvedValue({
+    mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-free",
       questionsPerQuizLimit: 10,
     });
 
-    mockAgent.analyzeAndRecommend.mockResolvedValue({
+    mockAnalyzeAndRecommend.mockResolvedValue({
       recommendedQuestionCount: 10,
       questionTypes: Array(10).fill("MULTIPLE_CHOICE"),
       difficulty: "medium",
@@ -376,25 +351,20 @@ describe("runPreprocessorForGeneration", () => {
   });
 
   it("should use default quiz type if not provided", async () => {
-    mockPrisma.page.findMany.mockResolvedValue([
+    mockPageFindMany.mockResolvedValue([
       {
         id: "page-1",
         title: "Test",
-        blockNoteContent: JSON.stringify([
-          {
-            type: "paragraph",
-            content: [{ text: "Enough content to generate a quiz from this..." }],
-          },
-        ]),
+        blockNoteContent: makeBlockNote([{ type: "paragraph", content: [{ text: LONG_TEXT }] }]),
       },
     ]);
 
-    mockPrisma.userLimits.findUnique.mockResolvedValue({
+    mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-1",
       questionsPerQuizLimit: 10,
     });
 
-    mockAgent.analyzeAndRecommend.mockResolvedValue({
+    mockAnalyzeAndRecommend.mockResolvedValue({
       recommendedQuestionCount: 8,
       questionTypes: Array(8).fill("MULTIPLE_CHOICE"),
       difficulty: "medium",
@@ -421,25 +391,20 @@ describe("runPreprocessorForGeneration", () => {
   });
 
   it("should handle null timeLimit", async () => {
-    mockPrisma.page.findMany.mockResolvedValue([
+    mockPageFindMany.mockResolvedValue([
       {
         id: "page-1",
         title: "Test",
-        blockNoteContent: JSON.stringify([
-          {
-            type: "paragraph",
-            content: [{ text: "Content for quiz generation..." }],
-          },
-        ]),
+        blockNoteContent: makeBlockNote([{ type: "paragraph", content: [{ text: LONG_TEXT }] }]),
       },
     ]);
 
-    mockPrisma.userLimits.findUnique.mockResolvedValue({
+    mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-1",
       questionsPerQuizLimit: 10,
     });
 
-    mockAgent.analyzeAndRecommend.mockResolvedValue({
+    mockAnalyzeAndRecommend.mockResolvedValue({
       recommendedQuestionCount: 5,
       questionTypes: Array(5).fill("MULTIPLE_CHOICE"),
       difficulty: "easy",
@@ -461,52 +426,27 @@ describe("runPreprocessorForGeneration", () => {
 
   it("should limit workspace pages to 5 per workspace", async () => {
     // Mock workspace with more than 5 pages
-    mockPrisma.workspace.findMany.mockResolvedValue([
+    const wsBlock = makeBlockNote([{ type: "paragraph", content: [{ text: LONG_TEXT }] }]);
+    mockWorkspaceFindMany.mockResolvedValue([
       {
         id: "ws-1",
         name: "Large Workspace",
         pages: [
-          {
-            title: "Page 1",
-            blockNoteContent: JSON.stringify([
-              { type: "paragraph", content: [{ text: "Content 1..." }] },
-            ]),
-          },
-          {
-            title: "Page 2",
-            blockNoteContent: JSON.stringify([
-              { type: "paragraph", content: [{ text: "Content 2..." }] },
-            ]),
-          },
-          {
-            title: "Page 3",
-            blockNoteContent: JSON.stringify([
-              { type: "paragraph", content: [{ text: "Content 3..." }] },
-            ]),
-          },
-          {
-            title: "Page 4",
-            blockNoteContent: JSON.stringify([
-              { type: "paragraph", content: [{ text: "Content 4..." }] },
-            ]),
-          },
-          {
-            title: "Page 5",
-            blockNoteContent: JSON.stringify([
-              { type: "paragraph", content: [{ text: "Content 5..." }] },
-            ]),
-          },
-          // Note: Prisma take: 5 will limit to 5 pages
+          { title: "Page 1", blockNoteContent: wsBlock },
+          { title: "Page 2", blockNoteContent: wsBlock },
+          { title: "Page 3", blockNoteContent: wsBlock },
+          { title: "Page 4", blockNoteContent: wsBlock },
+          { title: "Page 5", blockNoteContent: wsBlock },
         ],
       },
     ]);
 
-    mockPrisma.userLimits.findUnique.mockResolvedValue({
+    mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-1",
       questionsPerQuizLimit: 10,
     });
 
-    mockAgent.analyzeAndRecommend.mockResolvedValue({
+    mockAnalyzeAndRecommend.mockResolvedValue({
       recommendedQuestionCount: 10,
       questionTypes: Array(10).fill("MULTIPLE_CHOICE"),
       difficulty: "medium",
@@ -541,7 +481,7 @@ describe("Integration Helper - Edge Cases", () => {
   });
 
   it("should handle malformed BlockNote content", async () => {
-    mockPrisma.page.findMany.mockResolvedValue([
+    mockPageFindMany.mockResolvedValue([
       {
         id: "page-1",
         title: "Broken Content",
@@ -549,7 +489,7 @@ describe("Integration Helper - Edge Cases", () => {
       },
     ]);
 
-    mockPrisma.userLimits.findUnique.mockResolvedValue({
+    mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-1",
       questionsPerQuizLimit: 10,
     });
@@ -576,22 +516,17 @@ describe("Integration Helper - Edge Cases", () => {
   });
 
   it("should handle missing userLimits", async () => {
-    mockPrisma.page.findMany.mockResolvedValue([
+    mockPageFindMany.mockResolvedValue([
       {
         id: "page-1",
         title: "Test",
-        blockNoteContent: JSON.stringify([
-          {
-            type: "paragraph",
-            content: [{ text: "Sufficient content for quiz generation..." }],
-          },
-        ]),
+        blockNoteContent: makeBlockNote([{ type: "paragraph", content: [{ text: LONG_TEXT }] }]),
       },
     ]);
 
-    mockPrisma.userLimits.findUnique.mockResolvedValue(null);
+    mockUserLimitsFindUnique.mockResolvedValue(null);
 
-    mockAgent.analyzeAndRecommend.mockResolvedValue({
+    mockAnalyzeAndRecommend.mockResolvedValue({
       recommendedQuestionCount: 10,
       questionTypes: Array(10).fill("MULTIPLE_CHOICE"),
       difficulty: "medium",

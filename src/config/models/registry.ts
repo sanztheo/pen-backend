@@ -343,6 +343,20 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
       maxOutputTokens: 8_192,
     },
   },
+  "gemini-3.1-flash-lite-preview": {
+    // $0.25 / $1.50 — batch explanations (cheap, fast, 1M context)
+    id: "gemini-3.1-flash-lite-preview",
+    provider: "google",
+    pricing: { input: 0.25, output: 1.5 },
+    capabilities: {
+      streaming: true,
+      structuredOutput: true,
+      vision: true,
+      toolCalling: true,
+      maxContextTokens: 1_000_000,
+      maxOutputTokens: 8_192,
+    },
+  },
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Anthropic Claude
