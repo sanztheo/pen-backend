@@ -17,6 +17,7 @@ const DELETION_BATCH_SIZE = 50;
 const CRON_LOCK_TTL_SECONDS = 300; // 5 minutes
 const EMAIL_BATCH_SIZE = 5;
 const EMAIL_BATCH_DELAY_MS = 1_000;
+const POSITION_UPDATE_STEP = 10; // Notify every 10 positions gained
 
 // ─── Result types ──────────────────────────────────────────────
 interface CronJobResult {
@@ -354,6 +355,100 @@ export class BetaCronService {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
+  }
+
+  /**
+   * Sends position update emails to waitlisted users who moved 10+ positions
+   * since their last notification. Uses metadata.lastNotifiedPosition to track.
+   * Runs hourly (after processWaitlist).
+   */
+  static async sendPositionUpdates(): Promise<CronJobResult> {
+    const entries = await prisma.betaWaitlist.findMany({
+      orderBy: { joinedAt: "asc" },
+      select: { id: true, email: true, name: true, metadata: true },
+    });
+
+    if (entries.length === 0) {
+      logger.log("[BETA_CRON] sendPositionUpdates: empty waitlist");
+      return { processed: 0, errors: 0 };
+    }
+
+    const toNotify: Array<{ id: string; email: string; name: string; position: number }> = [];
+
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const currentPosition = i + 1;
+      const meta = entry.metadata as Record<string, unknown> | null;
+      const lastNotified =
+        typeof meta?.lastNotifiedPosition === "number" ? meta.lastNotifiedPosition : undefined;
+
+      // First time: seed the position without sending an email (they already got confirmation)
+      if (lastNotified === undefined) {
+        await prisma.betaWaitlist.update({
+          where: { id: entry.id },
+          data: {
+            metadata: { ...((meta as object) ?? {}), lastNotifiedPosition: currentPosition },
+          },
+        });
+        continue;
+      }
+
+      // Only notify if they moved forward by at least POSITION_UPDATE_STEP
+      if (lastNotified - currentPosition >= POSITION_UPDATE_STEP) {
+        toNotify.push({
+          id: entry.id,
+          email: entry.email,
+          name: entry.name,
+          position: currentPosition,
+        });
+      }
+    }
+
+    if (toNotify.length === 0) {
+      logger.log("[BETA_CRON] sendPositionUpdates: no users crossed a milestone");
+      return { processed: 0, errors: 0 };
+    }
+
+    const { EmailService } = await import("./EmailService.js");
+    let sent = 0;
+    let errors = 0;
+
+    for (let i = 0; i < toNotify.length; i += EMAIL_BATCH_SIZE) {
+      const chunk = toNotify.slice(i, i + EMAIL_BATCH_SIZE);
+
+      const results = await Promise.allSettled(
+        chunk.map(async (user) => {
+          await EmailService.sendWaitlistPositionUpdate({
+            to: user.email,
+            name: user.name,
+            newPosition: user.position,
+          });
+          await prisma.betaWaitlist.update({
+            where: { id: user.id },
+            data: {
+              notifiedAt: new Date(),
+              metadata: { lastNotifiedPosition: user.position },
+            },
+          });
+        }),
+      );
+
+      for (const r of results) {
+        if (r.status === "fulfilled") sent++;
+        else {
+          errors++;
+          logger.warn("[BETA_CRON] Position update email failed:", r.reason);
+        }
+      }
+
+      const hasMore = i + EMAIL_BATCH_SIZE < toNotify.length;
+      if (hasMore) {
+        await new Promise((resolve) => setTimeout(resolve, EMAIL_BATCH_DELAY_MS));
+      }
+    }
+
+    logger.log(`[BETA_CRON] sendPositionUpdates: ${sent} notified, ${errors} errors`);
+    return { processed: sent, errors };
   }
 
   /**

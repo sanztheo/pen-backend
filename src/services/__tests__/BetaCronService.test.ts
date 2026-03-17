@@ -15,6 +15,7 @@ const mockUserFindMany = jest.fn();
 const mockUserUpdateMany = jest.fn();
 const mockUserUpdate = jest.fn();
 const mockWaitlistFindMany = jest.fn();
+const mockWaitlistUpdate = jest.fn();
 const mockWaitlistDelete = jest.fn();
 const mockWaitlistDeleteMany = jest.fn();
 const mockTransaction = jest.fn();
@@ -24,6 +25,7 @@ const mockTransaction = jest.fn();
 (prisma.user as unknown as Record<string, jest.Mock>).updateMany = mockUserUpdateMany;
 (prisma.user as unknown as Record<string, jest.Mock>).update = mockUserUpdate;
 (prisma.betaWaitlist as unknown as Record<string, jest.Mock>).findMany = mockWaitlistFindMany;
+(prisma.betaWaitlist as unknown as Record<string, jest.Mock>).update = mockWaitlistUpdate;
 (prisma.betaWaitlist as unknown as Record<string, jest.Mock>).delete = mockWaitlistDelete;
 (prisma.betaWaitlist as unknown as Record<string, jest.Mock>).deleteMany = mockWaitlistDeleteMany;
 (prisma as unknown as Record<string, jest.Mock>).$transaction = mockTransaction;
@@ -45,6 +47,9 @@ jest.unstable_mockModule("../../utils/logger.js", () => ({
     debug: jest.fn(),
   },
 }));
+
+// Note: EmailService uses dynamic import() in BetaCronService — ESM mocking
+// cannot intercept it reliably. Email behavior is verified via DB side-effects.
 
 // ─── Test Constants ─────────────────────────────────────────────
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -359,6 +364,172 @@ describe("BetaCronService.processWaitlist", () => {
     expect(mockTransaction).toHaveBeenCalledWith(expect.any(Function), {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// sendPositionUpdates
+// ═══════════════════════════════════════════════════════════════
+
+describe("BetaCronService.sendPositionUpdates", () => {
+  beforeEach(() => {
+    mockWaitlistUpdate.mockResolvedValue({});
+  });
+
+  it("should return 0 when waitlist is empty", async () => {
+    mockWaitlistFindMany.mockResolvedValue([]);
+
+    const result = await BetaCronService.sendPositionUpdates();
+
+    expect(result.processed).toBe(0);
+    expect(result.errors).toBe(0);
+  });
+
+  it("should seed lastNotifiedPosition for entries without metadata", async () => {
+    mockWaitlistFindMany.mockResolvedValue([
+      { id: "wl-1", email: "a@test.com", name: "Alice", metadata: null },
+      { id: "wl-2", email: "b@test.com", name: "Bob", metadata: {} },
+    ]);
+
+    const result = await BetaCronService.sendPositionUpdates();
+
+    // Should seed both (no lastNotifiedPosition), send no emails
+    expect(mockWaitlistUpdate).toHaveBeenCalledTimes(2);
+    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
+      where: { id: "wl-1" },
+      data: { metadata: { lastNotifiedPosition: 1 } },
+    });
+    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
+      where: { id: "wl-2" },
+      data: { metadata: { lastNotifiedPosition: 2 } },
+    });
+    expect(result.processed).toBe(0);
+  });
+
+  it("should not notify when position moved less than 10", async () => {
+    mockWaitlistFindMany.mockResolvedValue([
+      { id: "wl-1", email: "a@test.com", name: "Alice", metadata: { lastNotifiedPosition: 15 } },
+    ]);
+
+    // Current position is 1 (only entry), moved 14 positions → should notify
+    // Actually wait: 15 - 1 = 14 >= 10, so this WILL notify.
+    // Let me use a case that doesn't notify:
+    mockWaitlistFindMany.mockResolvedValue([
+      { id: "wl-1", email: "a@test.com", name: "Alice", metadata: { lastNotifiedPosition: 5 } },
+    ]);
+
+    const result = await BetaCronService.sendPositionUpdates();
+
+    // Position is 1, was 5 → moved 4 < 10, no notification
+    // No notifiedAt update should occur (only seed updates have no notifiedAt)
+    expect(result.processed).toBe(0);
+  });
+
+  it("should notify when position moved 10+ spots", async () => {
+    mockWaitlistFindMany.mockResolvedValue([
+      { id: "wl-1", email: "a@test.com", name: "Alice", metadata: { lastNotifiedPosition: 30 } },
+      { id: "wl-2", email: "b@test.com", name: "Bob", metadata: { lastNotifiedPosition: 25 } },
+    ]);
+
+    const result = await BetaCronService.sendPositionUpdates();
+
+    // Alice: position 1, was 30 → moved 29 >= 10 ✓
+    // Bob: position 2, was 25 → moved 23 >= 10 ✓
+    // Verify via DB updates (email mock can't intercept ESM dynamic import)
+    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
+      where: { id: "wl-1" },
+      data: { notifiedAt: expect.any(Date), metadata: { lastNotifiedPosition: 1 } },
+    });
+    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
+      where: { id: "wl-2" },
+      data: { notifiedAt: expect.any(Date), metadata: { lastNotifiedPosition: 2 } },
+    });
+    expect(result.processed).toBe(2);
+    expect(result.errors).toBe(0);
+  });
+
+  it("should update notifiedAt and metadata after sending email", async () => {
+    mockWaitlistFindMany.mockResolvedValue([
+      { id: "wl-1", email: "a@test.com", name: "Alice", metadata: { lastNotifiedPosition: 20 } },
+    ]);
+
+    await BetaCronService.sendPositionUpdates();
+
+    // After email sent, should update DB with new position
+    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
+      where: { id: "wl-1" },
+      data: {
+        notifiedAt: expect.any(Date),
+        metadata: { lastNotifiedPosition: 1 },
+      },
+    });
+  });
+
+  it("should handle mixed entries — seed some, notify some, skip some", async () => {
+    mockWaitlistFindMany.mockResolvedValue([
+      // Position 1: needs seed (no metadata)
+      { id: "wl-new", email: "new@test.com", name: "New", metadata: null },
+      // Position 2: moved 28 spots → notify
+      {
+        id: "wl-moved",
+        email: "moved@test.com",
+        name: "Moved",
+        metadata: { lastNotifiedPosition: 30 },
+      },
+      // Position 3: moved 2 spots → skip
+      {
+        id: "wl-stable",
+        email: "stable@test.com",
+        name: "Stable",
+        metadata: { lastNotifiedPosition: 5 },
+      },
+    ]);
+
+    const result = await BetaCronService.sendPositionUpdates();
+
+    // Seed: 1 update (wl-new with position seed)
+    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
+      where: { id: "wl-new" },
+      data: { metadata: { lastNotifiedPosition: 1 } },
+    });
+    // Notify: DB update with notifiedAt (wl-moved)
+    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
+      where: { id: "wl-moved" },
+      data: { notifiedAt: expect.any(Date), metadata: { lastNotifiedPosition: 2 } },
+    });
+    // wl-stable: no update (moved only 2 positions)
+    expect(result.processed).toBe(1);
+  });
+
+  it("should not crash when DB update fails after email (Promise.allSettled)", async () => {
+    mockWaitlistFindMany.mockResolvedValue([
+      { id: "wl-1", email: "fail@test.com", name: "Fail", metadata: { lastNotifiedPosition: 50 } },
+      { id: "wl-2", email: "ok@test.com", name: "OK", metadata: { lastNotifiedPosition: 40 } },
+    ]);
+
+    // First DB update after email fails, second succeeds
+    mockWaitlistUpdate
+      .mockRejectedValueOnce(new Error("DB write failed"))
+      .mockResolvedValueOnce({});
+
+    const result = await BetaCronService.sendPositionUpdates();
+
+    // One succeeded, one failed — but neither crashed the batch
+    expect(result.processed).toBe(1);
+    expect(result.errors).toBe(1);
+  });
+
+  it("should return 0 when no users crossed a milestone", async () => {
+    mockWaitlistFindMany.mockResolvedValue([
+      { id: "wl-1", email: "a@test.com", name: "Alice", metadata: { lastNotifiedPosition: 3 } },
+      { id: "wl-2", email: "b@test.com", name: "Bob", metadata: { lastNotifiedPosition: 4 } },
+    ]);
+
+    const result = await BetaCronService.sendPositionUpdates();
+
+    // Alice: pos 1, was 3 → moved 2 < 10
+    // Bob: pos 2, was 4 → moved 2 < 10
+    expect(result.processed).toBe(0);
   });
 });
 
