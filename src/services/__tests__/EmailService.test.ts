@@ -100,7 +100,7 @@ describe("EmailService.sendSpotAvailable", () => {
     expect(call.to).toBe("user@example.com");
     expect(call.subject).toContain("libérée");
     expect(call.html).toContain("Diana");
-    expect(call.html).toContain("https://pennote.fr/fr/join");
+    expect(call.html).toContain("https://www.pennote.fr/fr/join");
     expect(call.html).toContain("14 jours");
   });
 });
@@ -121,7 +121,7 @@ describe("EmailService.sendBetaAccessGranted", () => {
     expect(call.to).toBe("user@example.com");
     expect(call.subject).toContain("Bienvenue dans la beta");
     expect(call.html).toContain("Alice");
-    expect(call.html).toContain("https://pennote.fr/fr/dashboard");
+    expect(call.html).toContain("https://app.pennote.fr/");
   });
 
   it("contains the green accent box", async () => {
@@ -164,7 +164,7 @@ describe("EmailService.sendBetaAccessRevoked", () => {
     expect(call.subject).toContain("désactivé");
     expect(call.html).toContain("Diana");
     expect(call.html).toContain("14 jours");
-    expect(call.html).toContain("https://pennote.fr/fr/join");
+    expect(call.html).toContain("https://www.pennote.fr/fr/join");
   });
 
   it("uses custom deadline days", async () => {

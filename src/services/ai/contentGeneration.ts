@@ -1,5 +1,3 @@
-import OpenAI from "openai";
-import { z } from "zod";
 import { logger } from "../../utils/logger.js";
 import type {
   ChatCompletionChunk,
@@ -10,12 +8,7 @@ import type { CompletionUsage } from "openai/resources/completions";
 import { AIService, AIGenerationOptions, AIGenerationResult } from "./base.js";
 import { CodeDetectionService } from "./codeDetection.js";
 import { AIQuotaManager } from "./quotaManager.js";
-import {
-  isFixedTempModel,
-  isNanoModel,
-  isReasoningModel,
-  getModelProvider,
-} from "../../config/models.js";
+import { isFixedTempModel, isNanoModel, isReasoningModel } from "../../config/models.js";
 
 /**
  * Extended delta type to support reasoning_content from Grok/xAI and other reasoning models
@@ -46,63 +39,6 @@ interface ChatCompletionPayload extends Omit<ChatCompletionCreateParamsNonStream
   max_tokens?: number;
   max_completion_tokens?: number;
   reasoning_effort?: "low" | "medium" | "high";
-}
-
-/**
- * Response structure from OpenAI API (non-streaming)
- */
-interface ChatCompletionResponse {
-  id: string;
-  object: string;
-  created: number;
-  model: string;
-  choices: Array<{
-    index: number;
-    message: {
-      role: string;
-      content: string | null;
-    };
-    finish_reason: string | null;
-  }>;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
-
-const ChatCompletionResponseSchema: z.ZodType<ChatCompletionResponse> = z
-  .object({
-    id: z.string(),
-    object: z.string(),
-    created: z.number(),
-    model: z.string(),
-    choices: z.array(
-      z.object({
-        index: z.number(),
-        message: z.object({
-          role: z.string(),
-          content: z.string().nullable(),
-        }),
-        finish_reason: z.string().nullable(),
-      }),
-    ),
-    usage: z
-      .object({
-        prompt_tokens: z.number(),
-        completion_tokens: z.number(),
-        total_tokens: z.number(),
-      })
-      .optional(),
-  })
-  .passthrough();
-
-function parseChatCompletionResponse(raw: unknown): ChatCompletionResponse {
-  const parsed = ChatCompletionResponseSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new Error("Réponse OpenAI invalide (chat/completions)");
-  }
-  return parsed.data;
 }
 
 function isAsyncIterable<T>(value: unknown): value is AsyncIterable<T> {
@@ -170,15 +106,7 @@ export class ContentGenerationService {
         MAX_COMPLETION_TOKENS,
       );
 
-      let client: OpenAI;
-      const isGrok = typeof model === "string" && getModelProvider(model) === "xai";
-
-      if (isGrok) {
-        logger.log("🧠 [PROVIDER] Utilisation de xAI (Grok)");
-        client = AIService.getGrok();
-      } else {
-        client = AIService.getOpenAI();
-      }
+      const client = AIService.getOpenAICompatibleClient(model);
 
       const messages = [
         ...(options.context ? [{ role: "system" as const, content: options.context }] : []),
@@ -401,57 +329,18 @@ export class ContentGenerationService {
         payload.temperature = options.temperature ?? 0.7;
       }
 
-      const fetchPromise = fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal, // 🚫 Utiliser notre controller
-      });
-
-      let response;
-
-      try {
-        response = await fetchPromise;
-      } catch (error) {
-        // 🚫 Gérer spécifiquement les erreurs d'annulation de fetch
-        if (
-          error instanceof Error &&
-          (error.name === "AbortError" ||
-            error.message.includes("aborted") ||
-            controller.signal.aborted)
-        ) {
-          logger.log("🚫 [CLASSIC] Requête fetch annulée avec succès");
-          throw new Error("Requête annulée");
-        }
-        throw error;
-      }
-
-      if (options.signal?.aborted || controller.signal.aborted) {
-        logger.log("🚫 [CLASSIC] Annulation détectée après réponse");
-        throw new Error("Requête annulée");
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        logger.error("❌ [OpenAI] Réponse non OK:", {
-          status: response.status,
-          body: errorText,
-        });
-        throw new Error(`Erreur OpenAI (${response.status}): ${errorText}`);
-      }
-
-      const raw: unknown = await response.json();
-      const data = parseChatCompletionResponse(raw);
+      const data = await client.chat.completions.create(
+        payload as ChatCompletionCreateParamsNonStreaming,
+        { signal: controller.signal },
+      );
       const content = data.choices?.[0]?.message?.content || "";
 
       const responseTime = Date.now() - startTime;
       const finishReason = data.choices?.[0]?.finish_reason || "unknown";
-      logger.log(`✅ [OpenAI] Génération terminée en ${responseTime}ms`, {
+      logger.log(`✅ [AI] Génération terminée en ${responseTime}ms`, {
         tokens: data.usage?.total_tokens,
         finishReason,
+        model: data.model,
       });
 
       // 🛡️ ENREGISTRER L'USAGE POUR LE QUOTA
@@ -498,48 +387,35 @@ export class ContentGenerationService {
             continuationPayload.temperature = options.temperature ?? 0.7;
           }
 
-          const continuationResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(continuationPayload),
-            signal: controller.signal,
+          const continuationData = await client.chat.completions.create(
+            continuationPayload as ChatCompletionCreateParamsNonStreaming,
+            { signal: controller.signal },
+          );
+          const continuationContent = continuationData.choices?.[0]?.message?.content || "";
+          finalContent += continuationContent;
+
+          logger.log("✅ [RETRY] Continuation réussie", {
+            additionalTokens: continuationData.usage?.total_tokens,
+            newFinishReason: continuationData.choices?.[0]?.finish_reason,
           });
 
-          if (continuationResponse.ok) {
-            const continuationRaw: unknown = await continuationResponse.json();
-            const continuationData = parseChatCompletionResponse(continuationRaw);
-            const continuationContent = continuationData.choices?.[0]?.message?.content || "";
-            finalContent += continuationContent;
+          // Mettre à jour l'usage total
+          if (finalUsage && continuationData.usage) {
+            finalUsage.prompt_tokens += continuationData.usage.prompt_tokens || 0;
+            finalUsage.completion_tokens += continuationData.usage.completion_tokens || 0;
+            finalUsage.total_tokens += continuationData.usage.total_tokens || 0;
+          }
 
-            logger.log("✅ [RETRY] Continuation réussie", {
-              additionalTokens: continuationData.usage?.total_tokens,
-              newFinishReason: continuationData.choices?.[0]?.finish_reason,
-            });
-
-            // Mettre à jour l'usage total
-            if (finalUsage && continuationData.usage) {
-              finalUsage.prompt_tokens += continuationData.usage.prompt_tokens || 0;
-              finalUsage.completion_tokens += continuationData.usage.completion_tokens || 0;
-              finalUsage.total_tokens += continuationData.usage.total_tokens || 0;
-            }
-
-            // Enregistrer l'usage de la continuation
-            if (
-              continuationData.usage?.prompt_tokens &&
-              continuationData.usage?.completion_tokens
-            ) {
-              await AIQuotaManager.recordUsage(
-                continuationData.model,
-                continuationData.usage.prompt_tokens,
-                continuationData.usage.completion_tokens,
-                "global",
-                options.userId,
-                options.source,
-              ).catch((err) => logger.warn("⚠️ Erreur enregistrement quota continuation:", err));
-            }
+          // Enregistrer l'usage de la continuation
+          if (continuationData.usage?.prompt_tokens && continuationData.usage?.completion_tokens) {
+            await AIQuotaManager.recordUsage(
+              continuationData.model,
+              continuationData.usage.prompt_tokens,
+              continuationData.usage.completion_tokens,
+              "global",
+              options.userId,
+              options.source,
+            ).catch((err) => logger.warn("⚠️ Erreur enregistrement quota continuation:", err));
           }
         } catch (retryError) {
           logger.warn(
