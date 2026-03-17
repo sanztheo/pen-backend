@@ -329,8 +329,7 @@ export class ContentGenerationService {
         payload.temperature = options.temperature ?? 0.7;
       }
 
-      const nonStreamClient = AIService.getOpenAICompatibleClient(model);
-      const data = await nonStreamClient.chat.completions.create(
+      const data = await client.chat.completions.create(
         payload as ChatCompletionCreateParamsNonStreaming,
         { signal: controller.signal },
       );
@@ -388,7 +387,7 @@ export class ContentGenerationService {
             continuationPayload.temperature = options.temperature ?? 0.7;
           }
 
-          const continuationData = await nonStreamClient.chat.completions.create(
+          const continuationData = await client.chat.completions.create(
             continuationPayload as ChatCompletionCreateParamsNonStreaming,
             { signal: controller.signal },
           );
