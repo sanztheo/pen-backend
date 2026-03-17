@@ -13,9 +13,15 @@ import { QUIZ_QUESTION_SCHEMA } from "../config/index.js";
 import { buildSystemPrompt } from "./prompts/systemPrompt.js";
 import { buildSingleQuestionPrompt } from "./prompts/questionPrompt.js";
 
-// Explanations are deferred to correction phase — reduced budget
-const MAX_OUTPUT_TOKENS_GENERATION = 1500;
-const GENERATION_TIMEOUT_MS = 60_000;
+// MCQ/TRUE_FALSE ~200-400 tokens, OPEN ~500, MATCHING ~800-1200
+const TOKEN_BUDGET_BY_TYPE: Record<string, number> = {
+  MULTIPLE_CHOICE: 1500,
+  TRUE_FALSE: 1000,
+  OPEN_QUESTION: 2000,
+  MATCHING: 3000,
+};
+const DEFAULT_TOKEN_BUDGET = 2000;
+const GENERATION_TIMEOUT_MS = 120_000;
 
 type ExistingQuestion = { question: string };
 
@@ -65,6 +71,7 @@ export class QuestionGenerator {
     request: SingleQuestionGenerationRequest,
   ): Promise<SingleQuestionGenerationResult> {
     try {
+      const t0 = Date.now();
       if (!request.schoolLevel) {
         throw new Error("Paramètre manquant: schoolLevel");
       }
@@ -75,9 +82,6 @@ export class QuestionGenerator {
       const generationModel = AIService.getQuizGenerationModel();
       logger.log(
         `🚀 [STREAMING] Génération via Chat Completion + JSON strict (${generationModel})`,
-      );
-      logger.log(
-        `🧠 [STREAMING-DEBUG] ragContext dans request: ${request.ragContext ? `${request.ragContext.length} caractères` : "VIDE ou undefined"}`,
       );
 
       // Récupérer la personnalisation utilisateur si userId fourni
@@ -94,6 +98,7 @@ export class QuestionGenerator {
           logger.warn("⚠️ [PERSONALIZATION] Impossible de charger la personnalisation:", error);
         }
       }
+      const tPersonalization = Date.now();
 
       // Construire les messages pour chat completion avec personnalisation
       const systemPrompt = buildSystemPrompt(personalization);
@@ -114,8 +119,11 @@ export class QuestionGenerator {
         },
         personalization,
       );
+      const tPromptBuild = Date.now();
 
-      logger.log(`📤 [STREAMING] Envoi à ${generationModel} avec JSON strict`);
+      logger.info(
+        `⏱️ [TIMING] personalization=${tPersonalization - t0}ms | promptBuild=${tPromptBuild - tPersonalization}ms | sysPrompt=${systemPrompt.length}c | userPrompt=${userPrompt.length}c | existingQ=${normalizedExistingQuestions.length}`,
+      );
 
       // Configuration de base pour l'appel API
       const apiConfig: ExtendedChatConfig = {
@@ -140,19 +148,15 @@ export class QuestionGenerator {
         },
       };
 
-      const maxOutputTokens = MAX_OUTPUT_TOKENS_GENERATION;
+      const questionType = request.questionTypes?.[0] ?? "MULTIPLE_CHOICE";
+      const maxOutputTokens = TOKEN_BUDGET_BY_TYPE[questionType] ?? DEFAULT_TOKEN_BUDGET;
+      logger.info(`⏱️ [TIMING] tokenBudget=${maxOutputTokens} for type=${questionType}`);
       if (isReasoningModel(generationModel)) {
         apiConfig.reasoning_effort = "low";
         apiConfig.max_completion_tokens = maxOutputTokens;
-        logger.log(
-          `🧠 [STREAMING] Reasoning model : reasoning_effort=low, max_completion_tokens=${maxOutputTokens}, temperature=1 (défaut)`,
-        );
       } else if (isFixedTempModel(generationModel)) {
         apiConfig.temperature = 1;
         apiConfig.max_tokens = maxOutputTokens;
-        logger.log(
-          `🧠 [STREAMING] Modèle fixedTemp (ex. kimi-k2.5) : temperature=1, max_tokens=${maxOutputTokens}`,
-        );
       } else {
         apiConfig.temperature = 0.7;
         apiConfig.max_tokens = maxOutputTokens;
@@ -160,9 +164,18 @@ export class QuestionGenerator {
 
       // Client selon le provider du modèle (Moonshot pour kimi-k2.5, etc.)
       const client = AIService.getOpenAICompatibleClient(generationModel);
+      const tBeforeLLM = Date.now();
+      logger.info(`⏱️ [TIMING] LLM call START → ${generationModel} | maxTokens=${maxOutputTokens}`);
+
       const completion = await client.chat.completions.create(apiConfig, {
         signal: AbortSignal.timeout(GENERATION_TIMEOUT_MS),
       });
+      const tAfterLLM = Date.now();
+
+      const usage = completion.usage;
+      logger.info(
+        `⏱️ [TIMING] LLM call END → ${tAfterLLM - tBeforeLLM}ms | tokens: ${usage?.prompt_tokens ?? "?"}in/${usage?.completion_tokens ?? "?"}out/${usage?.total_tokens ?? "?"}total`,
+      );
 
       const responseContent = completion.choices[0]?.message?.content;
       if (!responseContent) {
@@ -180,8 +193,11 @@ export class QuestionGenerator {
         throw parseError;
       }
 
+      const tTotal = Date.now();
       if (isSingleQuestionGenerationResult(result) && result.questions.length > 0) {
-        logger.log("✅ [STREAMING] Question générée avec succès via chat completion");
+        logger.info(
+          `⏱️ [TIMING] TOTAL=${tTotal - t0}ms | personalization=${tPersonalization - t0}ms | promptBuild=${tPromptBuild - tPersonalization}ms | LLM=${tAfterLLM - tBeforeLLM}ms | parse=${tTotal - tAfterLLM}ms`,
+        );
         return result;
       }
 
