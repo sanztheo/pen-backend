@@ -1242,20 +1242,8 @@ export class AdminController {
         success: true,
         data: {
           quizzes: quizzes.map((q) => ({
-            id: q.id,
-            title: q.title,
-            isCompleted: q.isCompleted,
-            schoolLevel: q.schoolLevel,
-            timeSpent: q.timeSpent,
-            completedAt: q.completedAt,
-            createdAt: q.createdAt,
-            result: q.result
-              ? {
-                  percentage: q.result.percentage,
-                  adaptedGrade: q.result.adaptedGrade,
-                  gradeScale: q.result.gradeScale,
-                }
-              : null,
+            ...q,
+            result: q.result ?? null,
           })),
           total,
           page,
