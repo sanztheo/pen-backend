@@ -15,7 +15,7 @@ import { buildSingleQuestionPrompt } from "./prompts/questionPrompt.js";
 
 // Explanations are deferred to correction phase — reduced budget
 const MAX_OUTPUT_TOKENS_GENERATION = 1500;
-const GENERATION_TIMEOUT_MS = 15_000;
+const GENERATION_TIMEOUT_MS = 60_000;
 
 type ExistingQuestion = { question: string };
 
