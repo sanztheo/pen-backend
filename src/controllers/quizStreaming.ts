@@ -1433,13 +1433,17 @@ export class QuizStreamingController {
 
             logger.log(`🎯 [STREAMING] Question ${i + 1}: Type assigné = ${specificQuestionType}`);
 
+            const tGenStart = Date.now();
             const questionResult =
               await assistantService.generateSingleQuestion(singleQuestionRequest);
+            const tGenEnd = Date.now();
+            logger.info(`⏱️ [PIPELINE] Q${i + 1} generateSingleQuestion=${tGenEnd - tGenStart}ms`);
 
             if (questionResult && questionResult.questions && questionResult.questions.length > 0) {
               const newQuestion = questionResult.questions[0];
 
               // 🎯 PEN-19: Scoring et déduplication
+              const tScoreStart = Date.now();
               const { score, duplicate } = QuestionScorerService.isAcceptable(
                 newQuestion,
                 generatedQuestions,
@@ -1474,12 +1478,17 @@ export class QuizStreamingController {
 
               generatedQuestions.push(newQuestion);
 
+              const tDbStart = Date.now();
               await prisma.quiz.update({
                 where: { id: quiz.id },
                 data: {
                   questions: generatedQuestions as unknown as Prisma.InputJsonValue,
                 },
               });
+              const tDbEnd = Date.now();
+              logger.info(
+                `⏱️ [PIPELINE] Q${i + 1} scoring=${tDbStart - tScoreStart}ms | dbUpdate=${tDbEnd - tDbStart}ms | total pipeline=${tDbEnd - tGenStart}ms`,
+              );
 
               sendSSE("question-generated", {
                 questionNumber: i + 1,
