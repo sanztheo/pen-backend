@@ -39,9 +39,11 @@ const GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai
 
 function getGeminiInstance(): OpenAI {
   if (!gemini) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apiKey) {
-      logger.warn("[AI] GEMINI_API_KEY missing, falling back to OpenAI");
+      logger.warn(
+        "[AI] GEMINI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY missing, falling back to OpenAI",
+      );
       return getOpenAIInstance();
     }
     gemini = new OpenAI({
