@@ -41,10 +41,9 @@ function getGeminiInstance(): OpenAI {
   if (!gemini) {
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
     if (!apiKey) {
-      logger.warn(
-        "[AI] GEMINI_API_KEY / GOOGLE_GENERATIVE_AI_API_KEY missing, falling back to OpenAI",
+      throw new Error(
+        "GEMINI_API_KEY or GOOGLE_GENERATIVE_AI_API_KEY missing — check Infisical /Backend",
       );
-      return getOpenAIInstance();
     }
     gemini = new OpenAI({
       apiKey,
