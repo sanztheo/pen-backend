@@ -18,6 +18,7 @@ const CRON_LOCK_TTL_SECONDS = 300; // 5 minutes
 const EMAIL_BATCH_SIZE = 5;
 const EMAIL_BATCH_DELAY_MS = 1_000;
 const POSITION_UPDATE_STEP = 10; // Notify every 10 positions gained
+const WAITLIST_PAGE_SIZE = 500;
 
 // ─── Result types ──────────────────────────────────────────────
 interface CronJobResult {
@@ -363,45 +364,80 @@ export class BetaCronService {
    * Runs hourly (after processWaitlist).
    */
   static async sendPositionUpdates(): Promise<CronJobResult> {
-    const entries = await prisma.betaWaitlist.findMany({
-      orderBy: { joinedAt: "asc" },
-      select: { id: true, email: true, name: true, metadata: true },
-    });
+    const lockKey = "cron:lock:sendPositionUpdates";
+    const acquired = await redis.set(lockKey, "1", "EX", CRON_LOCK_TTL_SECONDS, "NX");
 
-    if (entries.length === 0) {
-      logger.log("[BETA_CRON] sendPositionUpdates: empty waitlist");
+    if (!acquired) {
+      logger.log("[BETA_CRON] sendPositionUpdates: skipped (another instance holds the lock)");
       return { processed: 0, errors: 0 };
     }
 
-    const toNotify: Array<{ id: string; email: string; name: string; position: number }> = [];
+    try {
+      return await BetaCronService._sendPositionUpdatesLocked();
+    } finally {
+      await redis.del(lockKey).catch((err: unknown) => {
+        logger.warn("[BETA_CRON] Failed to release sendPositionUpdates lock:", err);
+      });
+    }
+  }
 
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i];
-      const currentPosition = i + 1;
-      const meta = entry.metadata as Record<string, unknown> | null;
-      const lastNotified =
-        typeof meta?.lastNotifiedPosition === "number" ? meta.lastNotifiedPosition : undefined;
+  private static async _sendPositionUpdatesLocked(): Promise<CronJobResult> {
+    const toNotify: Array<{
+      id: string;
+      email: string;
+      name: string;
+      position: number;
+      existingMeta: Record<string, unknown>;
+    }> = [];
 
-      // First time: seed the position without sending an email (they already got confirmation)
-      if (lastNotified === undefined) {
-        await prisma.betaWaitlist.update({
-          where: { id: entry.id },
-          data: {
-            metadata: { ...((meta as object) ?? {}), lastNotifiedPosition: currentPosition },
-          },
-        });
-        continue;
+    let offset = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const entries = await prisma.betaWaitlist.findMany({
+        orderBy: { joinedAt: "asc" },
+        select: { id: true, email: true, name: true, metadata: true },
+        take: WAITLIST_PAGE_SIZE,
+        skip: offset,
+      });
+
+      if (entries.length === 0 && offset === 0) {
+        logger.log("[BETA_CRON] sendPositionUpdates: empty waitlist");
+        return { processed: 0, errors: 0 };
       }
 
-      // Only notify if they moved forward by at least POSITION_UPDATE_STEP
-      if (lastNotified - currentPosition >= POSITION_UPDATE_STEP) {
-        toNotify.push({
-          id: entry.id,
-          email: entry.email,
-          name: entry.name,
-          position: currentPosition,
-        });
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i];
+        const currentPosition = offset + i + 1;
+        const meta = (entry.metadata as Record<string, unknown> | null) ?? {};
+        const lastNotified =
+          typeof meta.lastNotifiedPosition === "number" ? meta.lastNotifiedPosition : undefined;
+
+        // First time: seed the position without sending an email (they already got confirmation)
+        if (lastNotified === undefined) {
+          await prisma.betaWaitlist.update({
+            where: { id: entry.id },
+            data: {
+              metadata: { ...meta, lastNotifiedPosition: currentPosition },
+            },
+          });
+          continue;
+        }
+
+        // Only notify if they moved forward by at least POSITION_UPDATE_STEP
+        if (lastNotified - currentPosition >= POSITION_UPDATE_STEP) {
+          toNotify.push({
+            id: entry.id,
+            email: entry.email,
+            name: entry.name,
+            position: currentPosition,
+            existingMeta: meta,
+          });
+        }
       }
+
+      offset += entries.length;
+      hasMore = entries.length === WAITLIST_PAGE_SIZE;
     }
 
     if (toNotify.length === 0) {
@@ -427,7 +463,7 @@ export class BetaCronService {
             where: { id: user.id },
             data: {
               notifiedAt: new Date(),
-              metadata: { lastNotifiedPosition: user.position },
+              metadata: { ...user.existingMeta, lastNotifiedPosition: user.position },
             },
           });
         }),
