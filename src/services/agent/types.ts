@@ -10,7 +10,6 @@ import type { ModelMessage } from "ai";
 
 /**
  * Niveau de réflexion par mode — provider-agnostic.
- * Kimi K2.5: thinking contrôlé via providerOptions (un seul modèle)
  * Google: mapped to thinkingConfig.thinkingLevel
  */
 export type ThinkingLevel = "minimal" | "low" | "medium" | "high";
