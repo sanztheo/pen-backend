@@ -42,6 +42,15 @@ router.get("/moderation/logs", AdminController.getModerationLogs);
 // User management
 router.get("/users", AdminController.getUserList);
 router.get("/users/:userId/pages", AdminController.getUserPages);
+router.get("/users/:userId/pages/:pageId/content", AdminController.getUserPageContent);
+router.get("/users/:userId/conversations", AdminController.getUserConversations);
+router.get(
+  "/users/:userId/conversations/:conversationId",
+  AdminController.getUserConversationDetail,
+);
+router.get("/users/:userId/quizzes", AdminController.getUserQuizzes);
+router.get("/users/:userId/quizzes/:quizId", AdminController.getUserQuizDetail);
+router.get("/users/:userId/ai-usage", AdminController.getUserAIUsage);
 router.get("/users/:userId/notes", AdminController.getUserNotes);
 router.post("/users/:userId/notes", AdminController.createUserNote);
 router.post("/users/:userId/toggle-status", AdminController.toggleUserStatus);
