@@ -1151,6 +1151,10 @@ export class AdminController {
               content: true,
               mode: true,
               createdAt: true,
+              toolCalls: true,
+              pageCreationData: true,
+              pageId: true,
+              pageTitle: true,
             },
             orderBy: { createdAt: "asc" },
             take: 500,
@@ -1333,6 +1337,198 @@ export class AdminController {
       res.status(500).json({
         success: false,
         error: "Erreur lors de la récupération du contenu de la page",
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/users/:userId/quizzes/:quizId
+   * Get detailed quiz data for a specific user's quiz (questions, answers, result)
+   */
+  static async getUserQuizDetail(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId, quizId } = req.params;
+
+      if (!userId || userId.length > 255) {
+        res.status(400).json({ success: false, error: "userId requis" });
+        return;
+      }
+
+      if (!quizId || quizId.length > 255) {
+        res.status(400).json({ success: false, error: "quizId requis" });
+        return;
+      }
+
+      const quiz = await prisma.quiz.findFirst({
+        where: { id: quizId, userId },
+        select: {
+          id: true,
+          title: true,
+          questions: true,
+          userAnswers: true,
+          timeSpent: true,
+          schoolLevel: true,
+          isCompleted: true,
+          startedAt: true,
+          completedAt: true,
+          createdAt: true,
+          result: {
+            select: {
+              id: true,
+              percentage: true,
+              adaptedGrade: true,
+              gradeScale: true,
+              totalScore: true,
+              maxScore: true,
+              detailedScoring: true,
+              recommendations: true,
+              strengths: true,
+              weaknesses: true,
+              timeAnalysis: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+
+      if (!quiz) {
+        res.status(404).json({
+          success: false,
+          error: "Quiz non trouvé pour cet utilisateur",
+        });
+        return;
+      }
+
+      logger.log("[ADMIN_CONTROLLER] getUserQuizDetail", {
+        adminId: req.user!.id,
+        targetUserId: userId,
+        action: "admin.user.quiz.detail",
+        resourceId: quizId,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          ...quiz,
+          result: quiz.result ?? null,
+        },
+      });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getUserQuizDetail error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération du quiz",
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/users/:userId/ai-usage?period=30d
+   * Get AI token usage aggregated by source and daily trend for a user
+   */
+  static async getUserAIUsage(req: Request, res: Response): Promise<void> {
+    const VALID_PERIODS: Record<string, number> = {
+      "7d": 7,
+      "30d": 30,
+      "90d": 90,
+    };
+    const MAX_PARAM_LENGTH = 10;
+
+    try {
+      const { userId } = req.params;
+
+      if (!userId || userId.length > 255) {
+        res.status(400).json({ success: false, error: "userId requis" });
+        return;
+      }
+
+      const periodParam = typeof req.query.period === "string" ? req.query.period : "30d";
+      if (periodParam.length > MAX_PARAM_LENGTH || !VALID_PERIODS[periodParam]) {
+        res.status(400).json({
+          success: false,
+          error: "Période invalide. Valeurs acceptées : 7d, 30d, 90d",
+        });
+        return;
+      }
+
+      const days = VALID_PERIODS[periodParam];
+      const sinceDate = new Date();
+      sinceDate.setDate(sinceDate.getDate() - days);
+
+      const [aggregateBySource, dailyTrend] = await Promise.all([
+        prisma.openaiUsageLog.groupBy({
+          by: ["source"],
+          where: { userId, createdAt: { gte: sinceDate } },
+          _sum: {
+            promptTokens: true,
+            completionTokens: true,
+            estimatedCost: true,
+          },
+          _count: true,
+        }),
+        prisma.$queryRaw<
+          Array<{
+            date: string;
+            prompt_tokens: bigint;
+            completion_tokens: bigint;
+            cost: number;
+          }>
+        >`
+          SELECT
+            DATE("created_at") AS date,
+            SUM("prompt_tokens")::bigint AS prompt_tokens,
+            SUM("completion_tokens")::bigint AS completion_tokens,
+            SUM("estimated_cost")::double precision AS cost
+          FROM "openai_usage_log"
+          WHERE "user_id" = ${userId}
+            AND "created_at" >= ${sinceDate}
+          GROUP BY DATE("created_at")
+          ORDER BY date ASC
+        `,
+      ]);
+
+      const bySource = aggregateBySource.map((row) => ({
+        source: row.source ?? "unknown",
+        promptTokens: row._sum.promptTokens ?? 0,
+        completionTokens: row._sum.completionTokens ?? 0,
+        cost: row._sum.estimatedCost ?? 0,
+        count: row._count,
+      }));
+
+      const totalPromptTokens = bySource.reduce((acc, s) => acc + s.promptTokens, 0);
+      const totalCompletionTokens = bySource.reduce((acc, s) => acc + s.completionTokens, 0);
+      const totalCost = bySource.reduce((acc, s) => acc + s.cost, 0);
+
+      const daily = dailyTrend.map((row) => ({
+        date: String(row.date),
+        promptTokens: Number(row.prompt_tokens),
+        completionTokens: Number(row.completion_tokens),
+        cost: row.cost ?? 0,
+      }));
+
+      logger.log("[ADMIN_CONTROLLER] getUserAIUsage", {
+        adminId: req.user!.id,
+        targetUserId: userId,
+        action: "admin.user.ai-usage",
+        period: periodParam,
+        sourceCount: bySource.length,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          totalPromptTokens,
+          totalCompletionTokens,
+          totalCost,
+          bySource,
+          daily,
+        },
+      });
+    } catch (error) {
+      logger.error("[ADMIN_CONTROLLER] getUserAIUsage error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Erreur lors de la récupération de l'utilisation AI",
       });
     }
   }
