@@ -288,26 +288,20 @@ const setupYjsWebSocket = (server: http.Server) => {
   wss.on("connection", async (ws, req) => {
     const url = req.url?.split("?")[0] || "";
     const pathSegments = url.split("/").filter(Boolean);
-    // Récupérer l'utilisateur authentifié (ajouté par authenticateTokenWS)
-    const user = (req as http.IncomingMessage & { user?: { id: string; email: string } }).user;
-
-    if (!user) {
-      ws.close(1008, "Utilisateur non authentifié");
-      return;
-    }
+    // User may be set from URL token auth (backward compat) or null (message-based auth)
+    let user = (req as http.IncomingMessage & { user?: { id: string; email: string } }).user;
 
     ws.on("error", (err) => {
       if (err.message.includes("payload")) {
         logger.error(
-          `[WS] ❌ Message trop volumineux reçu de l'utilisateur ${user?.id || "UNDEFINED"}. Fermeture de la connexion.`,
+          `[WS] ❌ Message trop volumineux reçu de l'utilisateur ${user?.id || "PENDING"}. Fermeture de la connexion.`,
         );
         ws.close(1009, "Message trop volumineux");
       }
     });
 
-    // Déterminer le type de connexion
+    // Save route — supports URL token (backward compat) and message-based auth
     if (pathSegments.includes("save")) {
-      // Route de sauvegarde rapide
       const saveIndex = pathSegments.indexOf("save");
       const pageId =
         saveIndex >= 0 && saveIndex + 1 < pathSegments.length ? pathSegments[saveIndex + 1] : null;
@@ -317,125 +311,139 @@ const setupYjsWebSocket = (server: http.Server) => {
         return;
       }
 
-      // Valider le format UUID du pageId
       if (!uuidRegex.test(pageId)) {
         ws.close(1008, "Format UUID de page invalide");
         return;
       }
 
-      logger.log(
-        `[WS] 💾 Connexion sauvegarde pour page: ${pageId} - User défini: ${!!user} (${user?.id || "UNDEFINED"})`,
-      );
+      // Save message handler — called once user is authenticated
+      const setupSaveHandler = (authenticatedUser: { id: string; email: string }): void => {
+        logger.log(
+          `[WS] 💾 Connexion sauvegarde pour page: ${pageId} - User: ${authenticatedUser.id}`,
+        );
 
-      ws.on("message", async (message) => {
-        try {
-          // 🛡️ RATE LIMITING - Vérifier limite de messages AVANT traitement
-          if (!checkWebSocketMessageLimit(ws)) {
-            logger.log(`[WS] ❌ Rate limit messages dépassé pour page ${pageId}, message ignoré`);
-            ws.send(
-              JSON.stringify({
-                type: "save-error",
-                error: "Trop de messages, veuillez ralentir",
-              }),
-            );
-            return;
-          }
-
-          const data = JSON.parse(message.toString());
-          if (data.type === "save" && data.content) {
-            logger.log(
-              `[WS] 💾 Sauvegarde reçue pour ${pageId} par user: ${user?.id || "UNDEFINED"}`,
-            );
-
-            if (!user) {
-              logger.error(`[WS] ❌ SÉCURITÉ: Utilisateur non défini pour page ${pageId}`);
+        ws.on("message", async (message) => {
+          try {
+            if (!checkWebSocketMessageLimit(ws)) {
+              logger.log(`[WS] ❌ Rate limit messages dépassé pour page ${pageId}, message ignoré`);
               ws.send(
                 JSON.stringify({
                   type: "save-error",
-                  error: "Utilisateur non authentifié",
+                  error: "Trop de messages, veuillez ralentir",
                 }),
               );
               return;
             }
 
-            try {
-              // SÉCURITÉ: Vérifier l'accès à la page avant sauvegarde
-              const pageAccess = await prisma.page.findFirst({
-                where: {
-                  id: pageId,
-                  workspace: {
-                    OR: [
-                      { ownerId: user.id }, // Utilisateur est propriétaire du workspace
-                      {
-                        members: {
-                          some: {
-                            userId: user.id,
-                            isActive: true,
-                          },
-                        },
-                      },
-                    ],
+            const data = JSON.parse(message.toString());
+            if (data.type === "save" && data.content) {
+              logger.log(
+                `[WS] 💾 Sauvegarde reçue pour ${pageId} par user: ${authenticatedUser.id}`,
+              );
+
+              try {
+                const pageAccess = await prisma.page.findFirst({
+                  where: {
+                    id: pageId,
+                    workspace: {
+                      OR: [
+                        { ownerId: authenticatedUser.id },
+                        { members: { some: { userId: authenticatedUser.id, isActive: true } } },
+                      ],
+                    },
                   },
-                },
-                select: { id: true },
-              });
+                  select: { id: true },
+                });
 
-              if (!pageAccess) {
-                logger.error(
-                  `[WS] ❌ SÉCURITÉ: Accès refusé pour user ${user.id} sur page ${pageId}`,
+                if (!pageAccess) {
+                  logger.error(
+                    `[WS] ❌ SÉCURITÉ: Accès refusé pour user ${authenticatedUser.id} sur page ${pageId}`,
+                  );
+                  ws.send(
+                    JSON.stringify({ type: "save-error", error: "Accès refusé à cette page" }),
+                  );
+                  return;
+                }
+
+                logger.log(
+                  `[WS] ✅ SÉCURITÉ: Accès autorisé pour user ${authenticatedUser.id} sur page ${pageId}`,
                 );
-                ws.send(
-                  JSON.stringify({
-                    type: "save-error",
-                    error: "Accès refusé à cette page",
-                  }),
+
+                await prisma.page.update({
+                  where: { id: pageId },
+                  data: { blockNoteContent: data.content, updatedAt: new Date() },
+                });
+
+                logger.log(
+                  `[WS] ✅ SAUVEGARDE DB RÉUSSIE: Page ${pageId} par user ${authenticatedUser.id}`,
                 );
-                return;
+
+                await invalidateBlockNoteCache(pageId);
+                logger.log(`[WS] 🗑️ Cache Redis invalidé pour page ${pageId}`);
+
+                ContextCacheService.invalidateForPages([pageId]).catch((err) =>
+                  logger.warn(`[WS] ⚠️ Erreur invalidation cache quiz:`, err),
+                );
+
+                ws.send(JSON.stringify({ type: "save-success", timestamp: Date.now() }));
+              } catch (dbError) {
+                logger.error(`[WS] ❌ Erreur sauvegarde DB pour ${pageId}:`, dbError);
+                ws.send(JSON.stringify({ type: "save-error", error: "Erreur base de données" }));
               }
-
-              logger.log(
-                `[WS] ✅ SÉCURITÉ: Accès autorisé pour user ${user.id} sur page ${pageId}`,
-              );
-
-              // Sauvegarder le contenu BlockNote en base
-              await prisma.page.update({
-                where: { id: pageId },
-                data: {
-                  blockNoteContent: data.content, // JSON direct, pas de stringify
-                  updatedAt: new Date(),
-                },
-              });
-
-              logger.log(
-                `[WS] ✅ SAUVEGARDE DB RÉUSSIE: Page ${pageId} écrite en base de données par user ${user.id}`,
-              );
-
-              // 🗑️ INVALIDATION CACHE REDIS: Invalider le cache pour forcer rechargement depuis DB
-              await invalidateBlockNoteCache(pageId);
-              logger.log(`[WS] 🗑️ Cache Redis invalidé pour page ${pageId}`);
-
-              // 🧠 PEN-20: Invalider le cache de contexte quiz si cette page est utilisée
-              ContextCacheService.invalidateForPages([pageId]).catch((err) =>
-                logger.warn(`[WS] ⚠️ Erreur invalidation cache quiz:`, err),
-              );
-
-              ws.send(JSON.stringify({ type: "save-success", timestamp: Date.now() }));
-            } catch (dbError) {
-              logger.error(`[WS] ❌ Erreur sauvegarde DB pour ${pageId}:`, dbError);
-              ws.send(
-                JSON.stringify({
-                  type: "save-error",
-                  error: "Erreur base de données",
-                }),
-              );
             }
+          } catch (error) {
+            logger.error("[WS] Erreur sauvegarde:", error);
+            ws.send(JSON.stringify({ type: "save-error", error: "Format invalide" }));
           }
-        } catch (error) {
-          logger.error("[WS] Erreur sauvegarde:", error);
-          ws.send(JSON.stringify({ type: "save-error", error: "Format invalide" }));
-        }
-      });
+        });
+      };
 
+      if (user) {
+        // Already authenticated via URL token (backward compat)
+        setupSaveHandler(user);
+      } else {
+        // Message-based auth: wait for { type: "auth", token } as first message
+        const AUTH_TIMEOUT_MS = 5000;
+        const authTimer = setTimeout(() => {
+          logger.warn(`[WS] ❌ Délai d'authentification dépassé pour page ${pageId}`);
+          ws.close(1008, "Délai d'authentification dépassé");
+        }, AUTH_TIMEOUT_MS);
+
+        const authHandler = async (message: Buffer): Promise<void> => {
+          try {
+            const data = JSON.parse(message.toString());
+            if (data.type === "auth" && typeof data.token === "string") {
+              clearTimeout(authTimer);
+              const authUser = await authenticateTokenWS(data.token);
+              if (authUser) {
+                user = authUser;
+                logger.log(`[WS] ✅ Sauvegarde WebSocket (message auth) - user: ${authUser.id}`);
+                ws.send(JSON.stringify({ type: "auth-success" }));
+                ws.removeListener("message", authHandler);
+                setupSaveHandler(authUser);
+              } else {
+                ws.send(JSON.stringify({ type: "auth-error", error: "Token invalide" }));
+                ws.close(1008, "Token invalide");
+              }
+            } else {
+              ws.send(
+                JSON.stringify({ type: "auth-error", error: "Message d'authentification attendu" }),
+              );
+              ws.close(1008, "Message d'authentification attendu");
+            }
+          } catch {
+            ws.close(1008, "Format de message invalide");
+          }
+        };
+
+        ws.on("message", authHandler);
+      }
+      return;
+    }
+
+    // Collaboration and quiz-progress routes require URL token auth
+    if (!user) {
+      ws.close(1008, "Utilisateur non authentifié");
       return;
     }
 
@@ -597,31 +605,34 @@ const setupYjsWebSocket = (server: http.Server) => {
     }
 
     if (url.pathname.startsWith("/ws/save/")) {
-      // Route de sauvegarde rapide
-      if (!token) {
-        logger.log("[WS] ❌ Token manquant pour sauvegarde - connexion rejetée");
-        socket.destroy();
-        return;
-      }
-      void (async () => {
-        try {
-          const user = await authenticateTokenWS(token);
-          if (user) {
-            logger.log(`[WS] ✅ Sauvegarde WebSocket - user: ${user.id}`);
-            // Stocker l'utilisateur dans la request pour l'utiliser dans la connexion
-            (request as unknown as { user: typeof user }).user = user;
-            wss.handleUpgrade(request, socket, head, (ws) => {
-              wss.emit("connection", ws, request);
-            });
-          } else {
-            logger.log("[WS] ❌ Authentication sauvegarde échouée");
+      // Save route — supports both URL token (backward compat) and message-based auth
+      if (token) {
+        // Legacy: authenticate from URL token
+        void (async () => {
+          try {
+            const user = await authenticateTokenWS(token);
+            if (user) {
+              logger.log(`[WS] ✅ Sauvegarde WebSocket (URL auth) - user: ${user.id}`);
+              (request as unknown as { user: typeof user }).user = user;
+              wss.handleUpgrade(request, socket, head, (ws) => {
+                wss.emit("connection", ws, request);
+              });
+            } else {
+              logger.log("[WS] ❌ Authentication sauvegarde échouée");
+              socket.destroy();
+            }
+          } catch (error) {
+            logger.log("[WS] ❌ Erreur auth sauvegarde:", error);
             socket.destroy();
           }
-        } catch (error) {
-          logger.log("[WS] ❌ Erreur auth sauvegarde:", error);
-          socket.destroy();
-        }
-      })();
+        })();
+      } else {
+        // New: allow connection without URL token — auth via first message
+        logger.log("[WS] 🔄 Sauvegarde WebSocket sans token URL — attente auth par message");
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit("connection", ws, request);
+        });
+      }
     } else if (url.pathname.startsWith("/ws/collaboration/")) {
       if (!token) {
         logger.log("[WS] ❌ Token manquant - connexion rejetée");
