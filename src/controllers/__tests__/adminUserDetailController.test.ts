@@ -11,7 +11,22 @@ import type { Request, Response } from "express";
 const mockCacheBlockNoteContent = jest.fn();
 jest.mock("../../lib/redis.js", () => ({
   cacheBlockNoteContent: (...args: unknown[]) => mockCacheBlockNoteContent(...args),
-  redis: { disconnect: jest.fn() },
+  redis: {
+    disconnect: jest.fn(),
+    connect: jest.fn(),
+    on: jest.fn(),
+    status: "ready",
+  },
+}));
+
+// ─── Mock redisCache (prevents real Redis connection in CI) ─────
+jest.mock("../../services/cache/redisCache.js", () => ({
+  redisCache: {
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+    invalidatePattern: jest.fn(),
+  },
 }));
 
 // ─── Suppress logger output in tests ────────────────────────────
