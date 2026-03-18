@@ -7,33 +7,8 @@
 import { describe, expect, it, jest, beforeEach } from "@jest/globals";
 import type { Request, Response } from "express";
 
-// ─── Mock redis (jest.mock hoists before imports) ───────────────
-const mockCacheBlockNoteContent = jest.fn();
-jest.mock("../../lib/redis", () => ({
-  __esModule: true,
-  cacheBlockNoteContent: (...args: unknown[]) => mockCacheBlockNoteContent(...args),
-  redis: {
-    disconnect: jest.fn(),
-    connect: jest.fn(),
-    on: jest.fn(),
-    status: "ready",
-  },
-}));
-
-// ─── Mock redisCache (prevents real Redis connection in CI) ─────
-jest.mock("../../services/cache/redisCache", () => ({
-  __esModule: true,
-  redisCache: {
-    get: jest.fn(),
-    set: jest.fn(),
-    del: jest.fn(),
-    invalidatePattern: jest.fn(),
-  },
-}));
-
 // ─── Suppress logger output in tests ────────────────────────────
-jest.mock("../../utils/logger", () => ({
-  __esModule: true,
+jest.mock("../../utils/logger.js", () => ({
   logger: {
     log: jest.fn(),
     warn: jest.fn(),
@@ -45,6 +20,14 @@ jest.mock("../../utils/logger", () => ({
 
 import { AdminUserDetailController } from "../adminUserDetailController.js";
 import { prisma } from "../../lib/prisma.js";
+import * as redisModule from "../../lib/redis.js";
+
+// ─── Spy on cacheBlockNoteContent (jest.mock fails in CI for this module) ─
+const mockCacheBlockNoteContent = jest
+  .spyOn(redisModule, "cacheBlockNoteContent")
+  .mockImplementation(
+    () => Promise.resolve(null) as ReturnType<typeof redisModule.cacheBlockNoteContent>,
+  );
 
 // ─── Prisma Mocks ───────────────────────────────────────────────
 const mockConversationFindMany = jest.fn();
