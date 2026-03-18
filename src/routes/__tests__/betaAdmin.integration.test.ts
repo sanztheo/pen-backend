@@ -16,6 +16,20 @@ import { BetaAdminService } from "../../services/admin/betaAdminService.js";
 const mockRedisDisconnect = jest.fn().mockResolvedValue(undefined);
 jest.unstable_mockModule("../../lib/redis.js", () => ({
   redis: { disconnect: mockRedisDisconnect },
+  cacheBlockNoteContent: jest.fn(),
+}));
+
+// Mock BullMQ to prevent real Redis connections from workers
+jest.mock("bullmq", () => ({
+  Worker: jest.fn().mockImplementation(() => ({
+    on: jest.fn(),
+    close: jest.fn(),
+    run: jest.fn(),
+  })),
+  Queue: jest.fn().mockImplementation(() => ({
+    add: jest.fn(),
+    close: jest.fn(),
+  })),
 }));
 
 // ─── Mock BetaAdminService ──────────────────────────────────────

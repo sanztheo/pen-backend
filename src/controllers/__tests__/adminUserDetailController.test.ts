@@ -9,7 +9,8 @@ import type { Request, Response } from "express";
 
 // ─── Mock redis (jest.mock hoists before imports) ───────────────
 const mockCacheBlockNoteContent = jest.fn();
-jest.mock("../../lib/redis.js", () => ({
+jest.mock("../../lib/redis", () => ({
+  __esModule: true,
   cacheBlockNoteContent: (...args: unknown[]) => mockCacheBlockNoteContent(...args),
   redis: {
     disconnect: jest.fn(),
@@ -20,7 +21,8 @@ jest.mock("../../lib/redis.js", () => ({
 }));
 
 // ─── Mock redisCache (prevents real Redis connection in CI) ─────
-jest.mock("../../services/cache/redisCache.js", () => ({
+jest.mock("../../services/cache/redisCache", () => ({
+  __esModule: true,
   redisCache: {
     get: jest.fn(),
     set: jest.fn(),
@@ -30,7 +32,8 @@ jest.mock("../../services/cache/redisCache.js", () => ({
 }));
 
 // ─── Suppress logger output in tests ────────────────────────────
-jest.mock("../../utils/logger.js", () => ({
+jest.mock("../../utils/logger", () => ({
+  __esModule: true,
   logger: {
     log: jest.fn(),
     warn: jest.fn(),
