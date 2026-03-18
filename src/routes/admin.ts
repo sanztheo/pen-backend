@@ -49,6 +49,8 @@ router.get(
   AdminController.getUserConversationDetail,
 );
 router.get("/users/:userId/quizzes", AdminController.getUserQuizzes);
+router.get("/users/:userId/quizzes/:quizId", AdminController.getUserQuizDetail);
+router.get("/users/:userId/ai-usage", AdminController.getUserAIUsage);
 router.get("/users/:userId/notes", AdminController.getUserNotes);
 router.post("/users/:userId/notes", AdminController.createUserNote);
 router.post("/users/:userId/toggle-status", AdminController.toggleUserStatus);
