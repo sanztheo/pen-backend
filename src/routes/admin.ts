@@ -4,8 +4,12 @@
  */
 
 import { Router, Request, Response, NextFunction } from "express";
-import { AdminController } from "../controllers/adminController.js";
+import { AdminDashboardController } from "../controllers/adminDashboardController.js";
+import { AdminUserController } from "../controllers/adminUserController.js";
 import { AdminUserDetailController } from "../controllers/adminUserDetailController.js";
+import { AdminExportController } from "../controllers/adminExportController.js";
+import { AdminOpsController } from "../controllers/adminOpsController.js";
+import { AdminBetaController } from "../controllers/adminBetaController.js";
 import { authenticateToken } from "../middlewares/auth.js";
 import { requireAdmin } from "../middlewares/requireAdmin.js";
 import { adminRateLimit } from "../middlewares/rateLimiting.js";
@@ -18,31 +22,32 @@ const adminCacheControl = (_req: Request, res: Response, next: NextFunction): vo
 };
 
 // Check admin status (auth only, no requireAdmin - used by frontend to check access)
-router.get("/check", authenticateToken, AdminController.checkAdminStatus);
+router.get("/check", authenticateToken, AdminDashboardController.checkAdminStatus);
 
 // Apply auth + admin + rate limiting + cache control middleware to all other routes
 router.use(authenticateToken, requireAdmin, adminRateLimit, adminCacheControl);
 
 // Health check (comprehensive service status)
-router.get("/health", AdminController.getHealthStatus);
+router.get("/health", AdminDashboardController.getHealthStatus);
 
 // Dashboard (all metrics in one call)
-router.get("/dashboard", AdminController.getDashboard);
+router.get("/dashboard", AdminDashboardController.getDashboard);
 
 // Individual metrics endpoints
-router.get("/metrics/users", AdminController.getUserMetrics);
-router.get("/metrics/revenue", AdminController.getRevenueMetrics);
-router.get("/metrics/usage", AdminController.getUsageMetrics);
-router.get("/metrics/trends", AdminController.getTrendsMetrics);
-router.get("/metrics/cohorts", AdminController.getRetentionCohorts);
-router.get("/metrics/ltv", AdminController.getLtvMetrics);
+router.get("/metrics/users", AdminDashboardController.getUserMetrics);
+router.get("/metrics/revenue", AdminDashboardController.getRevenueMetrics);
+router.get("/metrics/usage", AdminDashboardController.getUsageMetrics);
+router.get("/metrics/trends", AdminDashboardController.getTrendsMetrics);
+router.get("/metrics/cohorts", AdminDashboardController.getRetentionCohorts);
+router.get("/metrics/ltv", AdminDashboardController.getLtvMetrics);
+router.get("/metrics/ai-costs", AdminDashboardController.getAICosts);
 
 // Moderation
-router.get("/moderation/logs", AdminController.getModerationLogs);
+router.get("/moderation/logs", AdminUserController.getModerationLogs);
 
 // User management
-router.get("/users", AdminController.getUserList);
-router.get("/users/:userId/pages", AdminController.getUserPages);
+router.get("/users", AdminUserController.getUserList);
+router.get("/users/:userId/pages", AdminUserController.getUserPages);
 router.get("/users/:userId/pages/:pageId/content", AdminUserDetailController.getUserPageContent);
 router.get("/users/:userId/conversations", AdminUserDetailController.getUserConversations);
 router.get(
@@ -52,37 +57,34 @@ router.get(
 router.get("/users/:userId/quizzes", AdminUserDetailController.getUserQuizzes);
 router.get("/users/:userId/quizzes/:quizId", AdminUserDetailController.getUserQuizDetail);
 router.get("/users/:userId/ai-usage", AdminUserDetailController.getUserAIUsage);
-router.get("/users/:userId/notes", AdminController.getUserNotes);
-router.post("/users/:userId/notes", AdminController.createUserNote);
-router.post("/users/:userId/toggle-status", AdminController.toggleUserStatus);
+router.get("/users/:userId/notes", AdminUserController.getUserNotes);
+router.post("/users/:userId/notes", AdminUserController.createUserNote);
+router.post("/users/:userId/toggle-status", AdminUserController.toggleUserStatus);
 
 // Admin notes (delete uses noteId, not userId)
-router.delete("/notes/:noteId", AdminController.deleteNote);
+router.delete("/notes/:noteId", AdminUserController.deleteNote);
 
 // User bulk actions
-router.post("/users/bulk", AdminController.bulkUserAction);
+router.post("/users/bulk", AdminUserController.bulkUserAction);
 
 // User export (CSV)
-router.post("/users/export", AdminController.initiateUserExport);
-router.get("/users/export/:jobId/status", AdminController.getExportStatus);
-router.get("/users/export/:jobId/download", AdminController.downloadExport);
+router.post("/users/export", AdminExportController.initiateUserExport);
+router.get("/users/export/:jobId/status", AdminExportController.getExportStatus);
+router.get("/users/export/:jobId/download", AdminExportController.downloadExport);
 
 // Alerts
-router.get("/alerts", AdminController.getAlerts);
-router.patch("/alerts/:id/acknowledge", AdminController.acknowledgeAlert);
+router.get("/alerts", AdminOpsController.getAlerts);
+router.patch("/alerts/:id/acknowledge", AdminOpsController.acknowledgeAlert);
 
 // Impersonation (end must be before :userId to avoid matching "end" as userId)
-router.post("/impersonate/end", AdminController.endImpersonation);
-router.post("/impersonate/:userId", AdminController.startImpersonation);
-
-// AI Costs
-router.get("/metrics/ai-costs", AdminController.getAICosts);
+router.post("/impersonate/end", AdminOpsController.endImpersonation);
+router.post("/impersonate/:userId", AdminOpsController.startImpersonation);
 
 // Beta management
-router.get("/beta/metrics", AdminController.getBetaMetrics);
-router.get("/beta/users", AdminController.getBetaUsers);
-router.post("/beta/users/:userId/kick", AdminController.kickBetaUser);
-router.post("/beta/users/:userId/promote", AdminController.promoteBetaUser);
-router.post("/beta/bulk", AdminController.bulkBetaAction);
+router.get("/beta/metrics", AdminBetaController.getBetaMetrics);
+router.get("/beta/users", AdminBetaController.getBetaUsers);
+router.post("/beta/users/:userId/kick", AdminBetaController.kickBetaUser);
+router.post("/beta/users/:userId/promote", AdminBetaController.promoteBetaUser);
+router.post("/beta/bulk", AdminBetaController.bulkBetaAction);
 
 export { router as adminRouter };

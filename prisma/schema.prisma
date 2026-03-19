@@ -290,6 +290,7 @@ model QuizTemplate {
   user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   quizzes          Quiz[]
 
+  @@index([userId])
   @@map("quiz_templates")
 }
 
@@ -330,6 +331,7 @@ model Quiz {
   template            QuizTemplate?    @relation(fields: [templateId], references: [id])
   user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("quizzes")
 }
 
