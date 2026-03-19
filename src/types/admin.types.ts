@@ -171,6 +171,7 @@ export interface BetaUserListItem {
   totalActiveTimeSeconds: number;
   betaJoinedAt: Date | null;
   betaDeactivatedAt: Date | null;
+  betaReactivationDeadline: Date | null;
 }
 
 export interface PaginatedBetaUsers {
