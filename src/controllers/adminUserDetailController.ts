@@ -10,38 +10,7 @@ import { logger } from "../utils/logger.js";
 import { Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
 import { cacheBlockNoteContent } from "../lib/redis.js";
-
-// ─── Shared helpers ──────────────────────────────────────────
-
-function parsePagination(query: { page?: string; limit?: string }): {
-  page: number;
-  limit: number;
-  skip: number;
-} {
-  const parsedPage = query.page ? parseInt(query.page, 10) : 1;
-  const parsedLimit = query.limit ? parseInt(query.limit, 10) : 20;
-  const page = isNaN(parsedPage) || parsedPage < 1 ? 1 : parsedPage;
-  const limit = Math.min(isNaN(parsedLimit) || parsedLimit < 1 ? 20 : parsedLimit, 100);
-  return { page, limit, skip: (page - 1) * limit };
-}
-
-const MAX_ID_LENGTH = 255;
-
-function validateUserId(userId: string | undefined, res: Response): userId is string {
-  if (!userId || userId.length > MAX_ID_LENGTH) {
-    res.status(400).json({ success: false, error: "userId requis" });
-    return false;
-  }
-  return true;
-}
-
-function validateParam(value: string | undefined, name: string, res: Response): value is string {
-  if (!value || value.length > MAX_ID_LENGTH) {
-    res.status(400).json({ success: false, error: `${name} requis` });
-    return false;
-  }
-  return true;
-}
+import { parsePagination, validateUserId, validateParam } from "../utils/adminHelpers.js";
 
 // ─── Controller ──────────────────────────────────────────────
 

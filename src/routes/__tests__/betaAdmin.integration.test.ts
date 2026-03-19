@@ -57,7 +57,7 @@ jest.unstable_mockModule("../../utils/logger.js", () => ({
 }));
 
 // ─── Import real controller ─────────────────────────────────────
-import { AdminController } from "../../controllers/adminController.js";
+import { AdminBetaController } from "../../controllers/adminBetaController.js";
 
 // ─── Test middleware ─────────────────────────────────────────────
 function testAuthAndAdmin(req: Request, res: Response, next: NextFunction): void {
@@ -90,11 +90,11 @@ function createTestApp() {
   app.use(express.json());
   app.use(testAuthAndAdmin);
 
-  app.get("/api/admin/beta/metrics", AdminController.getBetaMetrics);
-  app.get("/api/admin/beta/users", AdminController.getBetaUsers);
-  app.post("/api/admin/beta/users/:userId/kick", AdminController.kickBetaUser);
-  app.post("/api/admin/beta/users/:userId/promote", AdminController.promoteBetaUser);
-  app.post("/api/admin/beta/bulk", AdminController.bulkBetaAction);
+  app.get("/api/admin/beta/metrics", AdminBetaController.getBetaMetrics);
+  app.get("/api/admin/beta/users", AdminBetaController.getBetaUsers);
+  app.post("/api/admin/beta/users/:userId/kick", AdminBetaController.kickBetaUser);
+  app.post("/api/admin/beta/users/:userId/promote", AdminBetaController.promoteBetaUser);
+  app.post("/api/admin/beta/bulk", AdminBetaController.bulkBetaAction);
 
   return app;
 }

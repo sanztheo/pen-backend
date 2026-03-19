@@ -406,6 +406,8 @@ export class BetaCronService {
         return { processed: 0, errors: 0 };
       }
 
+      const seedUpdates: Array<ReturnType<typeof prisma.betaWaitlist.update>> = [];
+
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
         const currentPosition = offset + i + 1;
@@ -415,12 +417,14 @@ export class BetaCronService {
 
         // First time: seed the position without sending an email (they already got confirmation)
         if (lastNotified === undefined) {
-          await prisma.betaWaitlist.update({
-            where: { id: entry.id },
-            data: {
-              metadata: { ...meta, lastNotifiedPosition: currentPosition },
-            },
-          });
+          seedUpdates.push(
+            prisma.betaWaitlist.update({
+              where: { id: entry.id },
+              data: {
+                metadata: { ...meta, lastNotifiedPosition: currentPosition },
+              },
+            }),
+          );
           continue;
         }
 
@@ -434,6 +438,11 @@ export class BetaCronService {
             existingMeta: meta,
           });
         }
+      }
+
+      // Batch seed updates instead of sequential writes
+      if (seedUpdates.length > 0) {
+        await prisma.$transaction(seedUpdates);
       }
 
       offset += entries.length;
