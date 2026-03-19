@@ -387,6 +387,17 @@ Aim for high-quality, comprehensive content.
 </content_guidelines>`;
 }
 
+function buildFeatureRedirectsSection(): string {
+  return `
+<feature_redirects>
+When the user asks you to generate a quiz, create a quiz, or test their knowledge with interactive questions (MCQ, flashcards, etc.):
+- Do NOT attempt to generate a quiz in the chat.
+- Instead, redirect them to the dedicated Quiz feature: explain that they can find it in the left sidebar menu under "Quiz".
+- The Quiz feature offers interactive quizzes with scoring, adaptive difficulty, and progress tracking — far superior to anything you could produce in a conversation.
+- You may still EXPLAIN quiz-related concepts, answer questions ABOUT quizzes, or help them understand quiz results — just don't generate the quiz itself.
+</feature_redirects>`;
+}
+
 function buildFormattingSection(): string {
   return `
 <output_format>
@@ -429,6 +440,7 @@ export function buildSystemPrompt(mode: AgentMode, options: SystemPromptOptions)
     buildSourcesSection(ragSources),
     buildHistorySection(conversationHistory),
     buildToolsSection(config),
+    buildFeatureRedirectsSection(),
     buildFormattingSection(),
   ];
 

@@ -344,7 +344,7 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     },
   },
   "gemini-3.1-flash-lite-preview": {
-    // $0.25 / $1.50 — batch explanations (cheap, fast, 1M context)
+    // $0.25 / $1.50 — cheap, fast, 1M context
     id: "gemini-3.1-flash-lite-preview",
     provider: "google",
     pricing: { input: 0.25, output: 1.5 },
@@ -354,7 +354,7 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
       vision: true,
       toolCalling: true,
       maxContextTokens: 1_000_000,
-      maxOutputTokens: 8_192,
+      maxOutputTokens: 65_536,
     },
   },
 
