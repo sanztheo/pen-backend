@@ -5,6 +5,7 @@
 
 import { Router, Request, Response, NextFunction } from "express";
 import { AdminController } from "../controllers/adminController.js";
+import { AdminUserDetailController } from "../controllers/adminUserDetailController.js";
 import { authenticateToken } from "../middlewares/auth.js";
 import { requireAdmin } from "../middlewares/requireAdmin.js";
 import { adminRateLimit } from "../middlewares/rateLimiting.js";
@@ -42,15 +43,15 @@ router.get("/moderation/logs", AdminController.getModerationLogs);
 // User management
 router.get("/users", AdminController.getUserList);
 router.get("/users/:userId/pages", AdminController.getUserPages);
-router.get("/users/:userId/pages/:pageId/content", AdminController.getUserPageContent);
-router.get("/users/:userId/conversations", AdminController.getUserConversations);
+router.get("/users/:userId/pages/:pageId/content", AdminUserDetailController.getUserPageContent);
+router.get("/users/:userId/conversations", AdminUserDetailController.getUserConversations);
 router.get(
   "/users/:userId/conversations/:conversationId",
-  AdminController.getUserConversationDetail,
+  AdminUserDetailController.getUserConversationDetail,
 );
-router.get("/users/:userId/quizzes", AdminController.getUserQuizzes);
-router.get("/users/:userId/quizzes/:quizId", AdminController.getUserQuizDetail);
-router.get("/users/:userId/ai-usage", AdminController.getUserAIUsage);
+router.get("/users/:userId/quizzes", AdminUserDetailController.getUserQuizzes);
+router.get("/users/:userId/quizzes/:quizId", AdminUserDetailController.getUserQuizDetail);
+router.get("/users/:userId/ai-usage", AdminUserDetailController.getUserAIUsage);
 router.get("/users/:userId/notes", AdminController.getUserNotes);
 router.post("/users/:userId/notes", AdminController.createUserNote);
 router.post("/users/:userId/toggle-status", AdminController.toggleUserStatus);

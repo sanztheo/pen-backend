@@ -16,6 +16,20 @@ import { BetaAdminService } from "../../services/admin/betaAdminService.js";
 const mockRedisDisconnect = jest.fn().mockResolvedValue(undefined);
 jest.unstable_mockModule("../../lib/redis.js", () => ({
   redis: { disconnect: mockRedisDisconnect },
+  cacheBlockNoteContent: jest.fn(),
+}));
+
+// Mock BullMQ to prevent real Redis connections from workers
+jest.mock("bullmq", () => ({
+  Worker: jest.fn().mockImplementation(() => ({
+    on: jest.fn(),
+    close: jest.fn(),
+    run: jest.fn(),
+  })),
+  Queue: jest.fn().mockImplementation(() => ({
+    add: jest.fn(),
+    close: jest.fn(),
+  })),
 }));
 
 // ─── Mock BetaAdminService ──────────────────────────────────────
@@ -119,7 +133,7 @@ afterAll(async () => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// Integration tests — require Redis + Paddle. Skip in unit test runs.
+// Tests use mocked BetaAdminService + Redis — no external deps needed.
 // ═══════════════════════════════════════════════════════════════
 describe.skip("Admin auth guard", () => {
   it("should return 401 without auth", async () => {

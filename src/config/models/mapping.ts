@@ -17,11 +17,11 @@ function env(key: string): string | undefined {
 export const MODELS = {
   // ── Agent (chat principal) ────────────────────────────────────────────────
   /** Chat agent principal — thinking contrôlé via providerOptions */
-  AGENT_PRIMARY: env("AGENT_MODEL") || "kimi-k2.5",
+  AGENT_PRIMARY: env("AGENT_MODEL") || "gemini-3.1-flash-lite-preview",
   /** Workflows — steps rapides, pas de thinking */
-  AGENT_FAST: "kimi-k2.5",
+  AGENT_FAST: "gemini-3.1-flash-lite-preview",
   /** Workflows — steps complexes (thinking via providerOptions) */
-  AGENT_THINKING: "kimi-k2.5",
+  AGENT_THINKING: "gemini-3.1-flash-lite-preview",
 
   // ── Quiz (Gemini flash-lite — 382 t/s, 97% JSON compliance) ──────────────
   /** Generation de questions quiz */
@@ -43,21 +43,21 @@ export const MODELS = {
 
   // ── Taches legeres ────────────────────────────────────────────────────────
   /** Taches legeres (titres quiz, RSS, micro-taches) */
-  LIGHTWEIGHT: "kimi-k2.5",
+  LIGHTWEIGHT: "gemini-3.1-flash-lite-preview",
   /** Validation pertinence RSS */
   RSS_VALIDATION: "gpt-5-nano",
 
   // ── Contenu & detection ───────────────────────────────────────────────────
   /** Generation contenu editeur (dashboard) */
-  CONTENT_DEFAULT: env("OPENAI_DASHBOARD_MODEL") || "kimi-k2.5",
+  CONTENT_DEFAULT: env("OPENAI_DASHBOARD_MODEL") || "gemini-3.1-flash-lite-preview",
   /** Detection type question RAG */
-  DETECTION: env("OPENAI_DETECTION_MODEL") || "kimi-k2.5",
+  DETECTION: env("OPENAI_DETECTION_MODEL") || "gemini-3.1-flash-lite-preview",
   /** Titre de conversation */
-  CONVERSATION_TITLE: "kimi-k2.5",
+  CONVERSATION_TITLE: "gemini-3.1-flash-lite-preview",
   /** Recherche web (OpenAI Responses API — reste sur OpenAI) */
   WEB_SEARCH: "gpt-4o-mini",
 
-  // ── Embeddings (OpenAI — Kimi n'a pas de modele embeddings) ───────────────
+  // ── Embeddings (OpenAI) ──────────────────────────────────────────────────
   /** Embeddings RAG + concepts + documents */
   EMBEDDING: "text-embedding-3-small",
 } as const;
@@ -83,5 +83,5 @@ export function getSupportedModels(): [string, ...string[]] {
       return validated as [string, ...string[]];
     }
   }
-  return ["kimi-k2.5", "gpt-4o-mini", "gpt-5-mini"];
+  return ["gemini-3.1-flash-lite-preview", "gpt-4o-mini", "gpt-5-mini"];
 }
