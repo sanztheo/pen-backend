@@ -146,8 +146,9 @@ export function createQuizTools(ctx: QuizToolsContext) {
           );
 
           return result;
-        } catch (error) {
-          logger.error(`[TOOL:getQuizStats] Error:`, error);
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : "Unknown error";
+          logger.error(`[TOOL:getQuizStats] Error: ${message}`, error);
           return { error: "Failed to retrieve quiz statistics", overview: null };
         }
       },
@@ -217,8 +218,9 @@ export function createQuizTools(ctx: QuizToolsContext) {
           logger.log(`[TOOL:getRecentQuizResults] Returned ${results.length} results`);
 
           return { count: results.length, results };
-        } catch (error) {
-          logger.error(`[TOOL:getRecentQuizResults] Error:`, error);
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : "Unknown error";
+          logger.error(`[TOOL:getRecentQuizResults] Error: ${message}`, error);
           return { error: "Failed to retrieve recent quiz results", results: [] };
         }
       },
@@ -245,17 +247,16 @@ function calculateStreak(dates: Date[]): number {
   if (dates.length === 0) return 0;
 
   const uniqueDays = new Set(dates.map((d) => d.toISOString().slice(0, 10)));
-  const sortedDays = Array.from(uniqueDays).sort().reverse();
 
   let streak = 0;
   const today = new Date();
 
-  for (let i = 0; i < sortedDays.length; i++) {
+  for (let i = 0; i < uniqueDays.size; i++) {
     const expected = new Date(today);
     expected.setDate(expected.getDate() - i);
     const expectedStr = expected.toISOString().slice(0, 10);
 
-    if (sortedDays.includes(expectedStr)) {
+    if (uniqueDays.has(expectedStr)) {
       streak++;
     } else {
       break;
