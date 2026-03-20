@@ -5,6 +5,7 @@ import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createWebTools } from "./tools/webTools.js";
 import { createPageTools } from "./tools/pageTools.js";
 import { createWikipediaTools } from "./tools/wikipediaTools.js";
+import { createQuizTools } from "./tools/quizTools.js";
 import { logger } from "../../utils/logger.js";
 import { MODELS } from "../../config/models.js";
 import { getProviderInstance } from "../../config/providers.js";
@@ -97,6 +98,7 @@ export function runPennoteAgent(
   const webTools = createWebTools(toolContext);
   const pageTools = createPageTools(toolContext);
   const wikipediaTools = createWikipediaTools(toolContext);
+  const quizTools = createQuizTools(toolContext);
 
   // 🧠 AGENT INTELLIGENT: Tous les outils sont disponibles pour tous les modes
   // La différence entre modes est dans maxSteps et le system prompt qui guide l'intensité
@@ -106,6 +108,7 @@ export function runPennoteAgent(
     ...webTools,
     ...pageTools,
     ...wikipediaTools,
+    ...quizTools,
   } satisfies ToolSet;
 
   // System prompt
