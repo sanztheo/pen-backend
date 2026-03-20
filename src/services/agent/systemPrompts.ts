@@ -342,6 +342,11 @@ Wikipedia workflow for deep research:
 3. searchWikipediaRAG for precise semantic search on indexed content
 4. getWikipediaFullContent if you need the complete article text
 
+Quiz Tools:
+- getQuizStats: Retrieves the user's quiz performance statistics (average score, streak, strengths/weaknesses by subject, progression trend)
+- getRecentQuizResults: Retrieves the user's most recent completed quiz results with scores and details
+Use quiz tools when the user asks about their performance, progress, strengths, weaknesses, or study recommendations.
+
 Usage priority:
 1. If sources are explicitly provided, consult them FIRST
 2. If sources are insufficient, search the workspace
