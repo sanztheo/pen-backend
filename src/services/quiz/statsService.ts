@@ -3,7 +3,7 @@ import { prisma } from "../../lib/prisma.js";
 /**
  * Helper pour calculer la date de début selon la période
  */
-function getStartDate(period: "week" | "month" | "year"): Date {
+export function getStartDate(period: "week" | "month" | "year"): Date {
   const now = new Date();
   const startDate = new Date();
 
@@ -104,8 +104,8 @@ export interface QuestionTypeStats {
   totalQuestions: number;
 }
 
-// Type interne pour quiz avec résultat (retourné par Prisma include)
-type QuizWithResult = {
+// Type pour quiz avec résultat (retourné par Prisma include)
+export type QuizWithResult = {
   id: string;
   title: string;
   questions: unknown;
@@ -540,9 +540,9 @@ export class StatsService {
     return questionTypeStats.sort((a, b) => b.count - a.count);
   }
 
-  // ===== Méthodes utilitaires privées =====
+  // ===== Méthodes utilitaires (exposées pour tests unitaires) =====
 
-  private static analyzeDifficultyGroup(quizzes: QuizWithResult[]) {
+  static analyzeDifficultyGroup(quizzes: QuizWithResult[]) {
     const scores = quizzes.map((q) => q.result?.percentage || 0).filter((s) => s > 0);
 
     const totalTime = quizzes.reduce((sum, q) => sum + (q.timeSpent || 0), 0);
@@ -554,13 +554,13 @@ export class StatsService {
     };
   }
 
-  private static calculateAverageTime(quizzes: QuizWithResult[]): number {
+  static calculateAverageTime(quizzes: QuizWithResult[]): number {
     if (quizzes.length === 0) return 0;
     const totalTime = quizzes.reduce((sum, q) => sum + (q.timeSpent || 0), 0);
     return totalTime / quizzes.length;
   }
 
-  private static calculateTrend(quizzes: QuizWithResult[]): "improving" | "stable" | "declining" {
+  static calculateTrend(quizzes: QuizWithResult[]): "improving" | "stable" | "declining" {
     if (quizzes.length < 3) return "stable";
 
     const recentQuizzes = quizzes.slice(0, Math.min(5, quizzes.length));
@@ -582,7 +582,7 @@ export class StatsService {
     return "stable";
   }
 
-  private static calculateStreaks(quizzes: QuizWithResult[]): {
+  static calculateStreaks(quizzes: QuizWithResult[]): {
     currentStreak: number;
     longestStreak: number;
   } {

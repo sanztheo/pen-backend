@@ -332,6 +332,7 @@ model Quiz {
   user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, isCompleted, completedAt])
   @@map("quizzes")
 }
 

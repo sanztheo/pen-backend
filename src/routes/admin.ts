@@ -12,7 +12,11 @@ import { AdminOpsController } from "../controllers/adminOpsController.js";
 import { AdminBetaController } from "../controllers/adminBetaController.js";
 import { authenticateToken } from "../middlewares/auth.js";
 import { requireAdmin } from "../middlewares/requireAdmin.js";
-import { adminRateLimit } from "../middlewares/rateLimiting.js";
+import {
+  adminRateLimit,
+  impersonationRateLimit,
+  adminExportRateLimit,
+} from "../middlewares/rateLimiting.js";
 
 const router = Router();
 
@@ -68,7 +72,7 @@ router.delete("/notes/:noteId", AdminUserController.deleteNote);
 router.post("/users/bulk", AdminUserController.bulkUserAction);
 
 // User export (CSV)
-router.post("/users/export", AdminExportController.initiateUserExport);
+router.post("/users/export", adminExportRateLimit, AdminExportController.initiateUserExport);
 router.get("/users/export/:jobId/status", AdminExportController.getExportStatus);
 router.get("/users/export/:jobId/download", AdminExportController.downloadExport);
 
@@ -78,7 +82,7 @@ router.patch("/alerts/:id/acknowledge", AdminOpsController.acknowledgeAlert);
 
 // Impersonation (end must be before :userId to avoid matching "end" as userId)
 router.post("/impersonate/end", AdminOpsController.endImpersonation);
-router.post("/impersonate/:userId", AdminOpsController.startImpersonation);
+router.post("/impersonate/:userId", impersonationRateLimit, AdminOpsController.startImpersonation);
 
 // Beta management
 router.get("/beta/metrics", AdminBetaController.getBetaMetrics);
