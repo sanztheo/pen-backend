@@ -72,6 +72,13 @@ export class AdminUserDetailController {
       if (!validateUserId(userId, res)) return;
       if (!validateParam(conversationId, "conversationId", res)) return;
 
+      const DEFAULT_MESSAGE_LIMIT = 50;
+      const MAX_MESSAGE_LIMIT = 100;
+
+      const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+      const rawLimit = Number(req.query.limit) || DEFAULT_MESSAGE_LIMIT;
+      const limit = Math.min(Math.max(rawLimit, 1), MAX_MESSAGE_LIMIT);
+
       const conversation = await prisma.aIConversation.findFirst({
         where: { id: conversationId, userId },
         select: {
@@ -92,7 +99,8 @@ export class AdminUserDetailController {
               pageTitle: true,
             },
             orderBy: { createdAt: "asc" },
-            take: 500,
+            take: limit + 1,
+            ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
           },
         },
       });
@@ -105,6 +113,10 @@ export class AdminUserDetailController {
         return;
       }
 
+      const hasMore = conversation.messages.length > limit;
+      const messages = hasMore ? conversation.messages.slice(0, limit) : conversation.messages;
+      const nextCursor = hasMore ? (messages[messages.length - 1]?.id ?? null) : null;
+
       logger.log("[ADMIN_USER_DETAIL] getUserConversationDetail", {
         adminId: req.user!.id,
         targetUserId: userId,
@@ -112,7 +124,13 @@ export class AdminUserDetailController {
         resourceId: conversationId,
       });
 
-      res.status(200).json({ success: true, data: { conversation } });
+      res.status(200).json({
+        success: true,
+        data: {
+          conversation: { ...conversation, messages },
+          nextCursor,
+        },
+      });
     } catch (error: unknown) {
       logger.error("[ADMIN_USER_DETAIL] getUserConversationDetail error:", error);
       res.status(500).json({
