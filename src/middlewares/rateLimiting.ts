@@ -362,6 +362,52 @@ export const accountExportRateLimit = rateLimit({
 });
 
 /**
+ * 12. RATE LIMIT IMPERSONATION
+ * Strict limit on admin impersonation — 10 requests per hour per admin
+ */
+const IMPERSONATION_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const IMPERSONATION_MAX = 10;
+
+export const impersonationRateLimit = rateLimit({
+  ...createBaseConfig("rl:impersonate:"),
+  windowMs: IMPERSONATION_WINDOW_MS,
+  max: IMPERSONATION_MAX,
+  message: {
+    success: false,
+    error: "IMPERSONATION_RATE_LIMIT_EXCEEDED",
+    message: "Too many impersonation requests. Please try again later.",
+    retryAfter: "1 hour",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `impersonate_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
+ * 13. RATE LIMIT ADMIN EXPORT
+ * Limit admin data exports — 5 requests per hour per admin
+ */
+const ADMIN_EXPORT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const ADMIN_EXPORT_MAX = 5;
+
+export const adminExportRateLimit = rateLimit({
+  ...createBaseConfig("rl:admin-exp:"),
+  windowMs: ADMIN_EXPORT_WINDOW_MS,
+  max: ADMIN_EXPORT_MAX,
+  message: {
+    success: false,
+    error: "ADMIN_EXPORT_RATE_LIMIT_EXCEEDED",
+    message: "Too many export requests. Please try again later.",
+    retryAfter: "1 hour",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `admin_exp_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
  * Helper pour vérifier si le rate limiting est activé
  */
 export const isRateLimitEnabled = (): boolean => {

@@ -15,10 +15,23 @@ import { parsePagination, validateUserId } from "../utils/adminHelpers.js";
 import { z } from "zod";
 
 const MAX_SEARCH_LENGTH = 100;
+const MAX_FILTER_LENGTH = 255;
+
+const ModerationLogsQuerySchema = z.object({
+  userId: z.string().max(MAX_FILTER_LENGTH).optional(),
+  action: z.string().max(MAX_FILTER_LENGTH).optional(),
+});
 
 const UserBulkActionSchema = z.object({
   userIds: z.array(z.string().min(1).max(255)).min(1).max(100),
   action: z.enum(["activate", "deactivate"]),
+});
+
+const ToggleUserStatusSchema = z.object({
+  isActive: z.boolean({
+    required_error: "isActive est requis",
+    invalid_type_error: "isActive doit être un booléen",
+  }),
 });
 
 const CreateNoteSchema = z.object({
@@ -49,11 +62,21 @@ export class AdminUserController {
 
       const { page, limit } = parsePagination(req.query as { page?: string; limit?: string }, 50);
 
+      const queryParsed = ModerationLogsQuerySchema.safeParse(req.query);
+      if (!queryParsed.success) {
+        res.status(400).json({
+          success: false,
+          error:
+            "Paramètres invalides: " + queryParsed.error.issues.map((i) => i.message).join(", "),
+        });
+        return;
+      }
+
       const filters: ModerationFilters = {
         page,
         limit,
-        userId: req.query.userId as string | undefined,
-        action: req.query.action as string | undefined,
+        userId: queryParsed.data.userId,
+        action: queryParsed.data.action,
         startDate,
         endDate,
       };
@@ -76,17 +99,18 @@ export class AdminUserController {
   static async toggleUserStatus(req: Request, res: Response): Promise<void> {
     try {
       const { userId } = req.params;
-      const { isActive } = req.body;
-
       if (!validateUserId(userId, res)) return;
 
-      if (typeof isActive !== "boolean") {
+      const parsed = ToggleUserStatusSchema.safeParse(req.body);
+      if (!parsed.success) {
         res.status(400).json({
           success: false,
-          error: "isActive doit être un booléen",
+          error: parsed.error.issues.map((i) => i.message).join(", "),
         });
         return;
       }
+
+      const { isActive } = parsed.data;
 
       if (userId === req.user?.id) {
         res.status(400).json({
