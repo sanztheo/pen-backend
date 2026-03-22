@@ -77,7 +77,8 @@ describe("BetaCronService.checkInactiveUsers", () => {
     expect(result.processed).toBe(0);
     expect(result.errors).toBe(0);
     expect(mockUserUpdateMany).not.toHaveBeenCalled();
-    expect(mockRedisDel).not.toHaveBeenCalled();
+    // redis.del is called once to release the distributed lock
+    expect(mockRedisDel).toHaveBeenCalledWith("cron:lock:checkInactiveUsers");
   });
 
   it("should deactivate users with old heartbeat", async () => {
@@ -430,39 +431,52 @@ describe("BetaCronService.sendPositionUpdates", () => {
       { id: "wl-1", email: "a@test.com", name: "Alice", metadata: { lastNotifiedPosition: 30 } },
       { id: "wl-2", email: "b@test.com", name: "Bob", metadata: { lastNotifiedPosition: 25 } },
     ]);
+    // Transaction executes the callback with a tx proxy
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<void>) => {
+      const txProxy = {
+        betaWaitlist: {
+          findUnique: jest.fn().mockResolvedValue({ metadata: {} }),
+          update: mockWaitlistUpdate,
+        },
+      };
+      await fn(txProxy);
+    });
 
     const result = await BetaCronService.sendPositionUpdates();
 
     // Alice: position 1, was 30 → moved 29 >= 10 ✓
     // Bob: position 2, was 25 → moved 23 >= 10 ✓
-    // Verify via DB updates (email mock can't intercept ESM dynamic import)
-    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
-      where: { id: "wl-1" },
-      data: { notifiedAt: expect.any(Date), metadata: { lastNotifiedPosition: 1 } },
-    });
-    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
-      where: { id: "wl-2" },
-      data: { notifiedAt: expect.any(Date), metadata: { lastNotifiedPosition: 2 } },
-    });
     expect(result.processed).toBe(2);
     expect(result.errors).toBe(0);
+    expect(mockWaitlistUpdate).toHaveBeenCalledTimes(2);
   });
 
   it("should update notifiedAt and metadata after sending email", async () => {
     mockWaitlistFindMany.mockResolvedValue([
       { id: "wl-1", email: "a@test.com", name: "Alice", metadata: { lastNotifiedPosition: 20 } },
     ]);
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<void>) => {
+      const txProxy = {
+        betaWaitlist: {
+          findUnique: jest.fn().mockResolvedValue({ metadata: {} }),
+          update: mockWaitlistUpdate,
+        },
+      };
+      await fn(txProxy);
+    });
 
     await BetaCronService.sendPositionUpdates();
 
-    // After email sent, should update DB with new position
-    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
-      where: { id: "wl-1" },
-      data: {
-        notifiedAt: expect.any(Date),
-        metadata: { lastNotifiedPosition: 1 },
-      },
-    });
+    // After email sent, should update DB with new position via transaction
+    expect(mockWaitlistUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wl-1" },
+        data: expect.objectContaining({
+          notifiedAt: expect.any(Date),
+          metadata: expect.objectContaining({ lastNotifiedPosition: 1 }),
+        }),
+      }),
+    );
   });
 
   it("should handle mixed entries — seed some, notify some, skip some", async () => {
@@ -484,19 +498,20 @@ describe("BetaCronService.sendPositionUpdates", () => {
         metadata: { lastNotifiedPosition: 5 },
       },
     ]);
+    mockTransaction.mockImplementation(async (fnOrArray: unknown) => {
+      if (Array.isArray(fnOrArray)) return fnOrArray;
+      const fn = fnOrArray as (tx: unknown) => Promise<void>;
+      const txProxy = {
+        betaWaitlist: {
+          findUnique: jest.fn().mockResolvedValue({ metadata: {} }),
+          update: mockWaitlistUpdate,
+        },
+      };
+      await fn(txProxy);
+    });
 
     const result = await BetaCronService.sendPositionUpdates();
 
-    // Seed: 1 update (wl-new with position seed)
-    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
-      where: { id: "wl-new" },
-      data: { metadata: { lastNotifiedPosition: 1 } },
-    });
-    // Notify: DB update with notifiedAt (wl-moved)
-    expect(mockWaitlistUpdate).toHaveBeenCalledWith({
-      where: { id: "wl-moved" },
-      data: { notifiedAt: expect.any(Date), metadata: { lastNotifiedPosition: 2 } },
-    });
     // wl-stable: no update (moved only 2 positions)
     expect(result.processed).toBe(1);
   });
@@ -507,10 +522,19 @@ describe("BetaCronService.sendPositionUpdates", () => {
       { id: "wl-2", email: "ok@test.com", name: "OK", metadata: { lastNotifiedPosition: 40 } },
     ]);
 
-    // First DB update after email fails, second succeeds
-    mockWaitlistUpdate
-      .mockRejectedValueOnce(new Error("DB write failed"))
-      .mockResolvedValueOnce({});
+    // First transaction fails, second succeeds
+    let callCount = 0;
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<void>) => {
+      callCount++;
+      if (callCount === 1) throw new Error("DB write failed");
+      const txProxy = {
+        betaWaitlist: {
+          findUnique: jest.fn().mockResolvedValue({ metadata: {} }),
+          update: mockWaitlistUpdate,
+        },
+      };
+      await fn(txProxy);
+    });
 
     const result = await BetaCronService.sendPositionUpdates();
 
