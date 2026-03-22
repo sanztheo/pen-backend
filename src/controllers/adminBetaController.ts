@@ -15,6 +15,14 @@ import { z } from "zod";
 const MAX_SEARCH_LENGTH = 100;
 const MAX_REASON_LENGTH = 500;
 
+const BetaSortBySchema = z.enum([
+  "betaJoinedAt",
+  "lastHeartbeatAt",
+  "weeklyActiveTimeSeconds",
+  "totalActiveTimeSeconds",
+  "email",
+]);
+
 const BulkBetaActionSchema = z.object({
   userIds: z.array(z.string().min(1).max(255)).min(1).max(50),
   action: z.enum(["kick", "promote"]),
@@ -59,12 +67,14 @@ export class AdminBetaController {
 
       const { page, limit } = parsePagination(req.query as { page?: string; limit?: string });
 
+      const sortByParsed = BetaSortBySchema.safeParse(req.query.sortBy);
+
       const filters: BetaUserListFilters = {
         page,
         limit,
         search: searchTerm,
         betaStatus: req.query.betaStatus as string | undefined,
-        sortBy: req.query.sortBy as string | undefined,
+        sortBy: sortByParsed.success ? sortByParsed.data : undefined,
         sortOrder: req.query.sortOrder === "asc" ? "asc" : "desc",
       };
 
