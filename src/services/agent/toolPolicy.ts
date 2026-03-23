@@ -21,22 +21,16 @@ export interface AgentToolPolicy {
   hasNativeWebSearch: boolean;
 }
 
-function hasAttachedWikipediaSource(ragSources?: ToolPolicyRagSource[]): boolean {
-  return (ragSources || []).some(
-    (source) => source.type === "wikipedia" || source.id?.startsWith("wikipedia:"),
-  );
-}
-
 export function resolveAgentToolPolicy(input: AgentToolPolicyInput): AgentToolPolicy {
-  const wikipediaAttached = hasAttachedWikipediaSource(input.ragSources);
-  const allowExternalKnowledge = input.useWeb || wikipediaAttached;
-  const hasNativeWebSearch = input.providerName === "google" && input.useWeb;
+  const hasNativeWebSearch = input.providerName === "google";
+  const exposeGeneralWebSearch = !hasNativeWebSearch;
+  const exposeWikipediaTools = true;
 
   return {
     exposePageTools: input.intent === "creation",
-    exposeGeneralWebSearch: input.useWeb && !hasNativeWebSearch,
-    exposeWikipediaLookupTools: allowExternalKnowledge,
-    exposeWikipediaRagTools: allowExternalKnowledge,
+    exposeGeneralWebSearch,
+    exposeWikipediaLookupTools: exposeWikipediaTools,
+    exposeWikipediaRagTools: exposeWikipediaTools,
     hasNativeWebSearch,
   };
 }

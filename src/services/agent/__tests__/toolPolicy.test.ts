@@ -2,7 +2,7 @@ import { describe, expect, it } from "@jest/globals";
 import { resolveAgentToolPolicy } from "../toolPolicy.js";
 
 describe("resolveAgentToolPolicy", () => {
-  it("disables page creation and external knowledge tools for standard local conversation", () => {
+  it("keeps web and Wikipedia tools available for standard conversation", () => {
     const policy = resolveAgentToolPolicy({
       intent: "conversation",
       useWeb: false,
@@ -11,16 +11,16 @@ describe("resolveAgentToolPolicy", () => {
     });
 
     expect(policy.exposePageTools).toBe(false);
-    expect(policy.exposeGeneralWebSearch).toBe(false);
-    expect(policy.exposeWikipediaLookupTools).toBe(false);
-    expect(policy.exposeWikipediaRagTools).toBe(false);
+    expect(policy.exposeGeneralWebSearch).toBe(true);
+    expect(policy.exposeWikipediaLookupTools).toBe(true);
+    expect(policy.exposeWikipediaRagTools).toBe(true);
     expect(policy.hasNativeWebSearch).toBe(false);
   });
 
-  it("enables native web search only when the request explicitly allows web for Google providers", () => {
+  it("enables native web search by default for Google providers", () => {
     const policy = resolveAgentToolPolicy({
       intent: "conversation",
-      useWeb: true,
+      useWeb: false,
       ragSources: [],
       providerName: "google",
     });
@@ -31,7 +31,7 @@ describe("resolveAgentToolPolicy", () => {
     expect(policy.exposeWikipediaRagTools).toBe(true);
   });
 
-  it("keeps Wikipedia tools available for attached Wikipedia sources even when web is disabled", () => {
+  it("keeps Wikipedia tools available for attached Wikipedia sources", () => {
     const policy = resolveAgentToolPolicy({
       intent: "conversation",
       useWeb: false,
@@ -40,7 +40,7 @@ describe("resolveAgentToolPolicy", () => {
     });
 
     expect(policy.hasNativeWebSearch).toBe(false);
-    expect(policy.exposeGeneralWebSearch).toBe(false);
+    expect(policy.exposeGeneralWebSearch).toBe(true);
     expect(policy.exposeWikipediaLookupTools).toBe(true);
     expect(policy.exposeWikipediaRagTools).toBe(true);
   });
