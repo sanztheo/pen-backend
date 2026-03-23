@@ -37,7 +37,7 @@ describe("MODE_CONFIG", () => {
       maxSteps: 10,
       maxTokens: 4096,
       description: expect.any(String),
-      thinking: "low",
+      thinking: "medium",
     });
   });
 
@@ -58,8 +58,8 @@ describe("MODE_CONFIG", () => {
     expect(MODE_CONFIG.fast.maxTokens).toBeLessThan(MODE_CONFIG.deep.maxTokens);
   });
 
-  it("fast mode uses low thinking", () => {
-    expect(MODE_CONFIG.fast.thinking).toBe("low");
+  it("fast mode uses medium thinking", () => {
+    expect(MODE_CONFIG.fast.thinking).toBe("medium");
   });
 
   it("deep mode uses high thinking", () => {

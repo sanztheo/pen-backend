@@ -840,7 +840,7 @@ export async function runQuickContentWorkflow(
     model: MODELS.thinking,
     maxOutputTokens: 8192,
     providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: "low" } },
+      google: { thinkingConfig: { thinkingLevel: "medium" } },
     },
     system: buildSystemPrompt("fast", "creation", {
       workspaceId: ctx.workspaceId,

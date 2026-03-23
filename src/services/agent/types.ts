@@ -30,7 +30,7 @@ export const MODE_CONFIG = {
     maxSteps: 10,
     maxTokens: 4096,
     description: "Réponses rapides avec RAG",
-    thinking: "low" as ThinkingLevel,
+    thinking: "medium" as ThinkingLevel,
   },
   deep: {
     maxSteps: 25,
