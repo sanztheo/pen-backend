@@ -47,8 +47,6 @@ export interface SystemPromptOptions {
   conversationHistory?: string;
   /** When true, the model has native web search (Google Search Grounding) — don't mention searchWeb tool */
   hasNativeWebSearch?: boolean;
-  /** When false, external web/Wikipedia retrieval is intentionally disabled for this request */
-  webKnowledgeEnabled?: boolean;
 }
 
 interface ModeConfig {
@@ -250,11 +248,8 @@ Rules:
 </prompt_confidentiality>`;
 }
 
-function buildBehaviorSection(config: ModeConfig, webKnowledgeEnabled: boolean): string {
-  const rules = config.behavior
-    .filter((rule) => webKnowledgeEnabled || !rule.toLowerCase().includes("web search"))
-    .map((rule) => `- ${rule}`)
-    .join("\n");
+function buildBehaviorSection(config: ModeConfig): string {
+  const rules = config.behavior.map((rule) => `- ${rule}`).join("\n");
   return `<behavior>
 ${rules}
 </behavior>`;
@@ -341,25 +336,16 @@ ${sanitizeForPrompt(conversationHistory)}
 function buildToolsSection(
   config: ModeConfig,
   hasNativeWebSearch: boolean,
-  webKnowledgeEnabled: boolean,
 ): string {
   const createPageDirective = config.createPageRequired
     ? `\nCRITICAL: You MUST call createPage before finishing your response. This is mandatory for this mode.`
     : `\ncreatePage is OPTIONAL — use only if the user explicitly requests it.`;
 
-  const externalKnowledgeDirective = !webKnowledgeEnabled
-    ? `\nExternal web and Wikipedia retrieval are DISABLED for this request. Use only provided sources, workspace data, and the tools actually available in the current tool set. If external research would be required, say so instead of guessing.`
-    : hasNativeWebSearch
-      ? `\nWeb search: You have BUILT-IN web search capability. When you need current information, facts, or news, simply search the web directly — no tool call needed. Do NOT try to call a "searchWeb" tool, it does not exist. Your web search is native and automatic.`
-      : `\nWeb search: Use the searchWeb tool when you need current information, news, or facts not in the user's sources.`;
+  const webSearchDirective = hasNativeWebSearch
+    ? `\nWeb search: You have BUILT-IN web search capability. When you need current information, facts, or news, simply search the web directly — no tool call needed. Do NOT try to call a "searchWeb" tool, it does not exist. Your web search is native and automatic.`
+    : `\nWeb search: Use the searchWeb tool when you need current information, news, or facts not in the user's sources.`;
 
-  const usagePriority = !webKnowledgeEnabled
-    ? `Usage priority:
-1. If sources are explicitly provided, consult them FIRST
-2. If sources are insufficient, search the workspace
-3. Use only the tools actually available in this request
-4. If external knowledge is required but unavailable, say so clearly instead of guessing`
-    : `Usage priority:
+  const usagePriority = `Usage priority:
 1. If sources are explicitly provided, consult them FIRST
 2. If sources are insufficient, search the workspace
 3. For encyclopedic knowledge: index to pgvector then use searchWikipediaRAG for precision
@@ -375,7 +361,7 @@ function buildToolsSection(
 <available_tools>
 Tool strategy: ${config.toolGuidance}
 ${createPageDirective}
-${externalKnowledgeDirective}
+${webSearchDirective}
 
 Quiz tools: When the user asks about performance, progress, or study recommendations, use getQuizStats and getRecentQuizResults.
 PROACTIVE USE: In creation modes, call getQuizStats BEFORE generating content to understand the user's weak areas. Adapt explanations to focus more on topics where the user struggles.
@@ -387,25 +373,9 @@ ${usagePriority}
 function buildResearchGuidelinesSection(
   config: ModeConfig,
   hasNativeWebSearch: boolean,
-  webKnowledgeEnabled: boolean,
 ): string {
   if (!config.researchGuidelines || config.researchGuidelines.length === 0) {
     return "";
-  }
-
-  if (!webKnowledgeEnabled) {
-    return `
-<research_workflow>
-You are in DEEP RESEARCH MODE with external web/Wikipedia retrieval disabled for this request.
-
-- Start with provided sources and workspace context first
-- Use available RAG, workspace, and quiz/statistics tools to gather evidence
-- Use only tools that are actually available in the current tool set
-- If a factual gap requires external research, explicitly say that external retrieval is unavailable instead of inventing details
-- Synthesize findings carefully and separate confirmed facts from uncertainty
-
-The more thoroughly you research the available sources, the better your response will be.
-</research_workflow>`;
   }
 
   const guidelines = config.researchGuidelines
@@ -503,18 +473,17 @@ export function buildSystemPrompt(
     conversationHistory,
     ragSources,
     hasNativeWebSearch = false,
-    webKnowledgeEnabled = true,
   } = options;
 
   const sections = [
     buildIdentitySection(config),
     buildPromptConfidentialitySection(),
-    buildBehaviorSection(config, webKnowledgeEnabled),
-    buildResearchGuidelinesSection(config, hasNativeWebSearch, webKnowledgeEnabled),
+    buildBehaviorSection(config),
+    buildResearchGuidelinesSection(config, hasNativeWebSearch),
     buildContentGuidelinesSection(config),
     buildUserProfileSection(personalization),
     buildSourcesSection(ragSources),
-    buildToolsSection(config, hasNativeWebSearch, webKnowledgeEnabled),
+    buildToolsSection(config, hasNativeWebSearch),
     buildHistorySection(conversationHistory),
     !config.createPageRequired ? buildFeatureRedirectsSection() : "",
     buildFormattingSection(),

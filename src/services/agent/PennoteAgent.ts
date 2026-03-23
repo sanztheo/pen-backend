@@ -20,7 +20,6 @@ import {
   type IntentType,
   type ThinkingLevel,
 } from "./types.js";
-import { resolveAgentToolPolicy } from "./toolPolicy.js";
 
 // System prompts
 import { buildSystemPrompt } from "./systemPrompts.js";
@@ -112,7 +111,7 @@ function resolveProviderWithFailover(thinking: ThinkingLevel): ResolvedProvider 
 function buildProviderOptions(
   modelId: string,
   thinking: ThinkingLevel,
-  enableNativeWebSearch: boolean,
+  enableNativeWebSearch = true,
 ): any {
   const provider = getModelProvider(modelId);
 
@@ -179,48 +178,39 @@ export function runPennoteAgent(
   const pageTools = createPageTools(toolContext);
   const wikipediaTools = createWikipediaTools(toolContextWithLang);
   const quizTools = createQuizTools(toolContext);
-  const toolPolicy = resolveAgentToolPolicy({
-    intent,
-    useWeb,
-    ragSources,
-    providerName,
-  });
 
+  // Google providers use native Search Grounding (useSearchGrounding in providerOptions)
+  // so searchWeb tool is excluded — the model searches Google natively.
+  // Other providers keep searchWeb as a tool (OpenAI Responses API fallback).
+  const isGoogleProvider = providerName === "google";
   const tools = {
     ...ragTools,
     ...workspaceTools,
-    ...(toolPolicy.exposeGeneralWebSearch ? { searchWeb: webTools.searchWeb } : {}),
-    ...(toolPolicy.exposeWikipediaLookupTools
-      ? {
+    ...(!isGoogleProvider
+      ? webTools
+      : {
           searchWikipedia: webTools.searchWikipedia,
           getWikipediaArticle: webTools.getWikipediaArticle,
-        }
-      : {}),
-    ...(toolPolicy.exposePageTools ? pageTools : {}),
-    ...(toolPolicy.exposeWikipediaRagTools ? wikipediaTools : {}),
+        }),
+    ...pageTools,
+    ...wikipediaTools,
     ...quizTools,
   } satisfies ToolSet;
 
-  // System prompt — reflect actual tool surface for this request
+  // System prompt — pass hasNativeWebSearch so the prompt doesn't mention searchWeb for Google
   const systemPrompt = buildSystemPrompt(mode, intent, {
     workspaceId,
     ragSources,
     personalization,
     conversationHistory,
-    hasNativeWebSearch: toolPolicy.hasNativeWebSearch,
-    webKnowledgeEnabled:
-      toolPolicy.exposeGeneralWebSearch ||
-      toolPolicy.exposeWikipediaLookupTools ||
-      toolPolicy.exposeWikipediaRagTools ||
-      toolPolicy.hasNativeWebSearch,
+    hasNativeWebSearch: isGoogleProvider,
   });
 
   const model = providerInstance(modelName);
-  const providerOptions = buildProviderOptions(modelName, thinking, toolPolicy.hasNativeWebSearch);
+  const providerOptions = buildProviderOptions(modelName, thinking, isGoogleProvider);
 
   logger.log(`🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`);
   logger.log(`🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`);
-  logger.log(`🤖 [PennoteAgent] Tool policy: ${JSON.stringify(toolPolicy)}`);
   logger.log(
     `🤖 [PennoteAgent] Provider: ${providerName}, Model: ${modelName}, Thinking: ${thinking}${usingFallback ? " (FALLBACK)" : ""}`,
   );
