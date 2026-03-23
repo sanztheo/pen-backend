@@ -53,9 +53,9 @@ function buildProviderOptions(modelId: string, thinking: ThinkingLevel): any {
 
   // Moonshot K2.5: thinking contrôlé via providerOptions (pas de modèle séparé)
   if (provider === "moonshot") {
-    const useThinking = thinking === "medium" || thinking === "high";
+    const useThinking = thinking === "low" || thinking === "medium" || thinking === "high";
     if (useThinking) {
-      const budgetTokens = thinking === "high" ? 8192 : 4096;
+      const budgetTokens = thinking === "high" ? 8192 : thinking === "medium" ? 4096 : 2048;
       return {
         moonshotai: {
           thinking: { type: "enabled", budgetTokens },
