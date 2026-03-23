@@ -10,7 +10,6 @@ import { logger } from "../../utils/logger.js";
 import { MODELS } from "../../config/models.js";
 import { getProviderInstance } from "../../config/providers.js";
 import { getModelProvider } from "../../config/models/helpers.js";
-import { isCircuitOpen, recordSuccess, recordFailure } from "../../lib/circuitBreaker.js";
 
 // Types et configuration
 import {
@@ -27,10 +26,6 @@ import { buildSystemPrompt } from "./systemPrompts.js";
 // Re-export types
 export type { AgentMode, IntentType, AgentRequest, AgentStreamCallbacks } from "./types.js";
 
-// ── Circuit breaker key ──────────────────────────────────────────────────────
-
-const CIRCUIT_KEY_PRIMARY = "ai-provider-primary";
-
 // ── Provider-specific thinking config ────────────────────────────────────────
 
 /**
@@ -46,62 +41,24 @@ interface ResolvedProvider {
   modelName: string;
   providerInstance: NonNullable<ReturnType<typeof getProviderInstance>>;
   providerName: string;
-  usingFallback: boolean;
 }
 
-/**
- * Resolve provider with circuit breaker failover.
- * If primary circuit is open, switch to AGENT_FALLBACK model.
- */
-function resolveProviderWithFailover(thinking: ThinkingLevel): ResolvedProvider {
-  const primaryModel = resolveModelForThinking(thinking);
-  const primaryProvider = getModelProvider(primaryModel) || "unknown";
+function resolveProvider(thinking: ThinkingLevel): ResolvedProvider {
+  const modelName = resolveModelForThinking(thinking);
+  const providerInstance = getProviderInstance(modelName);
+  const providerName = getModelProvider(modelName) || "unknown";
 
-  // Check circuit breaker — if primary is healthy, use it
-  if (!isCircuitOpen(CIRCUIT_KEY_PRIMARY)) {
-    const instance = getProviderInstance(primaryModel);
-    if (instance) {
-      return {
-        modelName: primaryModel,
-        providerInstance: instance,
-        providerName: primaryProvider,
-        usingFallback: false,
-      };
-    }
-  }
-
-  // Primary unavailable or circuit open — try fallback
-  const fallbackModel = MODELS.AGENT_FALLBACK;
-  const fallbackProvider = getModelProvider(fallbackModel) || "unknown";
-  const fallbackInstance = getProviderInstance(fallbackModel);
-
-  if (fallbackInstance) {
-    logger.log(
-      `[PennoteAgent] Failover: ${primaryProvider}/${primaryModel} → ${fallbackProvider}/${fallbackModel}`,
+  if (!providerInstance) {
+    throw new Error(
+      `[PennoteAgent] Provider "${providerName}" not configured for model "${modelName}". Check API key.`,
     );
-    return {
-      modelName: fallbackModel,
-      providerInstance: fallbackInstance,
-      providerName: fallbackProvider,
-      usingFallback: true,
-    };
   }
 
-  // Last resort: try primary even if circuit is open (better than crashing)
-  const lastResort = getProviderInstance(primaryModel);
-  if (lastResort) {
-    logger.log(`[PennoteAgent] Fallback unavailable, forcing primary despite open circuit`);
-    return {
-      modelName: primaryModel,
-      providerInstance: lastResort,
-      providerName: primaryProvider,
-      usingFallback: false,
-    };
-  }
-
-  throw new Error(
-    `[PennoteAgent] No AI provider available. Primary "${primaryProvider}" and fallback "${fallbackProvider}" both unconfigured.`,
-  );
+  return {
+    modelName,
+    providerInstance,
+    providerName,
+  };
 }
 
 /**
@@ -164,8 +121,7 @@ export function runPennoteAgent(
   const { maxSteps, maxTokens, thinking } = MODE_CONFIG[mode];
 
   // Resolve model + provider with circuit breaker failover
-  const { modelName, providerInstance, providerName, usingFallback } =
-    resolveProviderWithFailover(thinking);
+  const { modelName, providerInstance, providerName } = resolveProvider(thinking);
 
   // Shared context for all tools
   const toolContext = { userId, workspaceId };
@@ -212,7 +168,7 @@ export function runPennoteAgent(
   logger.log(`🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`);
   logger.log(`🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`);
   logger.log(
-    `🤖 [PennoteAgent] Provider: ${providerName}, Model: ${modelName}, Thinking: ${thinking}${usingFallback ? " (FALLBACK)" : ""}`,
+    `🤖 [PennoteAgent] Provider: ${providerName}, Model: ${modelName}, Thinking: ${thinking}`,
   );
 
   let stepNumber = 0;
@@ -227,17 +183,8 @@ export function runPennoteAgent(
     toolChoice: "auto",
     providerOptions,
 
-    // Callback global à la fin du stream — circuit breaker tracking
+    // Callback global à la fin du stream
     onFinish: ({ text, finishReason, usage, reasoning, sources }) => {
-      // Track circuit breaker state (only for primary provider)
-      if (!usingFallback) {
-        if (finishReason === "error" || finishReason === "other") {
-          recordFailure(CIRCUIT_KEY_PRIMARY);
-        } else {
-          recordSuccess(CIRCUIT_KEY_PRIMARY);
-        }
-      }
-
       logger.log(`🏁 [PennoteAgent] Stream terminé:`, {
         finishReason,
         hasText: !!text,
