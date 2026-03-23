@@ -6,50 +6,50 @@ import { wikipediaRAG, type WikipediaArticle } from "../../rag/wikipedia.js";
 import { ragSystem } from "../../rag/index.js";
 import { logger } from "../../../utils/logger.js";
 import { MODELS, EMBEDDING_DIMENSION } from "../../../config/models.js";
+import { mapLanguageToWikiCode } from "./webTools.js";
 
 /**
- * Context utilisateur injecté via closure
+ * User context injected via closure
  */
-interface WikipediaToolsContext {
+export interface WikipediaToolsContext {
   userId: string;
   workspaceId: string;
+  language?: string;
 }
 
-// 📋 Schémas Zod pour les tools
-
 const indexWikipediaToRAGSchema = z.object({
-  pageid: z.number().optional().describe("ID de la page Wikipedia à indexer"),
-  title: z.string().optional().describe("Titre de l'article Wikipedia (si pas de pageid)"),
+  pageid: z.number().optional().describe("Wikipedia page ID to index"),
+  title: z.string().optional().describe("Wikipedia article title (if no pageid)"),
 });
 
 const getWikipediaFullContentSchema = z.object({
-  pageid: z.number().optional().describe("ID de la page Wikipedia"),
-  title: z.string().optional().describe("Titre de l'article (si pas de pageid)"),
+  pageid: z.number().optional().describe("Wikipedia page ID"),
+  title: z.string().optional().describe("Article title (if no pageid)"),
   maxSections: z
     .number()
     .min(1)
     .max(30)
     .optional()
     .default(15)
-    .describe("Nombre max de sections à retourner"),
+    .describe("Maximum number of sections to return"),
 });
 
 const searchWikipediaRAGSchema = z.object({
-  query: z.string().min(3).describe("Question ou mots-clés à rechercher"),
+  query: z.string().min(3).describe("Search query or keywords"),
   limit: z
     .number()
     .min(1)
     .max(15)
     .optional()
     .default(6)
-    .describe("Nombre max de chunks à retourner"),
+    .describe("Maximum number of chunks to return"),
   threshold: z
     .number()
     .min(0)
     .max(1)
     .optional()
     .default(0.25)
-    .describe("Score minimum de similarité (0-1)"),
+    .describe("Minimum similarity score (0-1)"),
 });
 
 const listWikipediaRAGSourcesSchema = z.object({
@@ -59,7 +59,7 @@ const listWikipediaRAGSourcesSchema = z.object({
     .max(50)
     .optional()
     .default(20)
-    .describe("Nombre max de sources à retourner"),
+    .describe("Maximum number of sources to return"),
 });
 
 const WikipediaSearchApiResponseSchema = z
@@ -122,40 +122,52 @@ const WikipediaFullContentResponseSchema = z
   .passthrough();
 
 /**
- * Crée les tools Wikipedia avec intégration pgvector
+ * Creates Wikipedia tools with pgvector integration
  */
 export function createWikipediaTools(ctx: WikipediaToolsContext) {
+  const wikiLang = mapLanguageToWikiCode(ctx.language);
+  const wikiBase = `https://${wikiLang}.wikipedia.org`;
+
+  // Category prefix varies by language
+  const categoryPrefixes: Record<string, string> = {
+    fr: "Catégorie:",
+    en: "Category:",
+    es: "Categoría:",
+    de: "Kategorie:",
+    it: "Categoria:",
+    pt: "Categoria:",
+    ja: "Category:",
+    zh: "Category:",
+    ar: "تصنيف:",
+  };
+  const catPrefix = categoryPrefixes[wikiLang] ?? "Category:";
+
   return {
-    /**
-     * 🔄 Indexe un article Wikipedia dans pgvector pour recherche sémantique
-     */
     indexWikipediaToRAG: tool({
-      description: `Indexe un article Wikipedia dans la base vectorielle pgvector.
-L'article sera découpé en chunks, chaque chunk recevra un embedding text-embedding-3-small (1536D).
-Permet ensuite des recherches sémantiques ultra-précises sur le contenu.
-UTILISE CET OUTIL pour stocker des articles Wikipedia importants que tu veux pouvoir rechercher plus tard.
-Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
+      description: `Indexes a Wikipedia article into the pgvector database for semantic search. Use this tool to store important Wikipedia articles so you can search them later with searchWikipediaRAG. Articles are chunked and embedded with text-embedding-3-small (1536D). Indexed articles are GLOBAL and shared across all users.`,
       inputSchema: indexWikipediaToRAGSchema,
       execute: async ({ pageid, title }) => {
         logger.log(`🔄 [TOOL:indexWikipediaToRAG] pageid=${pageid}, title=${title}`);
 
         if (!pageid && !title) {
-          return { error: "Fournir soit pageid soit title", indexed: false };
+          return {
+            error: "Provide either pageid or title. Use searchWikipedia first to find articles.",
+            indexed: false,
+          };
         }
 
         try {
-          // 1. Si on a seulement le titre, rechercher le pageid
           let resolvedPageId = pageid;
           let resolvedTitle = title;
 
           if (!resolvedPageId && title) {
-            const searchUrl = `https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(title)}&srlimit=1&format=json&origin=*`;
+            const searchUrl = `${wikiBase}/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(title)}&srlimit=1&format=json&origin=*`;
             const response = await fetch(searchUrl);
             const raw: unknown = await response.json();
             const parsed = WikipediaSearchApiResponseSchema.safeParse(raw);
             if (!parsed.success) {
               return {
-                error: `Réponse Wikipedia invalide pour la recherche "${title}"`,
+                error: `Invalid Wikipedia response for search "${title}". Try a different title.`,
                 indexed: false,
               };
             }
@@ -164,7 +176,7 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
             const firstResult = data.query?.search?.[0];
             if (!firstResult) {
               return {
-                error: `Article Wikipedia "${title}" non trouvé`,
+                error: `Wikipedia article "${title}" not found. Try searchWikipedia to find the correct title.`,
                 indexed: false,
               };
             }
@@ -172,7 +184,7 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
             resolvedTitle = firstResult.title;
           }
 
-          // 2. Vérifier si déjà indexé
+          // Check if already indexed
           const existing = await prismaEmbeddings.rAGSource.findFirst({
             where: {
               sourceType: "WIKIPEDIA",
@@ -184,7 +196,7 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
 
           if (existing) {
             logger.log(
-              `♻️ [TOOL:indexWikipediaToRAG] Article déjà indexé: "${existing.title}" (${existing.totalChunks} chunks)`,
+              `♻️ [TOOL:indexWikipediaToRAG] Already indexed: "${existing.title}" (${existing.totalChunks} chunks)`,
             );
             return {
               indexed: true,
@@ -192,12 +204,12 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
               sourceId: existing.id,
               title: existing.title,
               chunks: existing.totalChunks,
-              message: `Article "${existing.title}" déjà indexé avec ${existing.totalChunks} chunks`,
+              message: `Article "${existing.title}" already indexed with ${existing.totalChunks} chunks`,
             };
           }
 
-          // 3. Récupérer l'extrait pour le contexte
-          const infoUrl = `https://fr.wikipedia.org/w/api.php?action=query&pageids=${resolvedPageId}&prop=extracts&exintro=1&explaintext=1&format=json&origin=*`;
+          // Fetch intro extract for context
+          const infoUrl = `${wikiBase}/w/api.php?action=query&pageids=${resolvedPageId}&prop=extracts&exintro=1&explaintext=1&format=json&origin=*`;
           const infoResponse = await fetch(infoUrl);
           const infoRaw: unknown = await infoResponse.json();
           const infoParsed = WikipediaIntroExtractResponseSchema.safeParse(infoRaw);
@@ -205,17 +217,15 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
             ? infoParsed.data.query?.pages?.[String(resolvedPageId)]
             : undefined;
           const extract = pageInfo?.extract || "";
-          resolvedTitle = pageInfo?.title || resolvedTitle || "Article Wikipedia";
+          resolvedTitle = pageInfo?.title || resolvedTitle || "Wikipedia Article";
 
-          // 4. Créer l'objet article pour le système RAG
           const article: WikipediaArticle = {
             pageid: resolvedPageId!,
             title: resolvedTitle,
             extract,
           };
 
-          // 5. Indexer via WikipediaRAGSystem (chunks + embeddings + pgvector)
-          logger.log(`📖 [TOOL:indexWikipediaToRAG] Indexation de "${resolvedTitle}"...`);
+          logger.log(`📖 [TOOL:indexWikipediaToRAG] Indexing "${resolvedTitle}"...`);
           const sourceIds = await wikipediaRAG.processWikipediaArticles(
             ctx.userId,
             ctx.workspaceId,
@@ -224,19 +234,19 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
 
           if (sourceIds.length === 0) {
             return {
-              error: "Échec de l'indexation",
+              error:
+                "Indexing failed. The article may be too short or empty. Try a different article.",
               indexed: false,
             };
           }
 
-          // 6. Récupérer les stats finales
           const source = await prismaEmbeddings.rAGSource.findUnique({
             where: { id: sourceIds[0] },
             select: { id: true, title: true, totalChunks: true, status: true },
           });
 
           logger.log(
-            `✅ [TOOL:indexWikipediaToRAG] "${resolvedTitle}" indexé avec ${source?.totalChunks || 0} chunks`,
+            `✅ [TOOL:indexWikipediaToRAG] "${resolvedTitle}" indexed with ${source?.totalChunks || 0} chunks`,
           );
 
           return {
@@ -245,71 +255,73 @@ Les articles indexés sont GLOBAUX et partagés entre tous les utilisateurs.`,
             sourceId: source?.id,
             title: source?.title,
             chunks: source?.totalChunks || 0,
-            message: `Article "${resolvedTitle}" indexé avec succès (${source?.totalChunks} chunks avec embeddings text-embedding-3-small)`,
+            message: `Article "${resolvedTitle}" successfully indexed (${source?.totalChunks} chunks with text-embedding-3-small embeddings)`,
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:indexWikipediaToRAG] Erreur:`, error);
+          logger.error(`❌ [TOOL:indexWikipediaToRAG] Error:`, error);
           return {
-            error: "Erreur lors de l'indexation Wikipedia",
+            error: "Wikipedia indexing failed. Try again or use a different article.",
             indexed: false,
           };
         }
       },
     }),
 
-    /**
-     * 📖 Récupère le contenu complet d'un article Wikipedia avec toutes les sections
-     */
     getWikipediaFullContent: tool({
-      description: `Récupère le contenu COMPLET d'un article Wikipedia avec toutes ses sections.
-Contrairement à getWikipediaArticle qui ne retourne que l'introduction,
-cet outil retourne l'article entier organisé par sections.
-Idéal pour une lecture approfondie ou avant d'indexer dans RAG.`,
+      description: `Retrieves the FULL content of a Wikipedia article with all sections. Unlike getWikipediaArticle which only returns the introduction, this tool returns the entire article organized by sections. Use this for in-depth reading or before indexing into RAG.`,
       inputSchema: getWikipediaFullContentSchema,
       execute: async ({ pageid, title, maxSections }) => {
         logger.log(`📖 [TOOL:getWikipediaFullContent] pageid=${pageid}, title=${title}`);
 
         if (!pageid && !title) {
-          return { error: "Fournir soit pageid soit title", article: null };
+          return {
+            error: "Provide either pageid or title. Use searchWikipedia first to find articles.",
+            article: null,
+          };
         }
 
         try {
-          // Résoudre le pageid si on a seulement le titre
           let resolvedPageId = pageid;
 
           if (!resolvedPageId && title) {
-            const searchUrl = `https://fr.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(title)}&srlimit=1&format=json&origin=*`;
+            const searchUrl = `${wikiBase}/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(title)}&srlimit=1&format=json&origin=*`;
             const response = await fetch(searchUrl);
             const raw: unknown = await response.json();
             const parsed = WikipediaSearchApiResponseSchema.safeParse(raw);
             resolvedPageId = parsed.success ? parsed.data.query?.search?.[0]?.pageid : undefined;
 
             if (!resolvedPageId) {
-              return { error: `Article "${title}" non trouvé`, article: null };
+              return {
+                error: `Article "${title}" not found. Use searchWikipedia to find valid articles first.`,
+                article: null,
+              };
             }
           }
 
-          // Récupérer le contenu complet avec sections
-          const url = `https://fr.wikipedia.org/w/api.php?action=query&format=json&pageids=${resolvedPageId}&prop=extracts|info|categories&explaintext=1&exsectionformat=wiki&inprop=url&cllimit=10&origin=*`;
+          const url = `${wikiBase}/w/api.php?action=query&format=json&pageids=${resolvedPageId}&prop=extracts|info|categories&explaintext=1&exsectionformat=wiki&inprop=url&cllimit=10&origin=*`;
 
           const response = await fetch(url);
           const raw: unknown = await response.json();
           const parsed = WikipediaFullContentResponseSchema.safeParse(raw);
           if (!parsed.success) {
-            return { error: "Réponse Wikipedia invalide", article: null };
+            return {
+              error: "Invalid Wikipedia response. Try again with a different pageid or title.",
+              article: null,
+            };
           }
           const data = parsed.data;
 
           const pageData = data.query?.pages?.[String(resolvedPageId)];
           if (!pageData) {
-            return { error: "Article non trouvé", article: null };
+            return {
+              error: "Article not found. Use searchWikipedia to find valid articles first.",
+              article: null,
+            };
           }
 
           const fullText = pageData.extract || "";
-          const categories =
-            pageData.categories?.map((c) => c.title.replace("Catégorie:", "")) || [];
+          const categories = pageData.categories?.map((c) => c.title.replace(catPrefix, "")) || [];
 
-          // Parser les sections
           const sections = parseWikiSections(fullText).slice(0, maxSections);
 
           logger.log(
@@ -333,33 +345,27 @@ Idéal pour une lecture approfondie ou avant d'indexer dans RAG.`,
             },
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:getWikipediaFullContent] Erreur:`, error);
-          return { error: "Erreur lors de la récupération", article: null };
+          logger.error(`❌ [TOOL:getWikipediaFullContent] Error:`, error);
+          return {
+            error: "Failed to retrieve full Wikipedia content. Try again or use searchWeb instead.",
+            article: null,
+          };
         }
       },
     }),
 
-    /**
-     * 🔍 Recherche sémantique UNIQUEMENT dans les articles Wikipedia indexés
-     */
     searchWikipediaRAG: tool({
-      description: `Recherche sémantique dans les articles Wikipedia déjà indexés en pgvector.
-Utilise les embeddings text-embedding-3-small (1536D) pour trouver les passages les plus pertinents.
-DIFFÉRENT de searchRagChunks: celui-ci cherche UNIQUEMENT dans les sources Wikipedia.
-Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les rechercher.`,
+      description: `Performs semantic search ONLY across Wikipedia articles already indexed in pgvector. Uses text-embedding-3-small (1536D) embeddings to find the most relevant passages. DIFFERENT from searchRagChunks: this searches ONLY Wikipedia sources. Use indexWikipediaToRAG first to index articles before searching them.`,
       inputSchema: searchWikipediaRAGSchema,
       execute: async ({ query, limit, threshold }) => {
         logger.log(`🔍 [TOOL:searchWikipediaRAG] query="${query}", limit=${limit}`);
 
         try {
-          // Générer l'embedding de la requête
           const queryEmbedding = await ragSystem.embeddingService.generateEmbedding(query);
           const embeddingStr = `[${queryEmbedding.join(",")}]`;
-          // Prisma.raw() pour le cast ::vector (même pattern que ragSystem.search)
           const vectorCast = Prisma.raw(`'${embeddingStr}'::vector`);
           const safeLimit = Math.max(1, Math.floor(limit * 2));
 
-          // Recherche vectorielle UNIQUEMENT sur les sources Wikipedia
           const results = await prismaEmbeddings.$queryRaw<
             Array<{
               id: string;
@@ -389,7 +395,6 @@ Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les reche
             LIMIT ${safeLimit}
           `;
 
-          // Dédupliquer et limiter
           const seen = new Set<string>();
           const uniqueResults = results
             .filter((r) => {
@@ -400,9 +405,7 @@ Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les reche
             })
             .slice(0, limit);
 
-          logger.log(
-            `✅ [TOOL:searchWikipediaRAG] ${uniqueResults.length} chunks Wikipedia trouvés`,
-          );
+          logger.log(`✅ [TOOL:searchWikipediaRAG] ${uniqueResults.length} Wikipedia chunks found`);
 
           return {
             count: uniqueResults.length,
@@ -419,9 +422,10 @@ Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les reche
             })),
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:searchWikipediaRAG] Erreur:`, error);
+          logger.error(`❌ [TOOL:searchWikipediaRAG] Error:`, error);
           return {
-            error: "Erreur lors de la recherche Wikipedia RAG",
+            error:
+              "Wikipedia RAG search failed. Ensure articles are indexed first with indexWikipediaToRAG.",
             count: 0,
             chunks: [],
           };
@@ -429,13 +433,8 @@ Utilise d'abord indexWikipediaToRAG pour indexer des articles avant de les reche
       },
     }),
 
-    /**
-     * 📋 Liste tous les articles Wikipedia indexés dans pgvector
-     */
     listWikipediaRAGSources: tool({
-      description: `Liste tous les articles Wikipedia déjà indexés dans pgvector.
-Utile pour voir quels articles sont disponibles pour la recherche sémantique.
-Retourne le titre, nombre de chunks, et date d'indexation.`,
+      description: `Lists all Wikipedia articles already indexed in pgvector. Use this tool to see which articles are available for semantic search before using searchWikipediaRAG. Returns title, chunk count, and indexing date.`,
       inputSchema: listWikipediaRAGSourcesSchema,
       execute: async ({ limit }) => {
         logger.log(`📋 [TOOL:listWikipediaRAGSources] limit=${limit}`);
@@ -460,7 +459,7 @@ Retourne le titre, nombre de chunks, et date d'indexation.`,
           });
 
           logger.log(
-            `✅ [TOOL:listWikipediaRAGSources] ${sources.length} articles Wikipedia indexés`,
+            `✅ [TOOL:listWikipediaRAGSources] ${sources.length} indexed Wikipedia articles`,
           );
 
           return {
@@ -475,9 +474,9 @@ Retourne le titre, nombre de chunks, et date d'indexation.`,
             })),
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:listWikipediaRAGSources] Erreur:`, error);
+          logger.error(`❌ [TOOL:listWikipediaRAGSources] Error:`, error);
           return {
-            error: "Erreur lors de la récupération",
+            error: "Failed to list Wikipedia sources. Try again.",
             count: 0,
             sources: [],
           };
@@ -488,7 +487,7 @@ Retourne le titre, nombre de chunks, et date d'indexation.`,
 }
 
 /**
- * Parse le texte Wikipedia en sections
+ * Parses Wikipedia text into sections
  */
 function parseWikiSections(
   fullText: string,
@@ -534,7 +533,6 @@ function parseWikiSections(
     });
   }
 
-  // Ajouter l'introduction comme première section
   if (introContent.trim().length > 50) {
     sections.unshift({
       title: "Introduction",

@@ -1,4 +1,4 @@
-// 📄 Page Tools - Création et gestion de pages via l'agent
+// 📄 Page Tools - Page creation and management via agent
 import { tool } from "ai";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -11,61 +11,51 @@ import {
 } from "../../../controllers/assistant/helpers/blocknote.js";
 
 /**
- * Context utilisateur injecté via closure
+ * User context injected via closure
  */
 interface PageToolsContext {
   userId: string;
   workspaceId: string;
 }
 
-// Helper pour transformer chaînes vides en undefined
+// Helper to transform empty strings to undefined
 const emptyToUndefined = (val: unknown) => (val === "" || val === null ? undefined : val);
 
-// Schéma Zod pour createPage
-// Note: On utilise preprocess pour transformer les chaînes vides en undefined
 const createPageSchema = z.object({
-  title: z.string().min(1).max(255).describe("Titre de la page à créer"),
+  title: z.string().min(1).max(255).describe("Title of the page to create"),
   content: z.preprocess(
     emptyToUndefined,
     z
       .string()
       .optional()
-      .describe("Contenu initial de la page en texte (sera converti en BlockNote)"),
+      .describe("Initial page content as text (will be converted to BlockNote format)"),
   ),
   projectId: z.preprocess(
     emptyToUndefined,
-    z.string().uuid().optional().describe("ID du projet dans lequel créer la page (optionnel)"),
+    z.string().uuid().optional().describe("ID of the project to create the page in (optional)"),
   ),
   icon: z.preprocess(
     emptyToUndefined,
-    z.string().max(10).optional().describe("Emoji ou icône pour la page (ex: '📝')"),
+    z.string().max(10).optional().describe("Emoji or icon for the page (e.g. '📝')"),
   ),
 });
 
-// Schéma pour vérifier l'existence d'une page
 const checkPageExistsSchema = z.object({
-  pageId: z.string().uuid().describe("ID de la page à vérifier"),
+  pageId: z.string().uuid().describe("ID of the page to check"),
 });
 
 /**
- * Crée les tools de gestion de pages avec le contexte utilisateur
+ * Creates page management tools with user context
  */
 export function createPageTools(ctx: PageToolsContext) {
   return {
-    /**
-     * Crée une nouvelle page dans le workspace
-     */
     createPage: tool({
-      description: `Crée une nouvelle page dans le workspace de l'utilisateur.
-La page peut être créée à la racine du workspace ou dans un projet spécifique.
-Retourne l'ID, le titre et l'URL de la page créée.
-Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou des notes.`,
+      description: `Creates a new page in the user's workspace. Use this tool when the user asks to create a page, document, or notes. The page can be created at workspace root or inside a specific project. Returns the page ID, title, and URL.`,
       inputSchema: createPageSchema,
       execute: async ({ title, content, projectId, icon }) => {
         logger.log(`🔍 [TOOL:createPage] title="${title}", projectId=${projectId || "root"}`);
 
         try {
-          // 1. Vérifier que le projet existe (si fourni)
           if (projectId) {
             const project = await prisma.project.findFirst({
               where: {
@@ -76,13 +66,13 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
             if (!project) {
               return {
                 success: false,
-                error: "Projet non trouvé dans ce workspace",
+                error:
+                  "Project not found in this workspace. Use listWorkspaceProjects to find valid project IDs.",
                 pageId: null,
               };
             }
           }
 
-          // 3. Calculer la position
           const lastPage = await prisma.page.findFirst({
             where: {
               workspaceId: ctx.workspaceId,
@@ -94,7 +84,6 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
           });
           const position = (lastPage?.position ?? -1) + 1;
 
-          // 4. Générer le slug unique
           const baseSlug = title
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, "-")
@@ -102,14 +91,12 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
             .slice(0, 50);
           const slug = `${baseSlug}-${Date.now()}-${nanoid(4)}`;
 
-          // 5. Convertir le contenu texte en format BlockNote (avec support LaTeX $/$$ et markdown)
           const blockNoteContent = content
             ? (toBlockNoteAuto(
                 sanitizeAIGeneratedContent(content),
               ) as unknown as Prisma.InputJsonValue)
             : null;
 
-          // 6. Créer la page
           const page = await prisma.page.create({
             data: {
               title,
@@ -131,7 +118,7 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
             },
           });
 
-          logger.log(`✅ [TOOL:createPage] Page créée: "${page.title}" (ID: ${page.id})`);
+          logger.log(`✅ [TOOL:createPage] Page created: "${page.title}" (ID: ${page.id})`);
 
           return {
             success: true,
@@ -141,26 +128,22 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
             icon: page.icon,
             url: `/page/${page.id}`,
             projectId: page.projectId || null,
-            projectName: null, // Simplifié - pas de join sur project
+            projectName: null,
             createdAt: page.createdAt.toISOString(),
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:createPage] Erreur:`, error);
+          logger.error(`❌ [TOOL:createPage] Error:`, error);
           return {
             success: false,
-            error: "Erreur lors de la création de la page",
+            error: "Failed to create page. Try again or check if the projectId is valid.",
             pageId: null,
           };
         }
       },
     }),
 
-    /**
-     * Vérifie si une page existe encore
-     */
     checkPageExists: tool({
-      description: `Vérifie si une page existe toujours dans le workspace.
-Utile pour vérifier qu'une page créée précédemment n'a pas été supprimée.`,
+      description: `Checks if a page still exists in the workspace. Use this tool to verify that a previously created page has not been deleted before referencing it.`,
       inputSchema: checkPageExistsSchema,
       execute: async ({ pageId }) => {
         logger.log(`🔍 [TOOL:checkPageExists] pageId=${pageId}`);
@@ -184,7 +167,7 @@ Utile pour vérifier qu'une page créée précédemment n'a pas été supprimée
             return {
               exists: false,
               pageId,
-              message: "Page non trouvée ou supprimée",
+              message: "Page not found or deleted",
             };
           }
 
@@ -197,11 +180,11 @@ Utile pour vérifier qu'une page créée précédemment n'a pas été supprimée
             url: `/page/${page.id}`,
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:checkPageExists] Erreur:`, error);
+          logger.error(`❌ [TOOL:checkPageExists] Error:`, error);
           return {
             exists: false,
             pageId,
-            error: "Erreur lors de la vérification",
+            error: "Failed to check page existence. Try again.",
           };
         }
       },

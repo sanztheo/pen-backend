@@ -5,7 +5,19 @@
  * Inspired by Claude, ChatGPT, and other production AI systems.
  */
 
-import type { AgentMode } from "./types.js";
+import type { AgentMode, IntentType, PromptKey } from "./types.js";
+
+// ============================================================================
+// SANITIZATION
+// ============================================================================
+
+/**
+ * Escapes XML-like tags in user-provided content to prevent prompt injection.
+ * Only escapes < and > so user input cannot introduce fake XML sections.
+ */
+export function sanitizeForPrompt(input: string): string {
+  return input.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
 
 // ============================================================================
 // TYPES
@@ -33,6 +45,8 @@ export interface SystemPromptOptions {
   ragSources?: RagSource[];
   personalization?: UserPersonalization;
   conversationHistory?: string;
+  /** When true, the model has native web search (Google Search Grounding) — don't mention searchWeb tool */
+  hasNativeWebSearch?: boolean;
 }
 
 interface ModeConfig {
@@ -49,8 +63,8 @@ interface ModeConfig {
 // MODE CONFIGURATIONS
 // ============================================================================
 
-const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
-  ask: {
+const MODE_CONFIGS: Record<PromptKey, ModeConfig> = {
+  "fast-conversation": {
     role: "intelligent assistant and educator",
     objective: "Answer questions clearly and accurately using available sources",
     behavior: [
@@ -59,13 +73,15 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
       "If you cannot find the information, state this honestly",
       "Adapt your language level to the user's profile",
       "You MAY use createPage if the user explicitly requests to save content as a page",
+      "Use web search when the query requires current information or facts you are unsure about",
+      "If a tool returns an error, try an alternative approach or inform the user of the limitation",
     ],
     toolGuidance:
-      "Use search and reading tools. createPage is OPTIONAL and only used when explicitly requested.",
+      "Use RAG, workspace, and web search tools as needed. The AI decides when web search is useful. createPage is OPTIONAL.",
     createPageRequired: false,
   },
 
-  search: {
+  "deep-conversation": {
     role: "expert deep research analyst specialized in comprehensive investigation",
     objective:
       "Conduct EXHAUSTIVE multi-source research like Perplexity Pro - leave no stone unturned",
@@ -78,6 +94,7 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
       "Synthesize ALL findings into a comprehensive, well-structured response",
       "ALWAYS cite your sources with specific references",
       "You MAY use createPage to save the research synthesis if the user requests it",
+      "If a tool returns an error, try an alternative approach or inform the user of the limitation",
     ],
     toolGuidance:
       "DEEP RESEARCH MODE: Use ALL available tools extensively. Multiple searches required.",
@@ -101,7 +118,7 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
     ],
   },
 
-  "create-quick": {
+  "fast-creation": {
     role: "efficient content writer",
     objective: "Generate content and CREATE A PAGE in the workspace",
     behavior: [
@@ -110,8 +127,11 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
       "Stay factual and accurate",
       "Adapt the style to the user's profile",
       "You MUST call createPage to save the generated content - this is MANDATORY",
+      "Use web search if the topic requires current or factual information you lack",
+      "If a tool returns an error, try an alternative approach or inform the user of the limitation",
     ],
-    toolGuidance: "Quick content generation. createPage is REQUIRED at the end.",
+    toolGuidance:
+      "Quick content generation. Use web search if needed for accuracy. createPage is REQUIRED at the end.",
     createPageRequired: true,
     contentGuidelines: [
       "Create CONCISE content focused on essential information",
@@ -125,7 +145,7 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
     ],
   },
 
-  "create-deep": {
+  "deep-creation": {
     role: "expert researcher and comprehensive content creator",
     objective: "Conduct DEEP research then create EXCEPTIONAL, detailed content and CREATE A PAGE",
     behavior: [
@@ -137,6 +157,7 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
       "Create content that could serve as a reference document",
       "Include real examples, data, and citations from your research",
       "You MUST call createPage to save the content - this is MANDATORY",
+      "If a tool returns an error, try an alternative approach or inform the user of the limitation",
     ],
     toolGuidance:
       "DEEP CREATION MODE: Extensive research required BEFORE writing. createPage is REQUIRED.",
@@ -201,7 +222,7 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
       "</quality_constraints>",
     ],
   },
-} as const;
+};
 
 // ============================================================================
 // PROMPT BUILDERS
@@ -209,7 +230,7 @@ const MODE_CONFIGS: Record<AgentMode, ModeConfig> = {
 
 function buildIdentitySection(config: ModeConfig): string {
   return `<identity>
-You are a ${config.role} within Pennote, an intelligent note-taking application.
+Your name is Penly. You are a ${config.role} within Pennote, an intelligent note-taking application.
 Your primary objective: ${config.objective}
 </identity>`;
 }
@@ -229,23 +250,24 @@ function buildUserProfileSection(personalization?: UserPersonalization): string 
   const fields: string[] = [];
 
   if (personalization.name) {
-    fields.push(`Name: ${personalization.name}`);
+    fields.push(`Name: ${sanitizeForPrompt(personalization.name)}`);
   }
   if (personalization.classe) {
-    fields.push(`Level: ${personalization.classe}`);
+    fields.push(`Level: ${sanitizeForPrompt(personalization.classe)}`);
   }
   if (personalization.etude || personalization.filiere) {
-    const field = [personalization.etude, personalization.filiere].filter(Boolean).join(" - ");
+    const parts = [personalization.etude, personalization.filiere].filter(Boolean) as string[];
+    const field = parts.map(sanitizeForPrompt).join(" - ");
     fields.push(`Field of study: ${field}`);
   }
   if (personalization.presentation) {
-    fields.push(`About: ${personalization.presentation}`);
+    fields.push(`About: ${sanitizeForPrompt(personalization.presentation)}`);
   }
   if (personalization.attente) {
-    fields.push(`Expectations: ${personalization.attente}`);
+    fields.push(`Expectations: ${sanitizeForPrompt(personalization.attente)}`);
   }
   if (personalization.langue) {
-    fields.push(`Preferred language: ${personalization.langue}`);
+    fields.push(`Preferred language: ${sanitizeForPrompt(personalization.langue)}`);
   }
 
   return `
@@ -261,12 +283,13 @@ function buildSourcesSection(ragSources?: RagSource[]): string {
 
   const sourcesList = ragSources
     .map((s) => {
+      const safeTitle = sanitizeForPrompt(s.title);
       if (s.type === "wikipedia" || s.id?.startsWith("wikipedia:")) {
-        return `- [Wikipedia] "${s.title}" -> Use getWikipediaArticle with title="${s.title}"`;
+        return `- [Wikipedia] "${safeTitle}" -> Use getWikipediaArticle with title="${safeTitle}"`;
       } else if (s.type === "page") {
-        return `- [Page] "${s.title}" -> Use readWorkspacePage with pageId="${s.id}"`;
+        return `- [Page] "${safeTitle}" -> Use readWorkspacePage with pageId="${s.id}"`;
       } else {
-        return `- [Document] "${s.title}" -> Use readRagSource with sourceId="${s.id}"`;
+        return `- [Document] "${safeTitle}" -> Use readRagSource with sourceId="${s.id}"`;
       }
     })
     .join("\n");
@@ -293,77 +316,55 @@ function buildHistorySection(conversationHistory?: string): string {
 
   return `
 <conversation_context>
-${conversationHistory}
+${sanitizeForPrompt(conversationHistory)}
 </conversation_context>`;
 }
 
-function buildToolsSection(config: ModeConfig): string {
-  const pageToolsSection = config.createPageRequired
-    ? `
-Page Tools (REQUIRED):
-- createPage: Creates a new page in the workspace. You MUST use this tool before finishing your response.
-- checkPageExists: Verifies if a page still exists.
-CRITICAL: Do not complete your response without calling createPage. This is mandatory for this mode.`
-    : `
-Page Tools (optional):
-- createPage: Creates a new page in the workspace. Use only if the user explicitly requests it.
-- checkPageExists: Verifies if a page still exists.`;
+function buildToolsSection(config: ModeConfig, hasNativeWebSearch: boolean): string {
+  const createPageDirective = config.createPageRequired
+    ? `\nCRITICAL: You MUST call createPage before finishing your response. This is mandatory for this mode.`
+    : `\ncreatePage is OPTIONAL — use only if the user explicitly requests it.`;
+
+  const webSearchDirective = hasNativeWebSearch
+    ? `\nWeb search: You have BUILT-IN web search capability. When you need current information, facts, or news, simply search the web directly — no tool call needed. Do NOT try to call a "searchWeb" tool, it does not exist. Your web search is native and automatic.`
+    : `\nWeb search: Use the searchWeb tool when you need current information, news, or facts not in the user's sources.`;
+
+  const webPriority = hasNativeWebSearch
+    ? "5. For current news: search the web directly (built-in capability)"
+    : "5. For current news: use searchWeb";
 
   return `
 <available_tools>
 Tool strategy: ${config.toolGuidance}
+${createPageDirective}
+${webSearchDirective}
 
-RAG Tools:
-- listAvailableSources: Lists available RAG sources for the user
-- searchRagChunks: Searches within embedded sources (PDFs, documents)
-- readRagSource: Reads the complete content of a RAG source
-- checkSourcesRagStatus: Checks if sources are properly embedded
-
-Workspace Tools:
-- listWorkspacePages: Lists all pages in the current workspace
-- readWorkspacePage: Reads the content of a specific page
-- listWorkspaceProjects: Lists all projects in the workspace
-${pageToolsSection}
-
-Web Tools:
-- searchWeb: Searches the web for current news and information
-- searchWikipedia: Searches for Wikipedia articles
-- getWikipediaArticle: Retrieves the introduction of a Wikipedia article
-
-Wikipedia RAG Tools (pgvector integration with text-embedding-3-small 1536D):
-- indexWikipediaToRAG: Indexes a Wikipedia article into pgvector for semantic search. Use this to store important articles for later retrieval. Articles are chunked and embedded with text-embedding-3-small (1536D).
-- getWikipediaFullContent: Retrieves the COMPLETE content of a Wikipedia article with ALL sections (not just intro). Use this for in-depth reading before indexing.
-- searchWikipediaRAG: Semantic vector search ONLY on indexed Wikipedia articles. More precise than searchWikipedia because it uses embeddings similarity.
-- listWikipediaRAGSources: Lists all Wikipedia articles already indexed in pgvector. Use this to check what's available before searching.
-
-Wikipedia workflow for deep research:
-1. searchWikipedia to find relevant articles
-2. indexWikipediaToRAG to store important articles in pgvector
-3. searchWikipediaRAG for precise semantic search on indexed content
-4. getWikipediaFullContent if you need the complete article text
-
-Quiz Tools:
-- getQuizStats: Retrieves the user's quiz performance statistics (average score, streak, strengths/weaknesses by subject, progression trend)
-- getRecentQuizResults: Retrieves the user's most recent completed quiz results with scores and details
-When the user asks about performance, progress, or study recommendations: use quiz tools.
-PROACTIVE USE: In create-quick and create-deep modes, call getQuizStats BEFORE generating content to understand the user's weak areas. Adapt your explanations to focus more on topics where the user struggles — spend more time on weak subjects, use simpler language for concepts they failed, and skip over what they already master.
+Quiz tools: When the user asks about performance, progress, or study recommendations, use getQuizStats and getRecentQuizResults.
+PROACTIVE USE: In creation modes, call getQuizStats BEFORE generating content to understand the user's weak areas. Adapt explanations to focus more on topics where the user struggles.
 
 Usage priority:
 1. If sources are explicitly provided, consult them FIRST
 2. If sources are insufficient, search the workspace
 3. For encyclopedic knowledge: index to pgvector then use searchWikipediaRAG for precision
 4. For quick lookups: use searchWikipedia + getWikipediaArticle
-5. For current news: use searchWeb
+${webPriority}
 6. Use multiple tools if necessary for a complete response
 </available_tools>`;
 }
 
-function buildResearchGuidelinesSection(config: ModeConfig): string {
+function buildResearchGuidelinesSection(config: ModeConfig, hasNativeWebSearch: boolean): string {
   if (!config.researchGuidelines || config.researchGuidelines.length === 0) {
     return "";
   }
 
-  const guidelines = config.researchGuidelines.map((g) => `- ${g}`).join("\n");
+  const guidelines = config.researchGuidelines
+    .map((g) => {
+      if (hasNativeWebSearch) {
+        return `- ${g.replace(/searchWeb/g, "web search (built-in)").replace(/Use searchWeb/g, "Search the web directly")}`;
+      }
+      return `- ${g}`;
+    })
+    .join("\n");
 
   return `
 <research_workflow>
@@ -381,7 +382,12 @@ function buildContentGuidelinesSection(config: ModeConfig): string {
     return "";
   }
 
-  const guidelines = config.contentGuidelines.map((g) => `- ${g}`).join("\n");
+  const guidelines = config.contentGuidelines
+    .map((g) => {
+      if (g === "" || g.startsWith("<")) return g;
+      return `- ${g}`;
+    })
+    .join("\n");
 
   return `
 <content_guidelines>
@@ -431,40 +437,46 @@ Language:
 // ============================================================================
 
 /**
- * Builds the complete system prompt in XML format
+ * Builds the complete system prompt in XML format.
+ * Prompt is selected based on mode × intent composite key.
  */
-export function buildSystemPrompt(mode: AgentMode, options: SystemPromptOptions): string {
-  const config = MODE_CONFIGS[mode];
-  const { personalization, conversationHistory, ragSources } = options;
+export function buildSystemPrompt(
+  mode: AgentMode,
+  intent: IntentType,
+  options: SystemPromptOptions,
+): string {
+  const promptKey: PromptKey = `${mode}-${intent}`;
+  const config = MODE_CONFIGS[promptKey];
+  const { personalization, conversationHistory, ragSources, hasNativeWebSearch = false } = options;
 
   const sections = [
     buildIdentitySection(config),
     buildBehaviorSection(config),
-    buildResearchGuidelinesSection(config),
+    buildResearchGuidelinesSection(config, hasNativeWebSearch),
     buildContentGuidelinesSection(config),
     buildUserProfileSection(personalization),
     buildSourcesSection(ragSources),
+    buildToolsSection(config, hasNativeWebSearch),
     buildHistorySection(conversationHistory),
-    buildToolsSection(config),
-    buildFeatureRedirectsSection(),
+    !config.createPageRequired ? buildFeatureRedirectsSection() : "",
     buildFormattingSection(),
   ];
 
-  return `<system>
-${sections.filter(Boolean).join("\n")}
-</system>`;
+  return sections.filter(Boolean).join("\n");
 }
 
 /**
- * Checks if the mode requires createPage to be called
+ * Checks if the mode × intent requires createPage to be called
  */
-export function isCreatePageRequired(mode: AgentMode): boolean {
-  return MODE_CONFIGS[mode].createPageRequired;
+export function isCreatePageRequired(mode: AgentMode, intent: IntentType): boolean {
+  const promptKey: PromptKey = `${mode}-${intent}`;
+  return MODE_CONFIGS[promptKey].createPageRequired;
 }
 
 /**
- * Returns the configuration for a specific mode
+ * Returns the prompt configuration for a specific mode × intent
  */
-export function getModeConfig(mode: AgentMode): ModeConfig {
-  return MODE_CONFIGS[mode];
+export function getModePromptConfig(mode: AgentMode, intent: IntentType): ModeConfig {
+  const promptKey: PromptKey = `${mode}-${intent}`;
+  return MODE_CONFIGS[promptKey];
 }

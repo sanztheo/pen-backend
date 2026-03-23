@@ -10,70 +10,63 @@ import { ragSystem, type RAGSearchOptions } from "../../rag/index.js";
 import { logger } from "../../../utils/logger.js";
 
 /**
- * Context utilisateur injecté via closure dans createRagTools()
+ * User context injected via closure in createRagTools()
  */
 interface RagToolsContext {
   userId: string;
   workspaceId: string;
 }
 
-// Définition des schémas Zod pour chaque tool
 const listAvailableSourcesSchema = z.object({
   includeGlobal: z
     .boolean()
     .optional()
     .default(true)
-    .describe("Inclure les sources globales (Wikipedia)"),
+    .describe("Include global sources (Wikipedia)"),
   sourceTypes: z
     .array(z.enum(["PDF", "TEXT_FILE", "WIKIPEDIA", "WORKSPACE_PAGE", "USER_NOTES"]))
     .optional()
-    .describe("Filtrer par types de sources"),
+    .describe("Filter by source types"),
 });
 
 const searchRagChunksSchema = z.object({
-  query: z.string().min(3).describe("Question ou mots-clés à rechercher"),
+  query: z.string().min(3).describe("Search query or keywords"),
   sourceIds: z
     .array(z.string())
     .optional()
-    .describe("IDs des sources spécifiques à interroger (si vide, cherche dans toutes)"),
-  limit: z.number().min(1).max(20).optional().default(8).describe("Nombre max de résultats"),
+    .describe("IDs of specific sources to search in (if empty, searches all sources)"),
+  limit: z.number().min(1).max(20).optional().default(8).describe("Maximum number of results"),
   threshold: z
     .number()
     .min(0)
     .max(1)
     .optional()
     .default(0.2)
-    .describe("Score minimum de similarité (0-1)"),
+    .describe("Minimum similarity score (0-1)"),
 });
 
 const readRagSourceSchema = z.object({
-  sourceId: z.string().describe("ID de la source RAG à lire"),
+  sourceId: z.string().describe("ID of the RAG source to read"),
   maxChunks: z
     .number()
     .min(1)
     .max(50)
     .optional()
     .default(20)
-    .describe("Nombre max de chunks à retourner"),
+    .describe("Maximum number of chunks to return"),
 });
 
 const checkSourcesRagStatusSchema = z.object({
-  titles: z.array(z.string()).describe("Titres des sources à vérifier"),
+  titles: z.array(z.string()).describe("Titles of sources to check"),
 });
 
 /**
- * Crée les tools RAG avec le contexte utilisateur
+ * Creates RAG tools with user context
  */
 export function createRagTools(ctx: RagToolsContext) {
   return {
-    /**
-     * Liste toutes les sources RAG disponibles dans le workspace
-     */
     listAvailableSources: tool({
-      description: `Liste toutes les sources RAG disponibles pour l'utilisateur.
-Retourne les fichiers uploadés (PDF, documents), les pages Wikipedia indexées,
-et les pages workspace avec leur statut et nombre de chunks.
-Utilise cet outil EN PREMIER pour savoir quelles sources sont disponibles avant de chercher.`,
+      description: `Lists all available RAG sources for the user. Use this tool FIRST before searching to discover which sources (uploaded PDFs, documents, indexed Wikipedia articles, workspace pages) are available and how many chunks each contains.`,
       inputSchema: listAvailableSourcesSchema,
       execute: async ({ includeGlobal, sourceTypes }) => {
         logger.log(
@@ -138,7 +131,7 @@ Utilise cet outil EN PREMIER pour savoir quelles sources sont disponibles avant 
         } catch (error) {
           logger.error(`❌ [TOOL:listAvailableSources] Erreur:`, error);
           return {
-            error: "Erreur lors de la récupération des sources",
+            error: "Failed to retrieve RAG sources. Try again or use searchRagChunks directly.",
             count: 0,
             sources: [],
           };
@@ -146,14 +139,8 @@ Utilise cet outil EN PREMIER pour savoir quelles sources sont disponibles avant 
       },
     }),
 
-    /**
-     * Recherche dans les chunks RAG avec similarité vectorielle
-     */
     searchRagChunks: tool({
-      description: `Recherche sémantique dans les sources RAG indexées.
-Utilise les embeddings vectoriels pour trouver les passages les plus pertinents.
-Retourne les chunks avec leur contenu, source, et score de similarité.
-Idéal pour répondre à des questions factuelles ou trouver des informations précises.`,
+      description: `Performs semantic search across indexed RAG sources using vector embeddings. Use this tool when you need to find specific information, answer factual questions, or locate relevant passages. Returns matching chunks with content, source, and similarity score.`,
       inputSchema: searchRagChunksSchema,
       execute: async ({ query, sourceIds, limit, threshold }) => {
         logger.log(
@@ -194,7 +181,8 @@ Idéal pour répondre à des questions factuelles ou trouver des informations pr
         } catch (error) {
           logger.error(`❌ [TOOL:searchRagChunks] Erreur:`, error);
           return {
-            error: "Erreur lors de la recherche RAG",
+            error:
+              "RAG search failed for this query. Try rephrasing your query or use an alternative tool.",
             count: 0,
             chunks: [],
           };
@@ -202,13 +190,8 @@ Idéal pour répondre à des questions factuelles ou trouver des informations pr
       },
     }),
 
-    /**
-     * Lit le contenu complet d'une source RAG
-     */
     readRagSource: tool({
-      description: `Récupère tous les chunks d'une source RAG spécifique.
-Utile pour obtenir une vue complète d'un document ou article.
-Retourne le contenu organisé par sections si disponible.`,
+      description: `Retrieves all chunks from a specific RAG source. Use this tool when you need a complete view of a document or article. Returns content organized by sections when available.`,
       inputSchema: readRagSourceSchema,
       execute: async ({ sourceId, maxChunks }) => {
         logger.log(`🔍 [TOOL:readRagSource] sourceId=${sourceId}, maxChunks=${maxChunks}`);
@@ -232,7 +215,8 @@ Retourne le contenu organisé par sections si disponible.`,
 
           if (!source) {
             return {
-              error: "Source non trouvée ou non accessible",
+              error:
+                "Source not found or not accessible. Verify the sourceId with listAvailableSources.",
               content: null,
             };
           }
@@ -258,7 +242,7 @@ Retourne le contenu organisé par sections si disponible.`,
           // Organiser par sections si possible
           const sections: Record<string, string[]> = {};
           for (const chunk of chunks) {
-            const sectionKey = chunk.sectionTitle || "Contenu principal";
+            const sectionKey = chunk.sectionTitle || "Main content";
             if (!sections[sectionKey]) {
               sections[sectionKey] = [];
             }
@@ -280,24 +264,21 @@ Retourne le contenu organisé par sections si disponible.`,
             chunksRetrieved: chunks.length,
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:readRagSource] Erreur:`, error);
+          logger.error(`❌ [TOOL:readRagSource] Error:`, error);
           return {
-            error: "Erreur lors de la lecture de la source",
+            error:
+              "Failed to read RAG source. Verify the sourceId exists with listAvailableSources.",
             content: null,
           };
         }
       },
     }),
 
-    /**
-     * Vérifie le statut RAG de sources spécifiques
-     */
     checkSourcesRagStatus: tool({
-      description: `Vérifie si des sources sont indexées et prêtes pour la recherche RAG.
-Utile pour savoir si un fichier ou article Wikipedia a été traité.`,
+      description: `Checks whether specific sources are indexed and ready for RAG search. Use this tool to verify if a file or Wikipedia article has been processed before attempting to search it.`,
       inputSchema: checkSourcesRagStatusSchema,
       execute: async ({ titles }) => {
-        logger.log(`🔍 [TOOL:checkSourcesRagStatus] Vérification de ${titles.length} sources`);
+        logger.log(`🔍 [TOOL:checkSourcesRagStatus] Checking ${titles.length} sources`);
 
         try {
           const results = await Promise.all(
@@ -331,7 +312,7 @@ Utile pour savoir si un fichier ou article Wikipedia a été traité.`,
 
           const readyCount = results.filter((r) => r.ready).length;
           logger.log(
-            `✅ [TOOL:checkSourcesRagStatus] ${readyCount}/${titles.length} sources prêtes`,
+            `✅ [TOOL:checkSourcesRagStatus] ${readyCount}/${titles.length} sources ready`,
           );
 
           return {
@@ -340,9 +321,9 @@ Utile pour savoir si un fichier ou article Wikipedia a été traité.`,
             results,
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:checkSourcesRagStatus] Erreur:`, error);
+          logger.error(`❌ [TOOL:checkSourcesRagStatus] Error:`, error);
           return {
-            error: "Erreur lors de la vérification",
+            error: "Failed to check source status. Try again with fewer titles.",
             totalChecked: 0,
             readyCount: 0,
             results: [],

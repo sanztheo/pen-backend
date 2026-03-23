@@ -12,7 +12,12 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { authenticateToken } from "../middlewares/auth.js";
 import { requireAICredits } from "../middlewares/requireAICredits.js";
-import { runPennoteAgent, type AgentMode } from "../services/agent/index.js";
+import {
+  runPennoteAgent,
+  detectIntent,
+  extractLastUserMessage,
+  type AgentMode,
+} from "../services/agent/index.js";
 import {
   saveConversation,
   loadConversation,
@@ -104,44 +109,33 @@ router.get("/chat/:id/stream", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * 💰 Calcul dynamique du coût en crédits basé sur le mode
- */
-const calculateDynamicCost = (req: Request): number => {
-  const body = req.body || {};
-  const mode = body.mode || "ask";
-
-  switch (mode) {
-    case "search":
-    case "create-deep":
-      return 2;
-    case "ask":
-    case "create-quick":
-    default:
-      return 1;
-  }
+/** Credit cost per mode: fast=1, deep=3 */
+const CREDIT_COSTS: Record<AgentMode, number> = {
+  fast: 1,
+  deep: 3,
 };
 
-/**
- * 📊 Estimation tokens de sortie selon le mode
- * - ask: réponses courtes
- * - search: réponses moyennes avec sources
- * - create-quick: contenu moyen
- * - create-deep: contenu long et détaillé
- */
+/** Type guard — narrows string to AgentMode after validation */
+function isAgentMode(mode: unknown): mode is AgentMode {
+  return mode === "fast" || mode === "deep";
+}
+
+const calculateDynamicCost = (req: Request): number => {
+  const body = req.body || {};
+  const mode = body.mode;
+  if (isAgentMode(mode)) return CREDIT_COSTS[mode];
+  return CREDIT_COSTS.fast;
+};
+
+/** Estimated output tokens per mode for quota checks */
+const ESTIMATED_OUTPUT_TOKENS: Record<AgentMode, number> = {
+  fast: 2000,
+  deep: 8000,
+};
+
 const estimateOutputTokens = (mode: string): number => {
-  switch (mode) {
-    case "ask":
-      return 2000;
-    case "search":
-      return 5000;
-    case "create-quick":
-      return 4000;
-    case "create-deep":
-      return 10000;
-    default:
-      return 3000;
-  }
+  if (isAgentMode(mode)) return ESTIMATED_OUTPUT_TOKENS[mode];
+  return ESTIMATED_OUTPUT_TOKENS.fast;
 };
 
 /**
@@ -151,7 +145,7 @@ const estimateOutputTokens = (mode: string): number => {
  *
  * Body attendu:
  * - messages: ModelMessage[] - Historique de conversation (format AI SDK)
- * - mode: "ask" | "search" | "create-quick" | "create-deep"
+ * - mode: "fast" | "deep"
  * - workspaceId: string - ID du workspace courant
  * - useWeb?: boolean - Activer la recherche web
  * - ragSources?: Array<{id, title}> - Sources RAG à utiliser
@@ -176,7 +170,7 @@ router.post(
 
       const {
         messages,
-        mode = "ask",
+        mode = "fast",
         workspaceId,
         conversationId, // ID de la conversation pour persistance
         useWeb = false,
@@ -219,19 +213,23 @@ router.post(
         });
       }
 
-      // Valider le mode
-      const validModes: AgentMode[] = ["ask", "search", "create-quick", "create-deep"];
-      if (!validModes.includes(mode)) {
+      // Valider le mode via type guard
+      if (!isAgentMode(mode)) {
         return res.status(400).json({
           error: "VALIDATION_ERROR",
-          message: `Mode invalide. Valeurs acceptées: ${validModes.join(", ")}`,
+          message: 'Mode invalide. Valeurs acceptées: "fast", "deep"',
         });
       }
+
+      // Auto-detect intent from last user message
+      const lastUserMessage = extractLastUserMessage(messages);
+      const intent = detectIntent(lastUserMessage);
 
       logger.log(`🤖 [AGENT-CHAT] Requête reçue:`, {
         userId,
         workspaceId,
         mode,
+        intent,
         useWeb,
         messagesCount: messages.length,
         ragSourcesCount: ragSources?.length || 0,
@@ -282,11 +280,12 @@ router.post(
       // Convertir UIMessage[] (format frontend) vers ModelMessage[] (format AI SDK)
       const modelMessages = await convertToModelMessages(messages as UIMessage[]);
 
-      // Exécuter l'agent Pennote
+      // Exécuter l'agent Pennote avec mode × intent
       const result = await runPennoteAgent(
         {
           messages: modelMessages,
-          mode: mode as AgentMode,
+          mode,
+          intent,
           userId,
           workspaceId,
           useWeb,
@@ -427,7 +426,7 @@ router.post(
 
       const {
         messages,
-        mode = "ask",
+        mode = "fast",
         workspaceId,
         useWeb = false,
         ragSources,
@@ -443,10 +442,22 @@ router.post(
         });
       }
 
+      if (!isAgentMode(mode)) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          message: 'Mode invalide. Valeurs acceptées: "fast", "deep"',
+        });
+      }
+
+      // Auto-detect intent
+      const simpleLastMsg = extractLastUserMessage(messages);
+      const simpleIntent = detectIntent(simpleLastMsg);
+
       logger.log(`🤖 [AGENT-SIMPLE] Requête:`, {
         userId,
         workspaceId,
         mode,
+        intent: simpleIntent,
         messagesCount: messages.length,
       });
 
@@ -458,7 +469,8 @@ router.post(
 
       const result = await runPennoteAgentSimple({
         messages: modelMessages,
-        mode: mode as AgentMode,
+        mode,
+        intent: simpleIntent,
         userId,
         workspaceId,
         useWeb,
@@ -500,7 +512,7 @@ router.post(
 /**
  * POST /api/agent/workflow
  *
- * Endpoint pour les workflows avancés (search, create-deep, create-quick).
+ * Endpoint pour les workflows (deep research, content creation).
  * Utilise le système de workflow avec:
  * - Recherche parallèle (RAG, Web, Wikipedia, Workspace)
  * - Boucle d'évaluation et amélioration
@@ -535,7 +547,7 @@ router.post(
         });
       }
 
-      const validWorkflowModes = ["search", "create-quick", "create-deep"];
+      const validWorkflowModes: AgentMode[] = ["fast", "deep"];
       if (!validWorkflowModes.includes(mode)) {
         return res.status(400).json({
           error: "VALIDATION_ERROR",
@@ -543,10 +555,14 @@ router.post(
         });
       }
 
+      // Auto-detect intent from prompt, or use explicit intent from body
+      const workflowIntent = req.body.intent || detectIntent(prompt);
+
       logger.log(`🚀 [WORKFLOW] Démarrage:`, {
         userId,
         workspaceId,
         mode,
+        intent: workflowIntent,
         promptLength: prompt.length,
         ragSourcesCount: ragSources?.length || 0,
       });
@@ -567,13 +583,12 @@ router.post(
         });
       }
 
-      // Exécuter le workflow selon le mode
+      // Exécuter le workflow selon le mode × intent
+      const { createPage: shouldCreatePage } = req.body;
       let result: WorkflowResult;
 
-      if (mode === "search") {
-        // Workflow de recherche approfondie (même workflow que create-deep mais sans page auto)
-        const { createPage: shouldCreatePage } = req.body;
-
+      if (mode === "deep" && workflowIntent === "conversation") {
+        // Deep research workflow (was "search" mode)
         result = await runDeepResearchWorkflow(
           prompt,
           {
@@ -585,7 +600,6 @@ router.post(
           { createPage: shouldCreatePage === true },
         );
 
-        // Enregistrer l'usage
         await AIQuotaManager.recordUsage(
           MODELS.AGENT_THINKING,
           estimatedTokens,
@@ -608,12 +622,12 @@ router.post(
         });
       }
 
-      if (mode === "create-quick") {
-        // Workflow de création rapide
+      if (mode === "fast" && workflowIntent === "creation") {
+        // Quick content workflow (was "create-quick" mode)
         result = await runQuickContentWorkflow(
           {
             messages: [],
-            mode: "create-quick",
+            mode: "fast",
             userId,
             workspaceId,
             ragSources,
@@ -640,12 +654,12 @@ router.post(
         });
       }
 
-      if (mode === "create-deep") {
-        // Workflow de création approfondie avec recherche et évaluation
+      if (mode === "deep" && workflowIntent === "creation") {
+        // Deep content workflow (was "create-deep" mode)
         result = await runDeepContentWorkflow(
           {
             messages: [],
-            mode: "create-deep",
+            mode: "deep",
             userId,
             workspaceId,
             ragSources,
@@ -677,7 +691,7 @@ router.post(
         });
       }
 
-      return res.status(400).json({ error: "Mode non supporté" });
+      return res.status(400).json({ error: "Combinaison mode/intent non supportée" });
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error("❌ [WORKFLOW] Erreur:", error);
@@ -707,36 +721,22 @@ router.post(
  *
  * Retourne les modes disponibles et leur configuration.
  */
-router.get("/modes", (req: Request, res: Response) => {
+router.get("/modes", (_req: Request, res: Response) => {
   res.json({
     modes: [
       {
-        id: "ask",
-        name: "Répondre",
-        description: "Questions simples avec RAG",
+        id: "fast",
+        name: "Fast",
+        description: "Réponses rapides avec RAG",
         credits: 1,
         maxSteps: 10,
       },
       {
-        id: "search",
-        name: "Rechercher",
-        description: "Recherche approfondie avec web",
-        credits: 2,
+        id: "deep",
+        name: "Deep",
+        description: "Recherche approfondie et contenu détaillé",
+        credits: 3,
         maxSteps: 25,
-      },
-      {
-        id: "create-quick",
-        name: "Créer (rapide)",
-        description: "Génération rapide de contenu",
-        credits: 1,
-        maxSteps: 10,
-      },
-      {
-        id: "create-deep",
-        name: "Créer (approfondi)",
-        description: "Génération complète avec recherche",
-        credits: 2,
-        maxSteps: 30,
       },
     ],
   });
