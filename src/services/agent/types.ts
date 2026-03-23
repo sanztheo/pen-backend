@@ -19,7 +19,7 @@ export const MODE_CONFIG = {
     maxSteps: 10,
     maxTokens: 4096,
     description: "Questions simples avec RAG",
-    thinking: "minimal" as ThinkingLevel,
+    thinking: "low" as ThinkingLevel,
   },
   search: {
     maxSteps: 25,
