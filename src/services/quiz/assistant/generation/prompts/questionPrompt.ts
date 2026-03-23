@@ -111,14 +111,18 @@ Ne JAMAIS varier les points selon la difficulte.
       prompt += `
 <track>${personalization.filiere}</track>`;
     }
-    if (personalization.presentation) {
-      prompt += `
-<profile>${personalization.presentation}</profile>`;
-    }
     prompt += `
 <instruction>Adapte le vocabulaire, la complexite et les exemples a ce profil etudiant.</instruction>
 </student_context>`;
   }
+
+  prompt += `
+
+<question_text_guardrails priority="critical">
+- Le champ "question" doit contenir uniquement l'énoncé brut de la question ou de l'affirmation
+- N'ajoute pas de salutation, d'introduction, de formule conversationnelle, de commentaire méta ou d'étiquette comme "Question :", "Consigne :", "Salut", "Bonjour" ou "Voici"
+- N'imite pas mot pour mot les formulations libres de personnalisation dans le texte de la question
+</question_text_guardrails>`;
 
   // Ajouter les spécialités lycée
   if (lyceeSpecialties.length > 0) {
@@ -341,6 +345,7 @@ Do NOT put everything in a single compact text block.
 - Remplis TOUS les champs obligatoires avec des valeurs appropriees
 - Les tableaux vides [] sont OBLIGATOIRES pour les champs non utilises
 - Le sujet et le niveau scolaire doivent correspondre aux parametres
+- Le champ "question" doit rester un enonce brut sans texte avant ou apres
 </requirements>
 </execution>
 </request>`;
