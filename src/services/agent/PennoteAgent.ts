@@ -10,6 +10,7 @@ import { logger } from "../../utils/logger.js";
 import { MODELS } from "../../config/models.js";
 import { getProviderInstance } from "../../config/providers.js";
 import { getModelProvider } from "../../config/models/helpers.js";
+import { isCircuitOpen, recordSuccess, recordFailure } from "../../lib/circuitBreaker.js";
 
 // Types et configuration
 import {
@@ -19,12 +20,17 @@ import {
   type IntentType,
   type ThinkingLevel,
 } from "./types.js";
+import { resolveAgentToolPolicy } from "./toolPolicy.js";
 
 // System prompts
 import { buildSystemPrompt } from "./systemPrompts.js";
 
 // Re-export types
 export type { AgentMode, IntentType, AgentRequest, AgentStreamCallbacks } from "./types.js";
+
+// ── Circuit breaker key ──────────────────────────────────────────────────────
+
+const CIRCUIT_KEY_PRIMARY = "ai-provider-primary";
 
 // ── Provider-specific thinking config ────────────────────────────────────────
 
@@ -37,18 +43,84 @@ function resolveModelForThinking(_thinking: ThinkingLevel): string {
   return MODELS.AGENT_PRIMARY;
 }
 
+interface ResolvedProvider {
+  modelName: string;
+  providerInstance: NonNullable<ReturnType<typeof getProviderInstance>>;
+  providerName: string;
+  usingFallback: boolean;
+}
+
+/**
+ * Resolve provider with circuit breaker failover.
+ * If primary circuit is open, switch to AGENT_FALLBACK model.
+ */
+function resolveProviderWithFailover(thinking: ThinkingLevel): ResolvedProvider {
+  const primaryModel = resolveModelForThinking(thinking);
+  const primaryProvider = getModelProvider(primaryModel) || "unknown";
+
+  // Check circuit breaker — if primary is healthy, use it
+  if (!isCircuitOpen(CIRCUIT_KEY_PRIMARY)) {
+    const instance = getProviderInstance(primaryModel);
+    if (instance) {
+      return {
+        modelName: primaryModel,
+        providerInstance: instance,
+        providerName: primaryProvider,
+        usingFallback: false,
+      };
+    }
+  }
+
+  // Primary unavailable or circuit open — try fallback
+  const fallbackModel = MODELS.AGENT_FALLBACK;
+  const fallbackProvider = getModelProvider(fallbackModel) || "unknown";
+  const fallbackInstance = getProviderInstance(fallbackModel);
+
+  if (fallbackInstance) {
+    logger.log(
+      `[PennoteAgent] Failover: ${primaryProvider}/${primaryModel} → ${fallbackProvider}/${fallbackModel}`,
+    );
+    return {
+      modelName: fallbackModel,
+      providerInstance: fallbackInstance,
+      providerName: fallbackProvider,
+      usingFallback: true,
+    };
+  }
+
+  // Last resort: try primary even if circuit is open (better than crashing)
+  const lastResort = getProviderInstance(primaryModel);
+  if (lastResort) {
+    logger.log(`[PennoteAgent] Fallback unavailable, forcing primary despite open circuit`);
+    return {
+      modelName: primaryModel,
+      providerInstance: lastResort,
+      providerName: primaryProvider,
+      usingFallback: false,
+    };
+  }
+
+  throw new Error(
+    `[PennoteAgent] No AI provider available. Primary "${primaryProvider}" and fallback "${fallbackProvider}" both unconfigured.`,
+  );
+}
+
 /**
  * Construit les providerOptions spécifiques au provider pour le thinking.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildProviderOptions(modelId: string, thinking: ThinkingLevel): any {
+function buildProviderOptions(
+  modelId: string,
+  thinking: ThinkingLevel,
+  enableNativeWebSearch: boolean,
+): any {
   const provider = getModelProvider(modelId);
 
   if (provider === "google") {
     return {
       google: {
         thinkingConfig: { thinkingLevel: thinking, includeThoughts: true },
-        useSearchGrounding: true,
+        useSearchGrounding: enableNativeWebSearch,
       },
     };
   }
@@ -92,16 +164,9 @@ export function runPennoteAgent(
 
   const { maxSteps, maxTokens, thinking } = MODE_CONFIG[mode];
 
-  // Resolve model + provider before building tools (needed to decide which tools to include)
-  const modelName = resolveModelForThinking(thinking);
-  const providerInstance = getProviderInstance(modelName);
-  const providerName = getModelProvider(modelName) || "unknown";
-
-  if (!providerInstance) {
-    throw new Error(
-      `[PennoteAgent] Provider "${providerName}" not configured for model "${modelName}". Check API key.`,
-    );
-  }
+  // Resolve model + provider with circuit breaker failover
+  const { modelName, providerInstance, providerName, usingFallback } =
+    resolveProviderWithFailover(thinking);
 
   // Shared context for all tools
   const toolContext = { userId, workspaceId };
@@ -114,41 +179,50 @@ export function runPennoteAgent(
   const pageTools = createPageTools(toolContext);
   const wikipediaTools = createWikipediaTools(toolContextWithLang);
   const quizTools = createQuizTools(toolContext);
+  const toolPolicy = resolveAgentToolPolicy({
+    intent,
+    useWeb,
+    ragSources,
+    providerName,
+  });
 
-  // Google providers use native Search Grounding (useSearchGrounding in providerOptions)
-  // so searchWeb tool is excluded — the model searches Google natively.
-  // Other providers keep searchWeb as a tool (OpenAI Responses API fallback).
-  const isGoogleProvider = providerName === "google";
   const tools = {
     ...ragTools,
     ...workspaceTools,
-    ...(!isGoogleProvider
-      ? webTools
-      : {
+    ...(toolPolicy.exposeGeneralWebSearch ? { searchWeb: webTools.searchWeb } : {}),
+    ...(toolPolicy.exposeWikipediaLookupTools
+      ? {
           searchWikipedia: webTools.searchWikipedia,
           getWikipediaArticle: webTools.getWikipediaArticle,
-        }),
-    ...pageTools,
-    ...wikipediaTools,
+        }
+      : {}),
+    ...(toolPolicy.exposePageTools ? pageTools : {}),
+    ...(toolPolicy.exposeWikipediaRagTools ? wikipediaTools : {}),
     ...quizTools,
   } satisfies ToolSet;
 
-  // System prompt — pass hasNativeWebSearch so the prompt doesn't mention searchWeb for Google
+  // System prompt — reflect actual tool surface for this request
   const systemPrompt = buildSystemPrompt(mode, intent, {
     workspaceId,
     ragSources,
     personalization,
     conversationHistory,
-    hasNativeWebSearch: isGoogleProvider,
+    hasNativeWebSearch: toolPolicy.hasNativeWebSearch,
+    webKnowledgeEnabled:
+      toolPolicy.exposeGeneralWebSearch ||
+      toolPolicy.exposeWikipediaLookupTools ||
+      toolPolicy.exposeWikipediaRagTools ||
+      toolPolicy.hasNativeWebSearch,
   });
 
   const model = providerInstance(modelName);
-  const providerOptions = buildProviderOptions(modelName, thinking);
+  const providerOptions = buildProviderOptions(modelName, thinking, toolPolicy.hasNativeWebSearch);
 
   logger.log(`🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`);
   logger.log(`🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`);
+  logger.log(`🤖 [PennoteAgent] Tool policy: ${JSON.stringify(toolPolicy)}`);
   logger.log(
-    `🤖 [PennoteAgent] Provider: ${providerName}, Model: ${modelName}, Thinking: ${thinking}`,
+    `🤖 [PennoteAgent] Provider: ${providerName}, Model: ${modelName}, Thinking: ${thinking}${usingFallback ? " (FALLBACK)" : ""}`,
   );
 
   let stepNumber = 0;
@@ -163,8 +237,17 @@ export function runPennoteAgent(
     toolChoice: "auto",
     providerOptions,
 
-    // Callback global à la fin du stream
+    // Callback global à la fin du stream — circuit breaker tracking
     onFinish: ({ text, finishReason, usage, reasoning, sources }) => {
+      // Track circuit breaker state (only for primary provider)
+      if (!usingFallback) {
+        if (finishReason === "error" || finishReason === "other") {
+          recordFailure(CIRCUIT_KEY_PRIMARY);
+        } else {
+          recordSuccess(CIRCUIT_KEY_PRIMARY);
+        }
+      }
+
       logger.log(`🏁 [PennoteAgent] Stream terminé:`, {
         finishReason,
         hasText: !!text,
@@ -180,6 +263,8 @@ export function runPennoteAgent(
     // Callback à chaque étape terminée
     onStepFinish: ({ text, toolCalls, toolResults, finishReason, usage, reasoning }) => {
       stepNumber++;
+      const safeToolCalls = toolCalls.filter((toolCall) => toolCall !== undefined);
+      const safeToolResults = toolResults.filter((toolResult) => toolResult !== undefined);
 
       // Debug: afficher le format exact du reasoning
       let reasoningDebug = "(vide)";
@@ -195,7 +280,7 @@ export function runPennoteAgent(
 
       logger.log(`📍 [PennoteAgent] Step ${stepNumber} terminé:`, {
         finishReason,
-        toolCalls: toolCalls.length,
+        toolCalls: safeToolCalls.length,
         hasText: !!text,
         textLength: text?.length || 0,
         textPreview: text?.slice(0, 200) || "(vide)",
@@ -212,7 +297,7 @@ export function runPennoteAgent(
       if (callbacks?.onStepFinish) {
         callbacks.onStepFinish({
           stepNumber,
-          toolCalls: toolCalls.map((tc) => ({
+          toolCalls: safeToolCalls.map((tc) => ({
             toolName: tc.toolName,
             args: tc.input,
           })),
@@ -221,13 +306,13 @@ export function runPennoteAgent(
       }
 
       // Log des tool calls pour debug
-      for (const tc of toolCalls) {
+      for (const tc of safeToolCalls) {
         logger.log(`  🔧 Tool: ${tc.toolName}`, tc.input);
         callbacks?.onToolCall?.(tc.toolName, tc.input);
       }
 
       // Log des résultats
-      for (const tr of toolResults) {
+      for (const tr of safeToolResults) {
         const output = tr.output;
         const preview =
           typeof output === "string" ? output.slice(0, 100) : JSON.stringify(output).slice(0, 100);
