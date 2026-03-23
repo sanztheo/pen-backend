@@ -455,7 +455,7 @@ Please rewrite the content addressing all feedback points. Make it more comprehe
 // ============================================================================
 
 /**
- * Deep Research Workflow for "search" mode
+ * Deep Research Workflow — used for deep+conversation
  *
  * 1. Parallel search across all sources
  * 2. Synthesize results
@@ -631,7 +631,7 @@ Create a complete, detailed document covering all aspects of the research.`,
 }
 
 /**
- * Deep Content Creation Workflow for "create-deep" mode
+ * Deep Content Creation Workflow — used for deep+creation
  *
  * 1. Research phase (parallel searches)
  * 2. Content planning
@@ -694,7 +694,7 @@ Format as a structured outline.`,
     providerOptions: {
       google: { thinkingConfig: { thinkingLevel: "high" } },
     },
-    system: buildSystemPrompt("create-deep", {
+    system: buildSystemPrompt("deep", "creation", {
       workspaceId: ctx.workspaceId,
       ragSources: ctx.ragSources,
       personalization: ctx.personalization,
@@ -787,7 +787,7 @@ IMPORTANT:
 }
 
 /**
- * Quick Content Creation Workflow for "create-quick" mode
+ * Quick Content Creation Workflow — used for fast+creation
  *
  * Simplified workflow without evaluation loop
  */
@@ -842,7 +842,7 @@ export async function runQuickContentWorkflow(
     providerOptions: {
       google: { thinkingConfig: { thinkingLevel: "low" } },
     },
-    system: buildSystemPrompt("create-quick", {
+    system: buildSystemPrompt("fast", "creation", {
       workspaceId: ctx.workspaceId,
       ragSources: ctx.ragSources,
       personalization: ctx.personalization,

@@ -16,6 +16,7 @@ import {
   MODE_CONFIG,
   type AgentRequest,
   type AgentStreamCallbacks,
+  type IntentType,
   type ThinkingLevel,
 } from "./types.js";
 
@@ -23,7 +24,7 @@ import {
 import { buildSystemPrompt } from "./systemPrompts.js";
 
 // Re-export types
-export type { AgentMode, AgentRequest, AgentStreamCallbacks } from "./types.js";
+export type { AgentMode, IntentType, AgentRequest, AgentStreamCallbacks } from "./types.js";
 
 // ── Provider-specific thinking config ────────────────────────────────────────
 
@@ -47,6 +48,7 @@ function buildProviderOptions(modelId: string, thinking: ThinkingLevel): any {
     return {
       google: {
         thinkingConfig: { thinkingLevel: thinking, includeThoughts: true },
+        useSearchGrounding: true,
       },
     };
   }
@@ -79,6 +81,7 @@ export function runPennoteAgent(
   const {
     messages,
     mode,
+    intent = "conversation" as IntentType,
     userId,
     workspaceId,
     useWeb = false,
@@ -87,40 +90,9 @@ export function runPennoteAgent(
     personalization,
   } = request;
 
-  const { maxSteps, maxTokens } = MODE_CONFIG[mode];
+  const { maxSteps, maxTokens, thinking } = MODE_CONFIG[mode];
 
-  // Contexte partagé avec tous les tools
-  const toolContext = { userId, workspaceId };
-
-  // Créer les tools avec le contexte
-  const ragTools = createRagTools(toolContext);
-  const workspaceTools = createWorkspaceTools(toolContext);
-  const webTools = createWebTools(toolContext);
-  const pageTools = createPageTools(toolContext);
-  const wikipediaTools = createWikipediaTools(toolContext);
-  const quizTools = createQuizTools(toolContext);
-
-  // 🧠 AGENT INTELLIGENT: Tous les outils sont disponibles pour tous les modes
-  // La différence entre modes est dans maxSteps et le system prompt qui guide l'intensité
-  const tools = {
-    ...ragTools,
-    ...workspaceTools,
-    ...webTools,
-    ...pageTools,
-    ...wikipediaTools,
-    ...quizTools,
-  } satisfies ToolSet;
-
-  // System prompt
-  const systemPrompt = buildSystemPrompt(mode, {
-    workspaceId,
-    ragSources,
-    personalization,
-    conversationHistory,
-  });
-
-  // Résoudre modèle + provider dynamiquement selon le thinking level
-  const { thinking } = MODE_CONFIG[mode];
+  // Resolve model + provider before building tools (needed to decide which tools to include)
   const modelName = resolveModelForThinking(thinking);
   const providerInstance = getProviderInstance(modelName);
   const providerName = getModelProvider(modelName) || "unknown";
@@ -130,6 +102,45 @@ export function runPennoteAgent(
       `[PennoteAgent] Provider "${providerName}" not configured for model "${modelName}". Check API key.`,
     );
   }
+
+  // Shared context for all tools
+  const toolContext = { userId, workspaceId };
+  const toolContextWithLang = { userId, workspaceId, language: personalization?.language };
+
+  // Create tools with context
+  const ragTools = createRagTools(toolContext);
+  const workspaceTools = createWorkspaceTools(toolContext);
+  const webTools = createWebTools(toolContextWithLang);
+  const pageTools = createPageTools(toolContext);
+  const wikipediaTools = createWikipediaTools(toolContextWithLang);
+  const quizTools = createQuizTools(toolContext);
+
+  // Google providers use native Search Grounding (useSearchGrounding in providerOptions)
+  // so searchWeb tool is excluded — the model searches Google natively.
+  // Other providers keep searchWeb as a tool (OpenAI Responses API fallback).
+  const isGoogleProvider = providerName === "google";
+  const tools = {
+    ...ragTools,
+    ...workspaceTools,
+    ...(!isGoogleProvider
+      ? webTools
+      : {
+          searchWikipedia: webTools.searchWikipedia,
+          getWikipediaArticle: webTools.getWikipediaArticle,
+        }),
+    ...pageTools,
+    ...wikipediaTools,
+    ...quizTools,
+  } satisfies ToolSet;
+
+  // System prompt — pass hasNativeWebSearch so the prompt doesn't mention searchWeb for Google
+  const systemPrompt = buildSystemPrompt(mode, intent, {
+    workspaceId,
+    ragSources,
+    personalization,
+    conversationHistory,
+    hasNativeWebSearch: isGoogleProvider,
+  });
 
   const model = providerInstance(modelName);
   const providerOptions = buildProviderOptions(modelName, thinking);

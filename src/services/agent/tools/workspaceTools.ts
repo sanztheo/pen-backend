@@ -6,7 +6,7 @@ import { prisma } from "../../../lib/prisma.js";
 import { logger } from "../../../utils/logger.js";
 
 /**
- * Context utilisateur injecté via closure
+ * User context injected via closure
  */
 interface WorkspaceToolsContext {
   userId: string;
@@ -53,34 +53,28 @@ interface BlockNoteBlock {
   children?: BlockNoteBlock[];
 }
 
-// Définition des schémas Zod pour chaque tool
 const listWorkspacePagesSchema = z.object({
-  projectId: z.string().optional().describe("Filtrer par projet spécifique"),
-  limit: z.number().min(1).max(100).optional().default(20).describe("Nombre max de pages"),
-  search: z.string().optional().describe("Recherche dans les titres"),
-  includeArchived: z.boolean().optional().default(false).describe("Inclure les pages archivées"),
+  projectId: z.string().optional().describe("Filter by specific project"),
+  limit: z.number().min(1).max(100).optional().default(20).describe("Maximum number of pages"),
+  search: z.string().optional().describe("Search in page titles"),
+  includeArchived: z.boolean().optional().default(false).describe("Include archived pages"),
 });
 
 const readWorkspacePageSchema = z.object({
-  pageId: z.string().describe("ID de la page à lire"),
+  pageId: z.string().describe("ID of the page to read"),
 });
 
 const listWorkspaceProjectsSchema = z.object({
-  limit: z.number().min(1).max(50).optional().default(20).describe("Nombre max de projets"),
+  limit: z.number().min(1).max(50).optional().default(20).describe("Maximum number of projects"),
 });
 
 /**
- * Crée les tools Workspace avec le contexte utilisateur
+ * Creates Workspace tools with user context
  */
 export function createWorkspaceTools(ctx: WorkspaceToolsContext) {
   return {
-    /**
-     * Liste les pages du workspace
-     */
     listWorkspacePages: tool({
-      description: `Liste les pages disponibles dans le workspace de l'utilisateur.
-Retourne les titres, IDs, et métadonnées des pages.
-Utile pour savoir quelles pages peuvent être référencées ou lues.`,
+      description: `Lists pages available in the user's workspace. Use this tool to discover which pages can be referenced or read. Returns titles, IDs, and metadata. Useful before using readWorkspacePage to find the right page ID.`,
       inputSchema: listWorkspacePagesSchema,
       execute: async ({ projectId, limit, search, includeArchived }) => {
         logger.log(
@@ -121,13 +115,13 @@ Utile pour savoir quelles pages peuvent être référencées ou lues.`,
             take: limit,
           });
 
-          logger.log(`✅ [TOOL:listWorkspacePages] ${pages.length} pages trouvées`);
+          logger.log(`✅ [TOOL:listWorkspacePages] ${pages.length} pages found`);
 
           return {
             count: pages.length,
             pages: pages.map((p) => ({
               id: p.id,
-              title: p.title || "Sans titre",
+              title: p.title || "Untitled",
               slug: p.slug,
               projectId: p.projectId,
               projectName: p.project?.name,
@@ -135,9 +129,9 @@ Utile pour savoir quelles pages peuvent être référencées ou lues.`,
             })),
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:listWorkspacePages] Erreur:`, error);
+          logger.error(`❌ [TOOL:listWorkspacePages] Error:`, error);
           return {
-            error: "Erreur lors de la récupération des pages",
+            error: "Failed to retrieve workspace pages. Try again.",
             count: 0,
             pages: [],
           };
@@ -145,13 +139,8 @@ Utile pour savoir quelles pages peuvent être référencées ou lues.`,
       },
     }),
 
-    /**
-     * Lit le contenu d'une page workspace
-     */
     readWorkspacePage: tool({
-      description: `Lit le contenu complet d'une page du workspace.
-Retourne le titre, le contenu en texte brut, et les métadonnées.
-Le contenu BlockNote est converti en texte lisible.`,
+      description: `Reads the full content of a workspace page. Use this tool when you need to reference or analyze the content of a specific page. BlockNote content is converted to readable plain text. Use listWorkspacePages first to find the page ID.`,
       inputSchema: readWorkspacePageSchema,
       execute: async ({ pageId }) => {
         logger.log(`🔍 [TOOL:readWorkspacePage] pageId=${pageId}`);
@@ -180,12 +169,11 @@ Le contenu BlockNote est converti en texte lisible.`,
 
           if (!page) {
             return {
-              error: "Page non trouvée ou non accessible",
+              error: "Page not found or not accessible. Verify the pageId with listWorkspacePages.",
               content: null,
             };
           }
 
-          // Extraire le texte du contenu BlockNote
           let textContent = "";
           try {
             if (page.blockNoteContent) {
@@ -199,17 +187,17 @@ Le contenu BlockNote est converti en texte lisible.`,
               }
             }
           } catch (e) {
-            logger.warn(`⚠️ [TOOL:readWorkspacePage] Erreur extraction BlockNote:`, e);
+            logger.warn(`⚠️ [TOOL:readWorkspacePage] BlockNote extraction error:`, e);
           }
 
           logger.log(
-            `✅ [TOOL:readWorkspacePage] Page "${page.title}" lue (${textContent.length} chars)`,
+            `✅ [TOOL:readWorkspacePage] Page "${page.title}" read (${textContent.length} chars)`,
           );
 
           return {
             id: page.id,
-            title: page.title || "Sans titre",
-            content: textContent || "(Page vide)",
+            title: page.title || "Untitled",
+            content: textContent || "(Empty page)",
             contentLength: textContent.length,
             projectId: page.project?.id,
             projectName: page.project?.name,
@@ -217,21 +205,17 @@ Le contenu BlockNote est converti en texte lisible.`,
             updatedAt: page.updatedAt.toISOString(),
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:readWorkspacePage] Erreur:`, error);
+          logger.error(`❌ [TOOL:readWorkspacePage] Error:`, error);
           return {
-            error: "Erreur lors de la lecture de la page",
+            error: "Failed to read page. Verify the pageId with listWorkspacePages.",
             content: null,
           };
         }
       },
     }),
 
-    /**
-     * Liste les projets du workspace
-     */
     listWorkspaceProjects: tool({
-      description: `Liste les projets (dossiers) du workspace.
-Retourne les noms, IDs, et nombre de pages par projet.`,
+      description: `Lists projects (folders) in the workspace. Use this tool to discover the workspace structure and find project IDs for filtering pages with listWorkspacePages. Returns project names, IDs, and page counts.`,
       inputSchema: listWorkspaceProjectsSchema,
       execute: async ({ limit }) => {
         logger.log(`🔍 [TOOL:listWorkspaceProjects] workspaceId=${ctx.workspaceId}`);
@@ -253,7 +237,7 @@ Retourne les noms, IDs, et nombre de pages par projet.`,
             take: limit,
           });
 
-          logger.log(`✅ [TOOL:listWorkspaceProjects] ${projects.length} projets trouvés`);
+          logger.log(`✅ [TOOL:listWorkspaceProjects] ${projects.length} projects found`);
 
           return {
             count: projects.length,
@@ -264,9 +248,9 @@ Retourne les noms, IDs, et nombre de pages par projet.`,
             })),
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:listWorkspaceProjects] Erreur:`, error);
+          logger.error(`❌ [TOOL:listWorkspaceProjects] Error:`, error);
           return {
-            error: "Erreur lors de la récupération des projets",
+            error: "Failed to retrieve workspace projects. Try again.",
             count: 0,
             projects: [],
           };
@@ -277,7 +261,7 @@ Retourne les noms, IDs, et nombre de pages par projet.`,
 }
 
 /**
- * Extrait le texte brut depuis un contenu BlockNote
+ * Extracts plain text from BlockNote content
  */
 function extractTextFromBlockNote(blocks: BlockNoteBlock[]): string {
   const textParts: string[] = [];
@@ -285,7 +269,6 @@ function extractTextFromBlockNote(blocks: BlockNoteBlock[]): string {
   for (const block of blocks) {
     if (!block) continue;
 
-    // Extraire le texte des différents types de blocs
     switch (block.type) {
       case "paragraph":
       case "heading":
@@ -299,7 +282,6 @@ function extractTextFromBlockNote(blocks: BlockNoteBlock[]): string {
             .filter(Boolean)
             .join("");
           if (blockText) {
-            // Ajouter le niveau de heading si applicable
             if (block.type === "heading" && block.props?.level) {
               textParts.push("#".repeat(block.props.level) + " " + blockText);
             } else if (block.type === "bulletListItem") {
@@ -327,8 +309,7 @@ function extractTextFromBlockNote(blocks: BlockNoteBlock[]): string {
         }
         break;
 
-      case "table":
-        // Extraction basique des tables
+      case "table": {
         const tableContent = block.content as BlockNoteTableContent | undefined;
         if (tableContent?.rows) {
           for (const row of tableContent.rows) {
@@ -344,6 +325,7 @@ function extractTextFromBlockNote(blocks: BlockNoteBlock[]): string {
           }
         }
         break;
+      }
 
       case "image":
         if (block.props?.caption) {
@@ -352,7 +334,6 @@ function extractTextFromBlockNote(blocks: BlockNoteBlock[]): string {
         break;
     }
 
-    // Traiter les blocs enfants récursivement
     if (block.children && Array.isArray(block.children) && block.children.length > 0) {
       const childText = extractTextFromBlockNote(block.children);
       if (childText) {
