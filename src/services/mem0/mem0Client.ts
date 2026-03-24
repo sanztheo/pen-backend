@@ -19,7 +19,7 @@ import { logger } from "../../utils/logger.js";
 
 const MEM0_BASE_URL = "https://api.mem0.ai/v1";
 const MEM0_SEARCH_URL = "https://api.mem0.ai/v2/memories/search/";
-const MEM0_TIMEOUT_MS = 5_000;
+const MEM0_TIMEOUT_MS = 10_000;
 
 /**
  * Custom extraction instructions — tells Mem0's internal LLM to be more
