@@ -6,8 +6,29 @@
 ## Ouvertes
 | # | Sévérité | Domaine | Fichier | Problème | Détecté le | Dernière mention |
 |---|----------|---------|---------|----------|------------|------------------|
-
-_Aucune issue ouverte._
+| #29 | **CRITIQUE** | Concurrence | `aiCreditsService.ts` | `refundCredits` read-then-write sans transaction — remboursements concurrents perdus ou gonflés | 2026-03-24 | 2026-03-24 |
+| #30 | **CRITIQUE** | Concurrence | `quizLimitsService.ts` | `deductAdvancedQuiz` read-then-write — bypass limite quiz/jour via burst parallèle | 2026-03-24 | 2026-03-24 |
+| #31 | **CRITIQUE** | Concurrence | `BetaCronService.ts` | `processWaitlist` sans verrou Redis NX — double promotion + double email en multi-instance | 2026-03-24 | 2026-03-24 |
+| #32 | HAUTE | Concurrence | `futuraRss.service.ts` | `lastAICallTime` TOCTOU sur état mutable partagé — rate limiter AI contourné sous concurrence | 2026-03-24 | 2026-03-24 |
+| #33 | HAUTE | Résilience | `workflows.ts` | Deep workflows hardcoded Google/Gemini — aucun failover si `GEMINI_API_KEY` absent | 2026-03-24 | 2026-03-24 |
+| #34 | HAUTE | Concurrence | `requireAICredits.ts` | Double lecture `canUseAI` + `deductCredits` — fenêtre race inutile + requête DB superflue | 2026-03-24 | 2026-03-24 |
+| #35 | HAUTE | Concurrence | `quizLimitsService.ts` | `canCreatePresetSequence` check/create non-atomique — double séquence possible via burst | 2026-03-24 | 2026-03-24 |
+| #36 | HAUTE | Concurrence | `aiCreditsService.ts` | `resetMonthlyCredits` read-then-write legacy — idempotent mais non protégé | 2026-03-24 | 2026-03-24 |
+| #37 | MOYENNE | Concurrence | `futuraRss.service.ts` | `getWeeklyArticle` findFirst+create sans transaction — doublons article possible | 2026-03-24 | 2026-03-24 |
+| #38 | MOYENNE | Concurrence | `circuitBreaker.ts` | HALF_OPEN laisse passer tous les callers concurrents au lieu d'un seul probe | 2026-03-24 | 2026-03-24 |
+| #39 | MOYENNE | Sécurité | `waitlistController.ts` | `TURNSTILE_SECRET` module-level const — fail-open si env var absente, rotation requiert restart | 2026-03-24 | 2026-03-24 |
+| #40 | MOYENNE | Fiabilité | `EmailService.ts` | Queue email en mémoire — emails perdus si crash, non partagée multi-instance | 2026-03-24 | 2026-03-24 |
+| #41 | MOYENNE | Sécurité | `routes/agent.ts` | `prompt` sans limite de longueur sur `/workflow` — quota bypass via prompt géant | 2026-03-24 | 2026-03-24 |
+| #42 | MOYENNE | Concurrence | `paddleWebhooks.ts` | Idempotence TOCTOU — findUnique+create au lieu de create-first avec catch P2002 | 2026-03-24 | 2026-03-24 |
+| #43 | MOYENNE | Concurrence | `BetaCronService.ts` | Spread metadata sans relecture dans seeding — écrasement si lock TTL expire | 2026-03-24 | 2026-03-24 |
+| #44 | BASSE | Fiabilité | `EmailService.ts` | Queue overflow drop silencieux avec retour success au caller | 2026-03-24 | 2026-03-24 |
+| #45 | BASSE | Qualité | `EmailService.ts` | `RESEND_FROM_EMAIL \|\| default` viole la règle env vars du projet | 2026-03-24 | 2026-03-24 |
+| #46 | BASSE | Validation | `futuraRss.service.ts` | RSS `link` stocké sans validation format URL | 2026-03-24 | 2026-03-24 |
+| #47 | BASSE | Qualité | `futuraRss.service.ts` | Code mort `fetchFullArticleContent` (104-309) — maintenance burden | 2026-03-24 | 2026-03-24 |
+| #48 | BASSE | Qualité | `timeout.ts` | Handle `setTimeout` non cleared quand la promise wrapped résout en premier | 2026-03-24 | 2026-03-24 |
+| #49 | BASSE | Fiabilité | `progressService.ts` | Singleton WebSocket en mémoire — invisible en multi-pod | 2026-03-24 | 2026-03-24 |
+| #50 | BASSE | Concurrence | `mem0Client.ts` | Double `addMemories` concurrent possible — déduplication dépend de Mem0 externe | 2026-03-24 | 2026-03-24 |
+| #51 | BASSE | Concurrence | `cronJobs.ts` | Crons reset mensuel/quotidien sans lock Redis NX (idempotent mais charge DB inutile) | 2026-03-24 | 2026-03-24 |
 
 ## Fermées
 | # | Sévérité | Domaine | Fichier | Problème | Détecté | Fermé | Comment |
@@ -42,10 +63,10 @@ _Aucune issue ouverte._
 | F16 | MOYENNE | Scalabilité | `workspaceTools.ts` | `listWorkspacePages` sans `take` | 2026-03-22 | 2026-03-22 | Zod max 100 + `take: limit` |
 
 ## Statistiques
-- Total détectées : 28
+- Total détectées : 51
 - Total fermées : 28
-- Total ouvertes : 0
-- Taux de résolution : 100%
+- Total ouvertes : 23
+- Taux de résolution : 55%
 
 ## Historique Deep-Dives
 | Date | Domaine | Issues trouvées |
@@ -55,4 +76,5 @@ _Aucune issue ouverte._
 | 2026-03-21 | Revue quiz tools (quizTools.ts) | 4 |
 | 2026-03-22 | Revue sécurité & perf (admin, cron) | 10 |
 | 2026-03-23 | Résilience & Error Handling | 6 |
-| 2026-03-24 | **Fix global : 12 issues fermées (résilience, scalabilité, qualité)** | 0 |
+| 2026-03-24 (am) | Fix global : 12 issues fermées (résilience, scalabilité, qualité) | 0 |
+| 2026-03-24 (pm) | **Concurrence & Fiabilité** + revue 19 commits | 23 |
