@@ -1,7 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
-import { prismaEmbeddings } from "../../../lib/prismaEmbeddings.js";
+import { prismaEmbeddings, Prisma } from "../../../lib/prismaEmbeddings.js";
 import { wikipediaRAG, type WikipediaArticle } from "../../rag/wikipedia.js";
 import { ragSystem } from "../../rag/index.js";
 import { logger } from "../../../utils/logger.js";
