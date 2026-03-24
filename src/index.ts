@@ -57,6 +57,7 @@ import { logger } from "./utils/logger.js";
 import { initFuturaScheduler, stopFuturaScheduler } from "./lib/futuraScheduler.js";
 import { startAlertsCron, stopAlertsCron } from "./cron/alertsCron.js";
 import { startRetentionCron, stopRetentionCron } from "./cron/retentionCron.js";
+import { logMem0Status } from "./services/mem0/mem0Client.js";
 import { LRUCache } from "lru-cache";
 
 // 🛡️ RATE LIMITING IMPORTS
@@ -741,6 +742,9 @@ server.listen(PORT, async () => {
   logger.log(`🚀 Serveur Pen SaaS démarré sur le port ${PORT} en mode ${NODE_ENV}`);
   logger.log(`✨ VERSION: RATE-LIMITED-SECURE - ${new Date().toISOString()}`);
   logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+  // 🧠 Afficher le statut Mem0
+  logMem0Status();
 
   // 🛡️ Afficher la configuration du rate limiting
   logRateLimitConfig();

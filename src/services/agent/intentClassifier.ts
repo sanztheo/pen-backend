@@ -114,7 +114,11 @@ export function detectIntent(message: string): IntentType {
  * Handles both string content and structured content arrays.
  */
 export function extractLastUserMessage(
-  messages: Array<{ role: string; content: string | Array<{ type: string; text?: string }> }>,
+  messages: Array<{
+    role: string;
+    content?: string | Array<{ type: string; text?: string }>;
+    parts?: Array<{ type: string; text?: string }>;
+  }>,
 ): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -132,6 +136,17 @@ export function extractLastUserMessage(
         )
         .map((part) => part.text);
       return textParts.join(" ");
+    }
+
+    // AI SDK v6: UIMessage uses `parts` instead of `content`
+    if (Array.isArray(msg.parts)) {
+      const textParts = msg.parts
+        .filter(
+          (part): part is { type: string; text: string } =>
+            part.type === "text" && typeof part.text === "string",
+        )
+        .map((part) => part.text);
+      if (textParts.length > 0) return textParts.join(" ");
     }
   }
 
