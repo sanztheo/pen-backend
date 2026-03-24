@@ -146,7 +146,7 @@ export async function addMemories(
       return null;
     }
 
-    const result = await response.json();
+    const result = (await response.json()) as Mem0AddResponse[];
     logger.log(`[MEM0] Add response for user ${userId}:`, JSON.stringify(result));
     return result;
   } catch (error: unknown) {
