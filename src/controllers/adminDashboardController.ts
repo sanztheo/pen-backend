@@ -24,8 +24,13 @@ export class AdminDashboardController {
    * Check if current user is admin (used by frontend before loading dashboard)
    */
   static async checkAdminStatus(req: Request, res: Response): Promise<void> {
-    // requireAdmin middleware already verified isAdmin and attached it to req.user
-    res.status(200).json({ success: true, data: { isAdmin: req.user!.isAdmin ?? false } });
+    // This route uses authenticateToken only (no requireAdmin) — must check DB directly
+    const { prisma } = await import("../lib/prisma.js");
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.id },
+      select: { isAdmin: true },
+    });
+    res.status(200).json({ success: true, data: { isAdmin: user?.isAdmin ?? false } });
   }
 
   /**
