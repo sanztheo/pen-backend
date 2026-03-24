@@ -90,7 +90,74 @@ interface SendEmailParams {
   label: string;
 }
 
-async function sendEmail(params: SendEmailParams): Promise<void> {
+// ─── Global rate-limited email queue ────────────────────────
+// Resend limit: 5 req/s — we enforce 4/s with safety margin.
+// Every email in the app passes through this single queue,
+// eliminating burst issues from cron jobs, admin bulk actions, etc.
+const MAX_EMAILS_PER_SECOND = 4;
+const SLOT_INTERVAL_MS = Math.ceil(1_000 / MAX_EMAILS_PER_SECOND);
+const MAX_QUEUE_SIZE = 500;
+
+interface QueuedEmail {
+  params: SendEmailParams;
+  resolve: () => void;
+  reject: (err: unknown) => void;
+}
+
+const emailQueue: QueuedEmail[] = [];
+let queueProcessing = false;
+let lastSendTimestamp = 0;
+
+async function drainQueue(): Promise<void> {
+  if (queueProcessing) return;
+  queueProcessing = true;
+
+  try {
+    while (emailQueue.length > 0) {
+      const item = emailQueue.shift()!;
+
+      // Enforce minimum interval between sends
+      const elapsed = Date.now() - lastSendTimestamp;
+      if (elapsed < SLOT_INTERVAL_MS) {
+        await delay(SLOT_INTERVAL_MS - elapsed);
+      }
+
+      try {
+        await sendEmailDirect(item.params);
+        item.resolve();
+      } catch (err: unknown) {
+        item.reject(err);
+      }
+
+      lastSendTimestamp = Date.now();
+    }
+  } finally {
+    queueProcessing = false;
+  }
+
+  // Items may have been enqueued while we were in the finally block
+  if (emailQueue.length > 0) {
+    void drainQueue();
+  }
+}
+
+function sendEmail(params: SendEmailParams): Promise<void> {
+  if (emailQueue.length >= MAX_QUEUE_SIZE) {
+    logger.warn(`[EmailService] Queue full (${MAX_QUEUE_SIZE}), dropping email: ${params.label}`);
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve, reject) => {
+    emailQueue.push({ params, resolve, reject });
+    if (emailQueue.length > 1) {
+      logger.log(`[EmailService] Queue depth: ${emailQueue.length}`);
+    }
+    void drainQueue();
+  });
+}
+
+// ─── Direct send (called by queue — includes retry logic) ───
+
+async function sendEmailDirect(params: SendEmailParams): Promise<void> {
   if (!isValidEmail(params.to)) {
     logger.warn(`[EmailService] Invalid recipient email for ${params.label}, skipping`);
     return;
@@ -218,6 +285,9 @@ export function _resetForTest(): void {
     throw new Error("_resetForTest is only available in test environment");
   }
   initPromise = null;
+  emailQueue.length = 0;
+  queueProcessing = false;
+  lastSendTimestamp = 0;
 }
 
 /** @internal — for unit tests only */
