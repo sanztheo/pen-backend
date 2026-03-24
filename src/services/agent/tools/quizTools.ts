@@ -32,49 +32,52 @@ export function createQuizTools(ctx: QuizToolsContext) {
           const since = new Date();
           since.setDate(since.getDate() - PERIOD_DAYS[period]);
 
-          // Aggregate stats for the period
-          const stats = await prisma.quiz.aggregate({
-            where: {
-              userId: ctx.userId,
-              isCompleted: true,
-              completedAt: { gte: since },
-            },
-            _count: { id: true },
-            _avg: { timeSpent: true },
-          });
-
-          // Average score from QuizResult
-          const scoreStats = await prisma.quizResult.aggregate({
-            where: {
-              quiz: {
+          // Run all 3 independent DB queries in parallel
+          const [stats, scoreStats, recentQuizzes] = await Promise.all([
+            // Aggregate stats for the period
+            prisma.quiz.aggregate({
+              where: {
                 userId: ctx.userId,
                 isCompleted: true,
                 completedAt: { gte: since },
               },
-            },
-            _avg: { percentage: true },
-            _min: { percentage: true },
-            _max: { percentage: true },
-          });
+              _count: { id: true },
+              _avg: { timeSpent: true },
+            }),
 
-          // Subject breakdown — group by title (subject proxy)
-          const recentQuizzes = await prisma.quiz.findMany({
-            where: {
-              userId: ctx.userId,
-              isCompleted: true,
-              completedAt: { gte: since },
-            },
-            select: {
-              title: true,
-              subjects: true,
-              completedAt: true,
-              result: {
-                select: { percentage: true, strengths: true, weaknesses: true },
+            // Average score from QuizResult
+            prisma.quizResult.aggregate({
+              where: {
+                quiz: {
+                  userId: ctx.userId,
+                  isCompleted: true,
+                  completedAt: { gte: since },
+                },
               },
-            },
-            orderBy: { completedAt: "desc" },
-            take: 50,
-          });
+              _avg: { percentage: true },
+              _min: { percentage: true },
+              _max: { percentage: true },
+            }),
+
+            // Subject breakdown — group by title (subject proxy)
+            prisma.quiz.findMany({
+              where: {
+                userId: ctx.userId,
+                isCompleted: true,
+                completedAt: { gte: since },
+              },
+              select: {
+                title: true,
+                subjects: true,
+                completedAt: true,
+                result: {
+                  select: { percentage: true, strengths: true, weaknesses: true },
+                },
+              },
+              orderBy: { completedAt: "desc" },
+              take: 50,
+            }),
+          ]);
 
           // Build subject breakdown from subjects field or title
           const subjectMap = new Map<string, { scores: number[]; count: number }>();

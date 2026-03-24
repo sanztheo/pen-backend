@@ -7,7 +7,6 @@
 
 import { logger } from "../utils/logger.js";
 import { Request, Response } from "express";
-import { prisma } from "../lib/prisma.js";
 import { AdminStatsService } from "../services/admin/adminStatsService.js";
 import { HealthCheckService } from "../services/admin/healthCheckService.js";
 import { TrendsMetricsService } from "../services/admin/trendsMetricsService.js";
@@ -25,19 +24,8 @@ export class AdminDashboardController {
    * Check if current user is admin (used by frontend before loading dashboard)
    */
   static async checkAdminStatus(req: Request, res: Response): Promise<void> {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: req.user!.id },
-        select: { isAdmin: true },
-      });
-      res.status(200).json({ success: true, data: { isAdmin: user?.isAdmin ?? false } });
-    } catch (error: unknown) {
-      logger.error("[ADMIN_DASHBOARD] checkAdminStatus error:", error);
-      res.status(500).json({
-        success: false,
-        error: "Erreur lors de la vérification admin",
-      });
-    }
+    // requireAdmin middleware already verified isAdmin and attached it to req.user
+    res.status(200).json({ success: true, data: { isAdmin: req.user!.isAdmin ?? false } });
   }
 
   /**

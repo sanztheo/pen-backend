@@ -162,7 +162,7 @@ export function createWikipediaTools(ctx: WikipediaToolsContext) {
 
           if (!resolvedPageId && title) {
             const searchUrl = `${wikiBase}/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(title)}&srlimit=1&format=json&origin=*`;
-            const response = await fetch(searchUrl);
+            const response = await fetch(searchUrl, { signal: AbortSignal.timeout(15_000) });
             const raw: unknown = await response.json();
             const parsed = WikipediaSearchApiResponseSchema.safeParse(raw);
             if (!parsed.success) {
@@ -210,7 +210,7 @@ export function createWikipediaTools(ctx: WikipediaToolsContext) {
 
           // Fetch intro extract for context
           const infoUrl = `${wikiBase}/w/api.php?action=query&pageids=${resolvedPageId}&prop=extracts&exintro=1&explaintext=1&format=json&origin=*`;
-          const infoResponse = await fetch(infoUrl);
+          const infoResponse = await fetch(infoUrl, { signal: AbortSignal.timeout(15_000) });
           const infoRaw: unknown = await infoResponse.json();
           const infoParsed = WikipediaIntroExtractResponseSchema.safeParse(infoRaw);
           const pageInfo = infoParsed.success
@@ -285,7 +285,7 @@ export function createWikipediaTools(ctx: WikipediaToolsContext) {
 
           if (!resolvedPageId && title) {
             const searchUrl = `${wikiBase}/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(title)}&srlimit=1&format=json&origin=*`;
-            const response = await fetch(searchUrl);
+            const response = await fetch(searchUrl, { signal: AbortSignal.timeout(15_000) });
             const raw: unknown = await response.json();
             const parsed = WikipediaSearchApiResponseSchema.safeParse(raw);
             resolvedPageId = parsed.success ? parsed.data.query?.search?.[0]?.pageid : undefined;
@@ -300,7 +300,7 @@ export function createWikipediaTools(ctx: WikipediaToolsContext) {
 
           const url = `${wikiBase}/w/api.php?action=query&format=json&pageids=${resolvedPageId}&prop=extracts|info|categories&explaintext=1&exsectionformat=wiki&inprop=url&cllimit=10&origin=*`;
 
-          const response = await fetch(url);
+          const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
           const raw: unknown = await response.json();
           const parsed = WikipediaFullContentResponseSchema.safeParse(raw);
           if (!parsed.success) {

@@ -97,6 +97,7 @@ async function testPaddleWebhookRoute(): Promise<void> {
         "Paddle-Signature": "test-signature",
       },
       body: JSON.stringify({ test: true }),
+      signal: AbortSignal.timeout(5_000),
     });
 
     if (response.status === 400) {

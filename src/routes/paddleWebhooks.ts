@@ -1,6 +1,7 @@
 import express from "express";
 import { logger } from "../utils/logger.js";
 import { paddle, PaddleBillingService } from "../services/billing/paddleBilling.js";
+import { withTimeout, PADDLE_TIMEOUT_MS } from "../utils/timeout.js";
 import { prisma } from "../lib/prisma.js";
 import {
   EventName,
@@ -144,7 +145,11 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
     // 1️⃣ Vérifier la signature Paddle (ASYNC - nécessite await)
     let event: Awaited<ReturnType<typeof paddle.webhooks.unmarshal>>;
     try {
-      event = await paddle.webhooks.unmarshal(rawBody, secretKey, signature);
+      event = await withTimeout(
+        paddle.webhooks.unmarshal(rawBody, secretKey, signature),
+        PADDLE_TIMEOUT_MS,
+        "Paddle webhooks.unmarshal",
+      );
       logger.log(`✅ [Paddle Webhook] Signature valide`);
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : String(e);

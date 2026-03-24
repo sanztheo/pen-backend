@@ -172,6 +172,7 @@ export const wikipediaSearch = async (req: Request, res: Response): Promise<void
       headers: {
         "User-Agent": "PenSaaS/1.0 (https://example.com/contact) Research Tool",
       },
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!searchResponse.ok) {
@@ -220,6 +221,7 @@ export const wikipediaSearch = async (req: Request, res: Response): Promise<void
       headers: {
         "User-Agent": "PenSaaS/1.0 (https://example.com/contact) Research Tool",
       },
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!extractResponse.ok) {
@@ -336,6 +338,7 @@ export const wikipediaGetEnrichedArticles = async (req: Request, res: Response):
         headers: {
           "User-Agent": "PenSaaS/1.0 (https://example.com/contact) Research Tool",
         },
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (!contentResponse.ok) {
@@ -578,6 +581,7 @@ async function getCategoryContent(
         headers: {
           "User-Agent": "PenSaaS/1.0 (https://example.com/contact) Research Tool",
         },
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (!response.ok) continue;
@@ -646,6 +650,7 @@ export const wikipediaGetArticle = async (req: Request, res: Response): Promise<
       headers: {
         "User-Agent": "PenSaaS/1.0 (https://example.com/contact) Research Tool",
       },
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {

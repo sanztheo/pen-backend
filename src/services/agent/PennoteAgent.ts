@@ -37,6 +37,9 @@ function resolveModelForThinking(_thinking: ThinkingLevel): string {
   return MODELS.AGENT_PRIMARY;
 }
 
+/** Max duration for agent streaming calls (milliseconds) */
+const AGENT_STREAM_MAX_DURATION_MS = 300_000;
+
 interface ResolvedProvider {
   modelName: string;
   providerInstance: NonNullable<ReturnType<typeof getProviderInstance>>;
@@ -179,6 +182,7 @@ export function runPennoteAgent(
     messages,
     tools,
     maxOutputTokens: maxTokens,
+    timeout: AGENT_STREAM_MAX_DURATION_MS,
     stopWhen: stepCountIs(maxSteps),
     toolChoice: "auto",
     providerOptions,

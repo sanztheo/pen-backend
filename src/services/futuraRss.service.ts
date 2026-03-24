@@ -70,7 +70,7 @@ export class FuturaRssService {
    */
   private static async fetchFullArticleContent(url: string): Promise<string | null> {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
       const html = await response.text();
 
       // 1. Extraire le synopsis (description courte)

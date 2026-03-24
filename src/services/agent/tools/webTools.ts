@@ -224,7 +224,7 @@ export function createWebTools(ctx: WebToolsContext) {
         try {
           const searchUrl = `${wikiBase}/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=${limit}&format=json&origin=*`;
 
-          const response = await fetch(searchUrl);
+          const response = await fetch(searchUrl, { signal: AbortSignal.timeout(15_000) });
           const raw: unknown = await response.json();
           const parsed = WikipediaSearchResponseSchema.safeParse(raw);
           if (!parsed.success) {
@@ -275,7 +275,7 @@ export function createWebTools(ctx: WebToolsContext) {
 
           const url = `${wikiBase}/w/api.php?action=query&${queryParam}&prop=extracts|categories|info&exintro=1&explaintext=1&inprop=url&cllimit=10&format=json&origin=*`;
 
-          const response = await fetch(url);
+          const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
           const raw: unknown = await response.json();
           const parsed = WikipediaArticleResponseSchema.safeParse(raw);
           if (!parsed.success) {

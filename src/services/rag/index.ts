@@ -310,6 +310,7 @@ Si AUCUNE source n'est pertinente (ex: sources sur "Caca" pour une question sur 
           temperature: 0,
           max_tokens: 10,
         }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       const raw: unknown = await response.json();
@@ -410,6 +411,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
           ...(isNano ? { max_completion_tokens: 30 } : { max_tokens: 30 }),
           response_format: { type: "json_object" },
         }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       logger.log(`🌐 [API-DEBUG] Response status: ${response.status} ${response.statusText}`);
@@ -1155,6 +1157,7 @@ class EmbeddingService {
           input: text,
           encoding_format: "float",
         }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       if (!response.ok) {
@@ -1198,6 +1201,7 @@ class EmbeddingService {
           input: texts,
           encoding_format: "float",
         }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       if (!response.ok) {

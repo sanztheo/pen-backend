@@ -14,6 +14,7 @@ import { redisHealthCheck } from "../../lib/redis.js";
 import { AIService } from "../ai/base.js";
 import { paddle } from "../billing/paddleBilling.js";
 import { redisCache } from "../cache/redisCache.js";
+import { withTimeout, PADDLE_TIMEOUT_MS } from "../../utils/timeout.js";
 import { z } from "zod";
 
 interface ServiceHealth {
@@ -226,7 +227,8 @@ export class HealthCheckService {
     return this.withTiming(
       "Paddle",
       async () => {
-        await paddle.subscriptions.list({ perPage: 1 });
+        const collection = paddle.subscriptions.list({ perPage: 1 });
+        await withTimeout(collection.next(), PADDLE_TIMEOUT_MS, "Paddle subscriptions.list");
         return { status: "up" };
       },
       LATENCY_THRESHOLDS.paddle,

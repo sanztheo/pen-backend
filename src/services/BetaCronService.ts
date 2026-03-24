@@ -57,61 +57,70 @@ export class BetaCronService {
       now.getTime() + REACTIVATION_WINDOW_DAYS * 24 * 60 * 60 * 1000,
     );
 
-    const inactiveUsers = await prisma.user.findMany({
-      where: {
-        betaStatus: "active",
-        OR: [
-          { lastHeartbeatAt: { lt: thresholdDate } },
-          // Only flag null-heartbeat users if they joined before the threshold
-          // (freshly activated/promoted users must NOT be deactivated immediately)
-          {
-            lastHeartbeatAt: null,
-            betaJoinedAt: { lt: thresholdDate },
-          },
-        ],
-      },
-      select: { id: true, lastHeartbeatAt: true },
-    });
+    const inactiveWhere = {
+      betaStatus: "active" as const,
+      OR: [
+        { lastHeartbeatAt: { lt: thresholdDate } },
+        // Only flag null-heartbeat users if they joined before the threshold
+        // (freshly activated/promoted users must NOT be deactivated immediately)
+        {
+          lastHeartbeatAt: null,
+          betaJoinedAt: { lt: thresholdDate },
+        },
+      ],
+    };
 
-    if (inactiveUsers.length === 0) {
+    let totalDeactivated = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const batch = await prisma.user.findMany({
+        where: inactiveWhere,
+        select: { id: true, lastHeartbeatAt: true },
+        take: DELETION_BATCH_SIZE,
+      });
+
+      if (batch.length === 0) {
+        break;
+      }
+
+      const batchIds = batch.map((u) => u.id);
+
+      const result = await prisma.user.updateMany({
+        where: {
+          id: { in: batchIds },
+          ...inactiveWhere,
+        },
+        data: {
+          betaStatus: "inactive",
+          betaDeactivatedAt: now,
+          betaReactivationDeadline: reactivationDeadline,
+        },
+      });
+
+      totalDeactivated += result.count;
+
+      for (const user of batch) {
+        logger.log(
+          `[BETA_CRON] Deactivated user ${user.id} (last heartbeat: ${user.lastHeartbeatAt?.toISOString() ?? "never"})`,
+        );
+      }
+
+      hasMore = batch.length === DELETION_BATCH_SIZE;
+    }
+
+    if (totalDeactivated === 0) {
       logger.log("[BETA_CRON] checkInactiveUsers: no inactive users found");
       return { processed: 0, errors: 0 };
     }
-
-    const userIds = inactiveUsers.map((u) => u.id);
-
-    const result = await prisma.user.updateMany({
-      where: {
-        id: { in: userIds },
-        betaStatus: "active",
-        OR: [
-          { lastHeartbeatAt: { lt: thresholdDate } },
-          {
-            lastHeartbeatAt: null,
-            betaJoinedAt: { lt: thresholdDate },
-          },
-        ],
-      },
-      data: {
-        betaStatus: "inactive",
-        betaDeactivatedAt: now,
-        betaReactivationDeadline: reactivationDeadline,
-      },
-    });
 
     await redis.del(STATUS_CACHE_KEY).catch((err: unknown) => {
       logger.warn("[BETA_CRON] Redis cache invalidation failed after deactivation:", err);
     });
 
-    for (const user of inactiveUsers) {
-      logger.log(
-        `[BETA_CRON] Deactivated user ${user.id} (last heartbeat: ${user.lastHeartbeatAt?.toISOString() ?? "never"})`,
-      );
-    }
+    logger.log(`[BETA_CRON] checkInactiveUsers: ${totalDeactivated} users deactivated`);
 
-    logger.log(`[BETA_CRON] checkInactiveUsers: ${result.count} users deactivated`);
-
-    return { processed: result.count, errors: 0 };
+    return { processed: totalDeactivated, errors: 0 };
   }
 
   /**
