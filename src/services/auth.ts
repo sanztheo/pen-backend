@@ -1,6 +1,7 @@
 import { createClerkClient, verifyToken } from "@clerk/backend";
 import dotenv from "dotenv";
 import { logger } from "../utils/logger.js";
+import { withTimeout, CLERK_TIMEOUT_MS } from "../utils/timeout.js";
 
 dotenv.config();
 
@@ -8,6 +9,7 @@ dotenv.config();
 export interface AuthUser {
   id: string;
   email: string;
+  isAdmin?: boolean;
   user_metadata?: {
     firstName?: string;
     lastName?: string;
@@ -51,10 +53,12 @@ export class AuthService {
         return null;
       }
 
-      // Vérifier le token de session
-      const sessionToken = await verifyToken(token, {
-        secretKey: process.env.CLERK_SECRET_KEY,
-      });
+      // Vérifier le token de session (may fetch JWKS remotely)
+      const sessionToken = await withTimeout(
+        verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY }),
+        CLERK_TIMEOUT_MS,
+        "Clerk verifyToken",
+      );
 
       // Double vérification de l'expiration pour renforcer la sécurité
       if (!sessionToken || (sessionToken.exp && sessionToken.exp * 1000 < Date.now())) {
@@ -67,7 +71,11 @@ export class AuthService {
       }
 
       // Récupérer les informations de l'utilisateur
-      const user = await clerkClient.users.getUser(sessionToken.sub);
+      const user = await withTimeout(
+        clerkClient.users.getUser(sessionToken.sub),
+        CLERK_TIMEOUT_MS,
+        "Clerk getUser",
+      );
 
       return {
         id: user.id,

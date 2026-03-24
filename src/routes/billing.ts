@@ -5,6 +5,7 @@ import { authenticateToken, blockImpersonation } from "../middlewares/auth.js";
 import { validateEmail } from "../middlewares/validateEmail.js";
 import { prisma } from "../lib/prisma.js";
 import { PADDLE_CONFIG } from "../config/paddle.js";
+import { withTimeout, PADDLE_TIMEOUT_MS } from "../utils/timeout.js";
 
 const router = express.Router();
 
@@ -161,7 +162,11 @@ router.get("/portal-url", authenticateToken, async (req, res) => {
 
     // Generer l'URL de mise a jour du paiement via l'API Paddle
     try {
-      const paddleSubscription = await paddle.subscriptions.get(subscription.paddleSubscriptionId);
+      const paddleSubscription = await withTimeout(
+        paddle.subscriptions.get(subscription.paddleSubscriptionId),
+        PADDLE_TIMEOUT_MS,
+        "Paddle subscriptions.get",
+      );
 
       // L'URL de gestion est dans managementUrls
       const portalUrl =
@@ -221,9 +226,13 @@ router.post("/cancel", authenticateToken, blockImpersonation, async (req, res) =
     }
 
     // Annuler via l'API Paddle (effective a la fin de la periode)
-    await paddle.subscriptions.cancel(subscription.paddleSubscriptionId, {
-      effectiveFrom: "next_billing_period",
-    });
+    await withTimeout(
+      paddle.subscriptions.cancel(subscription.paddleSubscriptionId, {
+        effectiveFrom: "next_billing_period",
+      }),
+      PADDLE_TIMEOUT_MS,
+      "Paddle subscriptions.cancel",
+    );
 
     // Marquer comme annule dans la DB
     await PaddleBillingService.cancelSubscription(userId);

@@ -18,6 +18,8 @@ export const MODELS = {
   // ── Agent (chat principal) ────────────────────────────────────────────────
   /** Chat agent principal — thinking contrôlé via providerOptions */
   AGENT_PRIMARY: env("AGENT_MODEL") || "gemini-3-flash-preview",
+  /** Fallback si le provider principal est down (circuit breaker) */
+  AGENT_FALLBACK: env("AGENT_FALLBACK_MODEL") || "gpt-4o-mini",
   /** Workflows — steps rapides, pas de thinking */
   AGENT_FAST: "gemini-3-flash-preview",
   /** Workflows — steps complexes (thinking via providerOptions) */

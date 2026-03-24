@@ -358,12 +358,15 @@ router.post("/chat", requireAICredits({ cost: 1.0, action: "openai_proxy" }), as
       convertedCount: convertedMessages.length,
     });
 
+    const STREAM_MAX_DURATION_MS = 300_000;
+
     const result = streamText({
       model: openaiProvider(modelName),
       system: aiDocumentFormats.html.systemPrompt,
       messages: convertedMessages,
       tools: toolDefinitions ? toolDefinitionsToToolSet(toolDefinitions) : undefined,
       toolChoice: toolDefinitions ? "required" : undefined,
+      timeout: STREAM_MAX_DURATION_MS,
     });
 
     // 🔒 AUDIT: Journaliser la consommation
@@ -470,6 +473,7 @@ router.post(
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30_000),
       });
 
       const text = await response.text();

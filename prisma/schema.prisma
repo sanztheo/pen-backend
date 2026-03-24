@@ -60,6 +60,7 @@ model User {
   @@index([lastLoginAt])
   @@index([totalActiveTimeSeconds])
   @@index([betaJoinedAt])
+  @@index([betaStatus, betaJoinedAt])
   @@map("users")
 }
 

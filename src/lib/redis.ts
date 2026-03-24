@@ -13,6 +13,9 @@ const REDIS_URL =
 
 // Créer instance Redis avec retry automatique
 // 🎯 maxRetriesPerRequest: null requis pour BullMQ (commandes bloquantes)
+// 🎯 Client principal — PAS de commandTimeout ici car BullMQ utilise
+// des commandes bloquantes (BRPOPLPUSH, XREADGROUP) qui attendent indéfiniment.
+// Le timeout sur les opérations cache est géré via withTimeout() plus bas.
 export const redis = new Redis(REDIS_URL, {
   maxRetriesPerRequest: null, // BullMQ requirement pour BLPOP/BRPOPLPUSH
   lazyConnect: process.env.NODE_ENV === "test",

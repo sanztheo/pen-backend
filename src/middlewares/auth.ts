@@ -6,6 +6,7 @@ import { prisma } from "../lib/prisma.js";
 import { createClerkClient } from "@clerk/backend";
 import { SecureLogger } from "./secureLogging.js";
 import { logger } from "../utils/logger.js";
+import { withTimeout, CLERK_TIMEOUT_MS } from "../utils/timeout.js";
 
 // Cache en mémoire pour la synchronisation utilisateur (userId -> timestamp)
 const userSyncCache = new Map<string, number>();
@@ -108,7 +109,11 @@ async function loadTestUser(clerkUserId: string): Promise<AuthUser | null> {
   if (!clerkClient) return null;
 
   try {
-    const user = await clerkClient.users.getUser(clerkUserId);
+    const user = await withTimeout(
+      clerkClient.users.getUser(clerkUserId),
+      CLERK_TIMEOUT_MS,
+      "Clerk getUser",
+    );
     return {
       id: user.id,
       email: user.emailAddresses?.[0]?.emailAddress || "",

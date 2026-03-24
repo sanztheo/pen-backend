@@ -75,6 +75,10 @@ const MODELS = {
   },
 };
 
+/** Max duration for LLM calls (milliseconds) */
+const LLM_TIMEOUT_FAST_MS = 90_000;
+const LLM_TIMEOUT_THINKING_MS = 180_000;
+
 // ============================================================================
 // HELPER: Extract tool output
 // ============================================================================
@@ -305,6 +309,7 @@ async function synthesizeResearch(
   const result = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 4096,
+    timeout: LLM_TIMEOUT_THINKING_MS,
     providerOptions: {
       google: { thinkingConfig: { thinkingLevel: "medium" } },
     },
@@ -354,6 +359,7 @@ async function evaluateContent(
   const result = await generateText({
     model: MODELS.fast,
     maxOutputTokens: 1024,
+    timeout: LLM_TIMEOUT_FAST_MS,
     system: `You are a content quality evaluator. Assess content against specific criteria and provide structured feedback.
 
 Return your evaluation in this exact JSON format:
@@ -417,6 +423,7 @@ async function improveContent(
   const result = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 8192,
+    timeout: LLM_TIMEOUT_THINKING_MS,
     providerOptions: {
       google: { thinkingConfig: { thinkingLevel: "high" } },
     },
@@ -503,6 +510,7 @@ export async function runDeepResearchWorkflow(
   const planResult = await generateText({
     model: MODELS.fast,
     maxOutputTokens: 1024,
+    timeout: LLM_TIMEOUT_FAST_MS,
     system: `You are a content planner. Create a detailed outline for comprehensive research content.`,
     prompt: `Based on this research, create a detailed content outline for: "${query}"
 
@@ -527,6 +535,7 @@ Format as a structured outline.`,
   const initialContent = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 32000,
+    timeout: LLM_TIMEOUT_THINKING_MS,
     providerOptions: {
       google: { thinkingConfig: { thinkingLevel: "high" } },
     },
@@ -667,6 +676,7 @@ export async function runDeepContentWorkflow(
   const planResult = await generateText({
     model: MODELS.fast,
     maxOutputTokens: 1024,
+    timeout: LLM_TIMEOUT_FAST_MS,
     system: `You are a content planner. Create a detailed outline for educational content.`,
     prompt: `Based on this research, create a detailed content outline for: "${userPrompt}"
 
@@ -691,6 +701,7 @@ Format as a structured outline.`,
   const initialContent = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 32000,
+    timeout: LLM_TIMEOUT_THINKING_MS,
     providerOptions: {
       google: { thinkingConfig: { thinkingLevel: "high" } },
     },
@@ -839,6 +850,7 @@ export async function runQuickContentWorkflow(
   const contentResult = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 8192,
+    timeout: LLM_TIMEOUT_THINKING_MS,
     providerOptions: {
       google: { thinkingConfig: { thinkingLevel: "medium" } },
     },

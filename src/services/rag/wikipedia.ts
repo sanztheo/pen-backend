@@ -294,6 +294,7 @@ export class WikipediaRAGSystem {
       // - prop=categories: catégories de l'article
       const response = await fetch(
         `https://fr.wikipedia.org/w/api.php?action=query&format=json&pageids=${pageid}&prop=extracts|info|categories&explaintext=1&exsectionformat=wiki&inprop=url&cllimit=10&origin=*`,
+        { signal: AbortSignal.timeout(15_000) },
       );
       const raw: unknown = await response.json();
       const parsed = WikipediaFullExtractResponseSchema.safeParse(raw);

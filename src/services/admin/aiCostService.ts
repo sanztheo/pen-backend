@@ -523,13 +523,10 @@ export class AICostService {
       return { provider: "moonshot", available: false, error: "API key not configured" };
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10_000);
-
     try {
       const response = await fetch("https://api.moonshot.cn/v1/users/balance", {
         headers: { Authorization: `Bearer ${apiKey}` },
-        signal: controller.signal,
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (!response.ok) {
@@ -550,8 +547,6 @@ export class AICostService {
       const message = err instanceof Error ? err.message : String(err);
       logger.error("[AI_COSTS]:", `Moonshot balance fetch failed: ${message}`);
       return { provider: "moonshot", available: false, error: "Balance fetch failed" };
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 }

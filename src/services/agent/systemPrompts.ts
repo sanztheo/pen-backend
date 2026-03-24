@@ -333,10 +333,7 @@ ${sanitizeForPrompt(conversationHistory)}
 </conversation_context>`;
 }
 
-function buildToolsSection(
-  config: ModeConfig,
-  hasNativeWebSearch: boolean,
-): string {
+function buildToolsSection(config: ModeConfig, hasNativeWebSearch: boolean): string {
   const createPageDirective = config.createPageRequired
     ? `\nCRITICAL: You MUST call createPage before finishing your response. This is mandatory for this mode.`
     : `\ncreatePage is OPTIONAL — use only if the user explicitly requests it.`;
@@ -351,10 +348,10 @@ function buildToolsSection(
 3. For encyclopedic knowledge: index to pgvector then use searchWikipediaRAG for precision
 4. For quick lookups: use searchWikipedia + getWikipediaArticle
 5. ${
-        hasNativeWebSearch
-          ? "For current news: search the web directly (built-in capability)"
-          : "For current news: use searchWeb"
-      }
+    hasNativeWebSearch
+      ? "For current news: search the web directly (built-in capability)"
+      : "For current news: use searchWeb"
+  }
 6. Use multiple tools if necessary for a complete response`;
 
   return `
@@ -370,10 +367,7 @@ ${usagePriority}
 </available_tools>`;
 }
 
-function buildResearchGuidelinesSection(
-  config: ModeConfig,
-  hasNativeWebSearch: boolean,
-): string {
+function buildResearchGuidelinesSection(config: ModeConfig, hasNativeWebSearch: boolean): string {
   if (!config.researchGuidelines || config.researchGuidelines.length === 0) {
     return "";
   }
@@ -468,12 +462,7 @@ export function buildSystemPrompt(
 ): string {
   const promptKey: PromptKey = `${mode}-${intent}`;
   const config = MODE_CONFIGS[promptKey];
-  const {
-    personalization,
-    conversationHistory,
-    ragSources,
-    hasNativeWebSearch = false,
-  } = options;
+  const { personalization, conversationHistory, ragSources, hasNativeWebSearch = false } = options;
 
   const sections = [
     buildIdentitySection(config),

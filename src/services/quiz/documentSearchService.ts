@@ -665,6 +665,7 @@ Format exact attendu:
           input: query,
           encoding_format: "float",
         }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       if (!response.ok) {
