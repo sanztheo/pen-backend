@@ -10,6 +10,46 @@ const PHONE_REGEX = /^\+?[\d\s\-().]{0,30}$/;
 const MAX_PHONE_LENGTH = 32;
 const MAX_METADATA_SIZE_BYTES = 4096;
 
+// ─── Turnstile verification ─────────────────────────────────
+const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY;
+
+interface TurnstileResponse {
+  success: boolean;
+  "error-codes"?: string[];
+}
+
+async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
+  if (!TURNSTILE_SECRET) {
+    logger.warn("[TURNSTILE] TURNSTILE_SECRET_KEY not set — skipping verification");
+    return true;
+  }
+
+  try {
+    const res = await fetch(TURNSTILE_VERIFY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        secret: TURNSTILE_SECRET,
+        response: token,
+        remoteip: ip,
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
+
+    const data = (await res.json()) as TurnstileResponse;
+
+    if (!data.success) {
+      logger.warn("[TURNSTILE] Verification failed:", data["error-codes"]);
+    }
+
+    return data.success;
+  } catch (err: unknown) {
+    logger.error("[TURNSTILE] Verification request failed:", err);
+    return false;
+  }
+}
+
 export class WaitlistController {
   static async addToWaitlist(req: Request, res: Response): Promise<void> {
     try {
@@ -24,6 +64,30 @@ export class WaitlistController {
         typeof raw.metadata === "object" && raw.metadata !== null && !Array.isArray(raw.metadata)
           ? (raw.metadata as Record<string, unknown>)
           : undefined;
+
+      const turnstileToken =
+        typeof raw.turnstileToken === "string" ? raw.turnstileToken : undefined;
+
+      // Turnstile CAPTCHA verification (before any processing)
+      if (!turnstileToken) {
+        res.status(400).json({
+          success: false,
+          error: "CAPTCHA verification required",
+          code: "MISSING_CAPTCHA",
+        });
+        return;
+      }
+
+      const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+      const isCaptchaValid = await verifyTurnstile(turnstileToken, ip);
+      if (!isCaptchaValid) {
+        res.status(403).json({
+          success: false,
+          error: "CAPTCHA verification failed",
+          code: "INVALID_CAPTCHA",
+        });
+        return;
+      }
 
       const trimmedEmail = email?.trim().toLowerCase();
       const trimmedName = name !== undefined ? stripHtmlTags(name.trim()) : undefined;
