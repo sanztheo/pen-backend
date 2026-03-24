@@ -4,7 +4,13 @@
  * Thin wrapper around Mem0 Platform API — no SDK dependency.
  * All calls are non-blocking with timeouts to never slow down chat.
  *
+ * IMPORTANT: Mem0 add() is async by design — it returns "pending" immediately
+ * while an internal LLM extracts declarative facts from messages. If the content
+ * is too short/technical, the LLM may decide there's nothing to memorize
+ * (status: "No Memory Changes"). This is expected behavior, not an error.
+ *
  * @see https://docs.mem0.ai/api-reference
+ * @see https://docs.mem0.ai/core-concepts/memory-operations/add
  */
 
 import { logger } from "../../utils/logger.js";
@@ -14,6 +20,17 @@ import { logger } from "../../utils/logger.js";
 const MEM0_BASE_URL = "https://api.mem0.ai/v1";
 const MEM0_SEARCH_URL = "https://api.mem0.ai/v2/memories/search/";
 const MEM0_TIMEOUT_MS = 5_000;
+
+/**
+ * Custom extraction instructions — tells Mem0's internal LLM to be more
+ * aggressive about what it memorizes from student conversations.
+ */
+const EXTRACTION_INSTRUCTIONS =
+  "Extract ALL personal facts from the conversation: name, age, school level, " +
+  "field of study, interests, learning preferences, language, goals, struggles, " +
+  "and any topic the user mentions studying or being curious about. " +
+  "Even short or casual mentions count — e.g. 'I have a math exam' → user is studying math. " +
+  "Prefer storing more memories rather than fewer.";
 
 function getApiKey(): string | undefined {
   return process.env.MEMO;
@@ -137,6 +154,7 @@ export async function addMemories(
         user_id: namespacedUserId(userId),
         infer: true,
         output_format: "v1.1",
+        custom_instructions: EXTRACTION_INSTRUCTIONS,
       }),
     });
 
