@@ -447,6 +447,7 @@ function buildFeedbackReportHtml(input: FeedbackReportInput): string {
           <tr>
             <td style="padding:6px 0;color:#71717a;font-size:13px;"><strong>Email:</strong> ${escapeHtml(input.userEmail)}</td>
           </tr>
+          ${input.whatsappName ? `<tr><td style="padding:6px 0;color:#71717a;font-size:13px;"><strong>WhatsApp:</strong> ${escapeHtml(input.whatsappName)}</td></tr>` : ""}
           ${input.currentUrl ? `<tr><td style="padding:6px 0;color:#71717a;font-size:13px;"><strong>URL:</strong> ${escapeHtml(input.currentUrl)}</td></tr>` : ""}
           ${input.userAgent ? `<tr><td style="padding:6px 0;color:#71717a;font-size:13px;"><strong>User-Agent:</strong> ${escapeHtml(input.userAgent)}</td></tr>` : ""}
           <tr>
