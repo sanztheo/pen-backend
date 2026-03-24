@@ -91,10 +91,10 @@ interface SendEmailParams {
 }
 
 // ─── Global rate-limited email queue ────────────────────────
-// Resend limit: 5 req/s — we enforce 4/s with safety margin.
+// Resend limit: 25 req/s (upgraded) — we enforce 20/s with safety margin.
 // Every email in the app passes through this single queue,
 // eliminating burst issues from cron jobs, admin bulk actions, etc.
-const MAX_EMAILS_PER_SECOND = 4;
+const MAX_EMAILS_PER_SECOND = 20;
 const SLOT_INTERVAL_MS = Math.ceil(1_000 / MAX_EMAILS_PER_SECOND);
 const MAX_QUEUE_SIZE = 500;
 
@@ -155,6 +155,96 @@ function sendEmail(params: SendEmailParams): Promise<void> {
   });
 }
 
+// ─── Pending email store (Redis) ────────────────────────────
+// Emails that fail due to daily rate limits are stored in Redis
+// and retried by a cron job every hour.
+const PENDING_EMAIL_KEY = "email:pending";
+const MAX_RETRY_COUNT = 3;
+
+interface PendingEmail {
+  params: SendEmailParams;
+  retryCount: number;
+  storedAt: number;
+}
+
+async function storePendingEmail(params: SendEmailParams, retryCount = 0): Promise<void> {
+  try {
+    const { redis } = await import("../lib/redis.js");
+    const entry: PendingEmail = { params, retryCount, storedAt: Date.now() };
+    await redis.rpush(PENDING_EMAIL_KEY, JSON.stringify(entry));
+    logger.warn(
+      `[EmailService] Stored pending email (attempt ${retryCount + 1}/${MAX_RETRY_COUNT}): ${params.label} to ${maskEmail(params.to)}`,
+    );
+  } catch (err: unknown) {
+    logger.error("[EmailService] Failed to store pending email in Redis:", err);
+  }
+}
+
+/**
+ * Retry pending emails from Redis. Called by cron every hour.
+ * Processes up to 50 emails per run, respecting rate limits.
+ */
+export async function retryPendingEmails(): Promise<{
+  sent: number;
+  failed: number;
+  dropped: number;
+  remaining: number;
+}> {
+  const { redis } = await import("../lib/redis.js");
+  const total = await redis.llen(PENDING_EMAIL_KEY);
+
+  if (total === 0) return { sent: 0, failed: 0, dropped: 0, remaining: 0 };
+
+  logger.log(`[EmailService] Retrying ${total} pending emails...`);
+
+  let sent = 0;
+  let failed = 0;
+  let dropped = 0;
+  const batchSize = Math.min(total, 50);
+
+  for (let i = 0; i < batchSize; i++) {
+    const raw = await redis.lpop(PENDING_EMAIL_KEY);
+    if (!raw) break;
+
+    let entry: PendingEmail;
+    try {
+      entry = JSON.parse(raw) as PendingEmail;
+    } catch {
+      dropped++;
+      continue;
+    }
+
+    // Drop emails that exceeded max retries or are older than 24h
+    const ageMs = Date.now() - entry.storedAt;
+    if (entry.retryCount >= MAX_RETRY_COUNT || ageMs > 86_400_000) {
+      dropped++;
+      logger.warn(
+        `[EmailService] Dropped pending email (retries: ${entry.retryCount}, age: ${Math.round(ageMs / 60_000)}min): ${entry.params.label}`,
+      );
+      continue;
+    }
+
+    try {
+      await sendEmailDirect(entry.params);
+      sent++;
+    } catch {
+      // Still failing — push back with incremented retry count
+      await storePendingEmail(entry.params, entry.retryCount + 1);
+      failed++;
+      break; // Stop batch if still rate limited
+    }
+
+    await delay(SLOT_INTERVAL_MS);
+  }
+
+  const remaining = await redis.llen(PENDING_EMAIL_KEY);
+  logger.log(
+    `[EmailService] Pending retry complete: ${sent} sent, ${failed} failed, ${dropped} dropped, ${remaining} remaining`,
+  );
+
+  return { sent, failed, dropped, remaining };
+}
+
 // ─── Direct send (called by queue — includes retry logic) ───
 
 async function sendEmailDirect(params: SendEmailParams): Promise<void> {
@@ -186,6 +276,9 @@ async function sendEmailDirect(params: SendEmailParams): Promise<void> {
           await delay(RETRY_DELAY_MS);
           continue;
         }
+        if (isRetryableError(error)) {
+          void storePendingEmail(params);
+        }
         logger.error(
           `[EmailService] Resend API error (${params.label}):`,
           sanitizeResendError(error),
@@ -202,6 +295,9 @@ async function sendEmailDirect(params: SendEmailParams): Promise<void> {
         );
         await delay(RETRY_DELAY_MS);
         continue;
+      }
+      if (isRetryableError(err)) {
+        void storePendingEmail(params);
       }
       logger.error(`[EmailService] Failed to send ${params.label}:`, err);
       return;

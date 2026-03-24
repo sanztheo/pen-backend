@@ -338,6 +338,26 @@ export function startCronJobs() {
     logger.log("⏸️ Beta management cron jobs désactivés (BETA_LIVE = false)");
   }
 
+  // 📧 Retry pending emails that failed due to rate limits
+  const emailRetryTask = cron.schedule(
+    "45 * * * *", // :45 — retry pending emails every hour
+    async () => {
+      logger.log("\n📧 [CRON] Retry pending emails...");
+      try {
+        const { retryPendingEmails } = await import("../services/EmailService.js");
+        const result = await retryPendingEmails();
+        logger.log(
+          `✅ [CRON] Email retry: ${result.sent} sent, ${result.failed} failed, ${result.dropped} dropped, ${result.remaining} remaining`,
+        );
+      } catch (error) {
+        logger.error("❌ [CRON] Erreur email retry:", error);
+      }
+    },
+    { timezone: "UTC" },
+  );
+
+  logger.log("✅ Tâche email retry programmée: 45 * * * * (UTC)");
+
   // En développement, ajouter une tâche de test plus fréquente
   if (NODE_ENV === "development") {
     // Tâche de test toutes les 5 minutes (désactivée par défaut)
@@ -371,6 +391,7 @@ export function startCronJobs() {
     dailyArticleTask,
     monthlyResetTask,
     dailyLimitsResetTask,
+    emailRetryTask,
     ...(BETA_LIVE
       ? [
           betaCheckInactiveTask,
