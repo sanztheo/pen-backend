@@ -28,10 +28,43 @@ interface RssItem {
   content?: string;
   contentSnippet?: string;
   guid?: string;
+  categories?: string[];
   enclosure?: {
     url?: string;
     type?: string;
   };
+}
+
+// Catégories RSS Futura Sciences qui marquent du contenu sponsorisé/publicitaire
+const SPONSORED_CATEGORIES = new Set([
+  "no_ads",
+  "actu-bp",
+  "guides smartphones",
+  "guides pc et tablettes",
+  "guides télécoms",
+  "guides vpn",
+  "guides vélos et trottinettes",
+  "guides maison connectée",
+  "guides montres et bracelets connectés",
+]);
+
+/**
+ * Détecte si un article est sponsorisé/publicitaire via les métadonnées RSS.
+ * Futura Sciences marque ses articles sponsorisés avec des catégories spécifiques
+ * et des URL contenant "/bons-plans/".
+ */
+function isSponsoredArticle(article: RssItem): boolean {
+  // 1. Vérifier les catégories RSS
+  if (article.categories?.some((cat) => SPONSORED_CATEGORIES.has(cat.toLowerCase()))) {
+    return true;
+  }
+
+  // 2. Vérifier le pattern URL "/bons-plans/" ou "/conso/bons-plans/"
+  if (article.link?.includes("/bons-plans/")) {
+    return true;
+  }
+
+  return false;
 }
 
 // Cache pour les résultats de validation AI éducative
@@ -325,31 +358,48 @@ export class FuturaRssService {
         messages: [
           {
             role: "system",
-            content: `Tu es un classificateur d'articles scientifiques pour une plateforme éducative (SaaS éducatif).
-Évalue si l'article est pertinent pour l'apprentissage et l'éducation scientifique.
+            content: `You are a strict scientific article classifier for an educational platform.
+Determine if the article is GENUINE SCIENCE or NOT.
 
-✅ ACCEPTER (score 7-10) - Contenu éducatif et scientifique:
-- Sciences fondamentales: physique, chimie, biologie, astronomie, géologie
-- Technologie et innovation: recherche, découvertes, nouvelles technologies
-- Mathématiques et informatique
-- Santé et médecine: recherche médicale, découvertes scientifiques
-- Environnement et climat: études, recherches, phénomènes naturels
-- Ingénierie et robotique
-- Espace et exploration spatiale
-- Archéologie et paléontologie
-- Histoire des sciences
+<rules>
+ACCEPT (score 7-10) — Original scientific/educational content:
+- Peer-reviewed research, scientific discoveries, space exploration
+- Biology, physics, chemistry, astronomy, geology, medicine (research)
+- Engineering breakthroughs, robotics research, climate studies
+- Archaeology, paleontology, history of science
 
-❌ REJETER (score 0-3) - Contenu non-éducatif:
-- Divertissement: films, séries TV, jeux vidéo, musique pop
-- Culture populaire et célébrités
-- Sport et événements sportifs
-- Actualité politique, faits divers
-- Contenu commercial: promotions, bons plans, comparatifs de prix
-- Télé-réalité et programmes de divertissement
+REJECT (score 0-3) — Non-educational or commercial content:
+- Product promotions, deals, discounts, price comparisons, "bons plans"
+- Buying guides, product reviews focused on purchasing advice
+- Entertainment: movies, TV shows, video games, pop culture
+- Sports, politics, celebrity news
+- Sponsored content, advertorials, affiliate content
+- Tribunes, opinion pieces, or press releases from companies
+</rules>
 
-⚠️ ZONE GRISE (score 4-6) - À évaluer selon le contexte éducatif
+<examples>
+Title: "Syma Mobile 130 Go 5G à 7,99€ : un forfait data XXL pour les petits budgets"
+→ {"valid": false, "score": 0, "reason": "Phone plan advertisement, not science"}
 
-Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison brève en français"}`,
+Title: "Le Redmi Note 15 5G à -21% s'arrache en ce moment"
+→ {"valid": false, "score": 0, "reason": "Product deal/promotion"}
+
+Title: "Ce PC portable Lenovo à 249,99 € est la meilleure affaire tech du moment"
+→ {"valid": false, "score": 0, "reason": "Commercial buying advice with pricing"}
+
+Title: "Tribune : l'innovation, un projet de société avant d'être une technologie"
+→ {"valid": false, "score": 2, "reason": "Opinion piece/tribune, not scientific research"}
+
+Title: "Une dent de T. rex plantée dans son crâne révèle comment le superprédateur attaquait"
+→ {"valid": true, "score": 9, "reason": "Paleontology research finding"}
+
+Title: "30 ans de dépression : cette stimulation cérébrale provoque un tournant inattendu"
+→ {"valid": true, "score": 9, "reason": "Neuroscience medical research"}
+</examples>
+
+Think step by step: (1) Does it mention a price, discount, or product deal? → REJECT. (2) Is it promoting a product or service? → REJECT. (3) Is it original scientific reporting? → ACCEPT.
+
+Respond as JSON: {"valid": true/false, "score": 0-10, "reason": "brief reason in English"}`,
           },
           {
             role: "user",
@@ -405,17 +455,32 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
         return null;
       }
 
-      // Valider les articles avec l'AI (on teste les 30 premiers)
+      // Phase 1: Filtrer les articles sponsorisés via métadonnées RSS (déterministe, gratuit)
       const first30Articles = feed.items.slice(0, 30);
+      const nonSponsoredArticles = first30Articles.filter((item) => {
+        if (isSponsoredArticle(item)) {
+          logger.log(
+            `🚫 Sponsorisé (filtré par métadonnées): "${item.title?.substring(0, 60)}..."`,
+          );
+          return false;
+        }
+        return true;
+      });
+
+      logger.log(
+        `📊 ${first30Articles.length - nonSponsoredArticles.length} articles sponsorisés filtrés, ${nonSponsoredArticles.length} restants`,
+      );
+
+      // Phase 2: Valider les articles restants avec l'AI
       const validatedArticles: {
         item: RssItem;
         score: number;
         reason: string;
       }[] = [];
 
-      logger.log(`🔍 Validation AI de ${first30Articles.length} articles...`);
+      logger.log(`🔍 Validation AI de ${nonSponsoredArticles.length} articles...`);
 
-      for (const item of first30Articles) {
+      for (const item of nonSponsoredArticles) {
         const validation = await this.validateEducationalRelevanceAI(item);
         if (validation.isValid) {
           validatedArticles.push({
@@ -427,25 +492,24 @@ Réponds au format JSON: {"valid": true/false, "score": 0-10, "reason": "raison 
       }
 
       logger.log(
-        `✅ ${validatedArticles.length} articles éducatifs validés par l'AI sur ${first30Articles.length}`,
+        `✅ ${validatedArticles.length} articles éducatifs validés par l'AI sur ${nonSponsoredArticles.length}`,
       );
 
-      // Sélectionner un article au hasard parmi les validés (prioriser les meilleurs scores)
-      let selectedArticle: RssItem;
+      // Sélectionner un article parmi les validés (prioriser les meilleurs scores)
       if (validatedArticles.length === 0) {
-        logger.warn("⚠️ Aucun article validé par l'AI, utilisation du premier article disponible");
-        selectedArticle = feed.items[0];
-        logger.log(`🎲 Article de secours: "${selectedArticle.title?.substring(0, 80)}..."`);
-      } else {
-        // Trier par score décroissant et prendre un article au hasard parmi les 5 meilleurs
-        validatedArticles.sort((a, b) => b.score - a.score);
-        const topArticles = validatedArticles.slice(0, Math.min(5, validatedArticles.length));
-        const randomIndex = Math.floor(Math.random() * topArticles.length);
-        selectedArticle = topArticles[randomIndex].item;
-        logger.log(
-          `🎲 Article sélectionné: "${selectedArticle.title?.substring(0, 80)}..." (score: ${topArticles[randomIndex].score.toFixed(2)}, raison: ${topArticles[randomIndex].reason})`,
+        logger.warn(
+          "⚠️ Aucun article validé — aucun article retourné (pas de fallback non-validé)",
         );
+        return null;
       }
+
+      validatedArticles.sort((a, b) => b.score - a.score);
+      const topArticles = validatedArticles.slice(0, Math.min(5, validatedArticles.length));
+      const randomIndex = Math.floor(Math.random() * topArticles.length);
+      const selectedArticle = topArticles[randomIndex].item;
+      logger.log(
+        `🎲 Article sélectionné: "${selectedArticle.title?.substring(0, 80)}..." (score: ${topArticles[randomIndex].score.toFixed(2)}, raison: ${topArticles[randomIndex].reason})`,
+      );
 
       const latestItem = selectedArticle;
 
