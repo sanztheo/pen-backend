@@ -47,6 +47,8 @@ export interface SystemPromptOptions {
   conversationHistory?: string;
   /** When true, the model has native web search (Google Search Grounding) — don't mention searchWeb tool */
   hasNativeWebSearch?: boolean;
+  /** Mem0 memory entries relevant to current query */
+  memoryContext?: string[];
 }
 
 interface ModeConfig {
@@ -451,6 +453,26 @@ Language:
 // MAIN BUILDER
 // ============================================================================
 
+const MAX_MEMORY_ENTRY_CHARS = 200;
+
+function buildMemorySection(memoryContext?: string[]): string {
+  if (!memoryContext || memoryContext.length === 0) {
+    return "";
+  }
+
+  const memories = memoryContext
+    .map((m) => `- ${sanitizeForPrompt(m.slice(0, MAX_MEMORY_ENTRY_CHARS))}`)
+    .join("\n");
+  return `
+<user_memory>
+You have persistent memory about this user from previous conversations.
+Use this context to personalize your responses, but do NOT explicitly mention that you "remember" things.
+Integrate this knowledge naturally.
+
+${memories}
+</user_memory>`;
+}
+
 /**
  * Builds the complete system prompt in XML format.
  * Prompt is selected based on mode × intent composite key.
@@ -462,7 +484,13 @@ export function buildSystemPrompt(
 ): string {
   const promptKey: PromptKey = `${mode}-${intent}`;
   const config = MODE_CONFIGS[promptKey];
-  const { personalization, conversationHistory, ragSources, hasNativeWebSearch = false } = options;
+  const {
+    personalization,
+    conversationHistory,
+    ragSources,
+    hasNativeWebSearch = false,
+    memoryContext,
+  } = options;
 
   const sections = [
     buildIdentitySection(config),
@@ -471,6 +499,7 @@ export function buildSystemPrompt(
     buildResearchGuidelinesSection(config, hasNativeWebSearch),
     buildContentGuidelinesSection(config),
     buildUserProfileSection(personalization),
+    buildMemorySection(memoryContext),
     buildSourcesSection(ragSources),
     buildToolsSection(config, hasNativeWebSearch),
     buildHistorySection(conversationHistory),

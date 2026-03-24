@@ -68,6 +68,8 @@ export interface AgentRequest {
     language?: string;
     style?: string;
   };
+  /** Mem0 memory entries relevant to current query */
+  memoryContext?: string[];
 }
 
 /**

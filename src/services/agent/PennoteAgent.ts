@@ -119,6 +119,7 @@ export function runPennoteAgent(
     ragSources,
     conversationHistory,
     personalization,
+    memoryContext,
   } = request;
 
   const { maxSteps, maxTokens, thinking } = MODE_CONFIG[mode];
@@ -163,6 +164,7 @@ export function runPennoteAgent(
     personalization,
     conversationHistory,
     hasNativeWebSearch: isGoogleProvider,
+    memoryContext,
   });
 
   const model = providerInstance(modelName);

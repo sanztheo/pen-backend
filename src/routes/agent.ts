@@ -40,6 +40,7 @@ import {
 import { AICreditsService } from "../services/credits/aiCreditsService.js";
 import { verifyWorkspaceAccess } from "../middlewares/workspaceAccess.js";
 import { MODELS } from "../config/models.js";
+import { searchMemories, addMemories } from "../services/mem0/mem0Client.js";
 
 // Interface pour les résultats des workflows
 interface WorkflowResult {
@@ -277,8 +278,12 @@ router.post(
         });
       }
 
-      // Convertir UIMessage[] (format frontend) vers ModelMessage[] (format AI SDK)
-      const modelMessages = await convertToModelMessages(messages as UIMessage[]);
+      // Convertir UIMessage[] + récupérer mémoires en parallèle
+      const [modelMessages, memories] = await Promise.all([
+        convertToModelMessages(messages as UIMessage[]),
+        searchMemories(userId, lastUserMessage),
+      ]);
+      const memoryContext = memories.map((m) => m.memory);
 
       // Exécuter l'agent Pennote avec mode × intent
       const result = await runPennoteAgent(
@@ -292,6 +297,7 @@ router.post(
           ragSources,
           conversationHistory,
           personalization,
+          memoryContext,
         },
         {
           // Callbacks optionnels pour le logging
@@ -359,6 +365,23 @@ router.post(
             );
           } catch (quotaError) {
             logger.error("⚠️ [QUOTA] Erreur enregistrement usage:", quotaError);
+          }
+
+          // 🧠 Mem0: stocker la conversation pour enrichir la mémoire (fire-and-forget)
+          const lastAssistantMsg = allMessages
+            .filter((m: UIMessage) => m.role === "assistant")
+            .pop();
+          if (lastUserMessage && lastAssistantMsg) {
+            const assistantText = lastAssistantMsg.parts
+              .filter((p): p is { type: "text"; text: string } => p.type === "text")
+              .map((p) => p.text)
+              .join("");
+            if (assistantText) {
+              addMemories(userId, [
+                { role: "user", content: lastUserMessage.slice(0, 2000) },
+                { role: "assistant", content: assistantText.slice(0, 2000) },
+              ]).catch((err: unknown) => logger.warn("[MEM0] Uncaught add error:", err));
+            }
           }
         },
       });
@@ -467,6 +490,10 @@ router.post(
       // Convertir UIMessage[] vers ModelMessage[]
       const modelMessages = await convertToModelMessages(messages as UIMessage[]);
 
+      // 🧠 Mem0: récupérer les souvenirs pertinents
+      const simpleMemories = await searchMemories(userId, simpleLastMsg);
+      const simpleMemoryContext = simpleMemories.map((m) => m.memory);
+
       const result = await runPennoteAgentSimple({
         messages: modelMessages,
         mode,
@@ -477,6 +504,7 @@ router.post(
         ragSources,
         conversationHistory,
         personalization,
+        memoryContext: simpleMemoryContext,
       });
 
       res.json({
@@ -583,6 +611,14 @@ router.post(
         });
       }
 
+      // Helper: stocker le prompt + résultat dans Mem0 après un workflow
+      const storeWorkflowMemory = (content: string): void => {
+        addMemories(userId, [
+          { role: "user", content: (prompt as string).slice(0, 2000) },
+          { role: "assistant", content: content.slice(0, 2000) },
+        ]).catch((err: unknown) => logger.warn("[MEM0] Uncaught workflow add error:", err));
+      };
+
       // Exécuter le workflow selon le mode × intent
       const { createPage: shouldCreatePage } = req.body;
       let result: WorkflowResult;
@@ -608,6 +644,8 @@ router.post(
           userId,
           req.aiCredits?.action,
         );
+
+        storeWorkflowMemory(result.content);
 
         return res.json({
           success: true,
@@ -645,6 +683,8 @@ router.post(
           req.aiCredits?.action,
         );
 
+        storeWorkflowMemory(result.content);
+
         return res.json({
           success: true,
           type: "page",
@@ -676,6 +716,8 @@ router.post(
           userId,
           req.aiCredits?.action,
         );
+
+        storeWorkflowMemory(result.content);
 
         return res.json({
           success: true,
