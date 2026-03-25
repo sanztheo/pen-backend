@@ -11,9 +11,10 @@
 
 import { logger } from "../../utils/logger.js";
 import { generateText, stepCountIs } from "ai";
+import type { JSONObject } from "@ai-sdk/provider";
 import { createRagTools } from "./tools/ragTools.js";
-import { MODELS as MODEL_IDS } from "../../config/models.js";
-import { google } from "../../config/providers.js";
+import { MODELS as MODEL_IDS, getModelProvider } from "../../config/models.js";
+import { getProviderInstance } from "../../config/providers.js";
 import { createWebTools } from "./tools/webTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createPageTools } from "./tools/pageTools.js";
@@ -61,17 +62,57 @@ interface ContentDraft {
 // MODELS
 // ============================================================================
 
-function requireGoogle() {
-  if (!google) throw new Error("[Workflows] GEMINI_API_KEY is not configured");
-  return google;
+/**
+ * Resolve a workflow model with automatic failover.
+ * Tries the configured provider for the model id, falls back to AGENT_FALLBACK.
+ */
+function resolveModel(modelId: string) {
+  const provider = getProviderInstance(modelId);
+  if (provider) return provider(modelId);
+
+  const fallback = getProviderInstance(MODEL_IDS.AGENT_FALLBACK);
+  if (fallback) {
+    logger.warn(
+      `[Workflows] Provider for "${modelId}" unavailable, using fallback "${MODEL_IDS.AGENT_FALLBACK}"`,
+    );
+    return fallback(MODEL_IDS.AGENT_FALLBACK);
+  }
+
+  throw new Error(
+    `[Workflows] No provider configured for "${modelId}" or fallback "${MODEL_IDS.AGENT_FALLBACK}"`,
+  );
+}
+
+type ThinkingLevel = "low" | "medium" | "high";
+
+/**
+ * Build provider-specific thinking options based on the resolved provider.
+ * Google uses thinkingConfig, Moonshot uses budgetTokens, others get empty options.
+ */
+function buildThinkingOptions(modelId: string, level: ThinkingLevel): Record<string, JSONObject> {
+  // Check which provider is actually available (may be fallback)
+  const primaryProvider = getModelProvider(modelId);
+  const hasPrimary = !!getProviderInstance(modelId);
+  const effectiveProvider = hasPrimary
+    ? primaryProvider
+    : getModelProvider(MODEL_IDS.AGENT_FALLBACK);
+
+  if (effectiveProvider === "google") {
+    return { google: { thinkingConfig: { thinkingLevel: level } } };
+  }
+  if (effectiveProvider === "moonshot") {
+    const budgetTokens = level === "high" ? 8192 : level === "medium" ? 4096 : 2048;
+    return { moonshotai: { thinking: { type: "enabled", budgetTokens } } };
+  }
+  return {};
 }
 
 const MODELS = {
   get fast() {
-    return requireGoogle()(MODEL_IDS.AGENT_FAST);
+    return resolveModel(MODEL_IDS.AGENT_FAST);
   },
   get thinking() {
-    return requireGoogle()(MODEL_IDS.AGENT_THINKING);
+    return resolveModel(MODEL_IDS.AGENT_THINKING);
   },
 };
 
@@ -310,9 +351,7 @@ async function synthesizeResearch(
     model: MODELS.thinking,
     maxOutputTokens: 4096,
     timeout: LLM_TIMEOUT_THINKING_MS,
-    providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: "medium" } },
-    },
+    providerOptions: buildThinkingOptions(MODEL_IDS.AGENT_THINKING, "medium"),
     system: `You are a research synthesis expert. Analyze multiple sources and create a comprehensive, well-organized summary.
 
 Guidelines:
@@ -424,9 +463,7 @@ async function improveContent(
     model: MODELS.thinking,
     maxOutputTokens: 8192,
     timeout: LLM_TIMEOUT_THINKING_MS,
-    providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: "high" } },
-    },
+    providerOptions: buildThinkingOptions(MODEL_IDS.AGENT_THINKING, "high"),
     system: `You are a content improvement specialist. Your task is to enhance content based on specific feedback.
 
 Guidelines:
@@ -536,9 +573,7 @@ Format as a structured outline.`,
     model: MODELS.thinking,
     maxOutputTokens: 32000,
     timeout: LLM_TIMEOUT_THINKING_MS,
-    providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: "high" } },
-    },
+    providerOptions: buildThinkingOptions(MODEL_IDS.AGENT_THINKING, "high"),
     system: `You are a comprehensive research writer. Create detailed, well-structured content based on research findings.
 
 Guidelines:
@@ -702,9 +737,7 @@ Format as a structured outline.`,
     model: MODELS.thinking,
     maxOutputTokens: 32000,
     timeout: LLM_TIMEOUT_THINKING_MS,
-    providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: "high" } },
-    },
+    providerOptions: buildThinkingOptions(MODEL_IDS.AGENT_THINKING, "high"),
     system: buildSystemPrompt("deep", "creation", {
       workspaceId: ctx.workspaceId,
       ragSources: ctx.ragSources,
@@ -851,9 +884,7 @@ export async function runQuickContentWorkflow(
     model: MODELS.thinking,
     maxOutputTokens: 8192,
     timeout: LLM_TIMEOUT_THINKING_MS,
-    providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: "medium" } },
-    },
+    providerOptions: buildThinkingOptions(MODEL_IDS.AGENT_THINKING, "medium"),
     system: buildSystemPrompt("fast", "creation", {
       workspaceId: ctx.workspaceId,
       ragSources: ctx.ragSources,

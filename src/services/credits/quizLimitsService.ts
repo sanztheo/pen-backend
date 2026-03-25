@@ -686,33 +686,51 @@ export class QuizLimitsService {
     try {
       const now = new Date();
 
-      // Récupérer les limites actuelles
-      const userLimits = await prisma.userLimits.findUnique({
-        where: { userId },
-      });
+      // Atomic: increment usage + set resetAt (NULL → now) with WHERE guard on limit
+      const affected = await prisma.$executeRaw`
+        UPDATE "user_limits"
+        SET "advanced_quizzes_used" = "advanced_quizzes_used" + 1,
+            "advanced_quizzes_reset_at" = COALESCE("advanced_quizzes_reset_at", ${now}),
+            "updated_at" = ${now}
+        WHERE "user_id" = ${userId}
+          AND ("advanced_quizzes_limit" = -1 OR "advanced_quizzes_used" < "advanced_quizzes_limit")
+      `;
 
-      if (!userLimits) {
+      if (affected === 0) {
+        const userLimits = await prisma.userLimits.findUnique({
+          where: { userId },
+          select: { advancedQuizzesUsed: true, advancedQuizzesLimit: true },
+        });
+
+        if (!userLimits) {
+          return {
+            success: false,
+            limitReached: false,
+            message: "Limites utilisateur introuvables",
+          };
+        }
+
         return {
           success: false,
-          limitReached: false,
-          message: "Limites utilisateur introuvables",
+          remainingQuizzes: 0,
+          limitReached: true,
+          message: "Limite de quiz avancés atteinte",
         };
       }
 
-      // Mettre à jour le compteur et définir resetAt si c'est le premier
-      await prisma.userLimits.update({
+      // Read final state for response
+      const finalLimits = await prisma.userLimits.findUnique({
         where: { userId },
-        data: {
-          advancedQuizzesUsed: userLimits.advancedQuizzesUsed + 1,
-          advancedQuizzesResetAt: userLimits.advancedQuizzesResetAt || now,
-        },
+        select: { advancedQuizzesUsed: true, advancedQuizzesLimit: true },
       });
 
-      const remaining = userLimits.advancedQuizzesLimit - (userLimits.advancedQuizzesUsed + 1);
+      const remaining = finalLimits
+        ? finalLimits.advancedQuizzesLimit - finalLimits.advancedQuizzesUsed
+        : 0;
 
       SecureLogger.debug(`✅ [QUIZ-LIMITS] Quiz avancé déduit`, {
         userId,
-        newUsage: userLimits.advancedQuizzesUsed + 1,
+        newUsage: finalLimits?.advancedQuizzesUsed,
         remaining,
       });
 

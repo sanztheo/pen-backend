@@ -16,6 +16,7 @@ interface CircuitStats {
   failures: number;
   successes: number;
   lastFailureAt: number;
+  probeInFlight: boolean;
 }
 
 const circuits = new Map<string, CircuitStats>();
@@ -23,7 +24,13 @@ const circuits = new Map<string, CircuitStats>();
 function getCircuit(key: string): CircuitStats {
   let circuit = circuits.get(key);
   if (!circuit) {
-    circuit = { state: "CLOSED", failures: 0, successes: 0, lastFailureAt: 0 };
+    circuit = {
+      state: "CLOSED",
+      failures: 0,
+      successes: 0,
+      lastFailureAt: 0,
+      probeInFlight: false,
+    };
     circuits.set(key, circuit);
   }
   return circuit;
@@ -43,13 +50,18 @@ export function isCircuitOpen(key: string): boolean {
     if (elapsed >= RESET_TIMEOUT_MS) {
       circuit.state = "HALF_OPEN";
       circuit.successes = 0;
+      circuit.probeInFlight = true;
       logger.log(`[CIRCUIT_BREAKER] ${key}: OPEN → HALF_OPEN (probing recovery)`);
-      return false; // allow one request through
+      return false; // allow first probe request through
     }
     return true; // still open
   }
 
-  // HALF_OPEN — allow requests through for probing
+  // HALF_OPEN — only allow through if no probe is already in flight
+  if (circuit.probeInFlight) {
+    return true; // block until probe finishes
+  }
+  circuit.probeInFlight = true;
   return false;
 }
 
@@ -60,6 +72,7 @@ export function recordSuccess(key: string): void {
   const circuit = getCircuit(key);
 
   if (circuit.state === "HALF_OPEN") {
+    circuit.probeInFlight = false;
     circuit.successes++;
     if (circuit.successes >= SUCCESS_THRESHOLD) {
       circuit.state = "CLOSED";
@@ -83,6 +96,7 @@ export function recordFailure(key: string): void {
   circuit.lastFailureAt = Date.now();
 
   if (circuit.state === "HALF_OPEN") {
+    circuit.probeInFlight = false;
     circuit.state = "OPEN";
     logger.log(`[CIRCUIT_BREAKER] ${key}: HALF_OPEN → OPEN (probe failed)`);
     return;

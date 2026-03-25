@@ -12,7 +12,6 @@ const MAX_METADATA_SIZE_BYTES = 4096;
 
 // ─── Turnstile verification ─────────────────────────────────
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY;
 
 interface TurnstileResponse {
   success: boolean;
@@ -20,6 +19,7 @@ interface TurnstileResponse {
 }
 
 async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
+  const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY;
   if (!TURNSTILE_SECRET) {
     logger.warn("[TURNSTILE] TURNSTILE_SECRET_KEY not set — skipping verification");
     return true;

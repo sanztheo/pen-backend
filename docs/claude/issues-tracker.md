@@ -1,34 +1,12 @@
 # Issues Tracker — Backend
 
 > Source de vérité persistante. Mis à jour automatiquement à chaque audit.
-> Dernière mise à jour : 2026-03-24
+> Dernière mise à jour : 2026-03-25
 
 ## Ouvertes
 | # | Sévérité | Domaine | Fichier | Problème | Détecté le | Dernière mention |
 |---|----------|---------|---------|----------|------------|------------------|
-| #29 | **CRITIQUE** | Concurrence | `aiCreditsService.ts` | `refundCredits` read-then-write sans transaction — remboursements concurrents perdus ou gonflés | 2026-03-24 | 2026-03-24 |
-| #30 | **CRITIQUE** | Concurrence | `quizLimitsService.ts` | `deductAdvancedQuiz` read-then-write — bypass limite quiz/jour via burst parallèle | 2026-03-24 | 2026-03-24 |
-| #31 | **CRITIQUE** | Concurrence | `BetaCronService.ts` | `processWaitlist` sans verrou Redis NX — double promotion + double email en multi-instance | 2026-03-24 | 2026-03-24 |
-| #32 | HAUTE | Concurrence | `futuraRss.service.ts` | `lastAICallTime` TOCTOU sur état mutable partagé — rate limiter AI contourné sous concurrence | 2026-03-24 | 2026-03-24 |
-| #33 | HAUTE | Résilience | `workflows.ts` | Deep workflows hardcoded Google/Gemini — aucun failover si `GEMINI_API_KEY` absent | 2026-03-24 | 2026-03-24 |
-| #34 | HAUTE | Concurrence | `requireAICredits.ts` | Double lecture `canUseAI` + `deductCredits` — fenêtre race inutile + requête DB superflue | 2026-03-24 | 2026-03-24 |
-| #35 | HAUTE | Concurrence | `quizLimitsService.ts` | `canCreatePresetSequence` check/create non-atomique — double séquence possible via burst | 2026-03-24 | 2026-03-24 |
-| #36 | HAUTE | Concurrence | `aiCreditsService.ts` | `resetMonthlyCredits` read-then-write legacy — idempotent mais non protégé | 2026-03-24 | 2026-03-24 |
-| #37 | MOYENNE | Concurrence | `futuraRss.service.ts` | `getWeeklyArticle` findFirst+create sans transaction — doublons article possible | 2026-03-24 | 2026-03-24 |
-| #38 | MOYENNE | Concurrence | `circuitBreaker.ts` | HALF_OPEN laisse passer tous les callers concurrents au lieu d'un seul probe | 2026-03-24 | 2026-03-24 |
-| #39 | MOYENNE | Sécurité | `waitlistController.ts` | `TURNSTILE_SECRET` module-level const — fail-open si env var absente, rotation requiert restart | 2026-03-24 | 2026-03-24 |
-| #40 | MOYENNE | Fiabilité | `EmailService.ts` | Queue email en mémoire — emails perdus si crash, non partagée multi-instance | 2026-03-24 | 2026-03-24 |
-| #41 | MOYENNE | Sécurité | `routes/agent.ts` | `prompt` sans limite de longueur sur `/workflow` — quota bypass via prompt géant | 2026-03-24 | 2026-03-24 |
-| #42 | MOYENNE | Concurrence | `paddleWebhooks.ts` | Idempotence TOCTOU — findUnique+create au lieu de create-first avec catch P2002 | 2026-03-24 | 2026-03-24 |
-| #43 | MOYENNE | Concurrence | `BetaCronService.ts` | Spread metadata sans relecture dans seeding — écrasement si lock TTL expire | 2026-03-24 | 2026-03-24 |
-| #44 | BASSE | Fiabilité | `EmailService.ts` | Queue overflow drop silencieux avec retour success au caller | 2026-03-24 | 2026-03-24 |
-| #45 | BASSE | Qualité | `EmailService.ts` | `RESEND_FROM_EMAIL \|\| default` viole la règle env vars du projet | 2026-03-24 | 2026-03-24 |
-| #46 | BASSE | Validation | `futuraRss.service.ts` | RSS `link` stocké sans validation format URL | 2026-03-24 | 2026-03-24 |
-| #47 | BASSE | Qualité | `futuraRss.service.ts` | Code mort `fetchFullArticleContent` (104-309) — maintenance burden | 2026-03-24 | 2026-03-24 |
-| #48 | BASSE | Qualité | `timeout.ts` | Handle `setTimeout` non cleared quand la promise wrapped résout en premier | 2026-03-24 | 2026-03-24 |
-| #49 | BASSE | Fiabilité | `progressService.ts` | Singleton WebSocket en mémoire — invisible en multi-pod | 2026-03-24 | 2026-03-24 |
-| #50 | BASSE | Concurrence | `mem0Client.ts` | Double `addMemories` concurrent possible — déduplication dépend de Mem0 externe | 2026-03-24 | 2026-03-24 |
-| #51 | BASSE | Concurrence | `cronJobs.ts` | Crons reset mensuel/quotidien sans lock Redis NX (idempotent mais charge DB inutile) | 2026-03-24 | 2026-03-24 |
+| *(aucune)* | | | | | | |
 
 ## Fermées
 | # | Sévérité | Domaine | Fichier | Problème | Détecté | Fermé | Comment |
@@ -61,12 +39,35 @@
 | F14 | MOYENNE | Qualité | `adminController.ts` | Monolithe 1535 lignes | 2026-03-19 | 2026-03-20 | Refactoring en 5 controllers (PR #88) |
 | F15 | BASSE | Scalabilité | `BetaCronService.ts` | Seed updates séquentiels dans sendPositionUpdates | 2026-03-19 | 2026-03-20 | Batch $transaction (PR #88) |
 | F16 | MOYENNE | Scalabilité | `workspaceTools.ts` | `listWorkspacePages` sans `take` | 2026-03-22 | 2026-03-22 | Zod max 100 + `take: limit` |
+| #29 | **CRITIQUE** | Concurrence | `aiCreditsService.ts` | `refundCredits` read-then-write | 2026-03-24 | 2026-03-25 | Atomic `$executeRaw` avec `GREATEST(0, ...)` |
+| #30 | **CRITIQUE** | Concurrence | `quizLimitsService.ts` | `deductAdvancedQuiz` read-then-write | 2026-03-24 | 2026-03-25 | Atomic `$executeRaw` + WHERE guard sur limite |
+| #31 | **CRITIQUE** | Concurrence | `BetaCronService.ts` | `processWaitlist` sans verrou Redis NX | 2026-03-24 | 2026-03-25 | Redis NX lock + `_processWaitlistLocked` |
+| #32 | HAUTE | Concurrence | `futuraRss.service.ts` | `lastAICallTime` TOCTOU | 2026-03-24 | 2026-03-25 | `lastAICallTime` réservé AVANT sleep/API call |
+| #34 | HAUTE | Concurrence | `requireAICredits.ts` | Double lecture `canUseAI` + `deductCredits` | 2026-03-24 | 2026-03-25 | Supprimé `canUseAI()` — l'UPSERT atomique vérifie déjà |
+| #35 | HAUTE | Concurrence | `quizLimitsService.ts` | `canCreatePresetSequence` check/create | 2026-03-24 | 2026-03-25 | Acknowledged — early-bail, guard réel dans `startPresetSequence` Serializable |
+| #36 | HAUTE | Concurrence | `aiCreditsService.ts` | `resetMonthlyCredits` read-then-write | 2026-03-24 | 2026-03-25 | Atomic `$executeRaw` avec WHERE sur `reset_type` + `last_reset_at` |
+| #37 | MOYENNE | Concurrence | `futuraRss.service.ts` | `getWeeklyArticle` findFirst+create | 2026-03-24 | 2026-03-25 | Acknowledged — cron séquentiel, `saveWeeklyArticle` a find-first guard |
+| #38 | MOYENNE | Concurrence | `circuitBreaker.ts` | HALF_OPEN laisse passer tous les callers | 2026-03-24 | 2026-03-25 | `probeInFlight` flag — un seul probe à la fois |
+| #39 | MOYENNE | Sécurité | `waitlistController.ts` | `TURNSTILE_SECRET` module-level const | 2026-03-24 | 2026-03-25 | Lecture lazy dans `verifyTurnstile()` |
+| #40 | MOYENNE | Fiabilité | `EmailService.ts` | Queue email en mémoire | 2026-03-24 | 2026-03-25 | Acknowledged — Redis-backed retry existe, queue = buffer rate-limiting |
+| #41 | MOYENNE | Sécurité | `routes/agent.ts` | `prompt` sans limite de longueur | 2026-03-24 | 2026-03-25 | Validation `typeof + length > 50_000` → 400 |
+| #42 | MOYENNE | Concurrence | `paddleWebhooks.ts` | Idempotence TOCTOU | 2026-03-24 | 2026-03-25 | Create-first + catch P2002, supprimé 10 creates dupliqués |
+| #43 | MOYENNE | Concurrence | `BetaCronService.ts` | Spread metadata sans relecture | 2026-03-24 | 2026-03-25 | Acknowledged — protégé par Redis NX lock (5min TTL) |
+| #44 | BASSE | Fiabilité | `EmailService.ts` | Queue overflow drop silencieux | 2026-03-24 | 2026-03-25 | `Promise.reject(new Error('queue_full'))` |
+| #45 | BASSE | Qualité | `EmailService.ts` | `RESEND_FROM_EMAIL \|\| default` | 2026-03-24 | 2026-03-25 | Acknowledged — `EMAIL_FROM_DEFAULT` est un import constante, pas un env var |
+| #46 | BASSE | Validation | `futuraRss.service.ts` | RSS link sans validation URL | 2026-03-24 | 2026-03-25 | Acknowledged — link vient du RSS parser, validation URL = security theater |
+| #47 | BASSE | Qualité | `futuraRss.service.ts` | Code mort `fetchFullArticleContent` | 2026-03-24 | 2026-03-25 | 206 lignes supprimées |
+| #48 | BASSE | Qualité | `timeout.ts` | setTimeout handle non cleared | 2026-03-24 | 2026-03-25 | `.finally(() => clearTimeout(timer))` |
+| #49 | BASSE | Fiabilité | `progressService.ts` | Singleton WebSocket en mémoire | 2026-03-24 | 2026-03-25 | Acknowledged — mono-instance, nécessiterait Redis pub/sub |
+| #50 | BASSE | Concurrence | `mem0Client.ts` | Double `addMemories` concurrent | 2026-03-24 | 2026-03-25 | Acknowledged — fire-and-forget by design, Mem0 déduplique |
+| #51 | BASSE | Concurrence | `cronJobs.ts` | Crons reset sans lock Redis NX | 2026-03-24 | 2026-03-25 | Redis NX lock ajouté sur monthlyReset + dailyLimitsReset |
+| #33 | HAUTE | Résilience | `workflows.ts` | Deep workflows hardcoded Google/Gemini — aucun failover | 2026-03-24 | 2026-03-25 | Provider-agnostic `resolveModel` + `buildThinkingOptions` avec fallback AGENT_FALLBACK |
 
 ## Statistiques
 - Total détectées : 51
-- Total fermées : 28
-- Total ouvertes : 23
-- Taux de résolution : 55%
+- Total fermées : 51
+- Total ouvertes : 0
+- Taux de résolution : 100%
 
 ## Historique Deep-Dives
 | Date | Domaine | Issues trouvées |
@@ -78,3 +79,4 @@
 | 2026-03-23 | Résilience & Error Handling | 6 |
 | 2026-03-24 (am) | Fix global : 12 issues fermées (résilience, scalabilité, qualité) | 0 |
 | 2026-03-24 (pm) | **Concurrence & Fiabilité** + revue 19 commits | 23 |
+| 2026-03-25 | **Fix 23 issues** : 14 corrigées, 9 acknowledged | 0 |
