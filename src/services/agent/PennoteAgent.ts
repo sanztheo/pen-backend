@@ -21,7 +21,7 @@ import {
 } from "./types.js";
 
 // System prompts
-import { buildSystemPrompt } from "./systemPrompts.js";
+import { buildSystemPrompt, sanitizeForPrompt } from "./systemPrompts.js";
 
 // Re-export types
 export type { AgentMode, IntentType, AgentRequest, AgentStreamCallbacks } from "./types.js";
@@ -158,7 +158,7 @@ export function runPennoteAgent(
   } satisfies ToolSet;
 
   // System prompt — pass hasNativeWebSearch so the prompt doesn't mention searchWeb for Google
-  const systemPrompt = buildSystemPrompt(mode, intent, {
+  let systemPrompt = buildSystemPrompt(mode, intent, {
     workspaceId,
     ragSources,
     personalization,
@@ -166,6 +166,14 @@ export function runPennoteAgent(
     hasNativeWebSearch: isGoogleProvider,
     memoryContext,
   });
+
+  // Agent marketplace — inject specialized agent instructions (pre-resolved by caller)
+  if (request.agentPrompt) {
+    systemPrompt += `\n\n<agent-instructions>
+You are a specialized agent: ${sanitizeForPrompt(request.agentPrompt.name)}
+${sanitizeForPrompt(request.agentPrompt.systemPrompt)}
+</agent-instructions>`;
+  }
 
   const model = providerInstance(modelName);
   const providerOptions = buildProviderOptions(modelName, thinking, isGoogleProvider);

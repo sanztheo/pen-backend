@@ -40,6 +40,8 @@ export async function saveConversation({
   messages,
   mode,
   status = "COMPLETED",
+  agentId,
+  agentType,
 }: {
   conversationId: string;
   userId: string;
@@ -47,6 +49,8 @@ export async function saveConversation({
   messages: UIMessage[];
   mode?: string;
   status?: ConversationStatus;
+  agentId?: string;
+  agentType?: string;
 }): Promise<void> {
   logger.log(
     `💾 [CONVERSATION] Sauvegarde: ${conversationId}, ${messages.length} messages, status=${status}`,
@@ -69,6 +73,8 @@ export async function saveConversation({
         messageCount: messages.length,
         lastMessageAt: new Date(),
         metadata: { mode },
+        ...(agentId && { agentId }),
+        ...(agentType && { agentType }),
       },
       update: {
         status,
@@ -172,7 +178,13 @@ export async function getConversationStatus(
 export async function loadConversation(
   conversationId: string,
   userId: string,
-): Promise<{ messages: UIMessage[]; status: ConversationStatus; mode?: string } | null> {
+): Promise<{
+  messages: UIMessage[];
+  status: ConversationStatus;
+  mode?: string;
+  agentId?: string;
+  agentType?: string;
+} | null> {
   logger.log(`📖 [CONVERSATION] Chargement: ${conversationId}`);
 
   try {
@@ -217,7 +229,13 @@ export async function loadConversation(
     logger.log(
       `✅ [CONVERSATION] Chargé: ${conversationId}, ${messages.length} messages, status=${conversation.status}, mode=${mode}`,
     );
-    return { messages, status: conversation.status, mode };
+    return {
+      messages,
+      status: conversation.status,
+      mode,
+      ...(conversation.agentId && { agentId: conversation.agentId }),
+      ...(conversation.agentType && { agentType: conversation.agentType }),
+    };
   } catch (error) {
     logger.error(`❌ [CONVERSATION] Erreur chargement:`, error);
     return null;
@@ -239,6 +257,8 @@ export async function listConversations(
     messageCount: number;
     lastMessageAt: Date | null;
     createdAt: Date;
+    agentId: string | null;
+    agentType: string | null;
   }>
 > {
   const conversations = await prisma.aIConversation.findMany({
@@ -256,6 +276,8 @@ export async function listConversations(
       messageCount: true,
       lastMessageAt: true,
       createdAt: true,
+      agentId: true,
+      agentType: true,
     },
   });
 
