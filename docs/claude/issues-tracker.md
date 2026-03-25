@@ -6,7 +6,22 @@
 ## Ouvertes
 | # | Sévérité | Domaine | Fichier | Problème | Détecté le | Dernière mention |
 |---|----------|---------|---------|----------|------------|------------------|
-| *(aucune)* | | | | | | |
+| #52 | **CRITIQUE** | Sécurité | `conversationService.ts:65` | IDOR: `saveConversation` upsert `where: { id }` sans userId — un user peut écraser la conversation d'un autre | 2026-03-25 | 2026-03-25 |
+| #53 | HAUTE | Sécurité | `conversationService.ts:128,145` | `updateActiveStreamId` et `updateConversationStatus` sans guard userId | 2026-03-25 | 2026-03-25 |
+| #54 | HAUTE | Qualité | `src/` (3 fichiers) | 3 implémentations retry dupliquées: `lib/retry.ts`, `lib/retryWithBackoff.ts`, `quiz/assistant/utils/retry.ts` | 2026-03-25 | 2026-03-25 |
+| #55 | HAUTE | Qualité | `lib/secureLogging.ts` + `middlewares/secureLogging.ts` | 2 modules secureLogging dupliqués (fonctionnel vs class-based) | 2026-03-25 | 2026-03-25 |
+| #56 | HAUTE | Qualité | 16 fichiers `src/` | 38 env vars avec fallback silencieux (dont DATABASE_URL, CLIENT_URL) — convention: throw si absent | 2026-03-25 | 2026-03-25 |
+| #57 | HAUTE | Tests | `src/` global | Couverture tests ~15% : quiz (7k+ L), RAG (3.3k L), billing (1.5k L), agent (3.3k L), middlewares (2.1k L), routes (6.7k L) sans aucun test | 2026-03-25 | 2026-03-25 |
+| #58 | MOYENNE | Sécurité | `routes/agents.ts` | CRUD agents sans rate limiting (sauf generate-prompt) | 2026-03-25 | 2026-03-25 |
+| #59 | MOYENNE | Sécurité | `routes/agents.ts:83` | Pas de limite sur le nombre d'agents custom par user (storage abuse) | 2026-03-25 | 2026-03-25 |
+| #60 | MOYENNE | Qualité | `src/` (60 fichiers) | 60 fichiers production > 300 lignes (top: quizService 2386L, correctionGenerator 2169L, quizStreaming 1918L) | 2026-03-25 | 2026-03-25 |
+| #61 | MOYENNE | Qualité | 5+ modules `src/` | Dead code: ~5000+ lignes de modules non importés (documentSearchService, fewShotExamples, promptOptimizer exports) | 2026-03-25 | 2026-03-25 |
+| #62 | MOYENNE | Qualité | 27 fichiers routes/controllers | Catch-500 dupliqué partout — asyncHandler wrapper manquant | 2026-03-25 | 2026-03-25 |
+| #63 | BASSE | Sécurité | `routes/agents.ts:217` | Favorites: validation manuelle au lieu de Zod (`agentId` sans check longueur) | 2026-03-25 | 2026-03-25 |
+| #64 | BASSE | Scalabilité | `routes/agent.ts:852` | `listConversations` limit query param non borné (user peut envoyer `?limit=999999`) | 2026-03-25 | 2026-03-25 |
+| #65 | BASSE | Scalabilité | `schema.prisma:797` | Index composite `CustomAgent(userId, isActive)` manquant | 2026-03-25 | 2026-03-25 |
+| #66 | BASSE | Qualité | `src/services/rag/*.ts` | Config RAG dupliquée dans 4 fichiers (`RAG_EMBEDDING_CONCURRENCY || "2"`) | 2026-03-25 | 2026-03-25 |
+| #67 | BASSE | Qualité | `quiz/preprocessor/example-usage.ts` | Fichier example-usage.ts (179L) livré dans src/ production | 2026-03-25 | 2026-03-25 |
 
 ## Fermées
 | # | Sévérité | Domaine | Fichier | Problème | Détecté | Fermé | Comment |
@@ -54,7 +69,7 @@
 | #42 | MOYENNE | Concurrence | `paddleWebhooks.ts` | Idempotence TOCTOU | 2026-03-24 | 2026-03-25 | Create-first + catch P2002, supprimé 10 creates dupliqués |
 | #43 | MOYENNE | Concurrence | `BetaCronService.ts` | Spread metadata sans relecture | 2026-03-24 | 2026-03-25 | Acknowledged — protégé par Redis NX lock (5min TTL) |
 | #44 | BASSE | Fiabilité | `EmailService.ts` | Queue overflow drop silencieux | 2026-03-24 | 2026-03-25 | `Promise.reject(new Error('queue_full'))` |
-| #45 | BASSE | Qualité | `EmailService.ts` | `RESEND_FROM_EMAIL \|\| default` | 2026-03-24 | 2026-03-25 | Acknowledged — `EMAIL_FROM_DEFAULT` est un import constante, pas un env var |
+| #45 | BASSE | Qualité | `EmailService.ts` | `RESEND_FROM_EMAIL || default` | 2026-03-24 | 2026-03-25 | Acknowledged — `EMAIL_FROM_DEFAULT` est un import constante, pas un env var |
 | #46 | BASSE | Validation | `futuraRss.service.ts` | RSS link sans validation URL | 2026-03-24 | 2026-03-25 | Acknowledged — link vient du RSS parser, validation URL = security theater |
 | #47 | BASSE | Qualité | `futuraRss.service.ts` | Code mort `fetchFullArticleContent` | 2026-03-24 | 2026-03-25 | 206 lignes supprimées |
 | #48 | BASSE | Qualité | `timeout.ts` | setTimeout handle non cleared | 2026-03-24 | 2026-03-25 | `.finally(() => clearTimeout(timer))` |
@@ -64,10 +79,10 @@
 | #33 | HAUTE | Résilience | `workflows.ts` | Deep workflows hardcoded Google/Gemini — aucun failover | 2026-03-24 | 2026-03-25 | Provider-agnostic `resolveModel` + `buildThinkingOptions` avec fallback AGENT_FALLBACK |
 
 ## Statistiques
-- Total détectées : 51
+- Total détectées : 67
 - Total fermées : 51
-- Total ouvertes : 0
-- Taux de résolution : 100%
+- Total ouvertes : 16
+- Taux de résolution : 76%
 
 ## Historique Deep-Dives
 | Date | Domaine | Issues trouvées |
@@ -79,4 +94,5 @@
 | 2026-03-23 | Résilience & Error Handling | 6 |
 | 2026-03-24 (am) | Fix global : 12 issues fermées (résilience, scalabilité, qualité) | 0 |
 | 2026-03-24 (pm) | **Concurrence & Fiabilité** + revue 19 commits | 23 |
-| 2026-03-25 | **Fix 23 issues** : 14 corrigées, 9 acknowledged | 0 |
+| 2026-03-25 (am) | **Fix 23 issues** : 14 corrigées, 9 acknowledged | 0 |
+| 2026-03-25 (pm) | **Qualité & Tests** + revue marketplace + sécurité agents | 16 |
