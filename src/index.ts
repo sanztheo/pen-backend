@@ -30,7 +30,7 @@ import { quizLimitsRouter } from "./routes/quizLimits.js";
 import { sync_limitsRouter } from "./routes/sync-limits.js";
 import { updatesRouter } from "./routes/updates.js";
 import { userRouter } from "./routes/user.js";
-import { dailyArticleRouter } from "./routes/dailyArticle.js";
+
 import { uploadRouter } from "./routes/upload.js";
 import { paddleWebhookHandler } from "./routes/paddleWebhooks.js";
 import { jobsRouter } from "./routes/jobs.js";
@@ -55,7 +55,7 @@ import { startWorkers, stopWorkers } from "./workers/index.js";
 import { closeQueues } from "./lib/queues.js";
 import { startMonitoring, stopMonitoring } from "./lib/monitoring.js";
 import { logger } from "./utils/logger.js";
-import { initFuturaScheduler, stopFuturaScheduler } from "./lib/futuraScheduler.js";
+
 import { startAlertsCron, stopAlertsCron } from "./cron/alertsCron.js";
 import { startRetentionCron, stopRetentionCron } from "./cron/retentionCron.js";
 import { logMem0Status } from "./services/mem0/mem0Client.js";
@@ -238,7 +238,7 @@ app.use("/api/quiz-limits", quizLimitsRouter);
 app.use("/api/sync-limits", sync_limitsRouter);
 app.use("/api/updates", updatesRouter);
 app.use("/api/upload", uploadRouter);
-app.use("/api/daily-article", dailyArticleRouter);
+
 app.use("/api/user", userRouter);
 app.use("/api/jobs", jobsRouter); // 🎯 Récupération résultats jobs BullMQ
 app.use("/api/agent", aiRateLimit, aiBurstRateLimit, agentRouter); // 🤖 Agent Pennote + burst protection
@@ -770,9 +770,6 @@ server.listen(PORT, async () => {
       // 🎯 Démarrer les workers BullMQ pour jobs asynchrones
       startWorkers();
 
-      // 📅 Initialiser le planificateur d'articles Futura (rafraîchissement hebdomadaire)
-      await initFuturaScheduler();
-
       // 📊 Démarrer le monitoring système (toutes les 5 minutes)
       startMonitoring(5);
 
@@ -801,7 +798,6 @@ process.on("SIGTERM", async () => {
   stopMonitoring();
   stopAlertsCron();
   stopRetentionCron();
-  await stopFuturaScheduler();
   await stopWorkers();
   await closeQueues();
   process.exit(0);
@@ -812,7 +808,6 @@ process.on("SIGINT", async () => {
   stopMonitoring();
   stopAlertsCron();
   stopRetentionCron();
-  await stopFuturaScheduler();
   await stopWorkers();
   await closeQueues();
   process.exit(0);
