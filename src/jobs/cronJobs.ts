@@ -10,7 +10,7 @@ import { BETA_LIVE } from "../config/beta.js";
 // Configuration des tâches
 const HEALTH_CHECK_SCHEDULE = "0 */6 * * *"; // Toutes les 6 heures
 const RAG_CLEANUP_SCHEDULE = "0 3 * * *"; // Tous les jours à 3h du matin
-const DAILY_ARTICLE_SCHEDULE = "0 0 * * *"; // Tous les jours à minuit
+
 const MONTHLY_RESET_SCHEDULE = "0 2 * * *"; // Tous les jours à 2h du matin
 const DAILY_LIMITS_RESET_SCHEDULE = "0 0 * * *"; // Tous les jours à minuit
 const BETA_CHECK_INACTIVE_SCHEDULE = "0 * * * *"; // :00 — désactive les inactifs en premier
@@ -99,45 +99,6 @@ export function startCronJobs() {
   );
 
   logger.log(`✅ Tâche de nettoyage RAG programmée: ${RAG_CLEANUP_SCHEDULE} (Europe/Paris)`);
-
-  // 📰 Fetch de l'article scientifique du jour (Futura Sciences)
-  const dailyArticleTask = cron.schedule(
-    DAILY_ARTICLE_SCHEDULE,
-    async () => {
-      logger.log("\n📰 [CRON] Fetch de l'article scientifique du jour...");
-      try {
-        const { FuturaRssService } = await import("../services/futuraRss.service.js");
-
-        // Récupérer et sauvegarder l'article de la semaine
-        const latestArticle = await FuturaRssService.fetchLatestArticle();
-
-        if (latestArticle) {
-          const savedArticle = await FuturaRssService.saveWeeklyArticle(latestArticle);
-
-          if (savedArticle) {
-            logger.log(
-              `✅ [CRON] Article de la semaine sauvegardé: "${savedArticle.title.substring(0, 50)}..."`,
-            );
-
-            // Nettoyer les anciens articles (garder seulement 7 jours)
-            const deletedCount = await FuturaRssService.cleanupOldArticles();
-            logger.log(`🗑️ [CRON] ${deletedCount} ancien(s) article(s) supprimé(s)`);
-          } else {
-            logger.warn("⚠️ [CRON] Article déjà existant pour cette semaine");
-          }
-        } else {
-          logger.error("❌ [CRON] Aucun article récupéré depuis Futura Sciences");
-        }
-      } catch (error) {
-        logger.error("❌ [CRON] Erreur lors du fetch de l'article quotidien:", error);
-      }
-    },
-    {
-      timezone: "Europe/Paris",
-    },
-  );
-
-  logger.log(`✅ Tâche article quotidien programmée: ${DAILY_ARTICLE_SCHEDULE} (Europe/Paris)`);
 
   // 🔄 Reset mensuel des limitations pour les users gratuits
   const monthlyResetTask = cron.schedule(
@@ -416,7 +377,6 @@ export function startCronJobs() {
   const tasks = [
     healthCheckTask,
     ragCleanupTask,
-    dailyArticleTask,
     monthlyResetTask,
     dailyLimitsResetTask,
     emailRetryTask,
@@ -437,7 +397,6 @@ export function startCronJobs() {
   return {
     healthCheck: healthCheckTask,
     ragCleanup: ragCleanupTask,
-    dailyArticle: dailyArticleTask,
     monthlyReset: monthlyResetTask,
     dailyLimitsReset: dailyLimitsResetTask,
     ...(BETA_LIVE
