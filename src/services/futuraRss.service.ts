@@ -97,218 +97,6 @@ export class FuturaRssService {
   private static parser = new Parser<Record<string, unknown>, RssItem>();
 
   /**
-   * Récupère le contenu complet d'un article depuis sa page web
-   * @param url URL de l'article
-   * @returns Le contenu complet de l'article avec HTML formaté ou null
-   */
-  private static async fetchFullArticleContent(url: string): Promise<string | null> {
-    try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-      const html = await response.text();
-
-      // 1. Extraire le synopsis (description courte)
-      const synopsisMatch = html.match(
-        /<div[^>]*class="[^"]*article-synopsis[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-      );
-      let synopsis = "";
-      if (synopsisMatch) {
-        synopsis = synopsisMatch[1]
-          .replace(/<p[^>]*>/gi, "<p>")
-          .replace(/<\/?div[^>]*>/gi, "")
-          .replace(/<\/?span[^>]*>/gi, "")
-          .trim();
-        logger.log("📝 Synopsis extracted");
-      }
-
-      // 2. Extraire le contenu principal de l'article
-      // Trouver le début de la div principale
-      const startMatch = html.match(/<div[^>]*id="article-anchor-article-main-content"[^>]*>/i);
-      if (!startMatch) {
-        logger.warn("⚠️ Could not find main article content div");
-        return synopsis || null;
-      }
-
-      const startIndex = html.indexOf(startMatch[0]) + startMatch[0].length;
-
-      // Compter les divs pour trouver la div fermante correcte
-      let divCount = 1;
-      let endIndex = startIndex;
-
-      while (divCount > 0 && endIndex < html.length) {
-        const nextOpenDiv = html.indexOf("<div", endIndex);
-        const nextCloseDiv = html.indexOf("</div>", endIndex);
-
-        if (nextCloseDiv === -1) break;
-
-        if (nextOpenDiv !== -1 && nextOpenDiv < nextCloseDiv) {
-          divCount++;
-          endIndex = nextOpenDiv + 4;
-        } else {
-          divCount--;
-          endIndex = nextCloseDiv + 6;
-        }
-      }
-
-      if (divCount !== 0) {
-        logger.warn("⚠️ Could not find matching closing div");
-        return synopsis || null;
-      }
-
-      let articleContent = html.substring(startIndex, endIndex - 6); // -6 pour enlever </div>
-
-      // 3. Supprimer le sommaire et autres éléments indésirables
-      articleContent = articleContent
-        // Supprimer le sommaire
-        .replace(/<div[^>]*class="[^"]*article-summary[^"]*"[^>]*>[\s\S]*?<\/div>/gi, "")
-        .replace(/<div[^>]*class="[^"]*WrapperSummary[^"]*"[^>]*>[\s\S]*?<\/div>/gi, "")
-        // Supprimer les séparateurs
-        .replace(/<hr[^>]*>/gi, "")
-        // Supprimer footer, aside, nav
-        .replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, "")
-        .replace(/<aside[^>]*>[\s\S]*?<\/aside>/gi, "")
-        .replace(/<nav[^>]*>[\s\S]*?<\/nav>/gi, "")
-        // Supprimer les boutons de partage et autres widgets
-        .replace(/<div[^>]*class="[^"]*share[^"]*"[^>]*>[\s\S]*?<\/div>/gi, "")
-        .replace(/<div[^>]*class="[^"]*author[^"]*"[^>]*>[\s\S]*?<\/div>/gi, "")
-        .replace(/<button[^>]*>[\s\S]*?<\/button>/gi, "");
-
-      // 4. Nettoyer le contenu en gardant les balises importantes
-      const cleanContent = articleContent
-        // Supprimer les scripts et styles
-        .replace(/<script[^>]*>.*?<\/script>/gi, "")
-        .replace(/<style[^>]*>.*?<\/style>/gi, "")
-        // Supprimer les noscript
-        .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, "")
-        // Convertir les blocs d'images fs-media en figures
-        .replace(/<div[^>]*class="[^"]*fs-media[^"]*"[^>]*>([\s\S]*?)<\/div>/gi, (match) => {
-          // Extraire le contenu picture avec toutes ses sources
-          const pictureMatch = match.match(/<picture[^>]*>([\s\S]*?)<\/picture>/i);
-          // Extraire la légende
-          const legendMatch = match.match(
-            /<span[^>]*class="[^"]*fs-legende[^"]*"[^>]*>([\s\S]*?)<\/span>/i,
-          );
-
-          if (pictureMatch) {
-            const picture = pictureMatch[0];
-            const legend = legendMatch ? `<figcaption>${legendMatch[1]}</figcaption>` : "";
-            return `<figure>${picture}${legend}</figure>`;
-          }
-          return "";
-        })
-        // Supprimer les div image-wrapper et open-icon-button restantes
-        .replace(/<div[^>]*class="[^"]*image-wrapper[^"]*"[^>]*>/gi, "")
-        .replace(/<div[^>]*class="[^"]*open-icon-button[^"]*"[^>]*>[\s\S]*?<\/div>/gi, "")
-        // Garder les légendes mais supprimer les autres spans
-        .replace(/<span[^>]*class="[^"]*tooltip[^"]*"[^>]*>[\s\S]*?<\/span>/gi, "")
-        .replace(/<span[^>]*class="[^"]*wrappers__Span[^"]*"[^>]*>([\s\S]*?)<\/span>/gi, "$1")
-        // Nettoyer les balises picture en gardant les sources
-        .replace(/<picture([^>]*)>/gi, "<picture>")
-        // Supprimer les attributs inutiles mais garder src/srcset/media pour images/vidéos et href pour liens
-        .replace(
-          /<(h1|h2|h3|h4|p|img|video|iframe|ul|ol|li|blockquote|figure|figcaption|a|source)([^>]*)>/gi,
-          (_match, tag, attrs) => {
-            // Pour les sources (dans picture), garder media, srcset, sizes
-            if (tag === "source") {
-              const mediaMatch = attrs.match(/media="([^"]*)"/i);
-              const srcsetMatch = attrs.match(/srcset="([^"]*)"/i);
-              const sizesMatch = attrs.match(/sizes="([^"]*)"/i);
-              const media = mediaMatch ? ` media="${mediaMatch[1]}"` : "";
-              const srcset = srcsetMatch ? ` srcset="${srcsetMatch[1]}"` : "";
-              const sizes = sizesMatch ? ` sizes="${sizesMatch[1]}"` : "";
-              return `<${tag}${media}${srcset}${sizes}>`;
-            }
-            // Pour les images, garder src, srcset, alt, title, loading
-            if (tag === "img") {
-              const srcMatch = attrs.match(/src="([^"]*)"/i);
-              const srcsetMatch = attrs.match(/srcset="([^"]*)"/i);
-              const altMatch = attrs.match(/alt="([^"]*)"/i);
-              const titleMatch = attrs.match(/title="([^"]*)"/i);
-              const loadingMatch = attrs.match(/loading="([^"]*)"/i);
-              const src = srcMatch ? ` src="${srcMatch[1]}"` : "";
-              const srcset = srcsetMatch ? ` srcset="${srcsetMatch[1]}"` : "";
-              const alt = altMatch
-                ? ` alt="${altMatch[1]}"`
-                : titleMatch
-                  ? ` alt="${titleMatch[1]}"`
-                  : "";
-              const loading = loadingMatch ? ` loading="${loadingMatch[1]}"` : ' loading="lazy"';
-              return `<${tag}${src}${srcset}${alt}${loading}>`;
-            }
-            // Pour les vidéos et iframes, garder src et alt
-            if (tag === "video" || tag === "iframe") {
-              const srcMatch = attrs.match(/src="([^"]*)"/i);
-              const altMatch = attrs.match(/alt="([^"]*)"/i);
-              const titleMatch = attrs.match(/title="([^"]*)"/i);
-              const src = srcMatch ? ` src="${srcMatch[1]}"` : "";
-              const alt = altMatch
-                ? ` alt="${altMatch[1]}"`
-                : titleMatch
-                  ? ` alt="${titleMatch[1]}"`
-                  : "";
-              return `<${tag}${src}${alt}>`;
-            }
-            // Pour les liens, garder href et title
-            if (tag === "a") {
-              const hrefMatch = attrs.match(/href="([^"]*)"/i);
-              const titleMatch = attrs.match(/title="([^"]*)"/i);
-              const href = hrefMatch ? ` href="${hrefMatch[1]}"` : "";
-              const title = titleMatch ? ` title="${titleMatch[1]}"` : "";
-              return `<${tag}${href}${title} target="_blank" rel="noopener noreferrer">`;
-            }
-            return `<${tag}>`;
-          },
-        )
-        // Supprimer les divs et sections en gardant leur contenu
-        .replace(/<\/?div[^>]*>/gi, "")
-        .replace(/<\/?section[^>]*>/gi, "")
-        .replace(/<\/?header[^>]*>/gi, "")
-        .replace(/<\/?main[^>]*>/gi, "")
-        .replace(/<\/?article[^>]*>/gi, "")
-        // Supprimer les icônes et éléments vides
-        .replace(/<i[^>]*>[\s\S]*?<\/i>/gi, "")
-        .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, "")
-        // Supprimer les balises vides restantes
-        .replace(/<span[^>]*><\/span>/gi, "")
-        .replace(/<a[^>]*><\/a>/gi, "")
-        // Nettoyer les entités HTML
-        .replace(/&nbsp;/g, " ")
-        .replace(/&quot;/g, '"')
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&rsquo;/g, "'")
-        .replace(/&lsquo;/g, "'")
-        .replace(/&rdquo;/g, '"')
-        .replace(/&ldquo;/g, '"')
-        .replace(/&eacute;/g, "é")
-        .replace(/&egrave;/g, "è")
-        .replace(/&agrave;/g, "à")
-        .replace(/&ccedil;/g, "ç")
-        .replace(/&ecirc;/g, "ê")
-        .replace(/&ocirc;/g, "ô")
-        .replace(/&ucirc;/g, "û")
-        .replace(/&iuml;/g, "ï")
-        .replace(/&euml;/g, "ë")
-        // Normaliser les espaces multiples et lignes vides
-        .replace(/\s+/g, " ")
-        .replace(/<p>\s*<\/p>/gi, "")
-        .replace(/<figcaption>\s*<\/figcaption>/gi, "")
-        .trim();
-
-      // 5. Combiner synopsis et contenu
-      const fullContent = synopsis ? `${synopsis}\n\n${cleanContent}` : cleanContent;
-
-      logger.log(
-        `📄 Extracted ${fullContent.length} characters from article (synopsis + main content)`,
-      );
-      return fullContent;
-    } catch (error) {
-      logger.error("❌ Error fetching full article content:", error);
-      return null;
-    }
-  }
-
-  /**
    * Validation AI de la pertinence éducative d'un article avec gpt-4o-mini
    * @param article Article à analyser
    * @returns Object avec isValid (pertinence éducative) et score de confiance
@@ -331,9 +119,10 @@ export class FuturaRssService {
         }
       }
 
-      // Rate limiting (silencieux)
+      // Rate limiting — reserve slot BEFORE sleep/API call to prevent TOCTOU
       const now = Date.now();
       const timeSinceLastCall = now - lastAICallTime;
+      lastAICallTime = Date.now();
       if (timeSinceLastCall < MIN_CALL_INTERVAL) {
         const waitTime = MIN_CALL_INTERVAL - timeSinceLastCall;
         await new Promise((resolve) => setTimeout(resolve, waitTime));
@@ -350,8 +139,6 @@ export class FuturaRssService {
       const title = article.title || "";
       const description = article.description || "";
       const contentSnippet = article.contentSnippet || "";
-
-      lastAICallTime = Date.now();
 
       const response = await openai.chat.completions.create({
         model: MODELS.RSS_VALIDATION,

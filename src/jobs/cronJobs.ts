@@ -145,14 +145,28 @@ export function startCronJobs() {
     async () => {
       logger.log("\n🔄 [CRON] Démarrage du reset mensuel...");
       try {
-        const { processMonthlyResets } = await import("../lib/monthlyReset.js");
+        const { redis } = await import("../lib/redis.js");
+        const lockKey = "cron:lock:monthlyReset";
+        const acquired = await redis.set(lockKey, "1", "EX", 300, "NX");
+        if (!acquired) {
+          logger.log("[CRON] monthlyReset: skipped (another instance holds the lock)");
+          return;
+        }
 
-        const result = await processMonthlyResets();
+        try {
+          const { processMonthlyResets } = await import("../lib/monthlyReset.js");
 
-        logger.log(`✅ [CRON] Reset mensuel terminé:`, {
-          usersReset: result.resetCount,
-          downgrades: result.downgradeCount,
-        });
+          const result = await processMonthlyResets();
+
+          logger.log(`✅ [CRON] Reset mensuel terminé:`, {
+            usersReset: result.resetCount,
+            downgrades: result.downgradeCount,
+          });
+        } finally {
+          await redis.del(lockKey).catch((err: unknown) => {
+            logger.warn("[CRON] Failed to release monthlyReset lock:", err);
+          });
+        }
       } catch (error) {
         logger.error("❌ [CRON] Erreur lors du reset mensuel:", error);
       }
@@ -170,31 +184,45 @@ export function startCronJobs() {
     async () => {
       logger.log("\n🔄 [CRON] Démarrage du reset quotidien des limites quiz avancés...");
       try {
-        const { startDailyLimitsReset } = await import("../services/cron/resetLimitsCron.js");
+        const { redis } = await import("../lib/redis.js");
+        const lockKey = "cron:lock:dailyLimitsReset";
+        const acquired = await redis.set(lockKey, "1", "EX", 300, "NX");
+        if (!acquired) {
+          logger.log("[CRON] dailyLimitsReset: skipped (another instance holds the lock)");
+          return;
+        }
 
-        // Exécuter le reset immédiatement
-        const { prisma } = await import("../lib/prisma.js");
-        const now = new Date();
-        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        try {
+          const { startDailyLimitsReset } = await import("../services/cron/resetLimitsCron.js");
 
-        const result = await prisma.userLimits.updateMany({
-          where: {
-            advancedQuizzesResetAt: {
-              lte: twentyFourHoursAgo,
+          // Exécuter le reset immédiatement
+          const { prisma } = await import("../lib/prisma.js");
+          const now = new Date();
+          const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+          const result = await prisma.userLimits.updateMany({
+            where: {
+              advancedQuizzesResetAt: {
+                lte: twentyFourHoursAgo,
+              },
+              advancedQuizzesUsed: {
+                gt: 0,
+              },
             },
-            advancedQuizzesUsed: {
-              gt: 0,
+            data: {
+              advancedQuizzesUsed: 0,
+              advancedQuizzesResetAt: null,
             },
-          },
-          data: {
-            advancedQuizzesUsed: 0,
-            advancedQuizzesResetAt: null,
-          },
-        });
+          });
 
-        logger.log(
-          `✅ [CRON] Reset quotidien terminé: ${result.count} utilisateur(s) réinitialisé(s)`,
-        );
+          logger.log(
+            `✅ [CRON] Reset quotidien terminé: ${result.count} utilisateur(s) réinitialisé(s)`,
+          );
+        } finally {
+          await redis.del(lockKey).catch((err: unknown) => {
+            logger.warn("[CRON] Failed to release dailyLimitsReset lock:", err);
+          });
+        }
       } catch (error) {
         logger.error("❌ [CRON] Erreur lors du reset quotidien:", error);
       }

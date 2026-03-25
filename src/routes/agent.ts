@@ -616,6 +616,13 @@ router.post(
         });
       }
 
+      if (typeof prompt !== "string" || prompt.length > 50_000) {
+        return res.status(400).json({
+          error: "VALIDATION_ERROR",
+          message: "prompt must be a string under 50,000 characters",
+        });
+      }
+
       const validWorkflowModes: AgentMode[] = ["fast", "deep"];
       if (!validWorkflowModes.includes(mode)) {
         return res.status(400).json({

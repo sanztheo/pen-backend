@@ -144,7 +144,7 @@ async function drainQueue(): Promise<void> {
 function sendEmail(params: SendEmailParams): Promise<void> {
   if (emailQueue.length >= MAX_QUEUE_SIZE) {
     logger.warn(`[EmailService] Queue full (${MAX_QUEUE_SIZE}), dropping email: ${params.label}`);
-    return Promise.resolve();
+    return Promise.reject(new Error("queue_full"));
   }
   return new Promise<void>((resolve, reject) => {
     emailQueue.push({ params, resolve, reject });

@@ -161,6 +161,24 @@ export class BetaCronService {
    * Runs hourly.
    */
   static async processWaitlist(): Promise<CronJobResult> {
+    const lockKey = "cron:lock:processWaitlist";
+    const acquired = await redis.set(lockKey, "1", "EX", CRON_LOCK_TTL_SECONDS, "NX");
+
+    if (!acquired) {
+      logger.log("[BETA_CRON] processWaitlist: skipped (another instance holds the lock)");
+      return { processed: 0, errors: 0 };
+    }
+
+    try {
+      return await BetaCronService._processWaitlistLocked();
+    } finally {
+      await redis.del(lockKey).catch((err: unknown) => {
+        logger.warn("[BETA_CRON] Failed to release processWaitlist lock:", err);
+      });
+    }
+  }
+
+  private static async _processWaitlistLocked(): Promise<CronJobResult> {
     let promoted = 0;
     let errors = 0;
 
