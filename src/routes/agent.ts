@@ -41,6 +41,7 @@ import { AICreditsService } from "../services/credits/aiCreditsService.js";
 import { verifyWorkspaceAccess } from "../middlewares/workspaceAccess.js";
 import { MODELS } from "../config/models.js";
 import { searchMemories, addMemories } from "../services/mem0/mem0Client.js";
+import { getPresetAgent } from "../services/agent/presetAgents.js";
 
 // Interface pour les résultats des workflows
 interface WorkflowResult {
@@ -178,7 +179,21 @@ router.post(
         ragSources,
         conversationHistory,
         personalization,
+        agentId: rawAgentId,
+        agentType: rawAgentType,
       } = req.body;
+
+      // Valider agentId/agentType — seuls "preset" et "custom" sont autorisés
+      const validAgentTypes = ["preset", "custom"] as const;
+      const agentType =
+        typeof rawAgentType === "string" &&
+        validAgentTypes.includes(rawAgentType as "preset" | "custom")
+          ? (rawAgentType as "preset" | "custom")
+          : undefined;
+      const agentId =
+        agentType && typeof rawAgentId === "string" && rawAgentId.length <= 100
+          ? rawAgentId
+          : undefined;
 
       // Validation des paramètres requis
       if (!messages || !Array.isArray(messages)) {
@@ -275,6 +290,8 @@ router.post(
           messages: messages as UIMessage[],
           mode,
           status: "STREAMING",
+          agentId,
+          agentType,
         });
       }
 
@@ -284,6 +301,25 @@ router.post(
         searchMemories(userId, lastUserMessage),
       ]);
       const memoryContext = memories.map((m) => m.memory);
+
+      // Resolve agent prompt if an agent is selected
+      let agentPrompt: { name: string; systemPrompt: string } | undefined;
+      if (agentId && agentType) {
+        if (agentType === "preset") {
+          const preset = getPresetAgent(agentId);
+          if (preset) {
+            agentPrompt = { name: preset.name, systemPrompt: preset.systemPrompt };
+          }
+        } else if (agentType === "custom") {
+          const custom = await prisma.customAgent.findFirst({
+            where: { id: agentId, userId, isActive: true },
+            select: { name: true, systemPrompt: true },
+          });
+          if (custom) {
+            agentPrompt = { name: custom.name, systemPrompt: custom.systemPrompt };
+          }
+        }
+      }
 
       // Exécuter l'agent Pennote avec mode × intent
       const result = await runPennoteAgent(
@@ -298,6 +334,9 @@ router.post(
           conversationHistory,
           personalization,
           memoryContext,
+          agentId,
+          agentType,
+          agentPrompt,
         },
         {
           // Callbacks optionnels pour le logging
@@ -344,6 +383,8 @@ router.post(
               messages: allMessages,
               mode,
               status: "COMPLETED",
+              agentId,
+              agentType,
             });
             await updateActiveStreamId(conversationId, null);
           }
@@ -841,6 +882,8 @@ router.get("/conversations/:id", async (req: Request, res: Response) => {
       messages: result.messages,
       status: result.status,
       mode: result.mode,
+      agentId: result.agentId ?? null,
+      agentType: result.agentType ?? null,
     });
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error);

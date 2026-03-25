@@ -70,6 +70,12 @@ export interface AgentRequest {
   };
   /** Mem0 memory entries relevant to current query */
   memoryContext?: string[];
+  /** Agent marketplace — agent ID (preset or custom) */
+  agentId?: string;
+  /** Agent marketplace — "preset" or "custom" */
+  agentType?: "preset" | "custom";
+  /** Agent marketplace — pre-resolved agent prompt and name (resolved by caller) */
+  agentPrompt?: { name: string; systemPrompt: string };
 }
 
 /**
