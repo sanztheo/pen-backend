@@ -34,7 +34,7 @@ import { userRouter } from "./routes/user.js";
 import { uploadRouter } from "./routes/upload.js";
 import { paddleWebhookHandler } from "./routes/paddleWebhooks.js";
 import { jobsRouter } from "./routes/jobs.js";
-import { agentRouter } from "./routes/agent.js";
+import { agentRouter } from "./routes/agent/index.js";
 import { adminRouter } from "./routes/admin.js";
 import { betaRouter } from "./routes/beta.js";
 import { feedbackRouter } from "./routes/feedback.js";
