@@ -57,6 +57,18 @@ export async function saveConversation({
   );
 
   try {
+    // Vérifier ownership si la conversation existe déjà
+    const existing = await prisma.aIConversation.findUnique({
+      where: { id: conversationId },
+      select: { userId: true },
+    });
+    if (existing && existing.userId !== userId) {
+      logger.error(
+        `🚫 [CONVERSATION] Tentative d'écriture non autorisée: ${conversationId} appartient à ${existing.userId}, appelé par ${userId}`,
+      );
+      return;
+    }
+
     // Extraire le titre du premier message utilisateur
     const firstUserMessage = messages.find((m) => m.role === "user");
     const title = extractTitle(firstUserMessage);
@@ -123,12 +135,18 @@ export async function saveConversation({
 export async function updateActiveStreamId(
   conversationId: string,
   activeStreamId: string | null,
+  userId: string,
 ): Promise<void> {
   try {
-    await prisma.aIConversation.update({
-      where: { id: conversationId },
+    const result = await prisma.aIConversation.updateMany({
+      where: { id: conversationId, userId },
       data: { activeStreamId },
     });
+    if (result.count === 0) {
+      logger.error(
+        `🚫 [CONVERSATION] updateActiveStreamId: aucune conversation trouvée pour id=${conversationId}, userId=${userId}`,
+      );
+    }
   } catch (error) {
     logger.error("[CONVERSATION] Erreur update activeStreamId:", error);
   }
@@ -140,13 +158,20 @@ export async function updateActiveStreamId(
 export async function updateConversationStatus(
   conversationId: string,
   status: ConversationStatus,
+  userId: string,
 ): Promise<void> {
   try {
-    await prisma.aIConversation.update({
-      where: { id: conversationId },
+    const result = await prisma.aIConversation.updateMany({
+      where: { id: conversationId, userId },
       data: { status },
     });
-    logger.log(`🔄 [CONVERSATION] Status: ${conversationId} → ${status}`);
+    if (result.count === 0) {
+      logger.error(
+        `🚫 [CONVERSATION] updateConversationStatus: aucune conversation trouvée pour id=${conversationId}, userId=${userId}`,
+      );
+    } else {
+      logger.log(`🔄 [CONVERSATION] Status: ${conversationId} → ${status}`);
+    }
   } catch (error) {
     logger.error(`❌ [CONVERSATION] Erreur update status:`, error);
   }

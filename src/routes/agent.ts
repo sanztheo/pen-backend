@@ -84,7 +84,7 @@ router.get("/chat/:id/stream", async (req: Request, res: Response) => {
   const resumed = await ctx.resumeExistingStream(conversation.activeStreamId);
 
   if (!resumed) {
-    await updateActiveStreamId(req.params.id, null);
+    await updateActiveStreamId(req.params.id, null, userId);
     return res.status(204).end();
   }
 
@@ -369,7 +369,7 @@ router.post(
           const streamId = generateId();
           const ctx = getStreamContext();
           await ctx.createNewResumableStream(streamId, () => stream);
-          await updateActiveStreamId(conversationId, streamId);
+          await updateActiveStreamId(conversationId, streamId, userId);
           logger.log(`🔄 [RESUME] Stream créé: ${streamId} pour ${conversationId}`);
         },
         // 💾 Sauvegarder la conversation complète (status=COMPLETED)
@@ -386,7 +386,7 @@ router.post(
               agentId,
               agentType,
             });
-            await updateActiveStreamId(conversationId, null);
+            await updateActiveStreamId(conversationId, null, userId);
           }
 
           // 📊 Enregistrer l'usage des tokens pour le quota par utilisateur
@@ -438,9 +438,10 @@ router.post(
 
       // Marquer la conversation en erreur et clear le stream
       const failedConvId = req.body?.conversationId;
-      if (failedConvId) {
-        updateConversationStatus(failedConvId, "ERROR").catch(() => {});
-        updateActiveStreamId(failedConvId, null).catch(() => {});
+      const failedUserId = req.user?.id;
+      if (failedConvId && failedUserId) {
+        updateConversationStatus(failedConvId, "ERROR", failedUserId).catch(() => {});
+        updateActiveStreamId(failedConvId, null, failedUserId).catch(() => {});
       }
 
       const creditsCost = req.aiCredits?.cost;
