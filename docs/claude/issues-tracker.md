@@ -7,7 +7,6 @@
 
 | # | Sévérité | Domaine | Fichier | Problème | Détecté le | Dernière mention |
 |---|----------|---------|---------|----------|------------|------------------|
-| #52 | **CRITIQUE** | Sécurité | `conversationService.ts:77` | IDOR: `saveConversation` upsert `where: { id }` sans userId — un user peut écraser la conversation d'un autre | 2026-03-25 | 2026-03-26 |
 | #54 | HAUTE | Qualité | `src/` (3 fichiers) | 3 implémentations retry dupliquées: `lib/retry.ts`, `lib/retryWithBackoff.ts`, `quiz/assistant/utils/retry.ts` | 2026-03-25 | 2026-03-26 |
 | #55 | HAUTE | Qualité | `lib/secureLogging.ts` + `middlewares/secureLogging.ts` | 2 modules secureLogging dupliqués (fonctionnel vs class-based) | 2026-03-25 | 2026-03-26 |
 | #56 | HAUTE | Qualité | 16 fichiers `src/` | 38 env vars avec fallback silencieux (dont DATABASE_URL, CLIENT_URL) — convention: throw si absent | 2026-03-25 | 2026-03-26 |
@@ -51,7 +50,8 @@
 
 | # | Sévérité | Domaine | Fichier | Problème | Détecté | Fermé | Comment |
 |---|----------|---------|---------|----------|---------|-------|---------|
-| #53 | HAUTE | Sécurité | `conversationService.ts:128,145` | `updateActiveStreamId` et `updateConversationStatus` sans guard userId | 2026-03-25 | 2026-03-26 | Vérifié: les 2 méthodes incluent maintenant `where: { id, userId }` |
+| #52 | **CRITIQUE** | Sécurité | `conversationService.ts:65` | IDOR: `saveConversation` upsert `where: { id }` sans userId | 2026-03-25 | 2026-03-26 | Ownership check avant upsert — return early si userId ne match pas |
+| #53 | HAUTE | Sécurité | `conversationService.ts:128,145` | `updateActiveStreamId` et `updateConversationStatus` sans guard userId | 2026-03-25 | 2026-03-26 | `updateMany({ where: { id, userId } })` + userId ajouté en param obligatoire |
 | #67 | BASSE | Qualité | `quiz/preprocessor/example-usage.ts` | Fichier example-usage.ts (179L) livré dans src/ production | 2026-03-25 | 2026-03-26 | Fichier supprimé |
 | F17 | HAUTE | Résilience | `PennoteAgent.ts` | Aucun circuit breaker / failover AI | 2026-03-23 | 2026-03-24 | State machine 3-tier fallback |
 | F18 | HAUTE | Résilience | 25+ fichiers `src/` | 25+ appels `fetch()` sans `AbortSignal.timeout()` | 2026-03-23 | 2026-03-24 | AbortSignal.timeout ajouté (10-30s) |
