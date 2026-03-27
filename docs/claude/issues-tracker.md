@@ -1,50 +1,57 @@
 # Issues Tracker — Backend
 
 > Source de vérité persistante. Mis à jour automatiquement à chaque audit.
-> Dernière mise à jour : 2026-03-26
+> Dernière mise à jour : 2026-03-27
 
 ## Ouvertes
 
 | # | Sévérité | Domaine | Fichier | Problème | Détecté le | Dernière mention |
 |---|----------|---------|---------|----------|------------|------------------|
-| #54 | HAUTE | Qualité | `src/` (3 fichiers) | 3 implémentations retry dupliquées: `lib/retry.ts`, `lib/retryWithBackoff.ts`, `quiz/assistant/utils/retry.ts` | 2026-03-25 | 2026-03-26 |
-| #55 | HAUTE | Qualité | `lib/secureLogging.ts` + `middlewares/secureLogging.ts` | 2 modules secureLogging dupliqués (fonctionnel vs class-based) | 2026-03-25 | 2026-03-26 |
-| #56 | HAUTE | Qualité | 16 fichiers `src/` | 38 env vars avec fallback silencieux (dont DATABASE_URL, CLIENT_URL) — convention: throw si absent | 2026-03-25 | 2026-03-26 |
-| #57 | HAUTE | Tests | `src/` global | Couverture tests ~15% : quiz (7k+ L), RAG (3.3k L), billing (1.5k L), agent (3.3k L), middlewares (2.1k L), routes (6.7k L) sans aucun test | 2026-03-25 | 2026-03-26 |
-| #58 | MOYENNE | Sécurité | `routes/agents.ts` | CRUD agents sans rate limiting (sauf generate-prompt) | 2026-03-25 | 2026-03-26 |
-| #59 | MOYENNE | Sécurité | `routes/agents.ts:83` | Pas de limite sur le nombre d'agents custom par user (storage abuse) | 2026-03-25 | 2026-03-26 |
-| #60 | MOYENNE | Qualité | `src/` (60 fichiers) | 60 fichiers production > 300 lignes (top: quizService 2386L, correctionGenerator 2169L, quizStreaming 1918L) | 2026-03-25 | 2026-03-26 |
-| #61 | MOYENNE | Qualité | 5+ modules `src/` | Dead code: ~5000+ lignes de modules non importés (documentSearchService, fewShotExamples, promptOptimizer exports) | 2026-03-25 | 2026-03-26 |
-| #62 | MOYENNE | Qualité | 27 fichiers routes/controllers | Catch-500 dupliqué partout — asyncHandler wrapper manquant | 2026-03-25 | 2026-03-26 |
-| #63 | BASSE | Sécurité | `routes/agents.ts:217` | Favorites: validation manuelle au lieu de Zod (`agentId` sans check longueur) | 2026-03-25 | 2026-03-26 |
-| #64 | BASSE | Scalabilité | `routes/agent.ts:852` | `listConversations` limit query param non borné (user peut envoyer `?limit=999999`) | 2026-03-25 | 2026-03-26 |
-| #65 | BASSE | Scalabilité | `schema.prisma:797` | Index composite `CustomAgent(userId, isActive)` manquant | 2026-03-25 | 2026-03-26 |
-| #66 | BASSE | Qualité | `src/services/rag/*.ts` | Config RAG dupliquée dans 4 fichiers (`RAG_EMBEDDING_CONCURRENCY || "2"`) | 2026-03-25 | 2026-03-26 |
-| #68 | **CRITIQUE** | Scalabilité | `quiz/statsService.ts` (7 méthodes) | 7 endpoints stats chargent TOUS les quizzes d'un user sans pagination — include `result: true` charge JSON massifs (detailedScoring) | 2026-03-26 | 2026-03-26 |
-| #69 | **CRITIQUE** | Scalabilité | `quiz/quizService.ts:897,926` | `getQuizHistory` déclare `limit`/`offset` en params mais ne les utilise JAMAIS dans les queries — pagination fictive | 2026-03-26 | 2026-03-26 |
-| #70 | **CRITIQUE** | Scalabilité | `quiz/quizService.ts:1543` | `getUserProgressStats` charge tous les quizzes complétés avec 3 tables jointes (result + template) sans take | 2026-03-26 | 2026-03-26 |
-| #71 | **CRITIQUE** | Scalabilité | `schema.prisma` (Page model) | Index manquants `[workspaceId, isArchived]` et `[projectId, isArchived]` sur Page — 20+ queries font full table scan | 2026-03-26 | 2026-03-26 |
-| #72 | **CRITIQUE** | Scalabilité | `controllers/workspace.ts:244` | `getWorkspaces` include tree 3 niveaux (workspace→projects→pages) sans pagination — charge toutes les pages de tous les projets | 2026-03-26 | 2026-03-26 |
-| #73 | HAUTE | Scalabilité | `routes/conversations.ts:276` | GET `/conversations/:id/messages` charge TOUS les messages sans pagination — problème à 500+ messages | 2026-03-26 | 2026-03-26 |
-| #74 | HAUTE | Scalabilité | `services/rag/sessionMemory.ts:292` | `getSessionStats` charge toutes les sessions RAG d'un user sans take | 2026-03-26 | 2026-03-26 |
-| #75 | HAUTE | Scalabilité | `services/AccountExportService.ts:114` | `fetchQuizzes` sans take (contrairement aux autres fetch* qui ont EXPORT_MAX_ITEMS) | 2026-03-26 | 2026-03-26 |
-| #76 | HAUTE | Scalabilité | `schema.prisma` | Index manquants: `Project[workspaceId, isArchived]` et `QuizSequence[userId]` | 2026-03-26 | 2026-03-26 |
-| #77 | HAUTE | Scalabilité | `controllers/page.ts:835,931` | deletePage/cleanupArchived: boucle N+1 séquentielle sur RAG removal (1 appel par page) | 2026-03-26 | 2026-03-26 |
-| #78 | HAUTE | Scalabilité | `services/rag/userPages.ts:452` | Chunk INSERT individuel (`$executeRaw` en boucle) — 100 round-trips DB au lieu de batch multi-values | 2026-03-26 | 2026-03-26 |
-| #79 | HAUTE | Scalabilité | `services/rag/cleanup.ts:134` | `processBatch`: 2 queries par source (deleteMany chunks + delete source) au lieu de batch DELETE ... IN | 2026-03-26 | 2026-03-26 |
-| #80 | HAUTE | Scalabilité | `controllers/page.ts:196` + `simplifiedContent.ts:211` | Counter `pagesUsed`/`projectsUsed` incrémenté fire-and-forget hors transaction — désync si échec | 2026-03-26 | 2026-03-26 |
-| #81 | HAUTE | Scalabilité | `services/simplifiedContent.ts:376` | `deletePage` ne décrémente JAMAIS `pagesUsed` (vs controllers/page.ts qui le fait correctement) | 2026-03-26 | 2026-03-26 |
-| #82 | HAUTE | Scalabilité | `controllers/workspace.ts:342` | `getWorkspaceById` même include tree lourd que getWorkspaces — charge tout sans limite | 2026-03-26 | 2026-03-26 |
-| #83 | HAUTE | Scalabilité | `routes/conversations.ts:575` | Token counting charge TOUS les messages avec colonnes JSON massives (thinking, toolCalls, intermediateThinkingBlocks) | 2026-03-26 | 2026-03-26 |
-| #84 | MOYENNE | Scalabilité | `services/simplifiedContent.ts:22,62` | `_getUserProjects`/`_getUserRootPages` sans pagination (sidebar) | 2026-03-26 | 2026-03-26 |
-| #85 | MOYENNE | Scalabilité | `services/rag/cleanup.ts:112,281` | `getStaleSources`/`cleanupOldUserFiles` findMany sans take | 2026-03-26 | 2026-03-26 |
-| #86 | MOYENNE | Scalabilité | `schema.prisma` (AIConversation) | Index composite `[userId, workspaceId, isActive]` manquant — query fréquente conversations actives | 2026-03-26 | 2026-03-26 |
-| #87 | MOYENNE | Scalabilité | `services/AccountExportService.ts:131` | `fetchConversations` exporte les conversations soft-deleted (pas de filtre `isActive: true`) | 2026-03-26 | 2026-03-26 |
-| #88 | MOYENNE | Scalabilité | `controllers/page.ts:640` | Slug generation race condition — check-then-act sans transaction (2 requêtes parallèles → même slug) | 2026-03-26 | 2026-03-26 |
-| #89 | MOYENNE | Scalabilité | `quiz/statsService.ts` (global) | `include: { result: true }` charge `detailedScoring` (JSON volumineux) pour CHAQUE quiz dans les stats | 2026-03-26 | 2026-03-26 |
-| #90 | BASSE | Scalabilité | `schema.prisma` (ActivityLog) | Index `[userId, createdAt]` manquant — queries admin filtrent souvent par range temporel | 2026-03-26 | 2026-03-26 |
-| #91 | BASSE | Scalabilité | `services/simplifiedContent.ts` | Children projects sans filtre `isArchived: false` — sous-projets archivés inclus | 2026-03-26 | 2026-03-26 |
-| #92 | BASSE | Qualité | `scripts/db/reset-database.ts:96` | Référence `prisma.dailyArticle.deleteMany()` après suppression du model DailyArticle — build cassé | 2026-03-26 | 2026-03-26 |
+| #93 | **CRITIQUE** | Sécurité | `routes/content.ts:238` | IDOR: PUT /api/content/projects/:id — `prisma.project.update({ where: { id } })` sans ownership check userId. N'importe quel user peut modifier n'importe quel projet | 2026-03-27 | 2026-03-27 |
+| #54 | HAUTE | Qualité | `src/` (3 fichiers) | 3 implémentations retry dupliquées: `lib/retry.ts`, `lib/retryWithBackoff.ts`, `quiz/assistant/utils/retry.ts` | 2026-03-25 | 2026-03-27 |
+| #55 | HAUTE | Qualité | `lib/secureLogging.ts` + `middlewares/secureLogging.ts` | 2 modules secureLogging dupliqués (fonctionnel vs class-based) | 2026-03-25 | 2026-03-27 |
+| #56 | HAUTE | Qualité | 16 fichiers `src/` | 38 env vars avec fallback silencieux (dont DATABASE_URL, CLIENT_URL) — convention: throw si absent | 2026-03-25 | 2026-03-27 |
+| #57 | HAUTE | Tests | `src/` global | Couverture tests ~15% : quiz (7k+ L), RAG (3.3k L), billing (1.5k L), agent (3.3k L), middlewares (2.1k L), routes (6.7k L) sans aucun test | 2026-03-25 | 2026-03-27 |
+| #94 | HAUTE | Sécurité | `routes/billing.ts` | Rate limiting absent sur routes billing (checkout-session, cancel, upgrade, portal-url) — seul globalRateLimit s'applique | 2026-03-27 | 2026-03-27 |
+| #95 | HAUTE | Sécurité | `routes/upload.ts` | Rate limiting absent sur POST /api/upload — abus = coût Cloudinary + saturation stockage | 2026-03-27 | 2026-03-27 |
+| #58 | MOYENNE | Sécurité | `routes/agents.ts` | CRUD agents sans rate limiting (sauf generate-prompt) | 2026-03-25 | 2026-03-27 |
+| #59 | MOYENNE | Sécurité | `routes/agents.ts:83` | Pas de limite sur le nombre d'agents custom par user (storage abuse) | 2026-03-25 | 2026-03-27 |
+| #96 | MOYENNE | Sécurité | `routes/upload.ts:210` | GET /api/upload/config sans authenticateToken — info disclosure (types, taille max, dimensions) | 2026-03-27 | 2026-03-27 |
+| #97 | MOYENNE | Sécurité | `routes/billing.ts:84` | `priceId` et `interval` non validés par Zod dans POST /checkout-session — user peut envoyer priceId arbitraire | 2026-03-27 | 2026-03-27 |
+| #98 | MOYENNE | Sécurité | `rag/index.ts:825` + `wikipediaTools.ts:365` | `Prisma.raw` embedding bypass parameterization — pas de validation que les valeurs sont numériques | 2026-03-27 | 2026-03-27 |
+| #60 | MOYENNE | Qualité | `src/` (60 fichiers) | 60 fichiers production > 300 lignes (top: quizService 2386L, correctionGenerator 2169L, quizStreaming 1918L) | 2026-03-25 | 2026-03-27 |
+| #61 | MOYENNE | Qualité | 5+ modules `src/` | Dead code: ~5000+ lignes de modules non importés (documentSearchService, fewShotExamples, promptOptimizer exports) | 2026-03-25 | 2026-03-27 |
+| #62 | MOYENNE | Qualité | 27 fichiers routes/controllers | Catch-500 dupliqué partout — asyncHandler wrapper manquant | 2026-03-25 | 2026-03-27 |
+| #68 | **CRITIQUE** | Scalabilité | `quiz/statsService.ts` (7 méthodes) | 7 endpoints stats chargent TOUS les quizzes d'un user sans pagination — include `result: true` charge JSON massifs (detailedScoring) | 2026-03-26 | 2026-03-27 |
+| #69 | **CRITIQUE** | Scalabilité | `quiz/quizService.ts:897,926` | `getQuizHistory` déclare `limit`/`offset` en params mais ne les utilise JAMAIS dans les queries — pagination fictive | 2026-03-26 | 2026-03-27 |
+| #70 | **CRITIQUE** | Scalabilité | `quiz/quizService.ts:1543` | `getUserProgressStats` charge tous les quizzes complétés avec 3 tables jointes (result + template) sans take | 2026-03-26 | 2026-03-27 |
+| #71 | **CRITIQUE** | Scalabilité | `schema.prisma` (Page model) | Index manquants `[workspaceId, isArchived]` et `[projectId, isArchived]` sur Page — 20+ queries font full table scan | 2026-03-26 | 2026-03-27 |
+| #72 | **CRITIQUE** | Scalabilité | `controllers/workspace.ts:244` | `getWorkspaces` include tree 3 niveaux (workspace→projects→pages) sans pagination — charge toutes les pages de tous les projets | 2026-03-26 | 2026-03-27 |
+| #73 | HAUTE | Scalabilité | `routes/conversations.ts:276` | GET `/conversations/:id/messages` charge TOUS les messages sans pagination — problème à 500+ messages | 2026-03-26 | 2026-03-27 |
+| #74 | HAUTE | Scalabilité | `services/rag/sessionMemory.ts:292` | `getSessionStats` charge toutes les sessions RAG d'un user sans take | 2026-03-26 | 2026-03-27 |
+| #75 | HAUTE | Scalabilité | `services/AccountExportService.ts:114` | `fetchQuizzes` sans take (contrairement aux autres fetch* qui ont EXPORT_MAX_ITEMS) | 2026-03-26 | 2026-03-27 |
+| #76 | HAUTE | Scalabilité | `schema.prisma` | Index manquants: `Project[workspaceId, isArchived]` et `QuizSequence[userId]` | 2026-03-26 | 2026-03-27 |
+| #77 | HAUTE | Scalabilité | `controllers/page.ts:835,931` | deletePage/cleanupArchived: boucle N+1 séquentielle sur RAG removal (1 appel par page) | 2026-03-26 | 2026-03-27 |
+| #78 | HAUTE | Scalabilité | `services/rag/userPages.ts:452` | Chunk INSERT individuel (`$executeRaw` en boucle) — 100 round-trips DB au lieu de batch multi-values | 2026-03-26 | 2026-03-27 |
+| #79 | HAUTE | Scalabilité | `services/rag/cleanup.ts:134` | `processBatch`: 2 queries par source (deleteMany chunks + delete source) au lieu de batch DELETE ... IN | 2026-03-26 | 2026-03-27 |
+| #80 | HAUTE | Scalabilité | `controllers/page.ts:196` + `simplifiedContent.ts:211` | Counter `pagesUsed`/`projectsUsed` incrémenté fire-and-forget hors transaction — désync si échec | 2026-03-26 | 2026-03-27 |
+| #81 | HAUTE | Scalabilité | `services/simplifiedContent.ts:376` | `deletePage` ne décrémente JAMAIS `pagesUsed` (vs controllers/page.ts qui le fait correctement) | 2026-03-26 | 2026-03-27 |
+| #82 | HAUTE | Scalabilité | `controllers/workspace.ts:342` | `getWorkspaceById` même include tree lourd que getWorkspaces — charge tout sans limite | 2026-03-26 | 2026-03-27 |
+| #83 | HAUTE | Scalabilité | `routes/conversations.ts:575` | Token counting charge TOUS les messages avec colonnes JSON massives (thinking, toolCalls, intermediateThinkingBlocks) | 2026-03-26 | 2026-03-27 |
+| #63 | BASSE | Sécurité | `routes/agents.ts:217` | Favorites: validation manuelle au lieu de Zod (`agentId` sans check longueur) | 2026-03-25 | 2026-03-27 |
+| #99 | BASSE | Sécurité | `routes/conversations.ts` | Rate limiting absent sur conversations CRUD (list, create message, delete, generate-title) | 2026-03-27 | 2026-03-27 |
+| #64 | BASSE | Scalabilité | `routes/agent/conversations.ts:39` | `listConversations` limit query param non borné (user peut envoyer `?limit=999999`) | 2026-03-25 | 2026-03-27 |
+| #65 | BASSE | Scalabilité | `schema.prisma:797` | Index composite `CustomAgent(userId, isActive)` manquant | 2026-03-25 | 2026-03-27 |
+| #66 | BASSE | Qualité | `src/services/rag/*.ts` | Config RAG dupliquée dans 4 fichiers (`RAG_EMBEDDING_CONCURRENCY || "2"`) | 2026-03-25 | 2026-03-27 |
+| #84 | MOYENNE | Scalabilité | `services/simplifiedContent.ts:22,62` | `_getUserProjects`/`_getUserRootPages` sans pagination (sidebar) | 2026-03-26 | 2026-03-27 |
+| #85 | MOYENNE | Scalabilité | `services/rag/cleanup.ts:112,281` | `getStaleSources`/`cleanupOldUserFiles` findMany sans take | 2026-03-26 | 2026-03-27 |
+| #86 | MOYENNE | Scalabilité | `schema.prisma` (AIConversation) | Index composite `[userId, workspaceId, isActive]` manquant — query fréquente conversations actives | 2026-03-26 | 2026-03-27 |
+| #87 | MOYENNE | Scalabilité | `services/AccountExportService.ts:131` | `fetchConversations` exporte les conversations soft-deleted (pas de filtre `isActive: true`) | 2026-03-26 | 2026-03-27 |
+| #88 | MOYENNE | Scalabilité | `controllers/page.ts:640` | Slug generation race condition — check-then-act sans transaction (2 requêtes parallèles → même slug) | 2026-03-26 | 2026-03-27 |
+| #89 | MOYENNE | Scalabilité | `quiz/statsService.ts` (global) | `include: { result: true }` charge `detailedScoring` (JSON volumineux) pour CHAQUE quiz dans les stats | 2026-03-26 | 2026-03-27 |
+| #90 | BASSE | Scalabilité | `schema.prisma` (ActivityLog) | Index `[userId, createdAt]` manquant — queries admin filtrent souvent par range temporel | 2026-03-26 | 2026-03-27 |
+| #91 | BASSE | Scalabilité | `services/simplifiedContent.ts` | Children projects sans filtre `isArchived: false` — sous-projets archivés inclus | 2026-03-26 | 2026-03-27 |
+| #92 | BASSE | Qualité | `scripts/db/reset-database.ts:96` | Référence `prisma.dailyArticle.deleteMany()` après suppression du model DailyArticle — build cassé | 2026-03-26 | 2026-03-27 |
 
 ## Fermées
 
@@ -106,10 +113,10 @@
 | #33 | HAUTE | Résilience | `workflows.ts` | Deep workflows hardcoded Google/Gemini — aucun failover | 2026-03-24 | 2026-03-25 | Provider-agnostic `resolveModel` + `buildThinkingOptions` avec fallback AGENT_FALLBACK |
 
 ## Statistiques
-- Total détectées : 92
+- Total détectées : 99
 - Total fermées : 53
-- Total ouvertes : 39
-- Taux de résolution : 58%
+- Total ouvertes : 46
+- Taux de résolution : 54%
 
 ## Historique Deep-Dives
 
@@ -125,3 +132,4 @@
 | 2026-03-25 (am) | **Fix 23 issues** : 14 corrigées, 9 acknowledged | 0 |
 | 2026-03-25 (pm) | **Qualité & Tests** + revue marketplace + sécurité agents | 16 |
 | 2026-03-26 | **Base de données & Scalabilité** (1er deep-dive dédié) + revue suppression Futura | 25 |
+| 2026-03-27 | **Sécurité & OWASP** — IDOR content, rate limiting gaps, validation manquante | 7 |
