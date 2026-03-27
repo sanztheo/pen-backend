@@ -1,5 +1,5 @@
 // 📄 User Pages RAG System - Traitement intelligent des pages workspace
-import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
+import { prismaEmbeddings as prisma, Prisma } from "../../lib/prismaEmbeddings.js";
 import type { RAGChunkInput } from "./index.js";
 import { logger } from "../../utils/logger.js";
 
@@ -448,30 +448,31 @@ export class UserPagesRAGSystem {
     const filtered = prepared.filter((row): row is PreparedRAGChunkRow => row !== null);
     let inserted = 0;
     for (const batch of chunkArray(filtered, batchSize)) {
-      // Utiliser SQL brut pour insérer les embeddings (Prisma ne supporte pas vector nativement)
-      for (const chunk of batch) {
-        await prisma.$executeRaw`
-          INSERT INTO "rag_chunks" (
-            "id", "source_id", "chunk_index", "content", "clean_content",
-            "embedding", "token_count", "section_title", "quality",
-            "created_at"
-          )
-          VALUES (
-            gen_random_uuid(),
-            ${chunk.sourceId}::uuid,
-            ${chunk.chunkIndex},
-            ${chunk.content},
-            ${chunk.cleanContent},
-            ${chunk.embedding}::vector,
-            ${chunk.tokenCount},
-            ${chunk.sectionTitle},
-            ${chunk.quality},
-            NOW()
-          )
-          ON CONFLICT DO NOTHING
-        `;
-        inserted++;
-      }
+      const values = batch.map(
+        (chunk) => Prisma.sql`(
+          gen_random_uuid(),
+          ${chunk.sourceId}::uuid,
+          ${chunk.chunkIndex},
+          ${chunk.content},
+          ${chunk.cleanContent},
+          ${chunk.embedding}::vector,
+          ${chunk.tokenCount},
+          ${chunk.sectionTitle},
+          ${chunk.quality},
+          NOW()
+        )`,
+      );
+
+      await prisma.$executeRaw`
+        INSERT INTO "rag_chunks" (
+          "id", "source_id", "chunk_index", "content", "clean_content",
+          "embedding", "token_count", "section_title", "quality",
+          "created_at"
+        )
+        VALUES ${Prisma.join(values)}
+        ON CONFLICT DO NOTHING
+      `;
+      inserted += batch.length;
       logger.log(`💾 [USER-PAGE] Inséré ${inserted}/${filtered.length} chunks…`);
     }
 

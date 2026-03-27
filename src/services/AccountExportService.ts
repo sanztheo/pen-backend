@@ -122,6 +122,8 @@ export class AccountExportService {
         questions: true,
         userAnswers: true,
       },
+      orderBy: { createdAt: "desc" },
+      take: EXPORT_MAX_ITEMS,
     });
   }
 
