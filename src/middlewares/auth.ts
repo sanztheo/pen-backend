@@ -36,7 +36,10 @@ userSyncCleanupInterval.unref();
 const isDevelopment = process.env.NODE_ENV === "development";
 const isTestAuthEnabled = process.env.ENABLE_TEST_AUTH === "true";
 const testAuthSecret = process.env.TEST_AUTH_SECRET;
-const clientUrl = process.env.CLIENT_URL || "";
+if (!process.env.CLIENT_URL) {
+  throw new Error("Missing env: CLIENT_URL — check Infisical /Backend");
+}
+const clientUrl = process.env.CLIENT_URL;
 
 // 🛡️ Liste des domaines de production connus (bloque le test auth)
 const PRODUCTION_DOMAINS = [

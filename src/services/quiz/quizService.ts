@@ -920,12 +920,16 @@ export class QuizService {
           },
         },
         orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: offset,
       });
 
       // Récupérer les séquences de quiz
       const quizSequences = await prisma.quizSequence.findMany({
         where: { userId },
         orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: offset,
       });
 
       // Transformer les séquences pour les rendre compatibles avec l'affichage
@@ -1546,10 +1550,10 @@ export class QuizService {
           isCompleted: true,
         },
         include: {
-          result: true,
-          template: true,
+          result: { select: { percentage: true } },
         },
         orderBy: { completedAt: "desc" },
+        take: 1000,
       });
 
       if (!completedQuizzes.length) {

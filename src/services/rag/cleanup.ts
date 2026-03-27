@@ -133,29 +133,25 @@ export class RAGCleanupService {
 
     for (const source of sources) {
       const chunkCount = source._count.chunks;
-
-      // Estimer l'espace (approximatif: 1KB par chunk)
       const estimatedSizeKB = chunkCount * 1;
       spaceFreed += estimatedSizeKB / 1024; // MB
-
       chunksDeleted += chunkCount;
       sourcesDeleted += 1;
-
-      if (!dryRun) {
-        // Supprimer les chunks d'abord (contrainte de clé étrangère)
-        await prisma.rAGChunk.deleteMany({
-          where: { sourceId: source.id },
-        });
-
-        // Puis supprimer la source
-        await prisma.rAGSource.delete({
-          where: { id: source.id },
-        });
-      }
 
       logger.log(
         `${dryRun ? "🔍 [DRY-RUN]" : "🗑️ [DELETE]"} Source: "${source.title}" (${chunkCount} chunks, ${estimatedSizeKB}KB)`,
       );
+    }
+
+    if (!dryRun && sources.length > 0) {
+      const sourceIds = sources.map((s) => s.id);
+      // Batch delete: chunks first (FK constraint), then sources
+      await prisma.rAGChunk.deleteMany({
+        where: { sourceId: { in: sourceIds } },
+      });
+      await prisma.rAGSource.deleteMany({
+        where: { id: { in: sourceIds } },
+      });
     }
 
     return {

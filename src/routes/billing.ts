@@ -6,8 +6,12 @@ import { validateEmail } from "../middlewares/validateEmail.js";
 import { prisma } from "../lib/prisma.js";
 import { PADDLE_CONFIG } from "../config/paddle.js";
 import { withTimeout, PADDLE_TIMEOUT_MS } from "../utils/timeout.js";
+import { billingRateLimit } from "../middlewares/rateLimiting.js";
 
 const router = express.Router();
+
+// Apply billing rate limit to all routes in this router
+router.use(billingRateLimit);
 
 /**
  * GET /api/billing/subscription

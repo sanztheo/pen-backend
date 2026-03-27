@@ -145,6 +145,7 @@ model Project {
   children       Project[]     @relation("ProjectHierarchy")
 
   @@index([createdBy])
+  @@index([workspaceId, isArchived])
   @@map("projects")
 }
 
@@ -176,6 +177,8 @@ model Page {
   concepts         PageConcepts?
 
   @@index([createdBy])
+  @@index([workspaceId, isArchived])
+  @@index([projectId, isArchived])
   @@map("pages")
 }
 
@@ -380,6 +383,7 @@ model QuizSequence {
   updatedAt           DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
   user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("quiz_sequences")
 }
 

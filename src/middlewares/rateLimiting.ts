@@ -408,6 +408,54 @@ export const adminExportRateLimit = rateLimit({
 });
 
 /**
+ * 14. RATE LIMIT BILLING
+ * Protection des routes checkout, cancel, upgrade, portal-url
+ * 20 req/15min par user — opérations sensibles mais pas fréquentes
+ */
+const BILLING_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const BILLING_MAX = 20;
+
+export const billingRateLimit = rateLimit({
+  ...createBaseConfig("rl:billing:"),
+  windowMs: BILLING_WINDOW_MS,
+  max: BILLING_MAX,
+  message: {
+    success: false,
+    error: "BILLING_RATE_LIMIT_EXCEEDED",
+    message: "Trop de requêtes billing. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "15 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `billing_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
+ * 15. RATE LIMIT UPLOAD
+ * Protection contre abus upload (coût Cloudinary + stockage)
+ * 30 req/15min par user — assez pour usage normal, bloque le spam
+ */
+const UPLOAD_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const UPLOAD_MAX = 30;
+
+export const uploadRateLimit = rateLimit({
+  ...createBaseConfig("rl:upload:"),
+  windowMs: UPLOAD_WINDOW_MS,
+  max: UPLOAD_MAX,
+  message: {
+    success: false,
+    error: "UPLOAD_RATE_LIMIT_EXCEEDED",
+    message: "Trop d'uploads. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "15 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `upload_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
  * Helper pour vérifier si le rate limiting est activé
  */
 export const isRateLimitEnabled = (): boolean => {

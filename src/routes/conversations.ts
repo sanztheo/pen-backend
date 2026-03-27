@@ -272,7 +272,10 @@ router.get("/:id/messages", verifyConversationAccess, async (req, res) => {
       return res.status(404).json({ error: "Conversation non trouvée" });
     }
 
-    // Récupérer les messages
+    // Récupérer les messages avec pagination
+    const take = Math.min(Number(req.query.limit) || 100, 200);
+    const skip = Number(req.query.offset) || 0;
+
     const messages = await prisma.aIMessage.findMany({
       where: {
         conversationId: id,
@@ -280,9 +283,11 @@ router.get("/:id/messages", verifyConversationAccess, async (req, res) => {
       orderBy: {
         createdAt: "asc",
       },
+      take,
+      skip,
     });
 
-    res.json({ messages });
+    res.json({ messages, pagination: { limit: take, offset: skip } });
   } catch (error) {
     logger.error("[GET /conversations/:id/messages] error", error);
     res.status(500).json({ error: "Erreur lors de la récupération des messages" });
@@ -575,6 +580,17 @@ router.get("/tokens/:workspaceId", verifyWorkspaceOwnership, async (req, res) =>
       include: {
         messages: {
           orderBy: { createdAt: "asc" },
+          select: {
+            role: true,
+            content: true,
+            mentions: true,
+            files: true,
+            wikipediaSources: true,
+            creditsHasWeb: true,
+            thinking: true,
+            toolCalls: true,
+            intermediateThinkingBlocks: true,
+          },
         },
       },
     });
@@ -673,6 +689,17 @@ router.get("/tokens/conversation/:conversationId", verifyConversationAccess, asy
       include: {
         messages: {
           orderBy: { createdAt: "asc" },
+          select: {
+            role: true,
+            content: true,
+            mentions: true,
+            files: true,
+            wikipediaSources: true,
+            creditsHasWeb: true,
+            thinking: true,
+            toolCalls: true,
+            intermediateThinkingBlocks: true,
+          },
         },
       },
     });

@@ -12,11 +12,10 @@ const isDevelopment = process.env.NODE_ENV === "development";
 
 // 🔧 Configuration dynamique selon l'environnement
 const getDatabaseUrl = (): string => {
-  const baseUrl = process.env.DATABASE_URL || "";
-
-  if (!baseUrl) {
-    throw new Error("❌ DATABASE_URL manquante dans .env");
+  if (!process.env.DATABASE_URL) {
+    throw new Error("Missing env: DATABASE_URL — check Infisical /Backend");
   }
+  const baseUrl = process.env.DATABASE_URL;
 
   // Paramètres optimisés selon l'environnement
   const params = new URLSearchParams();

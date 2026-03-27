@@ -1,5 +1,8 @@
 import { prisma } from "../../lib/prisma.js";
 
+/** Safety cap: max quizzes fetched per stats query to prevent unbounded scans */
+const STATS_MAX_QUIZZES = 1000;
+
 /**
  * Helper pour calculer la date de début selon la période
  */
@@ -117,7 +120,7 @@ export type QuizWithResult = {
   isCompleted: boolean;
   completedAt: Date | null;
   createdAt: Date;
-  result: { percentage: number; detailedScoring: unknown } | null;
+  result: { percentage: number; detailedScoring?: unknown } | null;
 };
 
 export class StatsService {
@@ -141,8 +144,9 @@ export class StatsService {
         userId,
         createdAt: { gte: startDate },
       },
-      include: { result: true },
+      include: { result: { select: { percentage: true } } },
       orderBy: { completedAt: "desc" },
+      take: STATS_MAX_QUIZZES,
     });
 
     const completedQuizzes = allQuizzes.filter((q) => q.isCompleted);
@@ -212,8 +216,9 @@ export class StatsService {
         isCompleted: true,
         completedAt: { gte: startDate },
       },
-      include: { result: true },
+      include: { result: { select: { percentage: true } } },
       orderBy: { completedAt: "asc" },
+      take: STATS_MAX_QUIZZES,
     });
 
     return quizzes.map((quiz) => ({
@@ -241,8 +246,9 @@ export class StatsService {
         isCompleted: true,
         createdAt: { gte: startDate },
       },
-      include: { result: true },
+      include: { result: { select: { percentage: true } } },
       orderBy: { completedAt: "desc" },
+      take: STATS_MAX_QUIZZES,
     });
 
     // Grouper par spécialités sélectionnées ou par higherEdField
@@ -315,7 +321,8 @@ export class StatsService {
         isCompleted: true,
         createdAt: { gte: startDate },
       },
-      include: { result: true },
+      include: { result: { select: { percentage: true } } },
+      take: STATS_MAX_QUIZZES,
     });
 
     const difficultyGroups = {
@@ -348,7 +355,8 @@ export class StatsService {
         isCompleted: true,
         createdAt: { gte: startDate },
       },
-      include: { result: true },
+      include: { result: { select: { percentage: true } } },
+      take: STATS_MAX_QUIZZES,
     });
 
     const totalTimeSpent = quizzes.reduce((sum, q) => sum + (q.timeSpent || 0), 0);
@@ -413,7 +421,8 @@ export class StatsService {
         hasDocuments: true,
         createdAt: { gte: startDate },
       },
-      include: { result: true },
+      include: { result: { select: { percentage: true } } },
+      take: STATS_MAX_QUIZZES,
     });
 
     interface PageUsageItem {
@@ -484,7 +493,8 @@ export class StatsService {
         isCompleted: true,
         createdAt: { gte: startDate },
       },
-      include: { result: true },
+      include: { result: { select: { percentage: true, detailedScoring: true } } },
+      take: STATS_MAX_QUIZZES,
     });
 
     const typeMap = new Map<
