@@ -1,5 +1,5 @@
 // 🤖 Pennote Agent - Vercel AI SDK v6
-import { streamText, stepCountIs, type ToolSet, type StreamTextResult } from "ai";
+import { streamText, type ToolSet, type StreamTextResult } from "ai";
 import { writeFile, mkdir } from "fs/promises";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -44,6 +44,60 @@ function resolveModelForThinking(_thinking: ThinkingLevel, modelOverride?: strin
 
 /** Max duration for agent streaming calls (milliseconds) */
 const AGENT_STREAM_MAX_DURATION_MS = 300_000;
+
+// ── Research loop detection ─────────────────────────────────────────────────
+/** Tools that indicate a "research" step (web/wiki/RAG search) */
+const RESEARCH_TOOL_NAMES = new Set([
+  "searchWeb",
+  "searchWikipedia",
+  "getWikipediaArticle",
+  "searchRagChunks",
+  "readRagSource",
+]);
+
+/** Max consecutive steps with only research tools before forcing stop */
+const MAX_CONSECUTIVE_RESEARCH_STEPS = 5;
+
+interface StopConditionStep {
+  toolCalls: Array<{ toolName: string }>;
+  text: string;
+}
+
+/**
+ * Custom stop condition: step count limit + research loop detection.
+ * Prevents models (especially Kimi K2.5) from endlessly calling search tools
+ * without ever producing content or calling action tools (createPage, etc.).
+ */
+function createAgentStopCondition(maxSteps: number) {
+  return ({ steps }: { steps: StopConditionStep[] }): boolean => {
+    if (steps.length >= maxSteps) return true;
+    if (steps.length < MAX_CONSECUTIVE_RESEARCH_STEPS) return false;
+
+    let consecutiveResearch = 0;
+    for (let i = steps.length - 1; i >= 0; i--) {
+      const step = steps[i];
+      const hasText = step.text && step.text.trim().length > 0;
+      const hasToolCalls = step.toolCalls && step.toolCalls.length > 0;
+      const allResearch =
+        hasToolCalls && step.toolCalls.every((tc) => RESEARCH_TOOL_NAMES.has(tc.toolName));
+
+      if (!hasText && allResearch) {
+        consecutiveResearch++;
+      } else {
+        break;
+      }
+    }
+
+    if (consecutiveResearch >= MAX_CONSECUTIVE_RESEARCH_STEPS) {
+      logger.warn(
+        `⚠️ [PennoteAgent] Research loop detected: ${consecutiveResearch} consecutive research-only steps. Force-stopping.`,
+      );
+      return true;
+    }
+
+    return false;
+  };
+}
 
 // ── Dev-only debug logger ────────────────────────────────────────────────────
 const IS_DEV = process.env.NODE_ENV === "development";
@@ -297,7 +351,7 @@ ${sanitizeForPrompt(request.agentPrompt.systemPrompt)}
     tools,
     maxOutputTokens: maxTokens,
     timeout: AGENT_STREAM_MAX_DURATION_MS,
-    stopWhen: stepCountIs(maxSteps),
+    stopWhen: createAgentStopCondition(maxSteps),
     toolChoice: "auto",
     providerOptions,
 
