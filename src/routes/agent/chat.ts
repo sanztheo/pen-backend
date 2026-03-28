@@ -20,7 +20,7 @@ import { AIQuotaManager } from "../../services/ai/quotaManager.js";
 import { convertToModelMessages, generateId } from "ai";
 import type { UIMessage } from "ai";
 import { verifyWorkspaceAccess } from "../../middlewares/workspaceAccess.js";
-import { MODELS } from "../../config/models.js";
+import { MODELS, findSelectableModel, parseCompositeId } from "../../config/models.js";
 import { searchMemories } from "../../services/mem0/mem0Client.js";
 import { getPresetAgent } from "../../services/agent/presetAgents.js";
 import { aiConcurrencyLimit } from "../../middlewares/aiConcurrencyLimit.js";
@@ -63,6 +63,7 @@ chatRouter.post(
         personalization,
         agentId: rawAgentId,
         agentType: rawAgentType,
+        modelSelection: rawModelSelection,
       } = req.body;
 
       // Valider agentId/agentType — seuls "preset" et "custom" sont autorisés
@@ -77,7 +78,35 @@ chatRouter.post(
           ? rawAgentId
           : undefined;
 
+      // Parse modelSelection composite ID → modelId + thinkingLevel
+      let modelOverride: string | undefined;
+      let thinkingOverride: string | undefined;
+      const modelSelection =
+        typeof rawModelSelection === "string" && rawModelSelection.length <= 100
+          ? rawModelSelection
+          : undefined;
+
+      let modelDisplayName: string | undefined;
+      if (modelSelection) {
+        const selectable = findSelectableModel(modelSelection);
+        if (selectable) {
+          modelDisplayName = selectable.name;
+          const parsed = parseCompositeId(modelSelection);
+          if (parsed) {
+            modelOverride = parsed.modelId;
+            thinkingOverride = parsed.thinkingLevel;
+          }
+        } else {
+          logger.warn(`[AGENT-CHAT] Invalid modelSelection "${modelSelection}", using default`);
+        }
+      }
+
       if (!messages || !Array.isArray(messages)) {
+        logger.error("[AGENT-CHAT] 400 — messages missing or not array", {
+          bodyKeys: Object.keys(req.body),
+          messagesType: typeof messages,
+          hasMessages: "messages" in req.body,
+        });
         return res.status(400).json({
           error: "VALIDATION_ERROR",
           message: 'Le champ "messages" est requis et doit être un tableau',
@@ -123,6 +152,7 @@ chatRouter.post(
         mode,
         intent,
         useWeb,
+        modelSelection: modelSelection || "default",
         messagesCount: messages.length,
         ragSourcesCount: ragSources?.length || 0,
         ragSources:
@@ -205,6 +235,8 @@ chatRouter.post(
           agentId,
           agentType,
           agentPrompt,
+          modelOverride,
+          thinkingOverride,
         },
         {
           onStepFinish: ({ stepNumber, toolCalls, text }) => {
@@ -226,6 +258,11 @@ chatRouter.post(
         originalMessages: messages as UIMessage[],
         sendReasoning: true,
         generateMessageId: generateId,
+        messageMetadata: ({ part }) => {
+          if (part.type === "start") {
+            return { model: modelDisplayName };
+          }
+        },
         async consumeSseStream({ stream }) {
           if (!conversationId) return;
           const streamId = generateId();
@@ -244,12 +281,26 @@ chatRouter.post(
           estimatedTokens,
           lastUserMessage,
           aiAction: req.aiCredits?.action,
+          modelSelection,
+          modelId: modelOverride,
+          thinkingLevel: thinkingOverride,
         }),
       });
 
       // CRITICAL: consumeStream() garantit que le stream se termine
       // même si le client se déconnecte (tab switch, refresh, etc.)
-      result.consumeStream();
+      Promise.resolve(result.consumeStream()).catch((err: unknown) => {
+        // OpenAI Responses API: reasoning-delta can arrive before reasoning-start
+        // in multi-step agent flows. Non-fatal — response still completes.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("reasoning-delta") || msg.includes("reasoning-start")) {
+          logger.log(
+            `⚠️ [AGENT-CHAT] Non-fatal reasoning stream error (OpenAI multi-step): ${msg}`,
+          );
+        } else {
+          logger.error(`❌ [AGENT-CHAT] Stream consumption error:`, err);
+        }
+      });
     } catch (error: unknown) {
       handleChatError(error, req, res);
     }

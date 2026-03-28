@@ -3,7 +3,7 @@
 // =====================================================
 
 /** Text styling options for BlockNote content */
-interface TextStyles {
+export interface TextStyles {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
@@ -11,30 +11,30 @@ interface TextStyles {
 }
 
 /** Plain text content element */
-interface TextContent {
+export interface TextContent {
   type: "text";
   text: string;
   styles?: TextStyles;
 }
 
 /** Inline LaTeX content element */
-interface InlineLatexContent {
+export interface InlineLatexContent {
   type: "inlineLatex";
   props: { latex: string };
 }
 
 /** Union of all inline content types */
-type InlineContent = TextContent | InlineLatexContent;
+export type InlineContent = TextContent | InlineLatexContent;
 
 /** Block properties based on block type */
-interface BlockProps {
+export interface BlockProps {
   level?: number; // For headings (2 or 3)
   language?: string; // For code blocks
   latex?: string; // For latex blocks
 }
 
 /** BlockNote block structure */
-interface BlockNoteBlock {
+export interface BlockNoteBlock {
   type: "paragraph" | "heading" | "bulletListItem" | "numberedListItem" | "codeBlock" | "latex";
   content?: InlineContent[];
   props?: BlockProps;
@@ -116,7 +116,7 @@ export function extractTextFromBlockNote(blocks: unknown[]): string {
  * Parse inline content with markdown formatting support
  * Converts **bold**, *italic*, __underline__, ~~strikethrough~~ to StyledText
  */
-function parseInlineContent(text: string): InlineContent[] {
+export function parseInlineContent(text: string): InlineContent[] {
   const content: InlineContent[] = [];
 
   // 1) Extraire les inline LaTeX $...$

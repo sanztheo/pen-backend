@@ -30,6 +30,12 @@ interface OnFinishContext {
   estimatedTokens: number;
   lastUserMessage: string;
   aiAction: string | undefined;
+  /** Model selector — composite ID (e.g. "gemini-3-flash-preview:high") */
+  modelSelection: string | undefined;
+  /** Model selector — resolved model ID */
+  modelId: string | undefined;
+  /** Model selector — resolved thinking level */
+  thinkingLevel: string | undefined;
 }
 
 /** Build the onFinish callback for pipeUIMessageStreamToResponse */
@@ -37,6 +43,14 @@ export function buildOnFinish(ctx: OnFinishContext) {
   return async ({ messages: allMessages }: { messages: UIMessage[] }) => {
     logger.log(`💾 [AGENT-CHAT] onFinish - Sauvegarde de ${allMessages.length} messages`);
     if (ctx.conversationId) {
+      // Build extra metadata for model selection traceability
+      const extraMetadata: Record<string, unknown> = {};
+      if (ctx.modelSelection) {
+        extraMetadata.modelSelection = ctx.modelSelection;
+        extraMetadata.modelId = ctx.modelId;
+        extraMetadata.thinkingLevel = ctx.thinkingLevel;
+      }
+
       await saveConversation({
         conversationId: ctx.conversationId,
         userId: ctx.userId,
@@ -46,6 +60,7 @@ export function buildOnFinish(ctx: OnFinishContext) {
         status: "COMPLETED",
         agentId: ctx.agentId,
         agentType: ctx.agentType,
+        extraMetadata,
       });
       await updateActiveStreamId(ctx.conversationId, null, ctx.userId);
     }
@@ -70,9 +85,7 @@ export function buildOnFinish(ctx: OnFinishContext) {
     }
 
     // 🧠 Mem0: stocker la conversation pour enrichir la mémoire (fire-and-forget)
-    const lastAssistantMsg = allMessages
-      .filter((m: UIMessage) => m.role === "assistant")
-      .pop();
+    const lastAssistantMsg = allMessages.filter((m: UIMessage) => m.role === "assistant").pop();
     if (ctx.lastUserMessage && lastAssistantMsg) {
       const assistantText = lastAssistantMsg.parts
         .filter((p): p is { type: "text"; text: string } => p.type === "text")
@@ -89,11 +102,7 @@ export function buildOnFinish(ctx: OnFinishContext) {
 }
 
 /** Handle POST /chat errors: mark conversation as errored, refund credits */
-export function handleChatError(
-  error: unknown,
-  req: Request,
-  res: Response,
-): void {
+export function handleChatError(error: unknown, req: Request, res: Response): void {
   const errorMessage = error instanceof Error ? error.message : String(error);
   logger.error("❌ [AGENT-CHAT] Erreur:", error);
 

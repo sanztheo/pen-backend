@@ -17,6 +17,7 @@ import { MODELS as MODEL_IDS, getModelProvider } from "../../config/models.js";
 import { getProviderInstance } from "../../config/providers.js";
 import { createWebTools } from "./tools/webTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
+import { createPageReadingTools } from "./tools/pageReadingTools.js";
 import { createPageTools } from "./tools/pageTools.js";
 import type { AgentRequest } from "./types.js";
 import { buildSystemPrompt, type RagSource, type UserPersonalization } from "./systemPrompts.js";
@@ -98,7 +99,7 @@ function buildThinkingOptions(modelId: string, level: ThinkingLevel): Record<str
     : getModelProvider(MODEL_IDS.AGENT_FALLBACK);
 
   if (effectiveProvider === "google") {
-    return { google: { thinkingConfig: { thinkingLevel: level } } };
+    return { google: { thinkingConfig: { thinkingLevel: level, includeThoughts: true } } };
   }
   if (effectiveProvider === "moonshot") {
     const budgetTokens = level === "high" ? 8192 : level === "medium" ? 4096 : 2048;
@@ -156,6 +157,7 @@ async function parallelSearch(query: string, ctx: WorkflowContext): Promise<Sear
   const webTools = createWebTools(toolContext);
   const ragTools = createRagTools(toolContext);
   const workspaceTools = createWorkspaceTools(toolContext);
+  const pageReadingTools = createPageReadingTools(toolContext);
 
   logger.log(`🔍 [Workflow] Starting parallel search for: "${query}"`);
 
@@ -283,7 +285,7 @@ async function parallelSearch(query: string, ctx: WorkflowContext): Promise<Sear
           const pageContents: string[] = [];
           for (const page of listResult.pages.slice(0, 2)) {
             try {
-              const pageContent = await workspaceTools.readWorkspacePage.execute!(
+              const pageContent = await pageReadingTools.readPageSection.execute!(
                 { pageId: page.id },
                 { toolCallId: `workspace-read-${page.id}`, messages: [] },
               );

@@ -1,11 +1,15 @@
 // 🤖 Pennote Agent - Vercel AI SDK v6
 import { streamText, stepCountIs, type ToolSet, type StreamTextResult } from "ai";
+import { writeFile, mkdir } from "fs/promises";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import { createRagTools } from "./tools/ragTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
 import { createWebTools } from "./tools/webTools.js";
 import { createPageTools } from "./tools/pageTools.js";
-import { createWikipediaTools } from "./tools/wikipediaTools.js";
 import { createQuizTools } from "./tools/quizTools.js";
+import { createEditTools } from "./tools/editTools.js";
+import { createPageReadingTools } from "./tools/pageReadingTools.js";
 import { logger } from "../../utils/logger.js";
 import { MODELS } from "../../config/models.js";
 import { getProviderInstance } from "../../config/providers.js";
@@ -30,15 +34,57 @@ export type { AgentMode, IntentType, AgentRequest, AgentStreamCallbacks } from "
 
 /**
  * Sélectionne le modèle en fonction du niveau de thinking.
- * Tous les providers (Moonshot, Google, etc.) utilisent le même modèle —
- * le thinking est contrôlé via providerOptions.
+ * If a model override is provided (from user selection), use it.
+ * Otherwise use the default AGENT_PRIMARY.
  */
-function resolveModelForThinking(_thinking: ThinkingLevel): string {
-  return MODELS.AGENT_PRIMARY;
+function resolveModelForThinking(_thinking: ThinkingLevel, modelOverride?: string): string {
+  return modelOverride || MODELS.AGENT_PRIMARY;
 }
 
 /** Max duration for agent streaming calls (milliseconds) */
 const AGENT_STREAM_MAX_DURATION_MS = 300_000;
+
+// ── Dev-only debug logger ────────────────────────────────────────────────────
+const IS_DEV = process.env.NODE_ENV === "development";
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DEV_LOG_DIR = join(__dirname, "../../../logs/penly-debug");
+
+interface DevLogStep {
+  step: number;
+  toolCalls: Array<{ name: string; args: unknown }>;
+  toolResults: Array<{ name: string; output: unknown }>;
+  text: string;
+  reasoning: unknown;
+  tokens: number | undefined;
+}
+
+interface DevLogEntry {
+  timestamp: string;
+  mode: string;
+  intent: string;
+  model: string;
+  provider: string;
+  agentName: string | undefined;
+  userMessage: string;
+  steps: DevLogStep[];
+  finalText: string;
+  reasoning: unknown;
+  totalTokens: number | undefined;
+  finishReason: string;
+}
+
+async function writeDevLog(entry: DevLogEntry): Promise<void> {
+  if (!IS_DEV) return;
+  try {
+    await mkdir(DEV_LOG_DIR, { recursive: true });
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const filename = `${ts}_${entry.mode}.json`;
+    await writeFile(join(DEV_LOG_DIR, filename), JSON.stringify(entry, null, 2), "utf-8");
+    logger.log(`[DevLog] Saved to logs/penly-debug/${filename}`);
+  } catch (err) {
+    logger.warn(`[DevLog] Failed to write:`, err);
+  }
+}
 
 interface ResolvedProvider {
   modelName: string;
@@ -46,12 +92,19 @@ interface ResolvedProvider {
   providerName: string;
 }
 
-function resolveProvider(thinking: ThinkingLevel): ResolvedProvider {
-  const modelName = resolveModelForThinking(thinking);
+function resolveProvider(thinking: ThinkingLevel, modelOverride?: string): ResolvedProvider {
+  const modelName = resolveModelForThinking(thinking, modelOverride);
   const providerInstance = getProviderInstance(modelName);
   const providerName = getModelProvider(modelName) || "unknown";
 
   if (!providerInstance) {
+    // If override failed, fall back to default
+    if (modelOverride) {
+      logger.warn(
+        `[PennoteAgent] Provider not configured for override model "${modelName}", falling back to AGENT_PRIMARY`,
+      );
+      return resolveProvider(thinking);
+    }
     throw new Error(
       `[PennoteAgent] Provider "${providerName}" not configured for model "${modelName}". Check API key.`,
     );
@@ -64,31 +117,59 @@ function resolveProvider(thinking: ThinkingLevel): ResolvedProvider {
   };
 }
 
+/** OpenAI reasoning_effort values supported by GPT-5.4 Nano */
+const OPENAI_REASONING_EFFORTS = ["none", "low", "medium", "high", "xhigh"] as const;
+type OpenAIReasoningEffort = (typeof OPENAI_REASONING_EFFORTS)[number];
+
+function isOpenAIReasoningEffort(value: string): value is OpenAIReasoningEffort {
+  return (OPENAI_REASONING_EFFORTS as readonly string[]).includes(value);
+}
+
 /**
  * Construit les providerOptions spécifiques au provider pour le thinking.
+ * thinkingOverride allows passing a raw provider-specific level (e.g. "xhigh" for OpenAI).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildProviderOptions(
   modelId: string,
   thinking: ThinkingLevel,
   enableNativeWebSearch = true,
+  thinkingOverride?: string,
 ): any {
   const provider = getModelProvider(modelId);
 
   if (provider === "google") {
+    // thinkingOverride is already a valid Google thinkingLevel for selectable models
+    const level = thinkingOverride || thinking;
     return {
       google: {
-        thinkingConfig: { thinkingLevel: thinking, includeThoughts: true },
+        thinkingConfig: { thinkingLevel: level, includeThoughts: true },
         useSearchGrounding: enableNativeWebSearch,
       },
     };
   }
 
+  // OpenAI: reasoning_effort for reasoning models
+  // "none" = no reasoning requested → don't send reasoning param at all
+  if (provider === "openai") {
+    const effort = thinkingOverride || thinking;
+    if (effort !== "none" && isOpenAIReasoningEffort(effort)) {
+      return {
+        openai: {
+          reasoningEffort: effort,
+          reasoningSummary: "auto",
+        },
+      };
+    }
+    return {};
+  }
+
   // Moonshot K2.5: thinking contrôlé via providerOptions (pas de modèle séparé)
   if (provider === "moonshot") {
-    const useThinking = thinking === "low" || thinking === "medium" || thinking === "high";
+    const level = thinkingOverride || thinking;
+    const useThinking = level === "low" || level === "medium" || level === "high";
     if (useThinking) {
-      const budgetTokens = thinking === "high" ? 8192 : thinking === "medium" ? 4096 : 2048;
+      const budgetTokens = level === "high" ? 8192 : level === "medium" ? 4096 : 2048;
       return {
         moonshotai: {
           thinking: { type: "enabled", budgetTokens },
@@ -120,12 +201,14 @@ export function runPennoteAgent(
     conversationHistory,
     personalization,
     memoryContext,
+    modelOverride,
+    thinkingOverride,
   } = request;
 
   const { maxSteps, maxTokens, thinking } = MODE_CONFIG[mode];
 
-  // Resolve model + provider with circuit breaker failover
-  const { modelName, providerInstance, providerName } = resolveProvider(thinking);
+  // Resolve model + provider — use user's model selection if provided
+  const { modelName, providerInstance, providerName } = resolveProvider(thinking, modelOverride);
 
   // Shared context for all tools
   const toolContext = { userId, workspaceId };
@@ -136,8 +219,9 @@ export function runPennoteAgent(
   const workspaceTools = createWorkspaceTools(toolContext);
   const webTools = createWebTools(toolContextWithLang);
   const pageTools = createPageTools(toolContext);
-  const wikipediaTools = createWikipediaTools(toolContextWithLang);
   const quizTools = createQuizTools(toolContext);
+  const editTools = createEditTools(toolContext);
+  const pageReadingTools = createPageReadingTools(toolContext);
 
   // Google providers use native Search Grounding (useSearchGrounding in providerOptions)
   // so searchWeb tool is excluded — the model searches Google natively.
@@ -146,6 +230,7 @@ export function runPennoteAgent(
   const tools = {
     ...ragTools,
     ...workspaceTools,
+    ...pageReadingTools,
     ...(!isGoogleProvider
       ? webTools
       : {
@@ -153,8 +238,8 @@ export function runPennoteAgent(
           getWikipediaArticle: webTools.getWikipediaArticle,
         }),
     ...pageTools,
-    ...wikipediaTools,
     ...quizTools,
+    ...editTools,
   } satisfies ToolSet;
 
   // System prompt — pass hasNativeWebSearch so the prompt doesn't mention searchWeb for Google
@@ -176,13 +261,29 @@ ${sanitizeForPrompt(request.agentPrompt.systemPrompt)}
   }
 
   const model = providerInstance(modelName);
-  const providerOptions = buildProviderOptions(modelName, thinking, isGoogleProvider);
+  const providerOptions = buildProviderOptions(
+    modelName,
+    thinking,
+    isGoogleProvider,
+    thinkingOverride,
+  );
 
   logger.log(`🤖 [PennoteAgent] Mode: ${mode}, maxSteps: ${maxSteps}, useWeb: ${useWeb}`);
   logger.log(`🤖 [PennoteAgent] Tools disponibles: ${Object.keys(tools).join(", ")}`);
   logger.log(
-    `🤖 [PennoteAgent] Provider: ${providerName}, Model: ${modelName}, Thinking: ${thinking}`,
+    `🤖 [PennoteAgent] Provider: ${providerName}, Model: ${modelName}, Thinking: ${thinkingOverride || thinking}`,
   );
+
+  // OpenAI Responses API: reasoning items must stay paired with their function_call items.
+  // SDK v6.0.140+ handles reasoning round-trip correctly — no stripping needed.
+
+  // Dev-only: accumulate steps for debug log file
+  const devLogSteps: DevLogStep[] = [];
+  const lastUserMsgContent = [...messages].reverse().find((m) => m.role === "user")?.content;
+  const lastUserMsg =
+    typeof lastUserMsgContent === "string"
+      ? lastUserMsgContent
+      : JSON.stringify(lastUserMsgContent ?? "");
 
   let stepNumber = 0;
 
@@ -208,6 +309,22 @@ ${sanitizeForPrompt(request.agentPrompt.systemPrompt)}
         reasoningLength: reasoning?.length || 0,
         sourcesCount: sources?.length || 0,
         tokens: usage?.totalTokens,
+      });
+
+      // Dev-only: write full conversation log to file
+      writeDevLog({
+        timestamp: new Date().toISOString(),
+        mode,
+        intent,
+        model: modelName,
+        provider: providerName,
+        agentName: request.agentPrompt?.name,
+        userMessage: lastUserMsg,
+        steps: devLogSteps,
+        finalText: text || "",
+        reasoning,
+        totalTokens: usage?.totalTokens,
+        finishReason: finishReason || "unknown",
       });
     },
 
@@ -255,6 +372,16 @@ ${sanitizeForPrompt(request.agentPrompt.systemPrompt)}
           text: text || "",
         });
       }
+
+      // Dev-only: accumulate step data for file log
+      devLogSteps.push({
+        step: stepNumber,
+        toolCalls: safeToolCalls.map((tc) => ({ name: tc.toolName, args: tc.input })),
+        toolResults: safeToolResults.map((tr) => ({ name: tr.toolName, output: tr.output })),
+        text: text || "",
+        reasoning,
+        tokens: usage?.totalTokens,
+      });
 
       // Log des tool calls pour debug
       for (const tc of safeToolCalls) {

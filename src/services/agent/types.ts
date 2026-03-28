@@ -76,6 +76,10 @@ export interface AgentRequest {
   agentType?: "preset" | "custom";
   /** Agent marketplace — pre-resolved agent prompt and name (resolved by caller) */
   agentPrompt?: { name: string; systemPrompt: string };
+  /** Model selector — override model ID (from AGENT_SELECTABLE_MODELS) */
+  modelOverride?: string;
+  /** Model selector — override thinking level */
+  thinkingOverride?: string;
 }
 
 /**

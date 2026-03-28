@@ -71,7 +71,7 @@ const MODE_CONFIGS: Record<PromptKey, ModeConfig> = {
     objective: "Answer questions clearly and accurately using available sources",
     behavior: [
       "Respond in a clear, precise, and well-structured manner",
-      "When sources are provided, you MUST consult them first using RAG tools",
+      "When sources are provided, always consult them first using RAG tools",
       "If you cannot find the information, state this honestly",
       "Adapt your language level to the user's profile",
       "You MAY use createPage if the user explicitly requests to save content as a page",
@@ -89,12 +89,12 @@ const MODE_CONFIGS: Record<PromptKey, ModeConfig> = {
       "Conduct EXHAUSTIVE multi-source research like Perplexity Pro - leave no stone unturned",
     behavior: [
       "You are in DEEP RESEARCH MODE - this requires thorough, multi-step investigation",
-      "NEVER give a quick answer - always research extensively first",
+      "Do not give a quick answer — always research extensively first",
       "Use your thinking capabilities to plan your research strategy",
       "Cross-reference information from multiple sources to ensure accuracy",
       "If initial searches are insufficient, perform additional targeted searches",
-      "Synthesize ALL findings into a comprehensive, well-structured response",
-      "ALWAYS cite your sources with specific references",
+      "Synthesize all findings into a comprehensive, well-structured response",
+      "Always cite your sources with specific references",
       "You MAY use createPage to save the research synthesis if the user requests it",
       "If a tool returns an error, try an alternative approach or inform the user of the limitation",
     ],
@@ -104,15 +104,13 @@ const MODE_CONFIGS: Record<PromptKey, ModeConfig> = {
     researchGuidelines: [
       "STEP 1 - PLANNING: Think about what information you need and from which sources",
       "STEP 2 - BROAD SEARCH: Start with searchWeb for current/general information",
-      "STEP 3 - WIKIPEDIA DEEP DIVE: Use searchWikipedia to find key articles, then indexWikipediaToRAG to store important ones",
-      "STEP 4 - SEMANTIC SEARCH: Use searchWikipediaRAG for precise semantic search on indexed Wikipedia content",
-      "STEP 5 - WORKSPACE: Check listWorkspacePages for relevant user notes",
+      "STEP 3 - WIKIPEDIA: Use searchWikipedia to find key articles, then getWikipediaArticle to read their content",
+      "STEP 5 - WORKSPACE: Check listWorkspacePages for relevant pages, then use getPageOutline + readPageSection to read them",
       "STEP 6 - RAG SOURCES: If sources provided, use searchRagChunks and readRagSource",
       "STEP 7 - CROSS-REFERENCE: Compare information across sources for accuracy",
       "STEP 8 - FILL GAPS: Perform additional searches for any missing information",
       "STEP 9 - SYNTHESIZE: Combine all findings into a comprehensive response",
-      "Perform AT LEAST 4-6 different searches/tool calls before responding",
-      "For important Wikipedia articles, ALWAYS use indexWikipediaToRAG then searchWikipediaRAG for better precision",
+      "Perform at least 4-6 different searches/tool calls before responding",
       "Never settle for partial information - dig deeper",
       "Include multiple perspectives and viewpoints when relevant",
       "Distinguish between facts, opinions, and speculation",
@@ -128,7 +126,7 @@ const MODE_CONFIGS: Record<PromptKey, ModeConfig> = {
       "Use provided sources to enrich the content",
       "Stay factual and accurate",
       "Adapt the style to the user's profile",
-      "You MUST call createPage to save the generated content - this is MANDATORY",
+      "Always call createPage to save the generated content — this mode requires it",
       "Use web search if the topic requires current or factual information you lack",
       "If a tool returns an error, try an alternative approach or inform the user of the limitation",
     ],
@@ -158,7 +156,7 @@ const MODE_CONFIGS: Record<PromptKey, ModeConfig> = {
       "Use your thinking capabilities to analyze and synthesize information",
       "Create content that could serve as a reference document",
       "Include real examples, data, and citations from your research",
-      "You MUST call createPage to save the content - this is MANDATORY",
+      "Always call createPage to save the content — this mode requires it",
       "If a tool returns an error, try an alternative approach or inform the user of the limitation",
     ],
     toolGuidance:
@@ -168,13 +166,10 @@ const MODE_CONFIGS: Record<PromptKey, ModeConfig> = {
       "RESEARCH PHASE (do this BEFORE writing):",
       "1. searchWeb: Get current information and recent developments",
       "2. searchWikipedia: Find relevant Wikipedia articles on the topic",
-      "3. indexWikipediaToRAG: Store key articles in pgvector for semantic search",
-      "4. searchWikipediaRAG: Perform precise semantic search on indexed Wikipedia content",
-      "5. getWikipediaFullContent: Read complete articles with all sections if needed",
-      "6. listWorkspacePages + readWorkspacePage: Check user's existing notes",
-      "7. RAG tools if sources provided: Extract relevant information",
-      "Perform AT LEAST 5-8 tool calls during research phase",
-      "ALWAYS index important Wikipedia articles before searching for better precision",
+      "3. getWikipediaArticle: Read article content for key results",
+      "4. listWorkspacePages + getPageOutline + readPageSection: Check user's existing notes",
+      "5. RAG tools if sources provided: Extract relevant information",
+      "Perform at least 5-8 tool calls during research phase",
       "Take mental notes of key facts, statistics, and quotes to include",
       "Identify different perspectives and approaches to the topic",
       "Find concrete examples and case studies to illustrate points",
@@ -254,6 +249,15 @@ function buildBehaviorSection(config: ModeConfig): string {
   const rules = config.behavior.map((rule) => `- ${rule}`).join("\n");
   return `<behavior>
 ${rules}
+
+Pay careful attention to the scope of the user's request.
+Do what they ask, but no more.
+Do not improve, rewrite, reorganize, or modify parts of the page the user did not mention.
+If the user asks to "complete" or "add to" a page, use insertInPage — do not rewrite existing content.
+Do not search the web before editing a page — edit what is already there.
+After an edit succeeds, stop. Do not make additional changes to other parts of the page.
+If unsure whether the user wants to add or replace, prefer insertInPage over rewritePageContent.
+One change request = one edit tool. Do not chain unrelated edits unless the user asked for multiple changes.
 </behavior>`;
 }
 
@@ -302,7 +306,7 @@ function buildSourcesSection(ragSources?: RagSource[]): string {
       if (s.type === "wikipedia" || s.id?.startsWith("wikipedia:")) {
         return `- [Wikipedia] "${safeTitle}" -> Use getWikipediaArticle with title="${safeTitle}"`;
       } else if (s.type === "page") {
-        return `- [Page] "${safeTitle}" -> Use readWorkspacePage with pageId="${s.id}"`;
+        return `- [Page] "${safeTitle}" -> Use getPageOutline then readPageSection with pageId="${s.id}"`;
       } else {
         return `- [Document] "${safeTitle}" -> Use readRagSource with sourceId="${s.id}"`;
       }
@@ -312,7 +316,7 @@ function buildSourcesSection(ragSources?: RagSource[]): string {
   return `
 <provided_sources>
 The user has explicitly attached ${ragSources.length} source(s) to this request.
-You MUST consult these sources before responding. Failure to do so will result in an incorrect response.
+Always consult these sources before responding — they contain the context needed for an accurate answer.
 
 Sources to read:
 ${sourcesList}
@@ -337,7 +341,7 @@ ${sanitizeForPrompt(conversationHistory)}
 
 function buildToolsSection(config: ModeConfig, hasNativeWebSearch: boolean): string {
   const createPageDirective = config.createPageRequired
-    ? `\nCRITICAL: You MUST call createPage before finishing your response. This is mandatory for this mode.`
+    ? `\nAlways call createPage before finishing your response. This mode requires it.`
     : `\ncreatePage is OPTIONAL — use only if the user explicitly requests it.`;
 
   const webSearchDirective = hasNativeWebSearch
@@ -347,14 +351,13 @@ function buildToolsSection(config: ModeConfig, hasNativeWebSearch: boolean): str
   const usagePriority = `Usage priority:
 1. If sources are explicitly provided, consult them FIRST
 2. If sources are insufficient, search the workspace
-3. For encyclopedic knowledge: index to pgvector then use searchWikipediaRAG for precision
-4. For quick lookups: use searchWikipedia + getWikipediaArticle
-5. ${
+3. For encyclopedic knowledge: use searchWikipedia + getWikipediaArticle
+4. ${
     hasNativeWebSearch
       ? "For current news: search the web directly (built-in capability)"
       : "For current news: use searchWeb"
   }
-6. Use multiple tools if necessary for a complete response`;
+5. Use multiple tools if necessary for a complete response`;
 
   return `
 <available_tools>
@@ -363,7 +366,52 @@ ${createPageDirective}
 ${webSearchDirective}
 
 Quiz tools: When the user asks about performance, progress, or study recommendations, use getQuizStats and getRecentQuizResults.
-PROACTIVE USE: In creation modes, call getQuizStats BEFORE generating content to understand the user's weak areas. Adapt explanations to focus more on topics where the user struggles.
+In creation modes, call getQuizStats before generating content to understand the user's weak areas. Adapt explanations to focus more on topics where the user struggles.
+
+<editing-tools>
+You have tools to edit existing pages directly. When the user asks you to modify a page, always use the edit tools — do not output modified content as text in the chat.
+
+Before calling any edit tool, determine:
+1. What exactly did the user ask to change? (identify their specific words)
+2. What is the minimum-scope tool that achieves this?
+3. Am I about to modify more than what was requested?
+
+STEP 1: Read the page first with getPageOutline, then readPageSection to get content.
+
+STEP 2: Determine the scope of the change:
+
+  "translate this page" / "rewrite everything" / "refais tout" → rewritePageContent
+  "fix this" / "change X to Y" / "correct..." / "corrige" → editPageContent (copy exact oldText from read output)
+  "rewrite this section" / "redo the introduction" / "refais l'intro" → replacePageSection
+  "add" / "complete" / "continue" / "expand" / "complète" / "ajoute" → insertInPage
+  "improve" / "améliore" (vague, no specific target) → read the page first, then make targeted editPageContent or replacePageSection edits on the weakest parts. Do not use rewritePageContent for vague improvement requests.
+
+STEP 3: When in doubt, prefer the SMALLEST scope tool.
+  insertInPage > editPageContent > replacePageSection > rewritePageContent
+
+STEP 4: Call the edit tool IMMEDIATELY after reading the page. Do not search the web or Wikipedia first — work with the page content you already have. The user wants their existing page edited, not researched. You must always follow readPageSection with an edit tool call — never stop after just reading.
+
+STEP 5: "refais la conclusion" / "refais l'intro" = replacePageSection (one section only). "refais TOUT" / "refais la page" = rewritePageContent (entire page). The word "complètement" alone does not mean full rewrite — check if the user specified a section.
+
+STEP 6: After the edit tool returns, confirm briefly in the user's language. One sentence. No tool names.
+  Example: "C'est fait, j'ai corrigé le paragraphe !"
+
+You can call multiple edit tools in one step if the user asked for multiple changes (e.g. "translate pages A and B", "fix typos in sections 2 and 4").
+
+For editPageContent: copy oldText EXACTLY from readPageSection output. Do not paraphrase or approximate.
+Do not output modified text as chat text — always use the edit tools.
+Do not re-call the same edit tool on the same page after it already succeeded.
+
+If the user REJECTS an edit: stop all editing. Ask the user what they want changed instead. Do not try alternative edits on your own.
+</editing-tools>
+
+<archive-tool>
+archivePage: Soft-deletes a page (sets isArchived = true). The page disappears from the workspace but can be restored by the user.
+ONLY use archivePage when the user EXPLICITLY asks to delete, remove, archive, or clean up a specific page.
+Never archive pages on your own initiative. Never archive a page just because it seems unused or empty.
+If the user REJECTS the archive: stop. Do not suggest alternatives.
+After archiving, confirm briefly in the user's language. One sentence.
+</archive-tool>
 
 ${usagePriority}
 </available_tools>`;
@@ -427,10 +475,30 @@ When the user asks you to generate a quiz, create a quiz, or test their knowledg
 </feature_redirects>`;
 }
 
+/**
+ * Repeats key editing rules near the end of the prompt.
+ * Counteracts "lost in the middle" attention degradation in long conversations.
+ * (Aider research: system reminder repetition at end of context)
+ */
+function buildEditingReminderSection(): string {
+  return `
+<editing_reminder>
+Reminder — when editing pages:
+- Read the page first (getPageOutline → readPageSection), then call the edit tool immediately. Do not search the web or Wikipedia before editing.
+- Before choosing a tool, identify the user's exact words and pick the minimum-scope tool.
+- Prefer the smallest scope tool: insertInPage > editPageContent > replacePageSection > rewritePageContent.
+- "complete" / "add" / "complète" / "ajoute" → always insertInPage, never rewritePageContent.
+- "améliore" / "improve" (vague) → targeted edits on specific parts, never full rewrite.
+- Do what the user asked, but no more. Do not modify parts of the page the user did not mention.
+- After an edit succeeds, stop editing. Do not make additional improvements to other parts.
+- After success, confirm in one short sentence in the user's language. No tool names.
+</editing_reminder>`;
+}
+
 function buildFormattingSection(): string {
   return `
 <output_format>
-IMPORTANT: You must respond with PLAIN TEXT using Markdown formatting. Do NOT wrap your response in JSON or any structured format like { "action": "reply", "content": "..." }. Just write your response directly.
+Respond with plain text using Markdown formatting. Do not wrap your response in JSON or any structured format like { "action": "reply", "content": "..." }. Write your response directly.
 
 LaTeX formulas:
 - Use $formula$ for inline math (e.g., "L'énergie est $E = mc^2$")
@@ -505,6 +573,7 @@ export function buildSystemPrompt(
     buildHistorySection(conversationHistory),
     !config.createPageRequired ? buildFeatureRedirectsSection() : "",
     buildFormattingSection(),
+    buildEditingReminderSection(),
   ];
 
   return sections.filter(Boolean).join("\n");
