@@ -344,6 +344,16 @@ function buildToolsSection(config: ModeConfig, hasNativeWebSearch: boolean): str
     ? `\nAlways call createPage before finishing your response. This mode requires it.`
     : `\ncreatePage is OPTIONAL — use only if the user explicitly requests it.`;
 
+  const workspaceStructureDirective = `
+<workspace_navigation>
+Use getWorkspaceStructure to see the full workspace tree (projects, pages, and nested sub-pages) BEFORE creating a page.
+This tool returns IDs you can pass to createPage:
+- projectId: to place the page in a specific project/folder
+- parentId: to nest the page under an existing page (sub-page)
+When the user says "create a page in [folder]" or "add a sub-page under [page]", always call getWorkspaceStructure first to find the correct IDs.
+If the user specifies a project by name, use getWorkspaceStructure to resolve it to an ID — do not guess.
+</workspace_navigation>`;
+
   const webSearchDirective = hasNativeWebSearch
     ? `\nWeb search: You have BUILT-IN web search capability. When you need current information, facts, or news, simply search the web directly — no tool call needed. Do NOT try to call a "searchWeb" tool, it does not exist. Your web search is native and automatic.`
     : `\nWeb search: Use the searchWeb tool when you need current information, news, or facts not in the user's sources.`;
@@ -364,6 +374,7 @@ function buildToolsSection(config: ModeConfig, hasNativeWebSearch: boolean): str
 Tool strategy: ${config.toolGuidance}
 ${createPageDirective}
 ${webSearchDirective}
+${workspaceStructureDirective}
 
 Quiz tools: When the user asks about performance, progress, or study recommendations, use getQuizStats and getRecentQuizResults.
 In creation modes, call getQuizStats before generating content to understand the user's weak areas. Adapt explanations to focus more on topics where the user struggles.

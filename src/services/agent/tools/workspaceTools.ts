@@ -1,7 +1,7 @@
 // 📄 Workspace Tools - Vercel AI SDK Format
 import { tool } from "ai";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
+import { type Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma.js";
 import { logger } from "../../../utils/logger.js";
 

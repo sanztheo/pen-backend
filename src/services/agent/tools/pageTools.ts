@@ -34,6 +34,16 @@ const createPageSchema = z.object({
     emptyToUndefined,
     z.string().uuid().optional().describe("ID of the project to create the page in (optional)"),
   ),
+  parentId: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .uuid()
+      .optional()
+      .describe(
+        "ID of a parent page to nest this page under (optional). Use getWorkspaceStructure to find valid parent page IDs.",
+      ),
+  ),
   icon: z.preprocess(
     emptyToUndefined,
     z.string().max(10).optional().describe("Emoji or icon for the page (e.g. '📝')"),
@@ -55,11 +65,13 @@ const archivePageSchema = z.object({
 export function createPageTools(ctx: PageToolsContext) {
   return {
     createPage: tool({
-      description: `Creates a new page in the user's workspace. Use this tool when the user asks to create a page, document, or notes. The page can be created at workspace root or inside a specific project. Returns the page ID, title, and URL.`,
+      description: `Creates a new page in the user's workspace. Use this tool when the user asks to create a page, document, or notes. The page can be created at workspace root, inside a specific project, or nested under another page via parentId. Use getWorkspaceStructure first to find valid projectId and parentId values. Returns the page ID, title, and URL.`,
       inputSchema: createPageSchema,
       needsApproval: true,
-      execute: async ({ title, content, projectId, icon }) => {
-        logger.log(`🔍 [TOOL:createPage] title="${title}", projectId=${projectId || "root"}`);
+      execute: async ({ title, content, projectId, parentId, icon }) => {
+        logger.log(
+          `🔍 [TOOL:createPage] title="${title}", projectId=${projectId || "root"}, parentId=${parentId || "none"}`,
+        );
 
         try {
           if (projectId) {
@@ -73,9 +85,41 @@ export function createPageTools(ctx: PageToolsContext) {
               return {
                 success: false,
                 error:
-                  "Project not found in this workspace. Use listWorkspaceProjects to find valid project IDs.",
+                  "Project not found in this workspace. Use getWorkspaceStructure to find valid project IDs.",
                 pageId: null,
               };
+            }
+          }
+
+          if (parentId) {
+            const parentPage = await prisma.page.findFirst({
+              where: {
+                id: parentId,
+                workspaceId: ctx.workspaceId,
+                isArchived: false,
+              },
+              select: { id: true, projectId: true },
+            });
+            if (!parentPage) {
+              return {
+                success: false,
+                error:
+                  "Parent page not found in this workspace. Use getWorkspaceStructure to find valid parent page IDs.",
+                pageId: null,
+              };
+            }
+            // Enforce consistency: if both projectId and parentId given, they must match
+            if (projectId && parentPage.projectId && parentPage.projectId !== projectId) {
+              return {
+                success: false,
+                error:
+                  "Conflict: parentId belongs to a different project than the provided projectId. Use getWorkspaceStructure to verify.",
+                pageId: null,
+              };
+            }
+            // Inherit projectId from parent if not explicitly provided
+            if (!projectId && parentPage.projectId) {
+              projectId = parentPage.projectId;
             }
           }
 
@@ -83,7 +127,7 @@ export function createPageTools(ctx: PageToolsContext) {
             where: {
               workspaceId: ctx.workspaceId,
               projectId: projectId || null,
-              parentId: null,
+              parentId: parentId || null,
             },
             orderBy: { position: "desc" },
             select: { position: true },
@@ -110,6 +154,7 @@ export function createPageTools(ctx: PageToolsContext) {
               position,
               workspaceId: ctx.workspaceId,
               projectId: projectId || null,
+              parentId: parentId || null,
               createdBy: ctx.userId,
               icon: icon || null,
               blockNoteContent: blockNoteContent ?? undefined,
@@ -121,6 +166,7 @@ export function createPageTools(ctx: PageToolsContext) {
               icon: true,
               createdAt: true,
               projectId: true,
+              parentId: true,
             },
           });
 
@@ -134,6 +180,7 @@ export function createPageTools(ctx: PageToolsContext) {
             icon: page.icon,
             url: `/page/${page.id}`,
             projectId: page.projectId || null,
+            parentId: page.parentId || null,
             projectName: null,
             createdAt: page.createdAt.toISOString(),
           };
