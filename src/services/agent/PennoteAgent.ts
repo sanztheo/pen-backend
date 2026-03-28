@@ -56,7 +56,7 @@ const RESEARCH_TOOL_NAMES = new Set([
 ]);
 
 /** Max consecutive steps with only research tools before forcing stop */
-const MAX_CONSECUTIVE_RESEARCH_STEPS = 5;
+const MAX_CONSECUTIVE_RESEARCH_STEPS = 3;
 
 interface StopConditionStep {
   toolCalls: Array<{ toolName: string }>;
