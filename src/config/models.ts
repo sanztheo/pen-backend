@@ -12,4 +12,10 @@ export {
   isEmbeddingModel,
   getModelPricing,
   getModelProvider,
+  AGENT_SELECTABLE_MODELS,
+  TIER_MULTIPLIER,
+  findSelectableModel,
+  parseCompositeId,
+  type SelectableModel,
+  type ModelTier,
 } from "./models/index.js";

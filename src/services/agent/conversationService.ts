@@ -42,6 +42,7 @@ export async function saveConversation({
   status = "COMPLETED",
   agentId,
   agentType,
+  extraMetadata,
 }: {
   conversationId: string;
   userId: string;
@@ -51,6 +52,7 @@ export async function saveConversation({
   status?: ConversationStatus;
   agentId?: string;
   agentType?: string;
+  extraMetadata?: Record<string, unknown>;
 }): Promise<void> {
   logger.log(
     `💾 [CONVERSATION] Sauvegarde: ${conversationId}, ${messages.length} messages, status=${status}`,
@@ -74,6 +76,7 @@ export async function saveConversation({
     const title = extractTitle(firstUserMessage);
 
     // Upsert la conversation
+    const metadata = { mode, ...extraMetadata };
     await prisma.aIConversation.upsert({
       where: { id: conversationId },
       create: {
@@ -84,7 +87,7 @@ export async function saveConversation({
         status,
         messageCount: messages.length,
         lastMessageAt: new Date(),
-        metadata: { mode },
+        metadata,
         ...(agentId && { agentId }),
         ...(agentType && { agentType }),
       },
@@ -92,7 +95,7 @@ export async function saveConversation({
         status,
         messageCount: messages.length,
         lastMessageAt: new Date(),
-        metadata: { mode },
+        metadata,
         // Clear activeStreamId quand le stream est terminé
         ...(status === "COMPLETED" && { activeStreamId: null }),
       },

@@ -44,6 +44,11 @@ const checkPageExistsSchema = z.object({
   pageId: z.string().uuid().describe("ID of the page to check"),
 });
 
+const archivePageSchema = z.object({
+  pageId: z.string().uuid().describe("ID of the page to archive"),
+  title: z.string().max(255).describe("Title of the page, for display in the approval UI"),
+});
+
 /**
  * Creates page management tools with user context
  */
@@ -52,6 +57,7 @@ export function createPageTools(ctx: PageToolsContext) {
     createPage: tool({
       description: `Creates a new page in the user's workspace. Use this tool when the user asks to create a page, document, or notes. The page can be created at workspace root or inside a specific project. Returns the page ID, title, and URL.`,
       inputSchema: createPageSchema,
+      needsApproval: true,
       execute: async ({ title, content, projectId, icon }) => {
         logger.log(`🔍 [TOOL:createPage] title="${title}", projectId=${projectId || "root"}`);
 
@@ -185,6 +191,54 @@ export function createPageTools(ctx: PageToolsContext) {
             exists: false,
             pageId,
             error: "Failed to check page existence. Try again.",
+          };
+        }
+      },
+    }),
+
+    archivePage: tool({
+      description: `Archives (soft-deletes) a page. The page will no longer appear in the workspace. This action is reversible by the user. IMPORTANT: Only archive pages when the user EXPLICITLY asks to delete, remove, or archive a specific page. Never archive pages proactively.`,
+      inputSchema: archivePageSchema,
+      needsApproval: true,
+      execute: async ({ pageId }) => {
+        logger.log(`🔍 [TOOL:archivePage] pageId=${pageId}`);
+
+        try {
+          // Atomic update — avoids TOCTOU race between findFirst + update
+          const result = await prisma.page.updateMany({
+            where: { id: pageId, workspaceId: ctx.workspaceId, isArchived: false },
+            data: { isArchived: true },
+          });
+
+          if (result.count === 0) {
+            return {
+              success: false,
+              error: "Page not found in this workspace or already archived.",
+              pageId,
+            };
+          }
+
+          // Get title for the response (after successful update)
+          const page = await prisma.page.findUnique({
+            where: { id: pageId },
+            select: { title: true },
+          });
+
+          logger.log(
+            `✅ [TOOL:archivePage] Page archived: "${page?.title ?? "Untitled"}" (ID: ${pageId})`,
+          );
+
+          return {
+            success: true,
+            pageId,
+            title: page?.title ?? "Untitled",
+          };
+        } catch (error) {
+          logger.error(`❌ [TOOL:archivePage] Error:`, error);
+          return {
+            success: false,
+            error: "Failed to archive page. Try again.",
+            pageId,
           };
         }
       },

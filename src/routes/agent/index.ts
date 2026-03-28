@@ -12,6 +12,7 @@ import { chatRouter } from "./chat.js";
 import { chatSimpleRouter } from "./chatSimple.js";
 import { workflowRouter } from "./workflow.js";
 import { conversationRouter } from "./conversations.js";
+import { modelsRouter } from "./models.js";
 
 const router = Router();
 
@@ -24,5 +25,6 @@ router.use(chatRouter);
 router.use(chatSimpleRouter);
 router.use(workflowRouter);
 router.use(conversationRouter);
+router.use(modelsRouter);
 
 export { router as agentRouter };
