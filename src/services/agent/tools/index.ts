@@ -1,6 +1,7 @@
 // 🛠️ Tools Index - Export centralisé
 export { createRagTools } from "./ragTools.js";
 export { createWorkspaceTools } from "./workspaceTools.js";
+export { createStructureTools } from "./structureTools.js";
 export { createWebTools } from "./webTools.js";
 export { createPageTools } from "./pageTools.js";
 export { createQuizTools } from "./quizTools.js";

@@ -9,6 +9,7 @@ import { createWebTools } from "./tools/webTools.js";
 import { createPageTools } from "./tools/pageTools.js";
 import { createQuizTools } from "./tools/quizTools.js";
 import { createEditTools } from "./tools/editTools.js";
+import { createStructureTools } from "./tools/structureTools.js";
 import { createPageReadingTools } from "./tools/pageReadingTools.js";
 import { logger } from "../../utils/logger.js";
 import { MODELS } from "../../config/models.js";
@@ -221,6 +222,7 @@ export function runPennoteAgent(
   const pageTools = createPageTools(toolContext);
   const quizTools = createQuizTools(toolContext);
   const editTools = createEditTools(toolContext);
+  const structureTools = createStructureTools(toolContext);
   const pageReadingTools = createPageReadingTools(toolContext);
 
   // Google providers use native Search Grounding (useSearchGrounding in providerOptions)
@@ -240,6 +242,7 @@ export function runPennoteAgent(
     ...pageTools,
     ...quizTools,
     ...editTools,
+    ...structureTools,
   } satisfies ToolSet;
 
   // System prompt — pass hasNativeWebSearch so the prompt doesn't mention searchWeb for Google
