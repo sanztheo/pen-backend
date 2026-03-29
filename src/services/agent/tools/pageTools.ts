@@ -142,9 +142,9 @@ export function createPageTools(ctx: PageToolsContext) {
           const slug = `${baseSlug}-${Date.now()}-${nanoid(4)}`;
 
           const blockNoteContent = content
-            ? (toBlockNoteAuto(
+            ? ((await toBlockNoteAuto(
                 sanitizeAIGeneratedContent(content),
-              ) as unknown as Prisma.InputJsonValue)
+              )) as unknown as Prisma.InputJsonValue)
             : null;
 
           const page = await prisma.page.create({
