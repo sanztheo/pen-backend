@@ -718,7 +718,7 @@ router.post("/markdown-to-blocknote", async (req, res) => {
     }
 
     const { toBlockNoteAuto } = await import("../controllers/assistant/helpers/blocknote.js");
-    const blockNote = toBlockNoteAuto(markdown);
+    const blockNote = await toBlockNoteAuto(markdown);
 
     res.json({ success: true, blockNote, blocksCount: blockNote.length });
   } catch (error) {

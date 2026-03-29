@@ -388,7 +388,7 @@ Supports positions: 'start', 'end', or { afterHeading: 'Section Title' }. Use ge
 
           const { page, blocks } = result;
           const sanitized = sanitizeAIGeneratedContent(content);
-          const convertedBlocks = toBlockNoteAuto(sanitized);
+          const convertedBlocks = await toBlockNoteAuto(sanitized);
 
           const insertResult = insertBlocksAtPosition(blocks, convertedBlocks, position);
 
@@ -469,7 +469,7 @@ When NOT to use:
 
           const { page, blocks } = result;
           const sanitized = sanitizeAIGeneratedContent(newContent);
-          const convertedBlocks = toBlockNoteAuto(sanitized);
+          const convertedBlocks = await toBlockNoteAuto(sanitized);
 
           const sectionResult = replaceSectionBlocks(blocks, sectionHeading, convertedBlocks);
 
@@ -557,7 +557,7 @@ This is the most destructive editing tool. Prefer smaller-scope alternatives.`,
           }
 
           const sanitized = sanitizeAIGeneratedContent(content);
-          const newBlocks = toBlockNoteAuto(sanitized);
+          const newBlocks = await toBlockNoteAuto(sanitized);
 
           const saveResult = await savePageBlocks(
             pageId,
