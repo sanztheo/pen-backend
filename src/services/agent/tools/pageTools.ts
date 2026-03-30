@@ -74,6 +74,42 @@ export function createPageTools(ctx: PageToolsContext) {
         );
 
         try {
+          // Idempotency: if same title was created by same user in last 30s, return existing page
+          const recentDuplicate = await prisma.page.findFirst({
+            where: {
+              title,
+              workspaceId: ctx.workspaceId,
+              createdBy: ctx.userId,
+              createdAt: { gte: new Date(Date.now() - 30_000) },
+            },
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              icon: true,
+              createdAt: true,
+              projectId: true,
+              parentId: true,
+            },
+          });
+          if (recentDuplicate) {
+            logger.log(
+              `⚠️ [TOOL:createPage] Duplicate detected — returning existing page ${recentDuplicate.id}`,
+            );
+            return {
+              success: true,
+              pageId: recentDuplicate.id,
+              title: recentDuplicate.title,
+              slug: recentDuplicate.slug,
+              icon: recentDuplicate.icon,
+              url: `/page/${recentDuplicate.id}`,
+              projectId: recentDuplicate.projectId || null,
+              parentId: recentDuplicate.parentId || null,
+              projectName: null,
+              createdAt: recentDuplicate.createdAt.toISOString(),
+            };
+          }
+
           if (projectId) {
             const project = await prisma.project.findFirst({
               where: {
