@@ -258,6 +258,7 @@ export function runPennoteAgent(
     memoryContext,
     modelOverride,
     thinkingOverride,
+    autoAccept,
   } = request;
 
   const { maxSteps, maxTokens, thinking } = MODE_CONFIG[mode];
@@ -268,14 +269,15 @@ export function runPennoteAgent(
   // Shared context for all tools
   const toolContext = { userId, workspaceId };
   const toolContextWithLang = { userId, workspaceId, language: personalization?.language };
+  const skipApproval = autoAccept === true;
 
   // Create tools with context
   const ragTools = createRagTools(toolContext);
   const workspaceTools = createWorkspaceTools(toolContext);
   const webTools = createWebTools(toolContextWithLang);
-  const pageTools = createPageTools(toolContext);
+  const pageTools = createPageTools(toolContext, skipApproval);
   const quizTools = createQuizTools(toolContext);
-  const editTools = createEditTools(toolContext);
+  const editTools = createEditTools(toolContext, skipApproval);
   const structureTools = createStructureTools(toolContext);
   const pageReadingTools = createPageReadingTools(toolContext);
 

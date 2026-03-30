@@ -80,6 +80,8 @@ export interface AgentRequest {
   modelOverride?: string;
   /** Model selector — override thinking level */
   thinkingOverride?: string;
+  /** Auto-accept: skip needsApproval on page/edit tools (frontend auto-accepts) */
+  autoAccept?: boolean;
 }
 
 /**

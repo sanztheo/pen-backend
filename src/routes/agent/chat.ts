@@ -64,7 +64,10 @@ chatRouter.post(
         agentId: rawAgentId,
         agentType: rawAgentType,
         modelSelection: rawModelSelection,
+        autoAccept: rawAutoAccept,
       } = req.body;
+
+      const autoAccept = rawAutoAccept === true;
 
       // Valider agentId/agentType — seuls "preset" et "custom" sont autorisés
       const validAgentTypes = ["preset", "custom"] as const;
@@ -237,6 +240,7 @@ chatRouter.post(
           agentPrompt,
           modelOverride,
           thinkingOverride,
+          autoAccept,
         },
         {
           onStepFinish: ({ stepNumber, toolCalls, text }) => {
