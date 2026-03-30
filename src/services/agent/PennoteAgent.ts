@@ -1,5 +1,5 @@
 // 🤖 Pennote Agent - Vercel AI SDK v6
-import { streamText, type ToolSet, type StreamTextResult } from "ai";
+import { streamText, smoothStream, type ToolSet, type StreamTextResult } from "ai";
 import { writeFile, mkdir } from "fs/promises";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -354,6 +354,7 @@ ${sanitizeForPrompt(request.agentPrompt.systemPrompt)}
     stopWhen: createAgentStopCondition(maxSteps),
     toolChoice: "auto",
     providerOptions,
+    experimental_transform: smoothStream({ delayInMs: 20, chunking: "word" }),
 
     // Callback global à la fin du stream
     onFinish: ({ text, finishReason, usage, reasoning, sources }) => {
