@@ -62,12 +62,12 @@ const archivePageSchema = z.object({
 /**
  * Creates page management tools with user context
  */
-export function createPageTools(ctx: PageToolsContext) {
+export function createPageTools(ctx: PageToolsContext, skipApproval = false) {
   return {
     createPage: tool({
       description: `Creates a new page in the user's workspace. Use this tool when the user asks to create a page, document, or notes. The page can be created at workspace root, inside a specific project, or nested under another page via parentId. Use getWorkspaceStructure first to find valid projectId and parentId values. Returns the page ID, title, and URL.`,
       inputSchema: createPageSchema,
-      needsApproval: true,
+      needsApproval: !skipApproval,
       execute: async ({ title, content, projectId, parentId, icon }) => {
         logger.log(
           `🔍 [TOOL:createPage] title="${title}", projectId=${projectId || "root"}, parentId=${parentId || "none"}`,
@@ -282,7 +282,7 @@ export function createPageTools(ctx: PageToolsContext) {
     archivePage: tool({
       description: `Archives (soft-deletes) a page. The page will no longer appear in the workspace. This action is reversible by the user. IMPORTANT: Only archive pages when the user EXPLICITLY asks to delete, remove, or archive a specific page. Never archive pages proactively.`,
       inputSchema: archivePageSchema,
-      needsApproval: true,
+      needsApproval: !skipApproval,
       execute: async ({ pageId }) => {
         logger.log(`🔍 [TOOL:archivePage] pageId=${pageId}`);
 

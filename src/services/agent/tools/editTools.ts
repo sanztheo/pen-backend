@@ -240,7 +240,7 @@ export async function savePageBlocks(
  *
  * Tool order: safest first, most destructive last (mitigates position bias).
  */
-export function createEditTools(ctx: EditToolsContext) {
+export function createEditTools(ctx: EditToolsContext, skipApproval = false) {
   return {
     // --------------------------------------------------
     // Tool 1: editPageContent (targeted text replacement)
@@ -264,7 +264,7 @@ When NOT to use:
 
 Copy oldText EXACTLY from readPageSection output — do not paraphrase or approximate.`,
       inputSchema: editPageContentSchema,
-      needsApproval: true,
+      needsApproval: !skipApproval,
       execute: async ({ pageId, oldText, newText }) => {
         logger.log("[TOOL:editPageContent] Editing page", {
           userId: ctx.userId,
@@ -372,7 +372,7 @@ When NOT to use:
 
 Supports positions: 'start', 'end', or { afterHeading: 'Section Title' }. Use getPageOutline to see existing headings when using afterHeading.`,
       inputSchema: insertInPageSchema,
-      needsApproval: true,
+      needsApproval: !skipApproval,
       execute: async ({ pageId, content, position }) => {
         logger.log("[TOOL:insertInPage] Inserting content", {
           userId: ctx.userId,
@@ -453,7 +453,7 @@ When NOT to use:
 - Adding new content without replacing existing text (use insertInPage)
 - "corrige les fautes" (targeted fixes → use editPageContent)`,
       inputSchema: replacePageSectionSchema,
-      needsApproval: true,
+      needsApproval: !skipApproval,
       execute: async ({ pageId, sectionHeading, newContent }) => {
         logger.log("[TOOL:replacePageSection] Replacing section", {
           userId: ctx.userId,
@@ -539,7 +539,7 @@ When NOT to use:
 
 This is the most destructive editing tool. Prefer smaller-scope alternatives.`,
       inputSchema: rewritePageContentSchema,
-      needsApproval: true,
+      needsApproval: !skipApproval,
       execute: async ({ pageId, content }) => {
         logger.log("[TOOL:rewritePageContent] Rewriting page", { userId: ctx.userId, pageId });
 
