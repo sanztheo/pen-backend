@@ -1,36 +1,42 @@
 # Issues Tracker — Backend
 
 > Source de vérité persistante. Mis à jour automatiquement à chaque audit.
-> Dernière mise à jour : 2026-03-30
+> Dernière mise à jour : 2026-04-01
 
 ## Ouvertes
 
 | # | Sévérité | Domaine | Fichier | Problème | Détecté le | Dernière mention |
 |---|----------|---------|---------|----------|------------|------------------|
-| #57 | HAUTE | Tests | `src/` global | Couverture tests ~15% : quiz (7k+ L), RAG (3.3k L), billing (1.5k L), agent (3.3k L), middlewares (2.1k L), routes (6.7k L) sans aucun test | 2026-03-25 | 2026-03-30 |
-| #100 | HAUTE | Résilience | `controllers/quizStreaming.ts` | SSE quiz streaming sans `req.on("close")` — client disconnect n'annule pas les opérations AI → crédits gaspillés | 2026-03-30 | 2026-03-30 |
-| #58 | MOYENNE | Sécurité | `routes/agents.ts` | CRUD agents sans rate limiting (sauf generate-prompt) | 2026-03-25 | 2026-03-30 |
-| #59 | MOYENNE | Sécurité | `routes/agents.ts:83` | Pas de limite sur le nombre d'agents custom par user (storage abuse) | 2026-03-25 | 2026-03-30 |
-| #96 | MOYENNE | Sécurité | `routes/upload.ts:210` | GET /api/upload/config sans authenticateToken — info disclosure (types, taille max, dimensions) | 2026-03-27 | 2026-03-30 |
-| #97 | MOYENNE | Sécurité | `routes/billing.ts:84` | `priceId` et `interval` non validés par Zod dans POST /checkout-session — user peut envoyer priceId arbitraire | 2026-03-27 | 2026-03-30 |
-| #98 | MOYENNE | Sécurité | `rag/index.ts:825` + `wikipediaTools.ts:365` | `Prisma.raw` embedding bypass parameterization — pas de validation que les valeurs sont numériques | 2026-03-27 | 2026-03-30 |
-| #101 | MOYENNE | Résilience | `lib/circuitBreaker.ts` | Circuit breaker (119L) est du dead code — jamais importé. Les API externes (OpenAI, Wikipedia, Mem0) n'ont aucune protection circuit breaker | 2026-03-30 | 2026-03-30 |
-| #102 | MOYENNE | Résilience | `index.ts:796-814` | Graceful shutdown incomplet : pas de `redis.quit()`, pas de `wss.close()`, pas de `server.close()` — connexions Redis/WS peuvent leak au restart | 2026-03-30 | 2026-03-30 |
-| #60 | MOYENNE | Qualité | `src/` (60 fichiers) | 60 fichiers production > 300 lignes (top: quizService 2386L, correctionGenerator 2169L, quizStreaming 1918L) | 2026-03-25 | 2026-03-30 |
-| #61 | MOYENNE | Qualité | 5+ modules `src/` | Dead code: ~5000+ lignes de modules non importés (documentSearchService, fewShotExamples, promptOptimizer exports) | 2026-03-25 | 2026-03-30 |
-| #62 | MOYENNE | Qualité | 27 fichiers routes/controllers | Catch-500 dupliqué partout — asyncHandler wrapper manquant | 2026-03-25 | 2026-03-30 |
-| #84 | MOYENNE | Scalabilité | `services/simplifiedContent.ts:22,62` | `_getUserProjects`/`_getUserRootPages` sans pagination (sidebar) | 2026-03-26 | 2026-03-30 |
-| #85 | MOYENNE | Scalabilité | `services/rag/cleanup.ts:112,281` | `getStaleSources`/`cleanupOldUserFiles` findMany sans take | 2026-03-26 | 2026-03-30 |
-| #87 | MOYENNE | Scalabilité | `services/AccountExportService.ts:131` | `fetchConversations` exporte les conversations soft-deleted (pas de filtre `isActive: true`) — take OK | 2026-03-26 | 2026-03-30 |
-| #63 | BASSE | Sécurité | `routes/agents.ts:217` | Favorites: validation manuelle au lieu de Zod (`agentId` sans check longueur) | 2026-03-25 | 2026-03-30 |
-| #99 | BASSE | Sécurité | `routes/conversations.ts` | Rate limiting absent sur conversations CRUD (list, create message, delete, generate-title) | 2026-03-27 | 2026-03-30 |
-| #103 | BASSE | Résilience | `blocknote.ts:682` | `catch {}` silencieux dans `toBlockNoteAuto()` — fallback vers parser legacy sans logging → échecs invisibles au monitoring | 2026-03-30 | 2026-03-30 |
-| #64 | BASSE | Scalabilité | `routes/agent/conversations.ts:39` | `listConversations` limit query param non borné (user peut envoyer `?limit=999999`) | 2026-03-25 | 2026-03-30 |
-| #65 | BASSE | Scalabilité | `schema.prisma:797` | Index composite `CustomAgent(userId, isActive)` manquant | 2026-03-25 | 2026-03-30 |
-| #66 | BASSE | Qualité | `src/services/rag/*.ts` | Config RAG dupliquée dans 4 fichiers (`RAG_EMBEDDING_CONCURRENCY || "2"`) | 2026-03-25 | 2026-03-30 |
-| #90 | BASSE | Scalabilité | `schema.prisma` (ActivityLog) | Index `[userId, createdAt]` manquant — queries admin filtrent souvent par range temporel | 2026-03-26 | 2026-03-30 |
-| #91 | BASSE | Scalabilité | `services/simplifiedContent.ts` | Children projects sans filtre `isArchived: false` — sous-projets archivés inclus | 2026-03-26 | 2026-03-30 |
-| #92 | BASSE | Qualité | `scripts/db/reset-database.ts:96` | Référence `prisma.dailyArticle.deleteMany()` après suppression du model DailyArticle — build cassé | 2026-03-26 | 2026-03-30 |
+| #57 | HAUTE | Tests | `src/` global | Couverture tests ~15% : quiz (7k+ L), RAG (3.3k L), billing (1.5k L), agent (3.3k L), middlewares (2.1k L), routes (6.7k L) sans aucun test | 2026-03-25 | 2026-04-01 |
+| #100 | HAUTE | Résilience | `controllers/quizStreaming.ts` | SSE quiz streaming sans `req.on("close")` — client disconnect n'annule pas les opérations AI → crédits gaspillés | 2026-03-30 | 2026-04-01 |
+| #58 | MOYENNE | Sécurité | `routes/agents.ts` | CRUD agents sans rate limiting (sauf generate-prompt) | 2026-03-25 | 2026-04-01 |
+| #59 | MOYENNE | Sécurité | `routes/agents.ts:83` | Pas de limite sur le nombre d'agents custom par user (storage abuse) | 2026-03-25 | 2026-04-01 |
+| #96 | MOYENNE | Sécurité | `routes/upload.ts:210` | GET /api/upload/config sans authenticateToken — info disclosure (types, taille max, dimensions) | 2026-03-27 | 2026-04-01 |
+| #97 | MOYENNE | Sécurité | `routes/billing.ts:84` | `priceId` et `interval` non validés par Zod dans POST /checkout-session — user peut envoyer priceId arbitraire | 2026-03-27 | 2026-04-01 |
+| #98 | MOYENNE | Sécurité | `rag/index.ts:825` + `wikipediaTools.ts:365` | `Prisma.raw` embedding bypass parameterization — pas de validation que les valeurs sont numériques | 2026-03-27 | 2026-04-01 |
+| #101 | MOYENNE | Résilience | `lib/circuitBreaker.ts` | Circuit breaker (119L) est du dead code — jamais importé. Les API externes (OpenAI, Wikipedia, Mem0) n'ont aucune protection circuit breaker | 2026-03-30 | 2026-04-01 |
+| #102 | MOYENNE | Résilience | `index.ts:796-814` | Graceful shutdown incomplet : pas de `redis.quit()`, pas de `wss.close()`, pas de `server.close()` — connexions Redis/WS peuvent leak au restart | 2026-03-30 | 2026-04-01 |
+| #60 | MOYENNE | Qualité | `src/` (60 fichiers) | 60 fichiers production > 300 lignes (top: quizService 2386L, correctionGenerator 2169L, quizStreaming 1918L) | 2026-03-25 | 2026-04-01 |
+| #61 | MOYENNE | Qualité | 5+ modules `src/` | Dead code: ~5000+ lignes de modules non importés (documentSearchService, fewShotExamples, promptOptimizer exports) | 2026-03-25 | 2026-04-01 |
+| #62 | MOYENNE | Qualité | 27 fichiers routes/controllers | Catch-500 dupliqué partout — asyncHandler wrapper manquant | 2026-03-25 | 2026-04-01 |
+| #84 | MOYENNE | Scalabilité | `services/simplifiedContent.ts:22,62` | `_getUserProjects`/`_getUserRootPages` sans pagination (sidebar) | 2026-03-26 | 2026-04-01 |
+| #85 | MOYENNE | Scalabilité | `services/rag/cleanup.ts:112,281` | `getStaleSources`/`cleanupOldUserFiles` findMany sans take | 2026-03-26 | 2026-04-01 |
+| #87 | MOYENNE | Scalabilité | `services/AccountExportService.ts:131` | `fetchConversations` exporte les conversations soft-deleted (pas de filtre `isActive: true`) — take OK | 2026-03-26 | 2026-04-01 |
+| #63 | BASSE | Sécurité | `routes/agents.ts:217` | Favorites: validation manuelle au lieu de Zod (`agentId` sans check longueur) | 2026-03-25 | 2026-04-01 |
+| #99 | BASSE | Sécurité | `routes/conversations.ts` | Rate limiting absent sur conversations CRUD (list, create message, delete, generate-title) | 2026-03-27 | 2026-04-01 |
+| #103 | BASSE | Résilience | `blocknote.ts:682` | `catch {}` silencieux dans `toBlockNoteAuto()` — fallback vers parser legacy sans logging → échecs invisibles au monitoring | 2026-03-30 | 2026-04-01 |
+| #64 | BASSE | Scalabilité | `routes/agent/conversations.ts:39` | `listConversations` limit query param non borné (user peut envoyer `?limit=999999`) | 2026-03-25 | 2026-04-01 |
+| #65 | BASSE | Scalabilité | `schema.prisma:797` | Index composite `CustomAgent(userId, isActive)` manquant | 2026-03-25 | 2026-04-01 |
+| #66 | BASSE | Qualité | `src/services/rag/*.ts` | Config RAG dupliquée dans 4 fichiers (`RAG_EMBEDDING_CONCURRENCY || "2"`) | 2026-03-25 | 2026-04-01 |
+| #90 | BASSE | Scalabilité | `schema.prisma` (ActivityLog) | Index `[userId, createdAt]` manquant — queries admin filtrent souvent par range temporel | 2026-03-26 | 2026-04-01 |
+| #91 | BASSE | Scalabilité | `services/simplifiedContent.ts` | Children projects sans filtre `isArchived: false` — sous-projets archivés inclus | 2026-03-26 | 2026-04-01 |
+| #92 | BASSE | Qualité | `scripts/db/reset-database.ts:96` | Référence `prisma.dailyArticle.deleteMany()` après suppression du model DailyArticle — build cassé | 2026-03-26 | 2026-04-01 |
+| #104 | MOYENNE | Concurrence | `controllers/user/personalizationController.ts:125-157` | JSON merge non-atomique sur `user.settings` — read-then-write sans transaction, deux updates concurrents s'écrasent | 2026-04-01 | 2026-04-01 |
+| #105 | BASSE | Concurrence | `cron/alertsCron.ts` | Pas de Redis NX lock sur cron alertes (toutes les 5 min) — duplicate alertes si multi-instances. Partiellement mitigé par cooldown NX dans AlertsService | 2026-04-01 | 2026-04-01 |
+| #106 | BASSE | Concurrence | `cron/retentionCron.ts` | Pas de Redis NX lock sur cron retention hebdomadaire — upsert idempotent mais double compute si multi-instances | 2026-04-01 | 2026-04-01 |
+| #107 | BASSE | Concurrence | `jobs/cronJobs.ts:58-99` | Pas de Redis NX lock sur cron RAG cleanup — DELETE idempotent mais double compute | 2026-04-01 | 2026-04-01 |
+| #108 | BASSE | Concurrence | `controllers/project.ts:116-130` | `projectsUsed: { increment: 1 }` fire-and-forget hors transaction — erreur silencieuse → compteur désynchronisé. Comparer avec delete (L427) qui est transactionnel | 2026-04-01 | 2026-04-01 |
+| #109 | BASSE | Concurrence | `lib/y-prisma.ts:86-107` | `flushDocument` state encoding hors transaction — updates concurrentes entre `getYDoc()` et `$transaction` supprimées sans intégration. Auto-guérison via CRDT Yjs | 2026-04-01 | 2026-04-01 |
 
 ## Fermées
 
@@ -117,10 +123,10 @@
 | #33 | HAUTE | Résilience | `workflows.ts` | Deep workflows hardcoded Google/Gemini — aucun failover | 2026-03-24 | 2026-03-25 | Provider-agnostic `resolveModel` + `buildThinkingOptions` avec fallback AGENT_FALLBACK |
 
 ## Statistiques
-- Total détectées : 103
+- Total détectées : 109
 - Total fermées : 78
-- Total ouvertes : 25
-- Taux de résolution : 76%
+- Total ouvertes : 31
+- Taux de résolution : 72%
 
 ## Historique Deep-Dives
 
@@ -139,3 +145,4 @@
 | 2026-03-27 (am) | **Sécurité & OWASP** — IDOR content, rate limiting gaps, validation manquante | 7 |
 | 2026-03-27 (pm) | **Fix 20 issues** : scalabilité DB (5 CRITIQUES), qualité, pagination, batch ops | 0 (fix session) |
 | 2026-03-30 | **Résilience & Error Handling** (2e deep-dive) — circuit breaker dead code, SSE disconnect, shutdown incomplet | 4 |
+| 2026-04-01 | **Concurrence & Fiabilité** (2e deep-dive) — JSON merge non-atomique, crons sans locks, fire-and-forget counters, Yjs flush race | 6 |
