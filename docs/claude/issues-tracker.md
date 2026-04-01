@@ -37,6 +37,9 @@
 | #107 | BASSE | Concurrence | `jobs/cronJobs.ts:58-99` | Pas de Redis NX lock sur cron RAG cleanup — DELETE idempotent mais double compute | 2026-04-01 | 2026-04-01 |
 | #108 | BASSE | Concurrence | `controllers/project.ts:116-130` | `projectsUsed: { increment: 1 }` fire-and-forget hors transaction — erreur silencieuse → compteur désynchronisé. Comparer avec delete (L427) qui est transactionnel | 2026-04-01 | 2026-04-01 |
 | #109 | BASSE | Concurrence | `lib/y-prisma.ts:86-107` | `flushDocument` state encoding hors transaction — updates concurrentes entre `getYDoc()` et `$transaction` supprimées sans intégration. Auto-guérison via CRDT Yjs | 2026-04-01 | 2026-04-01 |
+| #110 | MOYENNE | Idempotence | `routes/billing.ts:212-257` | POST /cancel sans vérification préalable de `cancelAtPeriodEnd`/status — double-click → Paddle error sur 2e appel → UX dégradée | 2026-04-01 | 2026-04-01 |
+| #111 | BASSE | Idempotence | `routes/billing.ts:79-137` | POST /checkout-session sans dedup — double-click crée sessions Paddle multiples (pas de corruption, gaspillage) | 2026-04-01 | 2026-04-01 |
+| #112 | BASSE | Idempotence | `routes/billing.ts:264-302` | POST /upgrade sans dedup — même pattern que #111 | 2026-04-01 | 2026-04-01 |
 
 ## Fermées
 
@@ -123,10 +126,10 @@
 | #33 | HAUTE | Résilience | `workflows.ts` | Deep workflows hardcoded Google/Gemini — aucun failover | 2026-03-24 | 2026-03-25 | Provider-agnostic `resolveModel` + `buildThinkingOptions` avec fallback AGENT_FALLBACK |
 
 ## Statistiques
-- Total détectées : 109
+- Total détectées : 112
 - Total fermées : 78
-- Total ouvertes : 31
-- Taux de résolution : 72%
+- Total ouvertes : 34
+- Taux de résolution : 70%
 
 ## Historique Deep-Dives
 
@@ -145,4 +148,4 @@
 | 2026-03-27 (am) | **Sécurité & OWASP** — IDOR content, rate limiting gaps, validation manquante | 7 |
 | 2026-03-27 (pm) | **Fix 20 issues** : scalabilité DB (5 CRITIQUES), qualité, pagination, batch ops | 0 (fix session) |
 | 2026-03-30 | **Résilience & Error Handling** (2e deep-dive) — circuit breaker dead code, SSE disconnect, shutdown incomplet | 4 |
-| 2026-04-01 | **Concurrence & Fiabilité** (2e deep-dive) — JSON merge non-atomique, crons sans locks, fire-and-forget counters, Yjs flush race | 6 |
+| 2026-04-01 | **Concurrence & Fiabilité** (2e deep-dive) — JSON merge non-atomique, crons sans locks, fire-and-forget counters, Yjs flush race, billing idempotence | 9 |
