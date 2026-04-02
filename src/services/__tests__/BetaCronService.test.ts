@@ -336,7 +336,9 @@ describe("BetaCronService.processWaitlist", () => {
 
     await BetaCronService.processWaitlist();
 
-    expect(mockRedisDel).not.toHaveBeenCalled();
+    // redis.del IS called once for the distributed lock cleanup ("cron:lock:processWaitlist")
+    // but should NOT be called with the status cache key ("beta:active_count")
+    expect(mockRedisDel).not.toHaveBeenCalledWith("beta:active_count");
   });
 
   it("should count errors for failed promotions (non-NO_SPOTS)", async () => {
