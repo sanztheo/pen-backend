@@ -248,6 +248,7 @@ model ActivityLog {
   workspace   Workspace? @relation(fields: [workspaceId], references: [id])
 
   @@index([userId])
+  @@index([userId, createdAt])
   @@map("activity_logs")
 }
 
@@ -798,6 +799,7 @@ model CustomAgent {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, isActive])
   @@map("custom_agents")
 }
 

@@ -122,39 +122,46 @@ export const updatePersonalization = async (req: Request, res: Response) => {
     // Extraire onboardingCompleted pour le sauvegarder séparément dans User
     const { onboardingCompleted, ...personalizationData } = incoming;
 
-    const existing = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: { settings: true },
-    });
+    // Atomic read-merge-write to prevent concurrent updates from overwriting each other
+    const userId = req.user.id;
+    const merged = await prisma.$transaction(
+      async (tx) => {
+        const existing = await tx.user.findUniqueOrThrow({
+          where: { id: userId },
+          select: { settings: true },
+        });
 
-    const currentSettings = (existing?.settings as Record<string, unknown> | null) || {};
-    const currentPersona = (currentSettings.personalization as Personalization | undefined) || {};
+        const currentSettings = (existing.settings as Record<string, unknown> | null) || {};
+        const currentPersona =
+          (currentSettings.personalization as Personalization | undefined) || {};
 
-    // Ne merger que les données de personnalisation (sans onboardingCompleted)
-    const merged: Personalization = {
-      ...currentPersona,
-      ...Object.fromEntries(
-        Object.entries(personalizationData).filter(([_, v]) => v !== undefined),
-      ),
-    };
+        const mergedPersona: Personalization = {
+          ...currentPersona,
+          ...Object.fromEntries(
+            Object.entries(personalizationData).filter(([_, v]) => v !== undefined),
+          ),
+        };
 
-    const newSettings = { ...currentSettings, personalization: merged };
+        const newSettings = { ...currentSettings, personalization: mergedPersona };
 
-    // Préparer les données de mise à jour
-    const updateData: {
-      settings: Prisma.InputJsonValue;
-      onboardingCompleted?: boolean;
-    } = { settings: newSettings as Prisma.InputJsonValue };
+        const updateData: {
+          settings: Prisma.InputJsonValue;
+          onboardingCompleted?: boolean;
+        } = { settings: newSettings as Prisma.InputJsonValue };
 
-    // Si onboardingCompleted est fourni, l'ajouter à l'update du User
-    if (onboardingCompleted !== undefined) {
-      updateData.onboardingCompleted = Boolean(onboardingCompleted);
-    }
+        if (onboardingCompleted !== undefined) {
+          updateData.onboardingCompleted = Boolean(onboardingCompleted);
+        }
 
-    await prisma.user.update({
-      where: { id: req.user.id },
-      data: updateData,
-    });
+        await tx.user.update({
+          where: { id: userId },
+          data: updateData,
+        });
+
+        return mergedPersona;
+      },
+      { isolationLevel: "Serializable" },
+    );
 
     // Retourner les données avec onboardingCompleted si fourni
     const responseData = {

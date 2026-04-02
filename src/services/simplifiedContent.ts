@@ -24,7 +24,8 @@ export class SimplifiedContentService {
         workspaceId: workspaceId,
         isArchived: false,
       },
-      orderBy: { position: "asc" },
+      orderBy: [{ updatedAt: "desc" }, { position: "asc" }],
+      take: 100,
       include: {
         _count: { select: { pages: true } },
         owner: {
@@ -32,6 +33,7 @@ export class SimplifiedContentService {
         },
         children: {
           // 🚀 Support des projets imbriqués
+          where: { isArchived: false },
           orderBy: { position: "asc" },
         },
         pages: {
@@ -65,7 +67,8 @@ export class SimplifiedContentService {
         projectId: null, // Pages à la racine
         isArchived: false,
       },
-      orderBy: { position: "asc" },
+      orderBy: [{ updatedAt: "desc" }, { position: "asc" }],
+      take: 200,
       select: {
         id: true,
         title: true,

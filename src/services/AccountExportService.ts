@@ -131,7 +131,7 @@ export class AccountExportService {
     userId: string,
   ): Promise<UserExportData["conversations"]> {
     return prisma.aIConversation.findMany({
-      where: { userId },
+      where: { userId, isActive: true },
       select: {
         id: true,
         title: true,

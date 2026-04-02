@@ -31,13 +31,10 @@ conversationRouter.get("/conversations", async (req: Request, res: Response) => 
       return res.status(401).json({ error: "Non authentifié" });
     }
 
-    const { workspaceId, limit } = req.query;
+    const { workspaceId, limit: rawLimit } = req.query;
+    const limit = Math.min(Math.max(1, parseInt(rawLimit as string) || 50), 200);
 
-    const conversations = await listConversations(
-      userId,
-      workspaceId as string | undefined,
-      limit ? parseInt(limit as string, 10) : 50,
-    );
+    const conversations = await listConversations(userId, workspaceId as string | undefined, limit);
 
     res.json({ success: true, conversations });
   } catch (error: unknown) {

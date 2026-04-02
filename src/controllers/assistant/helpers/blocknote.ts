@@ -1,4 +1,5 @@
 import { ServerBlockNoteEditor } from "@blocknote/server-util";
+import { logger } from "../../../utils/logger.js";
 
 // =====================================================
 // BlockNote Type Definitions
@@ -679,8 +680,11 @@ export async function toBlockNoteAuto(input: string): Promise<BlockNoteBlock[]> 
     normalizeHeadingLevels(blocksArr);
 
     if (blocksArr.length > 0) return blocksArr as BlockNoteBlock[];
-  } catch {
-    // Fallback to legacy parser if server editor fails
+  } catch (error: unknown) {
+    logger.warn(
+      "[BlockNote] ServerBlockNoteEditor.tryParseMarkdownToBlocks failed, falling back to legacy parser",
+      error,
+    );
   }
 
   return toBlockNote(input);

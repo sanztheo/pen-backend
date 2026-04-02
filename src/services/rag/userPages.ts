@@ -2,6 +2,7 @@
 import { prismaEmbeddings as prisma, Prisma } from "../../lib/prismaEmbeddings.js";
 import type { RAGChunkInput } from "./index.js";
 import { logger } from "../../utils/logger.js";
+import { RAG_CONFIG } from "./config.js";
 
 type PreparedRAGChunkRow = {
   sourceId: string;
@@ -419,8 +420,8 @@ export class UserPagesRAGSystem {
   // 🧠 Traitement des chunks avec embeddings
   private async processUserPageChunks(sourceId: string, chunks: RAGChunkInput[]): Promise<void> {
     const { mapWithConcurrency, chunkArray } = await import("../../utils/concurrency.js");
-    const concurrency = Math.max(1, parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10));
-    const batchSize = Math.max(1, parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10));
+    const concurrency = RAG_CONFIG.EMBEDDING_CONCURRENCY;
+    const batchSize = RAG_CONFIG.DB_BATCH_SIZE;
 
     const t0 = Date.now();
     logger.log(`⚙️  [USER-PAGE] Embedding ${chunks.length} chunks (x${concurrency})…`);

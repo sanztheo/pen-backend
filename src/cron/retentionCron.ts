@@ -20,7 +20,21 @@ export function startRetentionCron(): void {
 
   retentionTask = cron.schedule("0 0 * * 0", async () => {
     try {
-      await RetentionCohortService.computeAndStoreCohorts();
+      const { redis } = await import("../lib/redis.js");
+      const lockKey = "cron:lock:retentionCohorts";
+      const acquired = await redis.set(lockKey, "1", "EX", 3600, "NX");
+      if (!acquired) {
+        logger.log("[RETENTION_CRON] Lock already held, skipping");
+        return;
+      }
+
+      try {
+        await RetentionCohortService.computeAndStoreCohorts();
+      } finally {
+        await redis.del(lockKey).catch((err: unknown) => {
+          logger.warn("[RETENTION_CRON] Failed to release lock:", err);
+        });
+      }
     } catch (error) {
       logger.error("[RETENTION_CRON] Unhandled error in cohort computation:", error);
     }

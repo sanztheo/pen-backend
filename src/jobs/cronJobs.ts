@@ -60,35 +60,49 @@ export function startCronJobs() {
     async () => {
       logger.log("\n🧹 [CRON] Démarrage nettoyage RAG automatique...");
       try {
-        const { cleanupService } = await import("../services/rag/cleanup.js");
+        const { redis } = await import("../lib/redis.js");
+        const lockKey = "cron:lock:ragCleanup";
+        const acquired = await redis.set(lockKey, "1", "EX", 3600, "NX");
+        if (!acquired) {
+          logger.log("[CRON] ragCleanup: skipped (another instance holds the lock)");
+          return;
+        }
 
-        // Nettoyage avec 7 jours d'âge maximum
-        const stats = await cleanupService.cleanupUnusedSources({
-          maxAge: 7,
-          dryRun: false,
-          includeUserSources: false, // Seulement sources globales
-          batchSize: 100,
-        });
+        try {
+          const { cleanupService } = await import("../services/rag/cleanup.js");
 
-        logger.log(`✅ [CRON] Nettoyage RAG terminé:`, {
-          sourcesDeleted: stats.sourcesDeleted,
-          chunksDeleted: stats.chunksDeleted,
-          spaceFreedMB: stats.spaceFreedMB.toFixed(2),
-          durationMs: stats.duration,
-        });
+          // Nettoyage avec 7 jours d'âge maximum
+          const stats = await cleanupService.cleanupUnusedSources({
+            maxAge: 7,
+            dryRun: false,
+            includeUserSources: false, // Seulement sources globales
+            batchSize: 100,
+          });
 
-        // Log des statistiques de stockage après nettoyage
-        const storageStats = await cleanupService.getStorageStats();
-        logger.log(`📊 [CRON] Statistiques après nettoyage:`, storageStats);
+          logger.log(`✅ [CRON] Nettoyage RAG terminé:`, {
+            sourcesDeleted: stats.sourcesDeleted,
+            chunksDeleted: stats.chunksDeleted,
+            spaceFreedMB: stats.spaceFreedMB.toFixed(2),
+            durationMs: stats.duration,
+          });
 
-        // 🗑️ Nettoyage des fichiers utilisateur non utilisés depuis 7 jours
-        logger.log("\n🗑️ [CRON] Nettoyage des fichiers utilisateur...");
-        const fileStats = await cleanupService.cleanupOldUserFiles(7);
-        logger.log(`✅ [CRON] Fichiers utilisateurs nettoyés:`, {
-          filesDeleted: fileStats.count,
-          chunksDeleted: fileStats.chunksDeleted,
-          spaceFreedMB: fileStats.spaceFreedMB.toFixed(2),
-        });
+          // Log des statistiques de stockage après nettoyage
+          const storageStats = await cleanupService.getStorageStats();
+          logger.log(`📊 [CRON] Statistiques après nettoyage:`, storageStats);
+
+          // 🗑️ Nettoyage des fichiers utilisateur non utilisés depuis 7 jours
+          logger.log("\n🗑️ [CRON] Nettoyage des fichiers utilisateur...");
+          const fileStats = await cleanupService.cleanupOldUserFiles(7);
+          logger.log(`✅ [CRON] Fichiers utilisateurs nettoyés:`, {
+            filesDeleted: fileStats.count,
+            chunksDeleted: fileStats.chunksDeleted,
+            spaceFreedMB: fileStats.spaceFreedMB.toFixed(2),
+          });
+        } finally {
+          await redis.del(lockKey).catch((err: unknown) => {
+            logger.warn("[CRON] Failed to release ragCleanup lock:", err);
+          });
+        }
       } catch (error) {
         logger.error("❌ [CRON] Erreur lors du nettoyage RAG:", error);
       }

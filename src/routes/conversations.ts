@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { authenticateToken, requireUser } from "../middlewares/auth.js";
+import { conversationsCrudRateLimit } from "../middlewares/rateLimiting.js";
 import { logger } from "../utils/logger.js";
 import {
   verifyWorkspaceAccess,
@@ -37,6 +38,7 @@ const openai = new OpenAI({
 // Toutes les routes nécessitent une authentification
 router.use(authenticateToken);
 router.use(requireUser);
+router.use(conversationsCrudRateLimit);
 
 // 📋 GET /conversations - Lister les conversations de l'utilisateur
 router.get("/", verifyWorkspaceAccess, async (req, res) => {
