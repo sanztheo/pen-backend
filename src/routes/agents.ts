@@ -102,37 +102,49 @@ router.post("/custom", async (req, res) => {
       return;
     }
 
-    // Check max agents per user limit
-    const existingCount = await prisma.customAgent.count({
-      where: { userId, isActive: true },
-    });
-
-    if (existingCount >= MAX_CUSTOM_AGENTS_PER_USER) {
-      logger.warn("[AGENTS] Max custom agents limit reached:", { userId, existingCount });
-      res.status(403).json({
-        success: false,
-        error: "MAX_AGENTS_REACHED",
-        message: `Vous avez atteint la limite de ${MAX_CUSTOM_AGENTS_PER_USER} agents personnalisés.`,
-        limits: { used: existingCount, max: MAX_CUSTOM_AGENTS_PER_USER },
+    // Check max agents per user limit + create in single transaction (avoid TOCTOU)
+    const agent = await prisma.$transaction(async (tx) => {
+      const existingCount = await tx.customAgent.count({
+        where: { userId, isActive: true },
       });
-      return;
-    }
 
-    const agent = await prisma.customAgent.create({
-      data: { userId, ...parsed.data },
-      select: {
-        id: true,
-        name: true,
-        emoji: true,
-        description: true,
-        systemPrompt: true,
-        createdAt: true,
-      },
+      if (existingCount >= MAX_CUSTOM_AGENTS_PER_USER) {
+        throw Object.assign(new Error("MAX_AGENTS_REACHED"), {
+          statusCode: 403,
+          existingCount,
+        });
+      }
+
+      return tx.customAgent.create({
+        data: { userId, ...parsed.data },
+        select: {
+          id: true,
+          name: true,
+          emoji: true,
+          description: true,
+          systemPrompt: true,
+          createdAt: true,
+        },
+      });
     });
 
     logger.log("[AGENTS] Custom agent created:", { userId, agentId: agent.id, name: agent.name });
     res.status(201).json({ success: true, data: agent });
-  } catch (error) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === "MAX_AGENTS_REACHED") {
+      const err = error as Error & { existingCount: number };
+      logger.warn("[AGENTS] Max custom agents limit reached:", {
+        userId: req.user?.id,
+        existingCount: err.existingCount,
+      });
+      res.status(403).json({
+        success: false,
+        error: "MAX_AGENTS_REACHED",
+        message: `Vous avez atteint la limite de ${MAX_CUSTOM_AGENTS_PER_USER} agents personnalisés.`,
+        limits: { used: err.existingCount, max: MAX_CUSTOM_AGENTS_PER_USER },
+      });
+      return;
+    }
     logger.error("[AGENTS] Error creating custom agent:", error);
     res.status(500).json({ success: false, error: "INTERNAL_ERROR" });
   }
