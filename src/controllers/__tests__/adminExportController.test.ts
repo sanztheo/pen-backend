@@ -3,62 +3,59 @@
  * Covers: initiateUserExport, getExportStatus, downloadExport
  */
 
-import { describe, expect, it, jest, beforeEach } from "@jest/globals";
+import { describe, expect, it, jest, beforeAll, beforeEach } from "@jest/globals";
 import type { Request, Response } from "express";
 
-// ─── Mock Redis to prevent real connections ─────────────────────
-jest.mock("../../lib/redis.js", () => ({
+// ─── ESM-safe: mock modules with side effects BEFORE imports ────
+const mockUserFindUnique = jest.fn();
+const mockActivityLogCreate = jest.fn();
+const mockQueueAdd = jest.fn();
+const mockMarkJobPending = jest.fn();
+const mockGetJobResult = jest.fn();
+const mockGetExportCSV = jest.fn();
+
+jest.unstable_mockModule("../../utils/logger.js", () => ({
+  logger: { log: jest.fn(), warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
+}));
+
+jest.unstable_mockModule("../../lib/redis.js", () => ({
   redis: {
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue("OK"),
     del: jest.fn().mockResolvedValue(1),
     keys: jest.fn().mockResolvedValue([]),
-    scan: jest.fn().mockResolvedValue(["0", []]),
-    pipeline: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
     on: jest.fn(),
     quit: jest.fn(),
   },
 }));
 
-// ─── Suppress logger output in tests ────────────────────────────
-jest.mock("../../utils/logger.js", () => ({
-  logger: {
-    log: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    debug: jest.fn(),
-  },
-}));
-
-// ─── Mock dependencies ──────────────────────────────────────────
-const mockUserFindUnique = jest.fn();
-const mockActivityLogCreate = jest.fn();
-jest.mock("../../lib/prisma.js", () => ({
+jest.unstable_mockModule("../../lib/prisma.js", () => ({
   prisma: {
     user: { findUnique: (...args: unknown[]) => mockUserFindUnique(...args) },
     activityLog: { create: (...args: unknown[]) => mockActivityLogCreate(...args) },
   },
 }));
 
-const mockQueueAdd = jest.fn();
-jest.mock("../../lib/queues.js", () => ({
+jest.unstable_mockModule("../../lib/queues.js", () => ({
   adminExportQueue: { add: (...args: unknown[]) => mockQueueAdd(...args) },
 }));
 
-const mockMarkJobPending = jest.fn();
-const mockGetJobResult = jest.fn();
-jest.mock("../../lib/jobResults.js", () => ({
+jest.unstable_mockModule("../../lib/jobResults.js", () => ({
   markJobPending: (...args: unknown[]) => mockMarkJobPending(...args),
   getJobResult: (...args: unknown[]) => mockGetJobResult(...args),
 }));
 
-const mockGetExportCSV = jest.fn();
-jest.mock("../../workers/export.worker.js", () => ({
+jest.unstable_mockModule("../../workers/export.worker.js", () => ({
   getExportCSV: (...args: unknown[]) => mockGetExportCSV(...args),
+  exportWorker: {},
 }));
 
-import { AdminExportController } from "../adminExportController.js";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let AdminExportController: any;
+beforeAll(async () => {
+  const mod = await import("../adminExportController.js");
+  AdminExportController = mod.AdminExportController;
+});
 
 // ─── Test Helpers ───────────────────────────────────────────────
 interface MockResponse {

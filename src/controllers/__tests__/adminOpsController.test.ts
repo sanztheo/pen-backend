@@ -3,54 +3,49 @@
  * Covers: getAlerts, acknowledgeAlert, startImpersonation, endImpersonation
  */
 
-import { describe, expect, it, jest, beforeEach } from "@jest/globals";
+import { describe, expect, it, jest, beforeAll, beforeEach } from "@jest/globals";
 import type { Request, Response } from "express";
 
-// ─── Mock Redis to prevent real connections ─────────────────────
-jest.mock("../../lib/redis.js", () => ({
+// ─── ESM-safe: mock modules with side effects BEFORE imports ────
+const mockGetAlerts = jest.fn();
+const mockAcknowledgeAlert = jest.fn();
+const mockStartImpersonation = jest.fn();
+const mockEndImpersonation = jest.fn();
+
+jest.unstable_mockModule("../../utils/logger.js", () => ({
+  logger: { log: jest.fn(), warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
+}));
+
+jest.unstable_mockModule("../../lib/redis.js", () => ({
   redis: {
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue("OK"),
     del: jest.fn().mockResolvedValue(1),
-    keys: jest.fn().mockResolvedValue([]),
-    scan: jest.fn().mockResolvedValue(["0", []]),
-    pipeline: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
     on: jest.fn(),
     quit: jest.fn(),
   },
 }));
 
-// ─── Suppress logger output in tests ────────────────────────────
-jest.mock("../../utils/logger.js", () => ({
-  logger: {
-    log: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    debug: jest.fn(),
-  },
-}));
-
-// ─── Mock services ──────────────────────────────────────────────
-const mockGetAlerts = jest.fn();
-const mockAcknowledgeAlert = jest.fn();
-jest.mock("../../services/admin/alertsService.js", () => ({
+jest.unstable_mockModule("../../services/admin/alertsService.js", () => ({
   AlertsService: {
     getAlerts: (...args: unknown[]) => mockGetAlerts(...args),
     acknowledgeAlert: (...args: unknown[]) => mockAcknowledgeAlert(...args),
   },
 }));
 
-const mockStartImpersonation = jest.fn();
-const mockEndImpersonation = jest.fn();
-jest.mock("../../services/admin/impersonationService.js", () => ({
+jest.unstable_mockModule("../../services/admin/impersonationService.js", () => ({
   ImpersonationService: {
     startImpersonation: (...args: unknown[]) => mockStartImpersonation(...args),
     endImpersonation: (...args: unknown[]) => mockEndImpersonation(...args),
   },
 }));
 
-import { AdminOpsController } from "../adminOpsController.js";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let AdminOpsController: any;
+beforeAll(async () => {
+  const mod = await import("../adminOpsController.js");
+  AdminOpsController = mod.AdminOpsController;
+});
 
 // ─── Test Helpers ───────────────────────────────────────────────
 interface MockResponse {

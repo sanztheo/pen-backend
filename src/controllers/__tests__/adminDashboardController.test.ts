@@ -5,53 +5,47 @@
  *         getTrendsMetrics, getAICosts, getRetentionCohorts, getLtvMetrics
  */
 
-import { describe, expect, it, jest, beforeEach } from "@jest/globals";
+import { describe, expect, it, jest, beforeAll, beforeEach } from "@jest/globals";
 import type { Request, Response } from "express";
 
-// ─── Mock Redis to prevent real connections ─────────────────────
-jest.mock("../../lib/redis.js", () => ({
+// ─── ESM-safe: mock modules with side effects BEFORE imports ────
+const mockUserFindUnique = jest.fn();
+const mockGetHealthStatus = jest.fn();
+const mockGetDashboardMetrics = jest.fn();
+const mockGetUserMetrics = jest.fn();
+const mockGetRevenueMetrics = jest.fn();
+const mockGetUsageMetrics = jest.fn();
+const mockGetTrends = jest.fn();
+const mockGetCohorts = jest.fn();
+const mockGetLtvMetrics = jest.fn();
+const mockGetAICosts = jest.fn();
+
+jest.unstable_mockModule("../../utils/logger.js", () => ({
+  logger: { log: jest.fn(), warn: jest.fn(), error: jest.fn(), info: jest.fn(), debug: jest.fn() },
+}));
+
+jest.unstable_mockModule("../../lib/redis.js", () => ({
   redis: {
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue("OK"),
     del: jest.fn().mockResolvedValue(1),
-    keys: jest.fn().mockResolvedValue([]),
-    scan: jest.fn().mockResolvedValue(["0", []]),
-    pipeline: jest.fn().mockReturnValue({ exec: jest.fn().mockResolvedValue([]) }),
     on: jest.fn(),
     quit: jest.fn(),
   },
+  redisHealthCheck: jest.fn().mockResolvedValue({ status: "ok" }),
 }));
 
-// ─── Suppress logger output in tests ────────────────────────────
-jest.mock("../../utils/logger.js", () => ({
-  logger: {
-    log: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    info: jest.fn(),
-    debug: jest.fn(),
-  },
-}));
-
-// ─── Mock Prisma (dynamic import in checkAdminStatus) ─────────
-const mockUserFindUnique = jest.fn();
-jest.mock("../../lib/prisma.js", () => ({
+jest.unstable_mockModule("../../lib/prisma.js", () => ({
   prisma: {
     user: { findUnique: (...args: unknown[]) => mockUserFindUnique(...args) },
   },
 }));
 
-// ─── Mock services ──────────────────────────────────────────────
-const mockGetHealthStatus = jest.fn();
-jest.mock("../../services/admin/healthCheckService.js", () => ({
+jest.unstable_mockModule("../../services/admin/healthCheckService.js", () => ({
   HealthCheckService: { getHealthStatus: (...args: unknown[]) => mockGetHealthStatus(...args) },
 }));
 
-const mockGetDashboardMetrics = jest.fn();
-const mockGetUserMetrics = jest.fn();
-const mockGetRevenueMetrics = jest.fn();
-const mockGetUsageMetrics = jest.fn();
-jest.mock("../../services/admin/adminStatsService.js", () => ({
+jest.unstable_mockModule("../../services/admin/adminStatsService.js", () => ({
   AdminStatsService: {
     getDashboardMetrics: (...args: unknown[]) => mockGetDashboardMetrics(...args),
     getUserMetrics: (...args: unknown[]) => mockGetUserMetrics(...args),
@@ -60,27 +54,28 @@ jest.mock("../../services/admin/adminStatsService.js", () => ({
   },
 }));
 
-const mockGetTrends = jest.fn();
-jest.mock("../../services/admin/trendsMetricsService.js", () => ({
+jest.unstable_mockModule("../../services/admin/trendsMetricsService.js", () => ({
   TrendsMetricsService: { getTrends: (...args: unknown[]) => mockGetTrends(...args) },
 }));
 
-const mockGetCohorts = jest.fn();
-jest.mock("../../services/admin/retentionCohortService.js", () => ({
+jest.unstable_mockModule("../../services/admin/retentionCohortService.js", () => ({
   RetentionCohortService: { getCohorts: (...args: unknown[]) => mockGetCohorts(...args) },
 }));
 
-const mockGetLtvMetrics = jest.fn();
-jest.mock("../../services/admin/ltvService.js", () => ({
+jest.unstable_mockModule("../../services/admin/ltvService.js", () => ({
   LtvService: { getLtvMetrics: (...args: unknown[]) => mockGetLtvMetrics(...args) },
 }));
 
-const mockGetAICosts = jest.fn();
-jest.mock("../../services/admin/aiCostService.js", () => ({
+jest.unstable_mockModule("../../services/admin/aiCostService.js", () => ({
   AICostService: { getAICosts: (...args: unknown[]) => mockGetAICosts(...args) },
 }));
 
-import { AdminDashboardController } from "../adminDashboardController.js";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let AdminDashboardController: any;
+beforeAll(async () => {
+  const mod = await import("../adminDashboardController.js");
+  AdminDashboardController = mod.AdminDashboardController;
+});
 
 // ─── Test Helpers ───────────────────────────────────────────────
 interface MockResponse {
