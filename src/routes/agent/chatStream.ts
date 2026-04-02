@@ -5,6 +5,7 @@
  */
 
 import { logger } from "../../utils/logger.js";
+import { setupSSEHeaders } from "../../utils/sse.js";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { updateActiveStreamId } from "../../services/agent/conversationService.js";
@@ -37,12 +38,9 @@ chatStreamRouter.get("/chat/:id/stream", async (req: Request, res: Response) => 
   }
 
   // Headers SSE standard (même format que le AI SDK)
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
+  setupSSEHeaders(res, {
     "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
     "X-Vercel-AI-UI-Message-Stream": "v1",
-    "X-Accel-Buffering": "no",
   });
 
   const reader = resumed.getReader();

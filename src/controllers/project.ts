@@ -79,55 +79,57 @@ export const createProject = async (req: Request, res: Response) => {
     }
 
     const beforeCreate = Date.now();
-    // 🚀 PHASE 1 OPTIMIZATION: Création directe sans transaction lourde
-    const project = await prisma.project.create({
-      data: {
-        name: validatedData.name,
-        description: validatedData.description,
-        workspaceId: validatedData.workspaceId,
-        createdBy: req.user!.id,
-        parentId: null, // Par défaut, les projets sont créés à la racine
-      },
-      include: {
-        owner: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
+    // Transaction: project creation + counter increment (atomic to prevent desync)
+    const project = await prisma.$transaction(async (tx) => {
+      const created = await tx.project.create({
+        data: {
+          name: validatedData.name,
+          description: validatedData.description,
+          workspaceId: validatedData.workspaceId,
+          createdBy: req.user!.id,
+          parentId: null,
+        },
+        include: {
+          owner: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          workspace: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          _count: {
+            select: {
+              pages: true,
+            },
           },
         },
-        workspace: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        _count: {
-          select: {
-            pages: true,
-          },
-        },
-      },
+      });
+
+      await tx.userLimits.update({
+        where: { userId },
+        data: { projectsUsed: { increment: 1 } },
+      });
+
+      return created;
     });
     logger.log(`⏱️  [PERF] Création projet DB: ${Date.now() - beforeCreate}ms`);
 
-    // 🚀 PHASE 1 OPTIMIZATION: Updates asynchrones (non-bloquant)
-    Promise.all([
-      // Incrémenter compteur utilisateur
-      prisma.userLimits.update({
-        where: { userId },
-        data: { projectsUsed: { increment: 1 } },
-      }),
-      // Mettre à jour activité workspace
-      prisma.workspace.update({
+    // Update workspace activity (non-blocking, not critical for consistency)
+    prisma.workspace
+      .update({
         where: { id: validatedData.workspaceId },
         data: { lastActivityAt: new Date() },
-      }),
-    ]).catch((error) => {
-      logger.error("⚠️ [ASYNC] Erreur updates non-bloquants:", error);
-      // Ne pas bloquer la réponse, juste logger
-    });
+      })
+      .catch((error) => {
+        logger.error("⚠️ [ASYNC] Erreur update workspace activity:", error);
+      });
 
     // ❌ LOGS D'ACTIVITÉ DÉSACTIVÉS pour économiser l'espace
     // await prisma.activityLog.create({

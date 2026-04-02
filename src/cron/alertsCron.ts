@@ -20,7 +20,21 @@ export function startAlertsCron(): void {
 
   alertsTask = cron.schedule("*/5 * * * *", async () => {
     try {
-      await AlertsService.runAllChecks();
+      const { redis } = await import("../lib/redis.js");
+      const lockKey = "cron:lock:alerts";
+      const acquired = await redis.set(lockKey, "1", "EX", 300, "NX");
+      if (!acquired) {
+        logger.log("[ALERTS_CRON] Lock already held, skipping");
+        return;
+      }
+
+      try {
+        await AlertsService.runAllChecks();
+      } finally {
+        await redis.del(lockKey).catch((err: unknown) => {
+          logger.warn("[ALERTS_CRON] Failed to release lock:", err);
+        });
+      }
     } catch (error) {
       logger.error("[ALERTS_CRON] Unhandled error in alert checks:", error);
     }

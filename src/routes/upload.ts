@@ -214,7 +214,7 @@ router.delete("/:publicId", authenticateToken, async (req: Request, res: Respons
 });
 
 // 📊 Route GET /api/upload/config (optionnel, pour debug)
-router.get("/config", (_req: Request, res: Response) => {
+router.get("/config", authenticateToken, (_req: Request, res: Response) => {
   return res.status(200).json({
     maxFileSize: UPLOAD_CONFIG.MAX_FILE_SIZE,
     maxFileSizeMB: UPLOAD_CONFIG.MAX_FILE_SIZE / 1024 / 1024,

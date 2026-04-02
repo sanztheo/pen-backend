@@ -18,7 +18,7 @@ import { aiRouter } from "./routes/ai.js";
 import { assistantRouter } from "./routes/assistant.js";
 import { conversationsRouter } from "./routes/conversations.js";
 import { quizRouter } from "./routes/quiz.js";
-import { invalidateBlockNoteCache } from "./lib/redis.js";
+import { invalidateBlockNoteCache, redis } from "./lib/redis.js";
 import { ContextCacheService } from "./services/quiz/intelligence/index.js";
 import { reorderRouter } from "./routes/reorder.js";
 import { graphicsRouter } from "./routes/graphics.js";
@@ -129,6 +129,7 @@ const app = express();
 // Trust first proxy (Railway reverse proxy) so req.ip returns real client IP
 app.set("trust proxy", 1);
 const server = http.createServer(app);
+let activeWss: WebSocketServer | null = null;
 
 const PORT = backendConfig.port;
 const NODE_ENV = backendConfig.nodeEnv;
@@ -264,7 +265,7 @@ const authenticateTokenWS = async (token: string) => {
   }
 };
 
-const setupYjsWebSocket = (server: http.Server) => {
+const setupYjsWebSocket = (server: http.Server): WebSocketServer => {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 }); // 1 MB
   const persistence = new PrismaPersistence();
   const connections = new Map<string, number>(); // Compteur de connexions par document
@@ -737,6 +738,8 @@ const setupYjsWebSocket = (server: http.Server) => {
   logger.log("   - /ws/collaboration/ (Yjs)");
   logger.log("   - /ws/save/ (Sauvegarde)");
   logger.log("   - /ws/quiz-progress/ (Progression quiz)");
+
+  return wss;
 };
 
 server.listen(PORT, async () => {
@@ -755,7 +758,7 @@ server.listen(PORT, async () => {
   // 🛡️ Démarrer le nettoyage périodique des trackers WebSocket
   startWebSocketCleanup();
 
-  setupYjsWebSocket(server);
+  activeWss = setupYjsWebSocket(server);
 
   try {
     await DatabaseHealthCheck.displayDiagnostic();
@@ -792,23 +795,59 @@ server.listen(PORT, async () => {
   }
 });
 
-// 🧹 Graceful shutdown - Arrêter proprement les workers et queues
-process.on("SIGTERM", async () => {
-  logger.log("🛑 [SHUTDOWN] Signal SIGTERM reçu, arrêt gracieux...");
+// 🧹 Graceful shutdown - Arrêter proprement toutes les ressources
+async function gracefulShutdown(signal: string): Promise<void> {
+  logger.log(`🛑 [SHUTDOWN] Signal ${signal} reçu, arrêt gracieux...`);
+
+  // 1. Arrêter les crons et monitoring
   stopMonitoring();
   stopAlertsCron();
   stopRetentionCron();
+
+  // 2. Arrêter les workers et queues BullMQ
   await stopWorkers();
   await closeQueues();
+
+  // 3. Arrêter le serveur HTTP (stop accepting new connections)
+  await new Promise<void>((resolve) => {
+    server.close(() => {
+      logger.log("🛑 [SHUTDOWN] Serveur HTTP fermé");
+      resolve();
+    });
+    // Force resolve après 5s si des connexions traînent
+    setTimeout(resolve, 5000);
+  });
+
+  // 4. Fermer les connexions WebSocket
+  if (activeWss) {
+    for (const client of activeWss.clients) {
+      client.close(1001, "Server shutting down");
+    }
+    await new Promise<void>((resolve) => {
+      activeWss!.close(() => {
+        logger.log("🛑 [SHUTDOWN] WebSocket server fermé");
+        resolve();
+      });
+      setTimeout(resolve, 3000);
+    });
+  }
+
+  // 5. Fermer la connexion Redis
+  try {
+    await redis.quit();
+    logger.log("🛑 [SHUTDOWN] Redis déconnecté");
+  } catch (err) {
+    logger.error("🛑 [SHUTDOWN] Erreur fermeture Redis:", err);
+  }
+
+  logger.log("🛑 [SHUTDOWN] Arrêt gracieux terminé");
   process.exit(0);
+}
+
+process.on("SIGTERM", () => {
+  gracefulShutdown("SIGTERM");
 });
 
-process.on("SIGINT", async () => {
-  logger.log("🛑 [SHUTDOWN] Signal SIGINT reçu, arrêt gracieux...");
-  stopMonitoring();
-  stopAlertsCron();
-  stopRetentionCron();
-  await stopWorkers();
-  await closeQueues();
-  process.exit(0);
+process.on("SIGINT", () => {
+  gracefulShutdown("SIGINT");
 });
