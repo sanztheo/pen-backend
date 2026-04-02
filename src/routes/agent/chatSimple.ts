@@ -8,10 +8,7 @@ import { logger } from "../../utils/logger.js";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { requireAICredits } from "../../middlewares/requireAICredits.js";
-import {
-  detectIntent,
-  extractLastUserMessage,
-} from "../../services/agent/index.js";
+import { detectIntent, extractLastUserMessage } from "../../services/agent/index.js";
 import { convertToModelMessages } from "ai";
 import type { UIMessage } from "ai";
 import { AICreditsService } from "../../services/credits/aiCreditsService.js";
