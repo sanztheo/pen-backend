@@ -94,7 +94,7 @@ function createTestApp() {
 
 // ─── Test data ──────────────────────────────────────────────────
 const TEST_USER = { id: "user_int_1", email: "int1@test.com" };
-const TEST_USER_2 = { id: "user_int_2", email: "int2@test.com" };
+const _TEST_USER_2 = { id: "user_int_2", email: "int2@test.com" };
 
 let app: express.Application;
 
@@ -201,7 +201,7 @@ describe("POST /api/beta/waitlist", () => {
 
     const res = await request(app)
       .post("/api/beta/waitlist")
-      .send({ email: "test@example.com", name: "Test User" });
+      .send({ email: "test@example.com", name: "Test User", turnstileToken: "test-token" });
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
@@ -209,14 +209,18 @@ describe("POST /api/beta/waitlist", () => {
   });
 
   it("should return 400 when email is missing", async () => {
-    const res = await request(app).post("/api/beta/waitlist").send({ name: "Test User" });
+    const res = await request(app)
+      .post("/api/beta/waitlist")
+      .send({ name: "Test User", turnstileToken: "test-token" });
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("MISSING_FIELDS");
   });
 
   it("should return 400 when name is missing", async () => {
-    const res = await request(app).post("/api/beta/waitlist").send({ email: "test@example.com" });
+    const res = await request(app)
+      .post("/api/beta/waitlist")
+      .send({ email: "test@example.com", turnstileToken: "test-token" });
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("MISSING_FIELDS");
@@ -225,7 +229,7 @@ describe("POST /api/beta/waitlist", () => {
   it("should return 400 for invalid email format", async () => {
     const res = await request(app)
       .post("/api/beta/waitlist")
-      .send({ email: "not-an-email", name: "Test" });
+      .send({ email: "not-an-email", name: "Test", turnstileToken: "test-token" });
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_EMAIL");
@@ -234,16 +238,19 @@ describe("POST /api/beta/waitlist", () => {
   it("should return 400 for name too short", async () => {
     const res = await request(app)
       .post("/api/beta/waitlist")
-      .send({ email: "test@example.com", name: "A" });
+      .send({ email: "test@example.com", name: "A", turnstileToken: "test-token" });
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_NAME_LENGTH");
   });
 
   it("should return 400 for invalid phone format", async () => {
-    const res = await request(app)
-      .post("/api/beta/waitlist")
-      .send({ email: "test@example.com", name: "Test User", phone: "!!!invalid!!!" });
+    const res = await request(app).post("/api/beta/waitlist").send({
+      email: "test@example.com",
+      name: "Test User",
+      phone: "!!!invalid!!!",
+      turnstileToken: "test-token",
+    });
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("INVALID_PHONE");
@@ -255,7 +262,7 @@ describe("POST /api/beta/waitlist", () => {
     const res = await request(app)
       .post("/api/beta/waitlist")
       .set("x-test-user", JSON.stringify(TEST_USER))
-      .send({ email: TEST_USER.email, name: "Test User" });
+      .send({ email: TEST_USER.email, name: "Test User", turnstileToken: "test-token" });
 
     expect(res.status).toBe(201);
     expect(res.body.position).toBe(3);
@@ -266,7 +273,7 @@ describe("POST /api/beta/waitlist", () => {
 
     const res = await request(app)
       .post("/api/beta/waitlist")
-      .send({ email: "test@example.com", name: "Test User" });
+      .send({ email: "test@example.com", name: "Test User", turnstileToken: "test-token" });
 
     expect(res.status).toBe(201);
     expect(res.body.position).toBeUndefined();
@@ -277,7 +284,7 @@ describe("POST /api/beta/waitlist", () => {
 
     const res = await request(app)
       .post("/api/beta/waitlist")
-      .send({ email: "duplicate@example.com", name: "Dupe User" });
+      .send({ email: "duplicate@example.com", name: "Dupe User", turnstileToken: "test-token" });
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
@@ -290,7 +297,7 @@ describe("POST /api/beta/waitlist", () => {
     const res = await request(app)
       .post("/api/beta/waitlist")
       .set("x-test-user", JSON.stringify(noEmailUser))
-      .send({ email: "whatever@example.com", name: "Test User" });
+      .send({ email: "whatever@example.com", name: "Test User", turnstileToken: "test-token" });
 
     expect(res.status).toBe(400);
     expect(res.body.code).toBe("MISSING_USER_EMAIL");
@@ -299,9 +306,11 @@ describe("POST /api/beta/waitlist", () => {
   it("should sanitize HTML in name field", async () => {
     mockAddToWaitlist.mockResolvedValue({ position: 1, isOwned: false });
 
-    const res = await request(app)
-      .post("/api/beta/waitlist")
-      .send({ email: "test@example.com", name: "<script>alert(1)</script>Clean Name" });
+    const res = await request(app).post("/api/beta/waitlist").send({
+      email: "test@example.com",
+      name: "<script>alert(1)</script>Clean Name",
+      turnstileToken: "test-token",
+    });
 
     expect(res.status).toBe(201);
     if (mockAddToWaitlist.mock.calls.length > 0) {
@@ -318,7 +327,7 @@ describe("POST /api/beta/waitlist", () => {
 
     const res = await request(app)
       .post("/api/beta/waitlist")
-      .send({ email: "test@example.com", name: "Test User" });
+      .send({ email: "test@example.com", name: "Test User", turnstileToken: "test-token" });
 
     expect(res.status).toBe(500);
     expect(res.body.success).toBe(false);

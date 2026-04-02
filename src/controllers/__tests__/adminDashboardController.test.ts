@@ -33,6 +33,14 @@ jest.mock("../../utils/logger.js", () => ({
   },
 }));
 
+// ─── Mock Prisma (dynamic import in checkAdminStatus) ─────────
+const mockUserFindUnique = jest.fn();
+jest.mock("../../lib/prisma.js", () => ({
+  prisma: {
+    user: { findUnique: (...args: unknown[]) => mockUserFindUnique(...args) },
+  },
+}));
+
 // ─── Mock services ──────────────────────────────────────────────
 const mockGetHealthStatus = jest.fn();
 jest.mock("../../services/admin/healthCheckService.js", () => ({
@@ -108,11 +116,15 @@ beforeEach(() => {
 // ═══════════════════════════════════════════════════════════════
 describe("AdminDashboardController.checkAdminStatus", () => {
   it("returns isAdmin true when user is admin", async () => {
+    mockUserFindUnique.mockResolvedValue({ isAdmin: true });
     const req = createMockRequest({}, { id: "admin-1", email: "a@t.com", isAdmin: true });
     const res = createMockResponse();
 
     await AdminDashboardController.checkAdminStatus(req as Request, res as unknown as Response);
 
+    expect(mockUserFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "admin-1" } }),
+    );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
@@ -121,7 +133,21 @@ describe("AdminDashboardController.checkAdminStatus", () => {
   });
 
   it("returns isAdmin false when isAdmin is not set", async () => {
+    mockUserFindUnique.mockResolvedValue({ isAdmin: false });
     const req = createMockRequest({}, { id: "user-1", email: "u@t.com" });
+    const res = createMockResponse();
+
+    await AdminDashboardController.checkAdminStatus(req as Request, res as unknown as Response);
+
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: { isAdmin: false },
+    });
+  });
+
+  it("returns isAdmin false when user not found", async () => {
+    mockUserFindUnique.mockResolvedValue(null);
+    const req = createMockRequest({}, { id: "unknown-1", email: "u@t.com" });
     const res = createMockResponse();
 
     await AdminDashboardController.checkAdminStatus(req as Request, res as unknown as Response);

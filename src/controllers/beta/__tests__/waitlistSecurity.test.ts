@@ -12,7 +12,7 @@ import { stripHtmlTags, sanitizeObjectKeys } from "../../../utils/sanitize.js";
 
 // ─── Mock BetaService ───────────────────────────────────────────
 const mockAddToWaitlist = jest.fn();
-(BetaService as any).addToWaitlist = mockAddToWaitlist;
+(BetaService as unknown as Record<string, unknown>).addToWaitlist = mockAddToWaitlist;
 
 // ─── Suppress logger output in tests ────────────────────────────
 jest.unstable_mockModule("../../../utils/logger.js", () => ({
@@ -45,7 +45,9 @@ const createMockRequest = (
   userId?: string,
   userEmail?: string,
 ): Partial<Request> => ({
-  body,
+  body: { turnstileToken: "test-captcha-token", ...body },
+  ip: "127.0.0.1",
+  socket: { remoteAddress: "127.0.0.1" } as Request["socket"],
   user: userId
     ? ({
         id: userId,
@@ -151,7 +153,7 @@ describe("sanitizeObjectKeys — Unit", () => {
   });
 
   it("should remove nested __proto__ recursively", () => {
-    const input = {
+    const _input = {
       level1: {
         __proto__: { isAdmin: true },
         safe: "nested",

@@ -43,7 +43,7 @@ describe("MODE_CONFIG", () => {
 
   it("deep mode has correct configuration", () => {
     expect(MODE_CONFIG.deep).toEqual({
-      maxSteps: 25,
+      maxSteps: 12,
       maxTokens: 16384,
       description: expect.any(String),
       thinking: "high",

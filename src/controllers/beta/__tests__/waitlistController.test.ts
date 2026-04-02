@@ -11,7 +11,7 @@ import { redis } from "../../../lib/redis.js";
 
 // ─── Mock BetaService ───────────────────────────────────────────
 const mockAddToWaitlist = jest.fn();
-(BetaService as any).addToWaitlist = mockAddToWaitlist;
+(BetaService as unknown as Record<string, unknown>).addToWaitlist = mockAddToWaitlist;
 
 // ─── Suppress logger output in tests ────────────────────────────
 jest.unstable_mockModule("../../../utils/logger.js", () => ({
@@ -44,7 +44,9 @@ const createMockRequest = (
   userId?: string,
   userEmail?: string,
 ): Partial<Request> => ({
-  body,
+  body: { turnstileToken: "test-captcha-token", ...body },
+  ip: "127.0.0.1",
+  socket: { remoteAddress: "127.0.0.1" } as Request["socket"],
   user: userId
     ? ({
         id: userId,
@@ -145,14 +147,17 @@ describe("WaitlistController — Input Validation", () => {
   it("should handle non-object request body gracefully", async () => {
     const req = {
       body: "not-an-object",
+      ip: "127.0.0.1",
+      socket: { remoteAddress: "127.0.0.1" },
       user: undefined,
     } as unknown as Request;
     const res = createMockResponse();
 
     await WaitlistController.addToWaitlist(req, res as unknown as Response);
 
+    // Non-object body → turnstileToken is undefined → MISSING_CAPTCHA (first validation gate)
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "MISSING_FIELDS" }));
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "MISSING_CAPTCHA" }));
   });
 });
 
@@ -536,7 +541,13 @@ describe("WaitlistController — MISSING_USER_EMAIL guard", () => {
 
   it("should reject authenticated user with undefined email", async () => {
     const req: Partial<Request> = {
-      body: { email: "test@example.com", name: "Undefined Email" },
+      body: {
+        email: "test@example.com",
+        name: "Undefined Email",
+        turnstileToken: "test-captcha-token",
+      },
+      ip: "127.0.0.1",
+      socket: { remoteAddress: "127.0.0.1" } as Request["socket"],
       user: { id: "user-undef-email" } as Request["user"],
     };
     const res = createMockResponse();
