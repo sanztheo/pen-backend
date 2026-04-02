@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { CLIENT_URL } from "../utils/config.js";
 import { QuizService } from "../services/quiz/quizService.js";
 import { logger } from "../utils/logger.js";
+import { setupSSEHeaders } from "../utils/sse.js";
 import { SchoolLevel, QuestionType, LyceeSpecialty, CollegeGrade } from "../services/quiz/types.js";
 import { OpenAIAssistantService } from "../services/quiz/assistant/index.js";
 import { prisma } from "../lib/prisma.js";
@@ -407,16 +408,28 @@ export class QuizStreamingController {
       }
 
       // Configuration SSE
-      res.writeHead(200, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
+      setupSSEHeaders(res, {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Cache-Control",
       });
 
-      // Fonction pour envoyer des événements SSE
+      // AbortController pour annuler les opérations AI si le client se déconnecte
+      const abortController = new AbortController();
+      let clientDisconnected = false;
+
+      req.on("close", () => {
+        if (!abortController.signal.aborted) {
+          clientDisconnected = true;
+          abortController.abort();
+          logger.log(
+            `🚫 [STREAMING] Client déconnecté, annulation de la génération (userId: ${userId})`,
+          );
+        }
+      });
+
+      // Fonction pour envoyer des événements SSE (no-op si client déconnecté)
       const sendSSE = (event: string, data: SSEEventData): void => {
+        if (clientDisconnected) return;
         res.write(`event: ${event}\n`);
         res.write(`data: ${JSON.stringify(data)}\n\n`);
       };
@@ -488,6 +501,14 @@ export class QuizStreamingController {
         };
 
         for (let i = 0; i < questionCount; i++) {
+          // Arrêter la génération si le client s'est déconnecté
+          if (clientDisconnected) {
+            logger.log(
+              `🚫 [STREAMING] Arrêt génération — client déconnecté après ${generatedQuestions.length}/${questionCount} questions`,
+            );
+            break;
+          }
+
           try {
             logger.log(`📝 [STREAMING] Génération question ${i + 1}/${questionCount}`);
 
@@ -554,14 +575,21 @@ export class QuizStreamingController {
           }
         }
 
-        // 3. Finaliser le quiz
+        // 3. Finaliser le quiz (même si le client s'est déconnecté, persister les questions générées)
+        const quizStatus = generatedQuestions.length > 0 ? "ready" : "failed";
         const finalQuiz = await prisma.quiz.update({
           where: { id: quiz.id },
           data: {
-            status: "ready",
+            status: quizStatus,
             questions: generatedQuestions as unknown as Prisma.InputJsonValue,
           },
         });
+
+        if (clientDisconnected) {
+          logger.log(
+            `🚫 [STREAMING] Quiz ${quiz.id} finalisé après déconnexion client — ${generatedQuestions.length} questions sauvegardées (status: ${quizStatus})`,
+          );
+        }
 
         // 🔐 Déduire un quiz avancé si applicable (>30 questions ET >10 pages)
         if (questionCount > 30 && pagesCount > 10) {
@@ -714,10 +742,7 @@ export class QuizStreamingController {
     const allowedOrigins = CLIENT_URL.split(",");
     const requestOrigin = req.headers.origin || "";
     const corsOrigin = allowedOrigins.includes(requestOrigin) ? requestOrigin : allowedOrigins[0];
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
+    setupSSEHeaders(res, {
       "Access-Control-Allow-Origin": corsOrigin,
       "Access-Control-Allow-Headers": "Cache-Control",
     });
@@ -1602,10 +1627,7 @@ export class QuizStreamingController {
       }
 
       // Configuration SSE
-      res.writeHead(200, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
+      setupSSEHeaders(res, {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Cache-Control",
       });

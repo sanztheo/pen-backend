@@ -46,10 +46,11 @@ export default {
 
   // Coverage configuration
   collectCoverageFrom: [
-    "src/services/quiz/intelligence/**/*.ts",
-    "src/utils/clustering.ts",
+    "src/**/*.ts",
     "!src/**/*.d.ts",
     "!src/**/__tests__/**",
+    "!node_modules/**",
+    "!dist/**",
   ],
 
   // Coverage thresholds

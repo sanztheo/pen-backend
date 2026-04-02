@@ -456,6 +456,54 @@ export const uploadRateLimit = rateLimit({
 });
 
 /**
+ * 16. RATE LIMIT AGENTS CRUD
+ * Protection des routes CRUD agents custom (create, update, delete, list)
+ * 60 req/15min par user — opérations normales, limite raisonnable
+ */
+const AGENTS_CRUD_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const AGENTS_CRUD_MAX = 60;
+
+export const agentsCrudRateLimit = rateLimit({
+  ...createBaseConfig("rl:agents-crud:"),
+  windowMs: AGENTS_CRUD_WINDOW_MS,
+  max: AGENTS_CRUD_MAX,
+  message: {
+    success: false,
+    error: "AGENTS_RATE_LIMIT_EXCEEDED",
+    message: "Trop de requêtes agents. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "15 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `agents_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
+ * 17. RATE LIMIT CONVERSATIONS CRUD
+ * Protection des routes CRUD conversations (list, create, messages, delete, generate-title)
+ * 100 req/15min par user — conversations sont utilisées plus fréquemment
+ */
+const CONVERSATIONS_CRUD_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const CONVERSATIONS_CRUD_MAX = 100;
+
+export const conversationsCrudRateLimit = rateLimit({
+  ...createBaseConfig("rl:conv-crud:"),
+  windowMs: CONVERSATIONS_CRUD_WINDOW_MS,
+  max: CONVERSATIONS_CRUD_MAX,
+  message: {
+    success: false,
+    error: "CONVERSATIONS_RATE_LIMIT_EXCEEDED",
+    message: "Trop de requêtes conversations. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "15 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `conv_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
  * Helper pour vérifier si le rate limiting est activé
  */
 export const isRateLimitEnabled = (): boolean => {

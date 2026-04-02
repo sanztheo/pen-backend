@@ -117,6 +117,7 @@ export class RAGCleanupService {
         },
       },
       orderBy: { createdAt: "asc" }, // Plus ancien en premier
+      take: 1000,
     });
   }
 
@@ -295,6 +296,8 @@ export class RAGCleanupService {
           select: { chunks: true },
         },
       },
+      orderBy: { createdAt: "asc" },
+      take: 1000,
     });
 
     if (oldFiles.length === 0) {

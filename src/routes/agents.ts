@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import { generateText } from "ai";
 import { prisma } from "../lib/prisma.js";
 import { authenticateToken, requireUser } from "../middlewares/auth.js";
+import { agentsCrudRateLimit } from "../middlewares/rateLimiting.js";
 import { PRESET_AGENTS } from "../services/agent/presetAgents.js";
 import { google } from "../config/providers.js";
 import { logger } from "../utils/logger.js";
@@ -24,6 +25,13 @@ const router = Router();
 
 router.use(authenticateToken);
 router.use(requireUser);
+router.use(agentsCrudRateLimit);
+
+// ============================================================================
+// MAX CUSTOM AGENTS PER USER
+// ============================================================================
+
+const MAX_CUSTOM_AGENTS_PER_USER = 50;
 
 // ============================================================================
 // VALIDATION SCHEMAS
@@ -90,6 +98,22 @@ router.post("/custom", async (req, res) => {
         success: false,
         error: "VALIDATION_ERROR",
         details: parsed.error.flatten().fieldErrors,
+      });
+      return;
+    }
+
+    // Check max agents per user limit
+    const existingCount = await prisma.customAgent.count({
+      where: { userId, isActive: true },
+    });
+
+    if (existingCount >= MAX_CUSTOM_AGENTS_PER_USER) {
+      logger.warn("[AGENTS] Max custom agents limit reached:", { userId, existingCount });
+      res.status(403).json({
+        success: false,
+        error: "MAX_AGENTS_REACHED",
+        message: `Vous avez atteint la limite de ${MAX_CUSTOM_AGENTS_PER_USER} agents personnalisés.`,
+        limits: { used: existingCount, max: MAX_CUSTOM_AGENTS_PER_USER },
       });
       return;
     }
@@ -211,15 +235,26 @@ router.get("/favorites", async (req, res) => {
 });
 
 /** POST /agents/favorites — Add/update a favorite (upsert on use) */
+const favoriteSchema = z.object({
+  agentId: z.string().min(1).max(100),
+  agentType: z.enum(["preset", "custom"]),
+});
+
 router.post("/favorites", async (req, res) => {
   try {
     const userId = req.user!.id;
-    const { agentId, agentType } = req.body;
+    const parsed = favoriteSchema.safeParse(req.body);
 
-    if (!agentId || !["preset", "custom"].includes(agentType)) {
-      res.status(400).json({ success: false, error: "VALIDATION_ERROR" });
+    if (!parsed.success) {
+      res.status(400).json({
+        success: false,
+        error: "VALIDATION_ERROR",
+        details: parsed.error.flatten().fieldErrors,
+      });
       return;
     }
+
+    const { agentId, agentType } = parsed.data;
 
     const favorite = await prisma.agentFavorite.upsert({
       where: {
