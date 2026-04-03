@@ -48,6 +48,9 @@ model User {
   ownedWorkspaces          Workspace[]          @relation("WorkspaceOwner")
   // 💬 AI Conversations
   aiConversations          AIConversation[]
+  // 🤖 Agent Marketplace
+  customAgents             CustomAgent[]
+  agentFavorites           AgentFavorite[]
   // 📊 Quiz Dashboard Layout
   dashboardLayout          UserDashboardLayout?
   // 🎯 Beta Waitlist
@@ -60,6 +63,7 @@ model User {
   @@index([lastLoginAt])
   @@index([totalActiveTimeSeconds])
   @@index([betaJoinedAt])
+  @@index([betaStatus, betaJoinedAt])
   @@map("users")
 }
 
@@ -141,6 +145,7 @@ model Project {
   children       Project[]     @relation("ProjectHierarchy")
 
   @@index([createdBy])
+  @@index([workspaceId, isArchived])
   @@map("projects")
 }
 
@@ -168,11 +173,27 @@ model Page {
   project          Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
   workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   yjsDocument      YjsDocument?
+  editSnapshots    PageEditSnapshot[]
   // 🧠 Quiz Intelligence - Concepts pré-extraits pour génération optimisée
   concepts         PageConcepts?
 
   @@index([createdBy])
+  @@index([workspaceId, isArchived])
+  @@index([projectId, isArchived])
   @@map("pages")
+}
+
+model PageEditSnapshot {
+  id        String   @id @default(cuid())
+  pageId    String   @map("page_id") @db.Uuid
+  content   Json     @map("content")
+  toolName  String   @map("tool_name") @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  page Page @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, createdAt(sort: Desc)])
+  @@map("page_edit_snapshots")
 }
 
 // 🧠 Quiz Intelligence - Concepts pré-extraits des pages
@@ -227,6 +248,7 @@ model ActivityLog {
   workspace   Workspace? @relation(fields: [workspaceId], references: [id])
 
   @@index([userId])
+  @@index([userId, createdAt])
   @@map("activity_logs")
 }
 
@@ -332,6 +354,7 @@ model Quiz {
   user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([userId, isCompleted, completedAt])
   @@map("quizzes")
 }
 
@@ -375,6 +398,7 @@ model QuizSequence {
   updatedAt           DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
   user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("quiz_sequences")
 }
 
@@ -568,21 +592,6 @@ model Update {
   @@map("updates")
 }
 
-model DailyArticle {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title       String   @db.VarChar(500)
-  description String   @db.Text
-  url         String   @db.VarChar(1000)
-  imageUrl    String?  @map("image_url") @db.VarChar(1000)
-  publishedAt DateTime @map("published_at") @db.Timestamptz(6)
-  fetchedAt   DateTime @default(now()) @map("fetched_at") @db.Timestamptz(6)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  @@index([fetchedAt])
-  @@map("daily_articles")
-}
-
 model OpenaiUsageLog {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   quotaKey         String   @default("global") @map("quota_key") @db.VarChar(100)
@@ -621,6 +630,10 @@ model AIConversation {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Agent marketplace
+  agentId   String? @map("agent_id") @db.VarChar(100)
+  agentType String? @map("agent_type") @db.VarChar(10) // "preset" | "custom"
 
   // Relations
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -769,6 +782,40 @@ model AdminNote {
   @@index([userId, createdAt(sort: Desc)])
   @@index([adminId])
   @@map("admin_notes")
+}
+
+// 🤖 Agent Marketplace - Custom agents created by users
+model CustomAgent {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.VarChar(255)
+  name         String   @db.VarChar(50)
+  emoji        String   @db.VarChar(10)
+  description  String   @db.VarChar(200)
+  systemPrompt String   @map("system_prompt") @db.Text
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isActive])
+  @@map("custom_agents")
+}
+
+// 🤖 Agent Marketplace - User favorites/recent agents
+model AgentFavorite {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.VarChar(255)
+  agentId   String   @map("agent_id") @db.VarChar(100)
+  agentType String   @map("agent_type") @db.VarChar(10) // "preset" | "custom"
+  usedAt    DateTime @default(now()) @map("used_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, agentId, agentType])
+  @@index([userId])
+  @@map("agent_favorites")
 }
 
 // 📊 Quiz Dashboard Layout - Sauvegarde de la disposition personnalisée

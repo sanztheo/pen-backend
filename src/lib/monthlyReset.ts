@@ -99,33 +99,3 @@ async function processScheduledDowngrades(now: Date): Promise<number> {
 
   return Number(downgradeSubsCount);
 }
-
-/**
- * Fonction pour tester le reset d'un utilisateur spécifique
- */
-export async function testUserReset(userId: string) {
-  logger.log(`🧪 [Test Reset] Test reset pour utilisateur ${userId}`);
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { subscription: true, userLimits: true },
-  });
-
-  if (!user?.userLimits) {
-    throw new Error("Utilisateur ou limites non trouvés");
-  }
-
-  const now = new Date();
-  await prisma.userLimits.update({
-    where: { userId },
-    data: {
-      aiCreditsUsed: 0,
-      customQuizzesUsed: 0,
-      presetSequencesUsed: 0,
-      lastResetAt: now,
-    },
-  });
-
-  logger.log(`✅ [Test Reset] Reset effectué pour ${userId}`);
-  return { success: true, resetAt: now };
-}

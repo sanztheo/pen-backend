@@ -970,6 +970,7 @@ async function searchWikipediaAPI(
       headers: {
         "User-Agent": "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
       },
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) {
@@ -1079,6 +1080,7 @@ async function getWikipediaArticleContent(
       headers: {
         "User-Agent": "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
       },
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!infoResponse.ok) {
@@ -1112,6 +1114,7 @@ async function getWikipediaArticleContent(
       headers: {
         "User-Agent": "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
       },
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!parseResponse.ok) {
@@ -1170,6 +1173,7 @@ async function getWikipediaArticleContent(
         headers: {
           "User-Agent": "PenSaaS/1.0 (https://pensaas.com/contact) Educational Tool",
         },
+        signal: AbortSignal.timeout(15_000),
       });
 
       if (extractResponse.ok) {

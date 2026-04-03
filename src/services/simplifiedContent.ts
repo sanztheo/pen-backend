@@ -24,7 +24,8 @@ export class SimplifiedContentService {
         workspaceId: workspaceId,
         isArchived: false,
       },
-      orderBy: { position: "asc" },
+      orderBy: [{ updatedAt: "desc" }, { position: "asc" }],
+      take: 100,
       include: {
         _count: { select: { pages: true } },
         owner: {
@@ -32,6 +33,7 @@ export class SimplifiedContentService {
         },
         children: {
           // 🚀 Support des projets imbriqués
+          where: { isArchived: false },
           orderBy: { position: "asc" },
         },
         pages: {
@@ -65,7 +67,8 @@ export class SimplifiedContentService {
         projectId: null, // Pages à la racine
         isArchived: false,
       },
-      orderBy: { position: "asc" },
+      orderBy: [{ updatedAt: "desc" }, { position: "asc" }],
+      take: 200,
       select: {
         id: true,
         title: true,
@@ -188,45 +191,42 @@ export class SimplifiedContentService {
         throw new Error("Le projet parent n'appartient pas au workspace par défaut.");
       }
 
-      // 🚀 Création projet (sans transaction lourde)
+      // Transaction: project creation + counter increment (atomic to prevent desync)
       const beforeCreate = Date.now();
-      const project = await prisma.project.create({
-        data: {
-          name: data.name,
-          description: data.description,
-          workspaceId: defaultWorkspaceId,
-          createdBy: userId,
-          parentId: data.parentId || null,
-        },
-        include: {
-          owner: {
-            select: { id: true, firstName: true, lastName: true, email: true },
+      const project = await prisma.$transaction(async (tx) => {
+        const created = await tx.project.create({
+          data: {
+            name: data.name,
+            description: data.description,
+            workspaceId: defaultWorkspaceId,
+            createdBy: userId,
+            parentId: data.parentId || null,
           },
-          _count: { select: { pages: true } },
-        },
+          include: {
+            owner: {
+              select: { id: true, firstName: true, lastName: true, email: true },
+            },
+            _count: { select: { pages: true } },
+          },
+        });
+
+        await tx.userLimits.update({
+          where: { userId },
+          data: { projectsUsed: { increment: 1 } },
+        });
+
+        return created;
       });
       logger.log(`⏱️  [SIMPLIFIED-PERF] Création projet DB: ${Date.now() - beforeCreate}ms`);
 
-      // 🚀 Updates asynchrones (non-bloquant) + invalidation cache
-      void (async () => {
-        try {
-          await Promise.all([
-            (async () => {
-              await prisma.userLimits.update({
-                where: { userId },
-                data: { projectsUsed: { increment: 1 } },
-              });
-              invalidateUserLimitsCache(userId);
-            })(),
-            prisma.workspace.update({
-              where: { id: defaultWorkspaceId },
-              data: { lastActivityAt: new Date() },
-            }),
-          ]);
-        } catch (err) {
-          logger.error("⚠️ [ASYNC] Erreur updates projet:", err);
-        }
-      })();
+      // Non-critical activity updates (fire-and-forget OK)
+      invalidateUserLimitsCache(userId);
+      prisma.workspace
+        .update({
+          where: { id: defaultWorkspaceId },
+          data: { lastActivityAt: new Date() },
+        })
+        .catch((err) => logger.error("⚠️ [ASYNC] Erreur update workspace:", err));
 
       logger.log(`⏱️  [SIMPLIFIED-PERF] TOTAL createProject: ${Date.now() - startTime}ms`);
       return project;
@@ -373,7 +373,14 @@ export class SimplifiedContentService {
         );
       }
 
-      await prisma.page.delete({ where: { id: pageId } });
+      await prisma.$transaction(async (tx) => {
+        await tx.page.delete({ where: { id: pageId } });
+        await tx.$executeRaw`
+          UPDATE "user_limits"
+          SET "pages_used" = GREATEST(0, "pages_used" - 1)
+          WHERE "user_id" = ${userId}
+        `;
+      });
       return { success: true };
     } catch (error) {
       logger.error("❌ [SIMPLIFIED-CONTENT] Erreur suppression page:", error);

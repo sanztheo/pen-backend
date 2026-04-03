@@ -1,9 +1,12 @@
+import { ServerBlockNoteEditor } from "@blocknote/server-util";
+import { logger } from "../../../utils/logger.js";
+
 // =====================================================
 // BlockNote Type Definitions
 // =====================================================
 
 /** Text styling options for BlockNote content */
-interface TextStyles {
+export interface TextStyles {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
@@ -11,42 +14,34 @@ interface TextStyles {
 }
 
 /** Plain text content element */
-interface TextContent {
+export interface TextContent {
   type: "text";
   text: string;
   styles?: TextStyles;
 }
 
 /** Inline LaTeX content element */
-interface InlineLatexContent {
+export interface InlineLatexContent {
   type: "inlineLatex";
   props: { latex: string };
 }
 
 /** Union of all inline content types */
-type InlineContent = TextContent | InlineLatexContent;
+export type InlineContent = TextContent | InlineLatexContent;
 
 /** Block properties based on block type */
-interface BlockProps {
+export interface BlockProps {
   level?: number; // For headings (2 or 3)
   language?: string; // For code blocks
   latex?: string; // For latex blocks
 }
 
 /** BlockNote block structure */
-interface BlockNoteBlock {
+export interface BlockNoteBlock {
   type: "paragraph" | "heading" | "bulletListItem" | "numberedListItem" | "codeBlock" | "latex";
   content?: InlineContent[];
   props?: BlockProps;
   children?: BlockNoteBlock[];
-}
-
-/** Input block structure (looser typing for parsing) */
-interface InputBlock {
-  type?: string;
-  content?: unknown[];
-  children?: unknown[];
-  text?: string;
 }
 
 /** JSONL parsed object structure */
@@ -116,7 +111,7 @@ export function extractTextFromBlockNote(blocks: unknown[]): string {
  * Parse inline content with markdown formatting support
  * Converts **bold**, *italic*, __underline__, ~~strikethrough~~ to StyledText
  */
-function parseInlineContent(text: string): InlineContent[] {
+export function parseInlineContent(text: string): InlineContent[] {
   const content: InlineContent[] = [];
 
   // 1) Extraire les inline LaTeX $...$
@@ -208,48 +203,6 @@ function parseInlineContent(text: string): InlineContent[] {
 }
 
 /**
- * Check if a line contains LaTeX formula patterns
- */
-function isLatexLine(line: string): {
-  isLatex: boolean;
-  latex?: string;
-  isDisplay?: boolean;
-} {
-  // Désactivé: on ne promeut plus aucune ligne en bloc LaTeX côté backend
-  return { isLatex: false };
-}
-
-/**
- * Décompose une ligne qui mélange texte et formules $$...$$ en blocs BlockNote.
- * Exemple: "Donc, $$c^2=a^2+b^2$$ — où c ..." → [p("Donc,"), latex, p("— où c ...")]
- */
-function splitMixedDisplayLatex(line: string): BlockNoteBlock[] | null {
-  if (!line.includes("$$")) return null;
-  const result: BlockNoteBlock[] = [];
-  const rest = line;
-  const displayRe = /\$\$([\s\S]+?)\$\$/g;
-  let lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = displayRe.exec(line)) !== null) {
-    const start = m.index;
-    const end = m.index + m[0].length;
-    const before = line.slice(lastIndex, start).trim();
-    if (before) {
-      result.push({ type: "paragraph", content: parseInlineContent(before) });
-    }
-    let latex = m[1].trim();
-    latex = latex.replace(/^\s*(Donc,|Alors,|Ainsi,)\s*/i, "").replace(/\s*[—-].*$/, "");
-    result.push({ type: "latex", props: { latex: `$$${latex}$$` } });
-    lastIndex = end;
-  }
-  const after = line.slice(lastIndex).trim();
-  if (after) {
-    result.push({ type: "paragraph", content: parseInlineContent(after) });
-  }
-  return result.length > 0 ? result : null;
-}
-
-/**
  * Enhanced BlockNote conversion with LaTeX and markdown support
  */
 export function toBlockNote(content: string): BlockNoteBlock[] {
@@ -266,8 +219,6 @@ export function toBlockNote(content: string): BlockNoteBlock[] {
 
   const lines = normalized.split(/\r?\n/);
   const blocks: BlockNoteBlock[] = [];
-  const inBracketDisplay = false;
-  const bracketBuffer = "";
   let inCodeBlock = false;
   let codeBlockLanguage = "";
   let codeBlockContent: string[] = [];
@@ -310,7 +261,17 @@ export function toBlockNote(content: string): BlockNoteBlock[] {
     // Skip completely empty lines
     if (!line) continue;
 
-    // Désactivation complète des blocs display via \[ ... \]: tout est traité en inline plus haut
+    // Skip horizontal rules (---, ***, ___)
+    if (/^[-*_]{3,}$/.test(line)) continue;
+
+    // Handle blockquotes: strip > prefix, render as paragraph
+    if (/^>\s+/.test(line)) {
+      const bqText = line.replace(/^>\s+/, "");
+      if (bqText) {
+        blocks.push({ type: "paragraph", content: parseInlineContent(bqText) });
+      }
+      continue;
+    }
 
     // Conversion d'une ligne JSON (JSONL isolé) en bloc BlockNote
     if (line.startsWith("{") && line.endsWith("}")) {
@@ -364,10 +325,6 @@ export function toBlockNote(content: string): BlockNoteBlock[] {
         // Intentionally swallowed: malformed JSONL line, fall through to plain text parsing
       }
     }
-
-    // Suppression de la conversion automatique des lignes mixtes $$...$$ en blocs
-
-    // Désactivation de la promotion en bloc LaTeX pour toute ligne
 
     // Check for headings (# , ## and ###)
     if (/^#{1,3}\s+/.test(line)) {
@@ -524,10 +481,168 @@ export function toBlockNoteFromJSONL(jsonl: string): BlockNoteBlock[] {
   return blocks;
 }
 
+// =====================================================
+// ServerBlockNoteEditor — proper markdown conversion
+// =====================================================
+
+/** Lazy singleton — created once, reused across requests */
+let _serverEditor: ServerBlockNoteEditor | null = null;
+function getServerEditor(): ServerBlockNoteEditor {
+  if (!_serverEditor) {
+    _serverEditor = ServerBlockNoteEditor.create();
+  }
+  return _serverEditor;
+}
+
+/**
+ * Convert $...$ text patterns in an inline content array into inlineLatex nodes.
+ */
+function convertInlineLatexInContent(contentArr: unknown[]): unknown[] {
+  const out: unknown[] = [];
+  for (const item of contentArr) {
+    if (!item || typeof item !== "object") {
+      out.push(item);
+      continue;
+    }
+    const c = item as Record<string, unknown>;
+    if (c.type === "text" && typeof c.text === "string" && c.text.includes("$")) {
+      const re = /\$(.+?)\$/g;
+      let m: RegExpExecArray | null;
+      let last = 0;
+      let found = false;
+      while ((m = re.exec(c.text)) !== null) {
+        found = true;
+        if (m.index > last) {
+          out.push({ type: "text", text: c.text.slice(last, m.index), styles: c.styles || {} });
+        }
+        const latex = m[1].trim();
+        if (latex) out.push({ type: "inlineLatex", props: { latex: `$${latex}$` } });
+        last = m.index + m[0].length;
+      }
+      if (found && last < c.text.length) {
+        out.push({ type: "text", text: c.text.slice(last), styles: c.styles || {} });
+      }
+      if (!found) out.push(item);
+    } else {
+      out.push(item);
+    }
+  }
+  return out;
+}
+
+/**
+ * Post-process blocks: convert $...$ text patterns into inlineLatex nodes.
+ * Handles paragraphs, headings, lists, AND table cells.
+ * ServerBlockNoteEditor doesn't know about our custom inlineLatex spec.
+ */
+function transformInlineLatexInBlocks(blocks: unknown[]): void {
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+
+    // Standard blocks: content is an array of inline items
+    if (Array.isArray(b.content)) {
+      b.content = convertInlineLatexInContent(b.content);
+    }
+
+    // Table blocks: content is { type: "tableContent", rows: [{ cells: [{ type: "tableCell", content: [...] }] }] }
+    if (
+      b.type === "table" &&
+      b.content &&
+      typeof b.content === "object" &&
+      !Array.isArray(b.content)
+    ) {
+      const tc = b.content as Record<string, unknown>;
+      if (Array.isArray(tc.rows)) {
+        for (const row of tc.rows) {
+          if (!row || typeof row !== "object") continue;
+          const r = row as Record<string, unknown>;
+          if (Array.isArray(r.cells)) {
+            for (const cell of r.cells as Array<Record<string, unknown>>) {
+              if (cell && typeof cell === "object" && Array.isArray(cell.content)) {
+                cell.content = convertInlineLatexInContent(cell.content as unknown[]);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (Array.isArray(b.children)) {
+      transformInlineLatexInBlocks(b.children);
+    }
+  }
+}
+
+/**
+ * Post-process blocks: convert paragraphs containing only $$...$$ into
+ * dedicated latex blocks. ServerBlockNoteEditor outputs these as plain text
+ * paragraphs since it doesn't know our custom latex block type.
+ */
+function transformDisplayLatexBlocks(blocks: unknown[]): void {
+  for (let i = 0; i < blocks.length; i++) {
+    const block = blocks[i];
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+
+    if (b.type === "paragraph" && Array.isArray(b.content)) {
+      // Gather full text of the paragraph
+      const fullText = (b.content as Array<Record<string, unknown>>)
+        .filter((c) => c.type === "text" && typeof c.text === "string")
+        .map((c) => String(c.text))
+        .join("")
+        .trim();
+
+      // Check if the entire paragraph is a display math block: $$...$$ or \[...\]
+      const displayMatch =
+        fullText.match(/^\$\$([\s\S]+)\$\$$/) || fullText.match(/^\\\[([\s\S]+)\\\]$/);
+      if (displayMatch) {
+        const formula = displayMatch[1].trim();
+        if (formula) {
+          blocks[i] = {
+            type: "latex",
+            props: { formula },
+            content: undefined,
+            children: [],
+          };
+          continue;
+        }
+      }
+
+      // Also check if a paragraph is JUST a formula without delimiters
+      // (happens when LLM writes formulas on their own line without $$)
+      // Only match if it looks like a math expression and nothing else
+    }
+
+    if (Array.isArray(b.children)) {
+      transformDisplayLatexBlocks(b.children);
+    }
+  }
+}
+
+/** Normalize heading levels for BlockNote (h1 → h2, h4+ → h3) */
+function normalizeHeadingLevels(blocks: unknown[]): void {
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+    if (b.type === "heading" && b.props && typeof b.props === "object") {
+      const props = b.props as Record<string, unknown>;
+      if (typeof props.level === "number") {
+        if (props.level === 1) props.level = 2;
+        else if (props.level > 3) props.level = 3;
+      }
+    }
+    if (Array.isArray(b.children)) {
+      normalizeHeadingLevels(b.children);
+    }
+  }
+}
+
 /**
  * Détecte automatiquement le format (JSONL compact vs texte libre) et convertit en BlockNote.
+ * Utilise ServerBlockNoteEditor pour le markdown (support natif des liens, tables, blockquotes).
  */
-export function toBlockNoteAuto(input: string): BlockNoteBlock[] {
+export async function toBlockNoteAuto(input: string): Promise<BlockNoteBlock[]> {
   if (!input || !input.trim()) {
     return [{ type: "paragraph", content: [{ type: "text", text: "" }] }];
   }
@@ -549,6 +664,29 @@ export function toBlockNoteAuto(input: string): BlockNoteBlock[] {
   if (ok >= 3) {
     return toBlockNoteFromJSONL(input);
   }
+
+  // Use ServerBlockNoteEditor for proper markdown → BlockNote conversion
+  try {
+    const editor = getServerEditor();
+    const blocks = await editor.tryParseMarkdownToBlocks(input);
+
+    // Sanitize: ServerBlockNoteEditor outputs undefined values (columnWidths, headerCols, content)
+    // which Prisma rejects in JSONB arrays. JSON round-trip converts undefined→null in arrays
+    // and strips undefined keys from objects.
+    const blocksArr = JSON.parse(JSON.stringify(blocks)) as unknown[];
+
+    transformDisplayLatexBlocks(blocksArr);
+    transformInlineLatexInBlocks(blocksArr);
+    normalizeHeadingLevels(blocksArr);
+
+    if (blocksArr.length > 0) return blocksArr as BlockNoteBlock[];
+  } catch (error: unknown) {
+    logger.warn(
+      "[BlockNote] ServerBlockNoteEditor.tryParseMarkdownToBlocks failed, falling back to legacy parser",
+      error,
+    );
+  }
+
   return toBlockNote(input);
 }
 

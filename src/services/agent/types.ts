@@ -1,11 +1,11 @@
 /**
- * 📦 Types partagés pour Pennote Agent
+ * Types partagés pour Pennote Agent
  */
 
 import type { ModelMessage } from "ai";
 
 // ============================================
-// 🎯 MODES DE L'AGENT
+// MODES DE L'AGENT
 // ============================================
 
 /**
@@ -14,34 +14,38 @@ import type { ModelMessage } from "ai";
  */
 export type ThinkingLevel = "minimal" | "low" | "medium" | "high";
 
+/**
+ * Intent auto-detected from the user message.
+ * - conversation: standard Q&A (default)
+ * - creation: user wants content/page created
+ */
+export type IntentType = "conversation" | "creation";
+
+/**
+ * 2 modes only: fast (1 credit) and deep (3 credits).
+ * Intent detection determines the workflow variant.
+ */
 export const MODE_CONFIG = {
-  ask: {
+  fast: {
     maxSteps: 10,
     maxTokens: 4096,
-    description: "Questions simples avec RAG",
-    thinking: "minimal" as ThinkingLevel,
+    description: "Réponses rapides avec RAG",
+    thinking: "medium" as ThinkingLevel,
   },
-  search: {
-    maxSteps: 25,
-    maxTokens: 8192,
-    description: "Recherche approfondie avec web",
-    thinking: "high" as ThinkingLevel,
-  },
-  "create-quick": {
-    maxSteps: 10,
-    maxTokens: 8192,
-    description: "Génération rapide de contenu",
-    thinking: "low" as ThinkingLevel,
-  },
-  "create-deep": {
-    maxSteps: 30,
-    maxTokens: 32000,
-    description: "Génération complète avec recherche",
+  deep: {
+    maxSteps: 12,
+    maxTokens: 16384,
+    description: "Recherche approfondie et contenu détaillé",
     thinking: "high" as ThinkingLevel,
   },
 } as const;
 
 export type AgentMode = keyof typeof MODE_CONFIG;
+
+/**
+ * Composite key for prompt selection: mode × intent.
+ */
+export type PromptKey = `${AgentMode}-${IntentType}`;
 
 // ============================================
 // 📝 INTERFACES
@@ -53,6 +57,7 @@ export type AgentMode = keyof typeof MODE_CONFIG;
 export interface AgentRequest {
   messages: ModelMessage[];
   mode: AgentMode;
+  intent?: IntentType;
   userId: string;
   workspaceId: string;
   useWeb?: boolean;
@@ -63,6 +68,20 @@ export interface AgentRequest {
     language?: string;
     style?: string;
   };
+  /** Mem0 memory entries relevant to current query */
+  memoryContext?: string[];
+  /** Agent marketplace — agent ID (preset or custom) */
+  agentId?: string;
+  /** Agent marketplace — "preset" or "custom" */
+  agentType?: "preset" | "custom";
+  /** Agent marketplace — pre-resolved agent prompt and name (resolved by caller) */
+  agentPrompt?: { name: string; systemPrompt: string };
+  /** Model selector — override model ID (from AGENT_SELECTABLE_MODELS) */
+  modelOverride?: string;
+  /** Model selector — override thinking level */
+  thinkingOverride?: string;
+  /** Auto-accept: skip needsApproval on page/edit tools (frontend auto-accepts) */
+  autoAccept?: boolean;
 }
 
 /**

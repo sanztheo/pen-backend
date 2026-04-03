@@ -1,12 +1,19 @@
 import express from "express";
+import { z } from "zod";
 import { logger } from "../utils/logger.js";
 import { PaddleBillingService, paddle } from "../services/billing/paddleBilling.js";
 import { authenticateToken, blockImpersonation } from "../middlewares/auth.js";
 import { validateEmail } from "../middlewares/validateEmail.js";
 import { prisma } from "../lib/prisma.js";
+import { redis } from "../lib/redis.js";
 import { PADDLE_CONFIG } from "../config/paddle.js";
+import { withTimeout, PADDLE_TIMEOUT_MS } from "../utils/timeout.js";
+import { billingRateLimit } from "../middlewares/rateLimiting.js";
 
 const router = express.Router();
+
+// Apply billing rate limit to all routes in this router
+router.use(billingRateLimit);
 
 /**
  * GET /api/billing/subscription
@@ -80,7 +87,28 @@ router.post("/checkout-session", authenticateToken, validateEmail, async (req, r
       return res.status(401).json({ error: "Utilisateur non authentifie" });
     }
 
-    const { priceId, interval } = req.body;
+    // Dedup: retourner la reponse cachee si double-click (30s TTL)
+    const dedupKey = `billing:checkout:${userId}`;
+    const cached = await redis.get(dedupKey);
+    if (cached) {
+      logger.log(`[BILLING] Checkout dedup hit pour user ${userId}`);
+      return res.json(JSON.parse(cached));
+    }
+
+    const checkoutSchema = z.object({
+      priceId: z.string().startsWith("pri_").optional(),
+      interval: z.enum(["monthly", "yearly"]).optional(),
+    });
+
+    const parsed = checkoutSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Donnees de checkout invalides",
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const { priceId, interval } = parsed.data;
 
     // Determiner le priceId si non fourni
     const selectedPriceId =
@@ -91,6 +119,15 @@ router.post("/checkout-session", authenticateToken, validateEmail, async (req, r
 
     if (!selectedPriceId) {
       return res.status(400).json({ error: "Prix non configure" });
+    }
+
+    // Validate that the priceId is a known Paddle price
+    if (
+      priceId &&
+      priceId !== PADDLE_CONFIG.prices.premiumMonthly &&
+      priceId !== PADDLE_CONFIG.prices.premiumYearly
+    ) {
+      return res.status(400).json({ error: "Prix invalide" });
     }
 
     // Check if user already had a trial (trialStart not null)
@@ -109,7 +146,7 @@ router.post("/checkout-session", authenticateToken, validateEmail, async (req, r
 
     // Retourner les infos pour le checkout frontend
     // Le checkout sera ouvert avec Paddle.Checkout.open() cote client
-    res.json({
+    const responseData = {
       success: true,
       checkout: {
         priceId: selectedPriceId,
@@ -121,7 +158,12 @@ router.post("/checkout-session", authenticateToken, validateEmail, async (req, r
         },
       },
       hadTrial, // Inform frontend if user already had trial
-    });
+    };
+
+    // Cache pour dedup (30s TTL)
+    await redis.set(dedupKey, JSON.stringify(responseData), "EX", 30);
+
+    res.json(responseData);
   } catch (error) {
     logger.error("[API] Erreur creation checkout session:", error);
     res.status(500).json({
@@ -161,7 +203,11 @@ router.get("/portal-url", authenticateToken, async (req, res) => {
 
     // Generer l'URL de mise a jour du paiement via l'API Paddle
     try {
-      const paddleSubscription = await paddle.subscriptions.get(subscription.paddleSubscriptionId);
+      const paddleSubscription = await withTimeout(
+        paddle.subscriptions.get(subscription.paddleSubscriptionId),
+        PADDLE_TIMEOUT_MS,
+        "Paddle subscriptions.get",
+      );
 
       // L'URL de gestion est dans managementUrls
       const portalUrl =
@@ -208,10 +254,10 @@ router.post("/cancel", authenticateToken, blockImpersonation, async (req, res) =
       return res.status(401).json({ error: "Utilisateur non authentifie" });
     }
 
-    // Recuperer le paddleSubscriptionId
+    // Recuperer le paddleSubscriptionId + statut actuel
     const subscription = await prisma.userSubscription.findUnique({
       where: { userId },
-      select: { paddleSubscriptionId: true },
+      select: { paddleSubscriptionId: true, cancelAtPeriodEnd: true, status: true },
     });
 
     if (!subscription?.paddleSubscriptionId) {
@@ -220,10 +266,23 @@ router.post("/cancel", authenticateToken, blockImpersonation, async (req, res) =
       });
     }
 
+    // Idempotence: si deja annule ou en cours d'annulation, retourner succes
+    if (subscription.cancelAtPeriodEnd || subscription.status === "canceled") {
+      logger.log(`[BILLING] Annulation deja en cours pour user ${userId}, retour idempotent`);
+      return res.json({
+        success: true,
+        message: "Abonnement annule. Actif jusqu'a la fin de la periode.",
+      });
+    }
+
     // Annuler via l'API Paddle (effective a la fin de la periode)
-    await paddle.subscriptions.cancel(subscription.paddleSubscriptionId, {
-      effectiveFrom: "next_billing_period",
-    });
+    await withTimeout(
+      paddle.subscriptions.cancel(subscription.paddleSubscriptionId, {
+        effectiveFrom: "next_billing_period",
+      }),
+      PADDLE_TIMEOUT_MS,
+      "Paddle subscriptions.cancel",
+    );
 
     // Marquer comme annule dans la DB
     await PaddleBillingService.cancelSubscription(userId);
@@ -257,6 +316,14 @@ router.post("/upgrade", authenticateToken, async (req, res) => {
       return res.status(401).json({ error: "Utilisateur non authentifie" });
     }
 
+    // Dedup: retourner la reponse cachee si double-click (30s TTL)
+    const dedupKey = `billing:upgrade:${userId}`;
+    const cached = await redis.get(dedupKey);
+    if (cached) {
+      logger.log(`[BILLING] Upgrade dedup hit pour user ${userId}`);
+      return res.json(JSON.parse(cached));
+    }
+
     // Verifier si deja premium
     const currentSub = await PaddleBillingService.getUserSubscription(userId);
     if (currentSub.isPremium) {
@@ -267,7 +334,7 @@ router.post("/upgrade", authenticateToken, async (req, res) => {
     }
 
     // Retourner les infos pour ouvrir le checkout Paddle
-    res.json({
+    const responseData = {
       success: true,
       checkout: {
         priceId: PADDLE_CONFIG.prices.premiumMonthly,
@@ -278,7 +345,12 @@ router.post("/upgrade", authenticateToken, async (req, res) => {
           email: userEmail,
         },
       },
-    });
+    };
+
+    // Cache pour dedup (30s TTL)
+    await redis.set(dedupKey, JSON.stringify(responseData), "EX", 30);
+
+    res.json(responseData);
   } catch (error) {
     logger.error("[API] Erreur upgrade:", error);
     res.status(500).json({

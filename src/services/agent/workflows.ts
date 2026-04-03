@@ -11,11 +11,13 @@
 
 import { logger } from "../../utils/logger.js";
 import { generateText, stepCountIs } from "ai";
+import type { JSONObject } from "@ai-sdk/provider";
 import { createRagTools } from "./tools/ragTools.js";
-import { MODELS as MODEL_IDS } from "../../config/models.js";
-import { google } from "../../config/providers.js";
+import { MODELS as MODEL_IDS, getModelProvider } from "../../config/models.js";
+import { getProviderInstance } from "../../config/providers.js";
 import { createWebTools } from "./tools/webTools.js";
 import { createWorkspaceTools } from "./tools/workspaceTools.js";
+import { createPageReadingTools } from "./tools/pageReadingTools.js";
 import { createPageTools } from "./tools/pageTools.js";
 import type { AgentRequest } from "./types.js";
 import { buildSystemPrompt, type RagSource, type UserPersonalization } from "./systemPrompts.js";
@@ -61,19 +63,63 @@ interface ContentDraft {
 // MODELS
 // ============================================================================
 
-function requireGoogle() {
-  if (!google) throw new Error("[Workflows] GEMINI_API_KEY is not configured");
-  return google;
+/**
+ * Resolve a workflow model with automatic failover.
+ * Tries the configured provider for the model id, falls back to AGENT_FALLBACK.
+ */
+function resolveModel(modelId: string) {
+  const provider = getProviderInstance(modelId);
+  if (provider) return provider(modelId);
+
+  const fallback = getProviderInstance(MODEL_IDS.AGENT_FALLBACK);
+  if (fallback) {
+    logger.warn(
+      `[Workflows] Provider for "${modelId}" unavailable, using fallback "${MODEL_IDS.AGENT_FALLBACK}"`,
+    );
+    return fallback(MODEL_IDS.AGENT_FALLBACK);
+  }
+
+  throw new Error(
+    `[Workflows] No provider configured for "${modelId}" or fallback "${MODEL_IDS.AGENT_FALLBACK}"`,
+  );
+}
+
+type ThinkingLevel = "low" | "medium" | "high";
+
+/**
+ * Build provider-specific thinking options based on the resolved provider.
+ * Google uses thinkingConfig, Moonshot uses budgetTokens, others get empty options.
+ */
+function buildThinkingOptions(modelId: string, level: ThinkingLevel): Record<string, JSONObject> {
+  // Check which provider is actually available (may be fallback)
+  const primaryProvider = getModelProvider(modelId);
+  const hasPrimary = !!getProviderInstance(modelId);
+  const effectiveProvider = hasPrimary
+    ? primaryProvider
+    : getModelProvider(MODEL_IDS.AGENT_FALLBACK);
+
+  if (effectiveProvider === "google") {
+    return { google: { thinkingConfig: { thinkingLevel: level, includeThoughts: true } } };
+  }
+  if (effectiveProvider === "moonshot") {
+    const budgetTokens = level === "high" ? 8192 : level === "medium" ? 4096 : 2048;
+    return { moonshotai: { thinking: { type: "enabled", budgetTokens } } };
+  }
+  return {};
 }
 
 const MODELS = {
   get fast() {
-    return requireGoogle()(MODEL_IDS.AGENT_FAST);
+    return resolveModel(MODEL_IDS.AGENT_FAST);
   },
   get thinking() {
-    return requireGoogle()(MODEL_IDS.AGENT_THINKING);
+    return resolveModel(MODEL_IDS.AGENT_THINKING);
   },
 };
+
+/** Max duration for LLM calls (milliseconds) */
+const LLM_TIMEOUT_FAST_MS = 90_000;
+const LLM_TIMEOUT_THINKING_MS = 180_000;
 
 // ============================================================================
 // HELPER: Extract tool output
@@ -111,6 +157,7 @@ async function parallelSearch(query: string, ctx: WorkflowContext): Promise<Sear
   const webTools = createWebTools(toolContext);
   const ragTools = createRagTools(toolContext);
   const workspaceTools = createWorkspaceTools(toolContext);
+  const pageReadingTools = createPageReadingTools(toolContext);
 
   logger.log(`🔍 [Workflow] Starting parallel search for: "${query}"`);
 
@@ -238,7 +285,7 @@ async function parallelSearch(query: string, ctx: WorkflowContext): Promise<Sear
           const pageContents: string[] = [];
           for (const page of listResult.pages.slice(0, 2)) {
             try {
-              const pageContent = await workspaceTools.readWorkspacePage.execute!(
+              const pageContent = await pageReadingTools.readPageSection.execute!(
                 { pageId: page.id },
                 { toolCallId: `workspace-read-${page.id}`, messages: [] },
               );
@@ -305,9 +352,8 @@ async function synthesizeResearch(
   const result = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 4096,
-    providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: "medium" } },
-    },
+    timeout: LLM_TIMEOUT_THINKING_MS,
+    providerOptions: buildThinkingOptions(MODEL_IDS.AGENT_THINKING, "medium"),
     system: `You are a research synthesis expert. Analyze multiple sources and create a comprehensive, well-organized summary.
 
 Guidelines:
@@ -354,6 +400,7 @@ async function evaluateContent(
   const result = await generateText({
     model: MODELS.fast,
     maxOutputTokens: 1024,
+    timeout: LLM_TIMEOUT_FAST_MS,
     system: `You are a content quality evaluator. Assess content against specific criteria and provide structured feedback.
 
 Return your evaluation in this exact JSON format:
@@ -417,9 +464,8 @@ async function improveContent(
   const result = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 8192,
-    providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: "high" } },
-    },
+    timeout: LLM_TIMEOUT_THINKING_MS,
+    providerOptions: buildThinkingOptions(MODEL_IDS.AGENT_THINKING, "high"),
     system: `You are a content improvement specialist. Your task is to enhance content based on specific feedback.
 
 Guidelines:
@@ -455,7 +501,7 @@ Please rewrite the content addressing all feedback points. Make it more comprehe
 // ============================================================================
 
 /**
- * Deep Research Workflow for "search" mode
+ * Deep Research Workflow — used for deep+conversation
  *
  * 1. Parallel search across all sources
  * 2. Synthesize results
@@ -503,6 +549,7 @@ export async function runDeepResearchWorkflow(
   const planResult = await generateText({
     model: MODELS.fast,
     maxOutputTokens: 1024,
+    timeout: LLM_TIMEOUT_FAST_MS,
     system: `You are a content planner. Create a detailed outline for comprehensive research content.`,
     prompt: `Based on this research, create a detailed content outline for: "${query}"
 
@@ -527,9 +574,8 @@ Format as a structured outline.`,
   const initialContent = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 32000,
-    providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: "high" } },
-    },
+    timeout: LLM_TIMEOUT_THINKING_MS,
+    providerOptions: buildThinkingOptions(MODEL_IDS.AGENT_THINKING, "high"),
     system: `You are a comprehensive research writer. Create detailed, well-structured content based on research findings.
 
 Guidelines:
@@ -631,7 +677,7 @@ Create a complete, detailed document covering all aspects of the research.`,
 }
 
 /**
- * Deep Content Creation Workflow for "create-deep" mode
+ * Deep Content Creation Workflow — used for deep+creation
  *
  * 1. Research phase (parallel searches)
  * 2. Content planning
@@ -667,6 +713,7 @@ export async function runDeepContentWorkflow(
   const planResult = await generateText({
     model: MODELS.fast,
     maxOutputTokens: 1024,
+    timeout: LLM_TIMEOUT_FAST_MS,
     system: `You are a content planner. Create a detailed outline for educational content.`,
     prompt: `Based on this research, create a detailed content outline for: "${userPrompt}"
 
@@ -691,10 +738,9 @@ Format as a structured outline.`,
   const initialContent = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 32000,
-    providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: "high" } },
-    },
-    system: buildSystemPrompt("create-deep", {
+    timeout: LLM_TIMEOUT_THINKING_MS,
+    providerOptions: buildThinkingOptions(MODEL_IDS.AGENT_THINKING, "high"),
+    system: buildSystemPrompt("deep", "creation", {
       workspaceId: ctx.workspaceId,
       ragSources: ctx.ragSources,
       personalization: ctx.personalization,
@@ -787,7 +833,7 @@ IMPORTANT:
 }
 
 /**
- * Quick Content Creation Workflow for "create-quick" mode
+ * Quick Content Creation Workflow — used for fast+creation
  *
  * Simplified workflow without evaluation loop
  */
@@ -839,10 +885,9 @@ export async function runQuickContentWorkflow(
   const contentResult = await generateText({
     model: MODELS.thinking,
     maxOutputTokens: 8192,
-    providerOptions: {
-      google: { thinkingConfig: { thinkingLevel: "low" } },
-    },
-    system: buildSystemPrompt("create-quick", {
+    timeout: LLM_TIMEOUT_THINKING_MS,
+    providerOptions: buildThinkingOptions(MODEL_IDS.AGENT_THINKING, "medium"),
+    system: buildSystemPrompt("fast", "creation", {
       workspaceId: ctx.workspaceId,
       ragSources: ctx.ragSources,
       personalization: ctx.personalization,

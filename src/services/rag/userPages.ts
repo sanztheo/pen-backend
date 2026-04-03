@@ -1,7 +1,8 @@
 // 📄 User Pages RAG System - Traitement intelligent des pages workspace
-import { prismaEmbeddings as prisma } from "../../lib/prismaEmbeddings.js";
+import { prismaEmbeddings as prisma, Prisma } from "../../lib/prismaEmbeddings.js";
 import type { RAGChunkInput } from "./index.js";
 import { logger } from "../../utils/logger.js";
+import { RAG_CONFIG } from "./config.js";
 
 type PreparedRAGChunkRow = {
   sourceId: string;
@@ -419,8 +420,8 @@ export class UserPagesRAGSystem {
   // 🧠 Traitement des chunks avec embeddings
   private async processUserPageChunks(sourceId: string, chunks: RAGChunkInput[]): Promise<void> {
     const { mapWithConcurrency, chunkArray } = await import("../../utils/concurrency.js");
-    const concurrency = Math.max(1, parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10));
-    const batchSize = Math.max(1, parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10));
+    const concurrency = RAG_CONFIG.EMBEDDING_CONCURRENCY;
+    const batchSize = RAG_CONFIG.DB_BATCH_SIZE;
 
     const t0 = Date.now();
     logger.log(`⚙️  [USER-PAGE] Embedding ${chunks.length} chunks (x${concurrency})…`);
@@ -448,30 +449,31 @@ export class UserPagesRAGSystem {
     const filtered = prepared.filter((row): row is PreparedRAGChunkRow => row !== null);
     let inserted = 0;
     for (const batch of chunkArray(filtered, batchSize)) {
-      // Utiliser SQL brut pour insérer les embeddings (Prisma ne supporte pas vector nativement)
-      for (const chunk of batch) {
-        await prisma.$executeRaw`
-          INSERT INTO "rag_chunks" (
-            "id", "source_id", "chunk_index", "content", "clean_content",
-            "embedding", "token_count", "section_title", "quality",
-            "created_at"
-          )
-          VALUES (
-            gen_random_uuid(),
-            ${chunk.sourceId}::uuid,
-            ${chunk.chunkIndex},
-            ${chunk.content},
-            ${chunk.cleanContent},
-            ${chunk.embedding}::vector,
-            ${chunk.tokenCount},
-            ${chunk.sectionTitle},
-            ${chunk.quality},
-            NOW()
-          )
-          ON CONFLICT DO NOTHING
-        `;
-        inserted++;
-      }
+      const values = batch.map(
+        (chunk) => Prisma.sql`(
+          gen_random_uuid(),
+          ${chunk.sourceId}::uuid,
+          ${chunk.chunkIndex},
+          ${chunk.content},
+          ${chunk.cleanContent},
+          ${chunk.embedding}::vector,
+          ${chunk.tokenCount},
+          ${chunk.sectionTitle},
+          ${chunk.quality},
+          NOW()
+        )`,
+      );
+
+      await prisma.$executeRaw`
+        INSERT INTO "rag_chunks" (
+          "id", "source_id", "chunk_index", "content", "clean_content",
+          "embedding", "token_count", "section_title", "quality",
+          "created_at"
+        )
+        VALUES ${Prisma.join(values)}
+        ON CONFLICT DO NOTHING
+      `;
+      inserted += batch.length;
       logger.log(`💾 [USER-PAGE] Inséré ${inserted}/${filtered.length} chunks…`);
     }
 

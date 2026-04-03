@@ -235,6 +235,18 @@ router.put("/projects/:id", authenticateToken, async (req, res) => {
     const validatedData = updateProjectSchema.parse(req.body);
 
     // Réutiliser la logique existante du contrôleur projet
+    // Ownership check: only the project owner can update
+    const existing = await prisma.project.findFirst({
+      where: { id, createdBy: userId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        error: "Projet non trouvé",
+      });
+    }
+
     const project = await prisma.project.update({
       where: { id },
       data: {

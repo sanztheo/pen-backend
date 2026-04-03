@@ -4,6 +4,7 @@ import { deduplicationService } from "./deduplication.js";
 import type { RAGChunkInput } from "./index.js";
 import { z } from "zod";
 import { logger } from "../../utils/logger.js";
+import { RAG_CONFIG } from "./config.js";
 
 type PreparedRAGChunkRow = {
   sourceId: string;
@@ -294,6 +295,7 @@ export class WikipediaRAGSystem {
       // - prop=categories: catégories de l'article
       const response = await fetch(
         `https://fr.wikipedia.org/w/api.php?action=query&format=json&pageids=${pageid}&prop=extracts|info|categories&explaintext=1&exsectionformat=wiki&inprop=url&cllimit=10&origin=*`,
+        { signal: AbortSignal.timeout(15_000) },
       );
       const raw: unknown = await response.json();
       const parsed = WikipediaFullExtractResponseSchema.safeParse(raw);
@@ -468,8 +470,8 @@ export class WikipediaRAGSystem {
 
   private async processWikipediaChunks(sourceId: string, chunks: RAGChunkInput[]): Promise<void> {
     const { mapWithConcurrency, chunkArray } = await import("../../utils/concurrency.js");
-    const concurrency = Math.max(1, parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "2", 10));
-    const batchSize = Math.max(1, parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10));
+    const concurrency = RAG_CONFIG.EMBEDDING_CONCURRENCY;
+    const batchSize = RAG_CONFIG.DB_BATCH_SIZE;
 
     const t0 = Date.now();
     logger.log(`⚙️  [WIKIPEDIA] Embedding ${chunks.length} chunks (x${concurrency})…`);

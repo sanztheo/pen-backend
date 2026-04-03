@@ -362,6 +362,148 @@ export const accountExportRateLimit = rateLimit({
 });
 
 /**
+ * 12. RATE LIMIT IMPERSONATION
+ * Strict limit on admin impersonation — 10 requests per hour per admin
+ */
+const IMPERSONATION_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const IMPERSONATION_MAX = 10;
+
+export const impersonationRateLimit = rateLimit({
+  ...createBaseConfig("rl:impersonate:"),
+  windowMs: IMPERSONATION_WINDOW_MS,
+  max: IMPERSONATION_MAX,
+  message: {
+    success: false,
+    error: "IMPERSONATION_RATE_LIMIT_EXCEEDED",
+    message: "Too many impersonation requests. Please try again later.",
+    retryAfter: "1 hour",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `impersonate_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
+ * 13. RATE LIMIT ADMIN EXPORT
+ * Limit admin data exports — 5 requests per hour per admin
+ */
+const ADMIN_EXPORT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const ADMIN_EXPORT_MAX = 5;
+
+export const adminExportRateLimit = rateLimit({
+  ...createBaseConfig("rl:admin-exp:"),
+  windowMs: ADMIN_EXPORT_WINDOW_MS,
+  max: ADMIN_EXPORT_MAX,
+  message: {
+    success: false,
+    error: "ADMIN_EXPORT_RATE_LIMIT_EXCEEDED",
+    message: "Too many export requests. Please try again later.",
+    retryAfter: "1 hour",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `admin_exp_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
+ * 14. RATE LIMIT BILLING
+ * Protection des routes checkout, cancel, upgrade, portal-url
+ * 20 req/15min par user — opérations sensibles mais pas fréquentes
+ */
+const BILLING_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const BILLING_MAX = 20;
+
+export const billingRateLimit = rateLimit({
+  ...createBaseConfig("rl:billing:"),
+  windowMs: BILLING_WINDOW_MS,
+  max: BILLING_MAX,
+  message: {
+    success: false,
+    error: "BILLING_RATE_LIMIT_EXCEEDED",
+    message: "Trop de requêtes billing. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "15 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `billing_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
+ * 15. RATE LIMIT UPLOAD
+ * Protection contre abus upload (coût Cloudinary + stockage)
+ * 30 req/15min par user — assez pour usage normal, bloque le spam
+ */
+const UPLOAD_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const UPLOAD_MAX = 30;
+
+export const uploadRateLimit = rateLimit({
+  ...createBaseConfig("rl:upload:"),
+  windowMs: UPLOAD_WINDOW_MS,
+  max: UPLOAD_MAX,
+  message: {
+    success: false,
+    error: "UPLOAD_RATE_LIMIT_EXCEEDED",
+    message: "Trop d'uploads. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "15 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `upload_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
+ * 16. RATE LIMIT AGENTS CRUD
+ * Protection des routes CRUD agents custom (create, update, delete, list)
+ * 60 req/15min par user — opérations normales, limite raisonnable
+ */
+const AGENTS_CRUD_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const AGENTS_CRUD_MAX = 60;
+
+export const agentsCrudRateLimit = rateLimit({
+  ...createBaseConfig("rl:agents-crud:"),
+  windowMs: AGENTS_CRUD_WINDOW_MS,
+  max: AGENTS_CRUD_MAX,
+  message: {
+    success: false,
+    error: "AGENTS_RATE_LIMIT_EXCEEDED",
+    message: "Trop de requêtes agents. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "15 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `agents_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
+ * 17. RATE LIMIT CONVERSATIONS CRUD
+ * Protection des routes CRUD conversations (list, create, messages, delete, generate-title)
+ * 100 req/15min par user — conversations sont utilisées plus fréquemment
+ */
+const CONVERSATIONS_CRUD_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const CONVERSATIONS_CRUD_MAX = 100;
+
+export const conversationsCrudRateLimit = rateLimit({
+  ...createBaseConfig("rl:conv-crud:"),
+  windowMs: CONVERSATIONS_CRUD_WINDOW_MS,
+  max: CONVERSATIONS_CRUD_MAX,
+  message: {
+    success: false,
+    error: "CONVERSATIONS_RATE_LIMIT_EXCEEDED",
+    message: "Trop de requêtes conversations. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "15 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `conv_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
  * Helper pour vérifier si le rate limiting est activé
  */
 export const isRateLimitEnabled = (): boolean => {

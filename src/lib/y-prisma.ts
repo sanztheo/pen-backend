@@ -11,6 +11,25 @@ function toUint8Array(buf: Buffer): Uint8Array {
   return new Uint8Array(buf);
 }
 
+/**
+ * Reset the Yjs document for a page — deletes all updates and the document itself.
+ * Used after direct blockNoteContent writes (AI edit tools) so the editor
+ * reconstructs from blockNoteContent on next open instead of stale Yjs state.
+ */
+export async function resetYjsDocument(pageId: string): Promise<void> {
+  const dbDoc = await prisma.yjsDocument.findUnique({
+    where: { pageId },
+    select: { id: true },
+  });
+
+  if (!dbDoc) return;
+
+  await prisma.$transaction([
+    prisma.yjsUpdate.deleteMany({ where: { documentId: dbDoc.id } }),
+    prisma.yjsDocument.delete({ where: { id: dbDoc.id } }),
+  ]);
+}
+
 export class PrismaPersistence {
   public async getYDoc(docName: string): Promise<Y.Doc> {
     const ydoc = new Y.Doc();

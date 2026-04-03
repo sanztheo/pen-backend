@@ -14,6 +14,14 @@ export {
   getModelPricing,
   getModelProvider,
 } from "./helpers.js";
+export {
+  AGENT_SELECTABLE_MODELS,
+  TIER_MULTIPLIER,
+  findSelectableModel,
+  parseCompositeId,
+  type SelectableModel,
+  type ModelTier,
+} from "./selectable.js";
 
 // ── Startup validation ─────────────────────────────────────────────────────
 import { logger } from "../../utils/logger.js";

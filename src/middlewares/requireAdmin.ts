@@ -43,6 +43,9 @@ export const requireAdmin = async (
       return;
     }
 
+    // Attach isAdmin to req.user so downstream handlers skip redundant DB lookups
+    req.user!.isAdmin = true;
+
     logger.log(`[ADMIN] Access granted for admin ${user.email}`);
     next();
   } catch (error) {

@@ -13,6 +13,9 @@ const REDIS_URL =
 
 // Créer instance Redis avec retry automatique
 // 🎯 maxRetriesPerRequest: null requis pour BullMQ (commandes bloquantes)
+// 🎯 Client principal — PAS de commandTimeout ici car BullMQ utilise
+// des commandes bloquantes (BRPOPLPUSH, XREADGROUP) qui attendent indéfiniment.
+// Le timeout sur les opérations cache est géré via withTimeout() plus bas.
 export const redis = new Redis(REDIS_URL, {
   maxRetriesPerRequest: null, // BullMQ requirement pour BLPOP/BRPOPLPUSH
   lazyConnect: process.env.NODE_ENV === "test",
@@ -232,12 +235,23 @@ function isCachedBlockNotePage(value: unknown): value is CachedBlockNotePage {
   return typeof value.id === "string" && typeof value.title === "string";
 }
 
+const REDIS_TIMEOUT_MS = 5000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Redis timeout after ${ms}ms: ${label}`)), ms),
+    ),
+  ]);
+}
+
 export const cacheBlockNoteContent = async (
   pageId: string,
 ): Promise<CachedBlockNotePage | null> => {
   try {
     const cacheKey = `blocknote:${pageId}`;
-    const cached = await redis.get(cacheKey);
+    const cached = await withTimeout(redis.get(cacheKey), REDIS_TIMEOUT_MS, "GET blocknote");
 
     if (cached) {
       logger.log(`✅ [REDIS-CACHE] BlockNote HIT: ${pageId}`);
@@ -257,7 +271,12 @@ export const cacheBlockNoteContent = async (
 
     if (page) {
       // TTL 24h (86400s) - invalidé à chaque sauvegarde WebSocket
-      await redis.setex(cacheKey, 86400, JSON.stringify(page));
+      // Fire-and-forget with timeout — don't block response on cache write
+      withTimeout(
+        redis.setex(cacheKey, 86400, JSON.stringify(page)),
+        REDIS_TIMEOUT_MS,
+        "SETEX blocknote",
+      ).catch((err: unknown) => logger.error("⚠️ [REDIS] Cache write failed:", err));
     }
 
     return page;

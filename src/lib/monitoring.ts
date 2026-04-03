@@ -173,9 +173,6 @@ export const startMonitoring = (intervalMinutes: number = 5) => {
       logger.log(
         `      - AI Quiz: ${stats.queues?.aiQuiz?.waiting ?? 0} waiting, ${stats.queues?.aiQuiz?.active ?? 0} active`,
       );
-      logger.log(
-        `      - Futura: ${stats.queues?.futura?.waiting ?? 0} waiting, ${stats.queues?.futura?.active ?? 0} active`,
-      );
 
       if (health.warnings.length > 0) {
         logger.log("   ⚠️ Avertissements:");

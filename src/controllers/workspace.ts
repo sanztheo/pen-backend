@@ -263,7 +263,9 @@ export const getWorkspaces = async (req: Request, res: Response) => {
           take: 5,
         },
         projects: {
+          where: { isArchived: false },
           orderBy: { position: "asc" },
+          take: 50,
           include: {
             _count: { select: { pages: true } },
             owner: {
@@ -275,7 +277,9 @@ export const getWorkspaces = async (req: Request, res: Response) => {
               },
             },
             pages: {
+              where: { isArchived: false },
               orderBy: { position: "asc" },
+              take: 100,
               select: {
                 id: true,
                 title: true,
@@ -289,8 +293,9 @@ export const getWorkspaces = async (req: Request, res: Response) => {
           },
         },
         pages: {
-          where: { projectId: null },
+          where: { projectId: null, isArchived: false },
           orderBy: { position: "asc" },
+          take: 100,
           select: {
             id: true,
             title: true,
@@ -364,6 +369,7 @@ export const getWorkspaceById = async (req: Request, res: Response) => {
         },
         projects: {
           where: { isArchived: false },
+          take: 50,
           include: {
             owner: {
               select: {
@@ -378,9 +384,9 @@ export const getWorkspaceById = async (req: Request, res: Response) => {
               },
             },
             pages: {
-              // Inclure les pages dans chaque projet
               where: { isArchived: false },
               orderBy: { position: "asc" },
+              take: 100,
             },
           },
           orderBy: {
@@ -388,9 +394,9 @@ export const getWorkspaceById = async (req: Request, res: Response) => {
           },
         },
         pages: {
-          // Inclure les pages à la racine du workspace
           where: { isArchived: false, projectId: null },
           orderBy: { position: "asc" },
+          take: 100,
         },
         _count: {
           select: {

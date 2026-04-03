@@ -40,6 +40,9 @@ export async function saveConversation({
   messages,
   mode,
   status = "COMPLETED",
+  agentId,
+  agentType,
+  extraMetadata,
 }: {
   conversationId: string;
   userId: string;
@@ -47,17 +50,33 @@ export async function saveConversation({
   messages: UIMessage[];
   mode?: string;
   status?: ConversationStatus;
+  agentId?: string;
+  agentType?: string;
+  extraMetadata?: Record<string, unknown>;
 }): Promise<void> {
   logger.log(
     `💾 [CONVERSATION] Sauvegarde: ${conversationId}, ${messages.length} messages, status=${status}`,
   );
 
   try {
+    // Vérifier ownership si la conversation existe déjà
+    const existing = await prisma.aIConversation.findUnique({
+      where: { id: conversationId },
+      select: { userId: true },
+    });
+    if (existing && existing.userId !== userId) {
+      logger.error(
+        `🚫 [CONVERSATION] Tentative d'écriture non autorisée: ${conversationId} appartient à ${existing.userId}, appelé par ${userId}`,
+      );
+      return;
+    }
+
     // Extraire le titre du premier message utilisateur
     const firstUserMessage = messages.find((m) => m.role === "user");
     const title = extractTitle(firstUserMessage);
 
     // Upsert la conversation
+    const metadata = { mode, ...extraMetadata };
     await prisma.aIConversation.upsert({
       where: { id: conversationId },
       create: {
@@ -68,13 +87,15 @@ export async function saveConversation({
         status,
         messageCount: messages.length,
         lastMessageAt: new Date(),
-        metadata: { mode },
+        metadata,
+        ...(agentId && { agentId }),
+        ...(agentType && { agentType }),
       },
       update: {
         status,
         messageCount: messages.length,
         lastMessageAt: new Date(),
-        metadata: { mode },
+        metadata,
         // Clear activeStreamId quand le stream est terminé
         ...(status === "COMPLETED" && { activeStreamId: null }),
       },
@@ -117,12 +138,18 @@ export async function saveConversation({
 export async function updateActiveStreamId(
   conversationId: string,
   activeStreamId: string | null,
+  userId: string,
 ): Promise<void> {
   try {
-    await prisma.aIConversation.update({
-      where: { id: conversationId },
+    const result = await prisma.aIConversation.updateMany({
+      where: { id: conversationId, userId },
       data: { activeStreamId },
     });
+    if (result.count === 0) {
+      logger.error(
+        `🚫 [CONVERSATION] updateActiveStreamId: aucune conversation trouvée pour id=${conversationId}, userId=${userId}`,
+      );
+    }
   } catch (error) {
     logger.error("[CONVERSATION] Erreur update activeStreamId:", error);
   }
@@ -134,13 +161,20 @@ export async function updateActiveStreamId(
 export async function updateConversationStatus(
   conversationId: string,
   status: ConversationStatus,
+  userId: string,
 ): Promise<void> {
   try {
-    await prisma.aIConversation.update({
-      where: { id: conversationId },
+    const result = await prisma.aIConversation.updateMany({
+      where: { id: conversationId, userId },
       data: { status },
     });
-    logger.log(`🔄 [CONVERSATION] Status: ${conversationId} → ${status}`);
+    if (result.count === 0) {
+      logger.error(
+        `🚫 [CONVERSATION] updateConversationStatus: aucune conversation trouvée pour id=${conversationId}, userId=${userId}`,
+      );
+    } else {
+      logger.log(`🔄 [CONVERSATION] Status: ${conversationId} → ${status}`);
+    }
   } catch (error) {
     logger.error(`❌ [CONVERSATION] Erreur update status:`, error);
   }
@@ -172,7 +206,13 @@ export async function getConversationStatus(
 export async function loadConversation(
   conversationId: string,
   userId: string,
-): Promise<{ messages: UIMessage[]; status: ConversationStatus; mode?: string } | null> {
+): Promise<{
+  messages: UIMessage[];
+  status: ConversationStatus;
+  mode?: string;
+  agentId?: string;
+  agentType?: string;
+} | null> {
   logger.log(`📖 [CONVERSATION] Chargement: ${conversationId}`);
 
   try {
@@ -217,7 +257,13 @@ export async function loadConversation(
     logger.log(
       `✅ [CONVERSATION] Chargé: ${conversationId}, ${messages.length} messages, status=${conversation.status}, mode=${mode}`,
     );
-    return { messages, status: conversation.status, mode };
+    return {
+      messages,
+      status: conversation.status,
+      mode,
+      ...(conversation.agentId && { agentId: conversation.agentId }),
+      ...(conversation.agentType && { agentType: conversation.agentType }),
+    };
   } catch (error) {
     logger.error(`❌ [CONVERSATION] Erreur chargement:`, error);
     return null;
@@ -239,6 +285,8 @@ export async function listConversations(
     messageCount: number;
     lastMessageAt: Date | null;
     createdAt: Date;
+    agentId: string | null;
+    agentType: string | null;
   }>
 > {
   const conversations = await prisma.aIConversation.findMany({
@@ -256,6 +304,8 @@ export async function listConversations(
       messageCount: true,
       lastMessageAt: true,
       createdAt: true,
+      agentId: true,
+      agentType: true,
     },
   });
 
