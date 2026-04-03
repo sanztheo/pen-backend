@@ -7,6 +7,7 @@ import {
   deleteFromCloudinary,
   UPLOAD_CONFIG,
 } from "../services/upload/cloudinary.js";
+import { uploadRateLimit } from "../middlewares/rateLimiting.js";
 
 const router = Router();
 
@@ -41,77 +42,83 @@ const upload = multer({
 });
 
 // 📤 Route POST /api/upload
-router.post("/", authenticateToken, upload.single("file"), async (req: Request, res: Response) => {
-  try {
-    // Validation: fichier présent
-    if (!req.file) {
-      return res.status(400).json({
-        error: "Aucun fichier fourni",
-        code: "NO_FILE",
+router.post(
+  "/",
+  authenticateToken,
+  uploadRateLimit,
+  upload.single("file"),
+  async (req: Request, res: Response) => {
+    try {
+      // Validation: fichier présent
+      if (!req.file) {
+        return res.status(400).json({
+          error: "Aucun fichier fourni",
+          code: "NO_FILE",
+        });
+      }
+
+      // Validation: utilisateur authentifié
+      if (!req.user) {
+        return res.status(401).json({
+          error: "Utilisateur non authentifié",
+          code: "UNAUTHORIZED",
+        });
+      }
+
+      const { buffer, mimetype, originalname } = req.file;
+      const userId = req.user.id;
+
+      logger.log("📤 Upload demandé:", {
+        userId,
+        filename: originalname,
+        mimetype,
+        size: buffer.length,
+      });
+
+      // Upload vers Cloudinary avec compression
+      const result = await uploadToCloudinary(buffer, mimetype, originalname, userId);
+
+      // Réponse succès
+      return res.status(200).json({
+        success: true,
+        url: result.url,
+        data: {
+          publicId: result.publicId,
+          format: result.format,
+          width: result.width,
+          height: result.height,
+          bytes: result.bytes,
+        },
+      });
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error("❌ Erreur upload:", error);
+
+      // Gestion erreurs spécifiques
+      if (errorMessage.includes("FILE_TOO_LARGE")) {
+        return res.status(413).json({
+          error: "Fichier trop volumineux",
+          code: "FILE_TOO_LARGE",
+          maxSize: `${UPLOAD_CONFIG.MAX_FILE_SIZE / 1024 / 1024}MB`,
+        });
+      }
+
+      if (errorMessage.includes("INVALID_FILE_TYPE")) {
+        return res.status(415).json({
+          error: "Type de fichier non supporté",
+          code: "INVALID_FILE_TYPE",
+          allowedTypes: UPLOAD_CONFIG.ALLOWED_IMAGE_TYPES,
+        });
+      }
+
+      // Erreur générique
+      return res.status(500).json({
+        error: "Échec de l'upload",
+        code: "UPLOAD_FAILED",
       });
     }
-
-    // Validation: utilisateur authentifié
-    if (!req.user) {
-      return res.status(401).json({
-        error: "Utilisateur non authentifié",
-        code: "UNAUTHORIZED",
-      });
-    }
-
-    const { buffer, mimetype, originalname } = req.file;
-    const userId = req.user.id;
-
-    logger.log("📤 Upload demandé:", {
-      userId,
-      filename: originalname,
-      mimetype,
-      size: buffer.length,
-    });
-
-    // Upload vers Cloudinary avec compression
-    const result = await uploadToCloudinary(buffer, mimetype, originalname, userId);
-
-    // Réponse succès
-    return res.status(200).json({
-      success: true,
-      url: result.url,
-      data: {
-        publicId: result.publicId,
-        format: result.format,
-        width: result.width,
-        height: result.height,
-        bytes: result.bytes,
-      },
-    });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error("❌ Erreur upload:", error);
-
-    // Gestion erreurs spécifiques
-    if (errorMessage.includes("FILE_TOO_LARGE")) {
-      return res.status(413).json({
-        error: "Fichier trop volumineux",
-        code: "FILE_TOO_LARGE",
-        maxSize: `${UPLOAD_CONFIG.MAX_FILE_SIZE / 1024 / 1024}MB`,
-      });
-    }
-
-    if (errorMessage.includes("INVALID_FILE_TYPE")) {
-      return res.status(415).json({
-        error: "Type de fichier non supporté",
-        code: "INVALID_FILE_TYPE",
-        allowedTypes: UPLOAD_CONFIG.ALLOWED_IMAGE_TYPES,
-      });
-    }
-
-    // Erreur générique
-    return res.status(500).json({
-      error: "Échec de l'upload",
-      code: "UPLOAD_FAILED",
-    });
-  }
-});
+  },
+);
 
 // 🗑️ Route DELETE /api/upload/:publicId - Supprimer une image de Cloudinary
 router.delete("/:publicId", authenticateToken, async (req: Request, res: Response) => {
@@ -207,7 +214,7 @@ router.delete("/:publicId", authenticateToken, async (req: Request, res: Respons
 });
 
 // 📊 Route GET /api/upload/config (optionnel, pour debug)
-router.get("/config", (_req: Request, res: Response) => {
+router.get("/config", authenticateToken, (_req: Request, res: Response) => {
   return res.status(200).json({
     maxFileSize: UPLOAD_CONFIG.MAX_FILE_SIZE,
     maxFileSizeMB: UPLOAD_CONFIG.MAX_FILE_SIZE / 1024 / 1024,

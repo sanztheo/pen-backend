@@ -2,6 +2,7 @@
 import { prismaEmbeddings, Prisma, type RAGSourceType } from "../../lib/prismaEmbeddings.js";
 import { logger } from "../../utils/logger.js";
 import { MODELS, isNanoModel as _isNano } from "../../config/models.js";
+import { RAG_CONFIG } from "./config.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CLERK_ID_RE = /^user_[a-zA-Z0-9]+$/;
@@ -310,6 +311,7 @@ Si AUCUNE source n'est pertinente (ex: sources sur "Caca" pour une question sur 
           temperature: 0,
           max_tokens: 10,
         }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       const raw: unknown = await response.json();
@@ -410,6 +412,7 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
           ...(isNano ? { max_completion_tokens: 30 } : { max_tokens: 30 }),
           response_format: { type: "json_object" },
         }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       logger.log(`🌐 [API-DEBUG] Response status: ${response.status} ${response.statusText}`);
@@ -819,6 +822,12 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
       // 🚀 Requête pgvector avec opérateur de distance cosinus (<=>)
       // 1 - cosine_distance = cosine_similarity
+      const isValidEmbedding = queryEmbedding.every(
+        (v) => typeof v === "number" && Number.isFinite(v),
+      );
+      if (!isValidEmbedding) {
+        throw new Error("Invalid embedding: all values must be finite numbers");
+      }
       const embeddingStr = `[${queryEmbedding.join(",")}]`;
       const vectorCast = Prisma.raw(`'${embeddingStr}'::vector`);
       const safeLimit = Math.max(1, Math.floor(limit * 2));
@@ -986,8 +995,8 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
   private async processChunks(sourceId: string, chunks: RAGChunkInput[]): Promise<void> {
     const { mapWithConcurrency, chunkArray } = await import("../../utils/concurrency.js");
-    const concurrency = Math.max(1, parseInt(process.env.RAG_EMBEDDING_CONCURRENCY || "10", 10));
-    const batchSize = Math.max(1, parseInt(process.env.RAG_DB_BATCH_SIZE || "100", 10));
+    const concurrency = RAG_CONFIG.EMBEDDING_CONCURRENCY_HIGH;
+    const batchSize = RAG_CONFIG.DB_BATCH_SIZE;
 
     const t0 = Date.now();
     logger.log(`⚙️  [RAG] Embedding ${chunks.length} chunks avec parallélisation x${concurrency}…`);
@@ -1155,6 +1164,7 @@ class EmbeddingService {
           input: text,
           encoding_format: "float",
         }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       if (!response.ok) {
@@ -1198,6 +1208,7 @@ class EmbeddingService {
           input: texts,
           encoding_format: "float",
         }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       if (!response.ok) {

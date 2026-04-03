@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { QuizService } from "../../../services/quiz/quizService.js";
 import { logger } from "../../../utils/logger.js";
+import { setupSSEHeaders } from "../../../utils/sse.js";
 import {
   SchoolLevel,
   QuestionType,
@@ -476,9 +477,7 @@ export class QuizController {
       logger.log(
         "📝 [SUBMIT-QUIZ] Requête de correction via submitQuiz (redirection vers streaming)",
       );
-      res.setHeader("Content-Type", "text/event-stream");
-      res.setHeader("Cache-Control", "no-cache");
-      res.setHeader("Connection", "keep-alive");
+      setupSSEHeaders(res);
 
       // Utiliser le même service de streaming que l'endpoint dédié
       const quiz = await prisma.quiz.findFirst({

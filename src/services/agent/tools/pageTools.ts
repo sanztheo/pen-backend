@@ -1,4 +1,4 @@
-// 📄 Page Tools - Création et gestion de pages via l'agent
+// 📄 Page Tools - Page creation and management via agent
 import { tool } from "ai";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -11,61 +11,105 @@ import {
 } from "../../../controllers/assistant/helpers/blocknote.js";
 
 /**
- * Context utilisateur injecté via closure
+ * User context injected via closure
  */
 interface PageToolsContext {
   userId: string;
   workspaceId: string;
 }
 
-// Helper pour transformer chaînes vides en undefined
+// Helper to transform empty strings to undefined
 const emptyToUndefined = (val: unknown) => (val === "" || val === null ? undefined : val);
 
-// Schéma Zod pour createPage
-// Note: On utilise preprocess pour transformer les chaînes vides en undefined
 const createPageSchema = z.object({
-  title: z.string().min(1).max(255).describe("Titre de la page à créer"),
+  title: z.string().min(1).max(255).describe("Title of the page to create"),
   content: z.preprocess(
     emptyToUndefined,
     z
       .string()
       .optional()
-      .describe("Contenu initial de la page en texte (sera converti en BlockNote)"),
+      .describe("Initial page content as text (will be converted to BlockNote format)"),
   ),
   projectId: z.preprocess(
     emptyToUndefined,
-    z.string().uuid().optional().describe("ID du projet dans lequel créer la page (optionnel)"),
+    z.string().uuid().optional().describe("ID of the project to create the page in (optional)"),
+  ),
+  parentId: z.preprocess(
+    emptyToUndefined,
+    z
+      .string()
+      .uuid()
+      .optional()
+      .describe(
+        "ID of a parent page to nest this page under (optional). Use getWorkspaceStructure to find valid parent page IDs.",
+      ),
   ),
   icon: z.preprocess(
     emptyToUndefined,
-    z.string().max(10).optional().describe("Emoji ou icône pour la page (ex: '📝')"),
+    z.string().max(10).optional().describe("Emoji or icon for the page (e.g. '📝')"),
   ),
 });
 
-// Schéma pour vérifier l'existence d'une page
 const checkPageExistsSchema = z.object({
-  pageId: z.string().uuid().describe("ID de la page à vérifier"),
+  pageId: z.string().uuid().describe("ID of the page to check"),
+});
+
+const archivePageSchema = z.object({
+  pageId: z.string().uuid().describe("ID of the page to archive"),
+  title: z.string().max(255).describe("Title of the page, for display in the approval UI"),
 });
 
 /**
- * Crée les tools de gestion de pages avec le contexte utilisateur
+ * Creates page management tools with user context
  */
-export function createPageTools(ctx: PageToolsContext) {
+export function createPageTools(ctx: PageToolsContext, skipApproval = false) {
   return {
-    /**
-     * Crée une nouvelle page dans le workspace
-     */
     createPage: tool({
-      description: `Crée une nouvelle page dans le workspace de l'utilisateur.
-La page peut être créée à la racine du workspace ou dans un projet spécifique.
-Retourne l'ID, le titre et l'URL de la page créée.
-Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou des notes.`,
+      description: `Creates a new page in the user's workspace. Use this tool when the user asks to create a page, document, or notes. The page can be created at workspace root, inside a specific project, or nested under another page via parentId. Use getWorkspaceStructure first to find valid projectId and parentId values. Returns the page ID, title, and URL.`,
       inputSchema: createPageSchema,
-      execute: async ({ title, content, projectId, icon }) => {
-        logger.log(`🔍 [TOOL:createPage] title="${title}", projectId=${projectId || "root"}`);
+      needsApproval: !skipApproval,
+      execute: async ({ title, content, projectId, parentId, icon }) => {
+        logger.log(
+          `🔍 [TOOL:createPage] title="${title}", projectId=${projectId || "root"}, parentId=${parentId || "none"}`,
+        );
 
         try {
-          // 1. Vérifier que le projet existe (si fourni)
+          // Idempotency: if same title was created by same user in last 30s, return existing page
+          const recentDuplicate = await prisma.page.findFirst({
+            where: {
+              title,
+              workspaceId: ctx.workspaceId,
+              createdBy: ctx.userId,
+              createdAt: { gte: new Date(Date.now() - 30_000) },
+            },
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              icon: true,
+              createdAt: true,
+              projectId: true,
+              parentId: true,
+            },
+          });
+          if (recentDuplicate) {
+            logger.log(
+              `⚠️ [TOOL:createPage] Duplicate detected — returning existing page ${recentDuplicate.id}`,
+            );
+            return {
+              success: true,
+              pageId: recentDuplicate.id,
+              title: recentDuplicate.title,
+              slug: recentDuplicate.slug,
+              icon: recentDuplicate.icon,
+              url: `/page/${recentDuplicate.id}`,
+              projectId: recentDuplicate.projectId || null,
+              parentId: recentDuplicate.parentId || null,
+              projectName: null,
+              createdAt: recentDuplicate.createdAt.toISOString(),
+            };
+          }
+
           if (projectId) {
             const project = await prisma.project.findFirst({
               where: {
@@ -76,25 +120,56 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
             if (!project) {
               return {
                 success: false,
-                error: "Projet non trouvé dans ce workspace",
+                error:
+                  "Project not found in this workspace. Use getWorkspaceStructure to find valid project IDs.",
                 pageId: null,
               };
             }
           }
 
-          // 3. Calculer la position
+          if (parentId) {
+            const parentPage = await prisma.page.findFirst({
+              where: {
+                id: parentId,
+                workspaceId: ctx.workspaceId,
+                isArchived: false,
+              },
+              select: { id: true, projectId: true },
+            });
+            if (!parentPage) {
+              return {
+                success: false,
+                error:
+                  "Parent page not found in this workspace. Use getWorkspaceStructure to find valid parent page IDs.",
+                pageId: null,
+              };
+            }
+            // Enforce consistency: if both projectId and parentId given, they must match
+            if (projectId && parentPage.projectId && parentPage.projectId !== projectId) {
+              return {
+                success: false,
+                error:
+                  "Conflict: parentId belongs to a different project than the provided projectId. Use getWorkspaceStructure to verify.",
+                pageId: null,
+              };
+            }
+            // Inherit projectId from parent if not explicitly provided
+            if (!projectId && parentPage.projectId) {
+              projectId = parentPage.projectId;
+            }
+          }
+
           const lastPage = await prisma.page.findFirst({
             where: {
               workspaceId: ctx.workspaceId,
               projectId: projectId || null,
-              parentId: null,
+              parentId: parentId || null,
             },
             orderBy: { position: "desc" },
             select: { position: true },
           });
           const position = (lastPage?.position ?? -1) + 1;
 
-          // 4. Générer le slug unique
           const baseSlug = title
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, "-")
@@ -102,14 +177,12 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
             .slice(0, 50);
           const slug = `${baseSlug}-${Date.now()}-${nanoid(4)}`;
 
-          // 5. Convertir le contenu texte en format BlockNote (avec support LaTeX $/$$ et markdown)
           const blockNoteContent = content
-            ? (toBlockNoteAuto(
+            ? ((await toBlockNoteAuto(
                 sanitizeAIGeneratedContent(content),
-              ) as unknown as Prisma.InputJsonValue)
+              )) as unknown as Prisma.InputJsonValue)
             : null;
 
-          // 6. Créer la page
           const page = await prisma.page.create({
             data: {
               title,
@@ -117,6 +190,7 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
               position,
               workspaceId: ctx.workspaceId,
               projectId: projectId || null,
+              parentId: parentId || null,
               createdBy: ctx.userId,
               icon: icon || null,
               blockNoteContent: blockNoteContent ?? undefined,
@@ -128,10 +202,11 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
               icon: true,
               createdAt: true,
               projectId: true,
+              parentId: true,
             },
           });
 
-          logger.log(`✅ [TOOL:createPage] Page créée: "${page.title}" (ID: ${page.id})`);
+          logger.log(`✅ [TOOL:createPage] Page created: "${page.title}" (ID: ${page.id})`);
 
           return {
             success: true,
@@ -141,26 +216,23 @@ Utilise ce tool quand l'utilisateur demande de créer une page, un document, ou 
             icon: page.icon,
             url: `/page/${page.id}`,
             projectId: page.projectId || null,
-            projectName: null, // Simplifié - pas de join sur project
+            parentId: page.parentId || null,
+            projectName: null,
             createdAt: page.createdAt.toISOString(),
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:createPage] Erreur:`, error);
+          logger.error(`❌ [TOOL:createPage] Error:`, error);
           return {
             success: false,
-            error: "Erreur lors de la création de la page",
+            error: "Failed to create page. Try again or check if the projectId is valid.",
             pageId: null,
           };
         }
       },
     }),
 
-    /**
-     * Vérifie si une page existe encore
-     */
     checkPageExists: tool({
-      description: `Vérifie si une page existe toujours dans le workspace.
-Utile pour vérifier qu'une page créée précédemment n'a pas été supprimée.`,
+      description: `Checks if a page still exists in the workspace. Use this tool to verify that a previously created page has not been deleted before referencing it.`,
       inputSchema: checkPageExistsSchema,
       execute: async ({ pageId }) => {
         logger.log(`🔍 [TOOL:checkPageExists] pageId=${pageId}`);
@@ -184,7 +256,7 @@ Utile pour vérifier qu'une page créée précédemment n'a pas été supprimée
             return {
               exists: false,
               pageId,
-              message: "Page non trouvée ou supprimée",
+              message: "Page not found or deleted",
             };
           }
 
@@ -197,11 +269,59 @@ Utile pour vérifier qu'une page créée précédemment n'a pas été supprimée
             url: `/page/${page.id}`,
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:checkPageExists] Erreur:`, error);
+          logger.error(`❌ [TOOL:checkPageExists] Error:`, error);
           return {
             exists: false,
             pageId,
-            error: "Erreur lors de la vérification",
+            error: "Failed to check page existence. Try again.",
+          };
+        }
+      },
+    }),
+
+    archivePage: tool({
+      description: `Archives (soft-deletes) a page. The page will no longer appear in the workspace. This action is reversible by the user. IMPORTANT: Only archive pages when the user EXPLICITLY asks to delete, remove, or archive a specific page. Never archive pages proactively.`,
+      inputSchema: archivePageSchema,
+      needsApproval: !skipApproval,
+      execute: async ({ pageId }) => {
+        logger.log(`🔍 [TOOL:archivePage] pageId=${pageId}`);
+
+        try {
+          // Atomic update — avoids TOCTOU race between findFirst + update
+          const result = await prisma.page.updateMany({
+            where: { id: pageId, workspaceId: ctx.workspaceId, isArchived: false },
+            data: { isArchived: true },
+          });
+
+          if (result.count === 0) {
+            return {
+              success: false,
+              error: "Page not found in this workspace or already archived.",
+              pageId,
+            };
+          }
+
+          // Get title for the response (after successful update)
+          const page = await prisma.page.findUnique({
+            where: { id: pageId },
+            select: { title: true },
+          });
+
+          logger.log(
+            `✅ [TOOL:archivePage] Page archived: "${page?.title ?? "Untitled"}" (ID: ${pageId})`,
+          );
+
+          return {
+            success: true,
+            pageId,
+            title: page?.title ?? "Untitled",
+          };
+        } catch (error) {
+          logger.error(`❌ [TOOL:archivePage] Error:`, error);
+          return {
+            success: false,
+            error: "Failed to archive page. Try again.",
+            pageId,
           };
         }
       },

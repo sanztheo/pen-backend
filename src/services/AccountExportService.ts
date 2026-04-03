@@ -122,6 +122,8 @@ export class AccountExportService {
         questions: true,
         userAnswers: true,
       },
+      orderBy: { createdAt: "desc" },
+      take: EXPORT_MAX_ITEMS,
     });
   }
 
@@ -129,7 +131,7 @@ export class AccountExportService {
     userId: string,
   ): Promise<UserExportData["conversations"]> {
     return prisma.aIConversation.findMany({
-      where: { userId },
+      where: { userId, isActive: true },
       select: {
         id: true,
         title: true,

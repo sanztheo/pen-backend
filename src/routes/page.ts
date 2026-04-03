@@ -15,6 +15,7 @@ import { authenticateToken } from "../middlewares/auth.js";
 import { validateUUID } from "../middlewares/validateUUID.js";
 import { prisma } from "../lib/prisma.js";
 import { cacheBlockNoteContent, invalidateBlockNoteCache } from "../lib/redis.js";
+import { resetYjsDocument } from "../lib/y-prisma.js";
 
 // Type for authenticated requests with user
 interface AuthenticatedRequest extends Request {
@@ -591,6 +592,85 @@ router.patch("/:id/icon", validateUUID("id"), async (req, res) => {
       error instanceof Error ? error.message : String(error),
     );
     res.status(500).json({ error: "Erreur lors de la mise à jour de l'icône" });
+  }
+});
+
+// Rollback last AI edit — restores the most recent snapshot
+router.post("/:pageId/rollback", validateUUID("pageId"), async (req, res) => {
+  try {
+    const { pageId } = req.params;
+    const userId = (req as AuthenticatedRequest).user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Non authentifié", code: "MISSING_TOKEN" });
+    }
+
+    // Verify user has access to the page's workspace
+    const page = await prisma.page.findFirst({
+      where: {
+        id: pageId,
+        workspace: {
+          OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
+        },
+      },
+      select: { id: true, workspaceId: true },
+    });
+
+    if (!page) {
+      return res.status(404).json({ error: "Page non trouvée", code: "NOT_FOUND" });
+    }
+
+    // Get the latest snapshot
+    const snapshot = await prisma.pageEditSnapshot.findFirst({
+      where: { pageId },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, content: true, createdAt: true, toolName: true },
+    });
+
+    if (!snapshot) {
+      return res.status(404).json({
+        error: "Aucun snapshot disponible pour cette page",
+        code: "NO_SNAPSHOT",
+      });
+    }
+
+    const blocks = snapshot.content as unknown as Prisma.InputJsonValue;
+
+    // Restore blocks directly (no toolName = no snapshot of the rollback itself)
+    await prisma.page.updateMany({
+      where: { id: pageId, workspaceId: page.workspaceId },
+      data: {
+        blockNoteContent: blocks,
+        updatedAt: new Date(),
+      },
+    });
+
+    // Invalidate caches + reset Yjs document so editor reloads from DB
+    try {
+      await Promise.all([invalidateBlockNoteCache(pageId), resetYjsDocument(pageId)]);
+    } catch (cacheErr) {
+      logger.warn("[ROLLBACK] Cache/Yjs invalidation failed:", cacheErr);
+    }
+
+    // Delete the used snapshot
+    await prisma.pageEditSnapshot.delete({ where: { id: snapshot.id } });
+
+    logger.log("[ROLLBACK] Page restored", {
+      userId,
+      pageId,
+      snapshotId: snapshot.id,
+      toolName: snapshot.toolName,
+      restoredFrom: snapshot.createdAt,
+    });
+
+    return res.json({
+      success: true,
+      pageId,
+      restoredFrom: snapshot.createdAt,
+    });
+  } catch (error: unknown) {
+    logger.error("[ROLLBACK] Error:", error instanceof Error ? error.message : String(error));
+    return res.status(500).json({ error: "Erreur lors du rollback", code: "ROLLBACK_ERROR" });
   }
 });
 

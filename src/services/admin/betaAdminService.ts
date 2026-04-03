@@ -248,6 +248,7 @@ export class BetaAdminService {
           totalActiveTimeSeconds: true,
           betaJoinedAt: true,
           betaDeactivatedAt: true,
+          betaReactivationDeadline: true,
         },
       }),
       prisma.user.count({ where }),

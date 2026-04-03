@@ -18,7 +18,7 @@ import { aiRouter } from "./routes/ai.js";
 import { assistantRouter } from "./routes/assistant.js";
 import { conversationsRouter } from "./routes/conversations.js";
 import { quizRouter } from "./routes/quiz.js";
-import { invalidateBlockNoteCache } from "./lib/redis.js";
+import { invalidateBlockNoteCache, redis } from "./lib/redis.js";
 import { ContextCacheService } from "./services/quiz/intelligence/index.js";
 import { reorderRouter } from "./routes/reorder.js";
 import { graphicsRouter } from "./routes/graphics.js";
@@ -30,14 +30,15 @@ import { quizLimitsRouter } from "./routes/quizLimits.js";
 import { sync_limitsRouter } from "./routes/sync-limits.js";
 import { updatesRouter } from "./routes/updates.js";
 import { userRouter } from "./routes/user.js";
-import { dailyArticleRouter } from "./routes/dailyArticle.js";
+
 import { uploadRouter } from "./routes/upload.js";
 import { paddleWebhookHandler } from "./routes/paddleWebhooks.js";
 import { jobsRouter } from "./routes/jobs.js";
-import { agentRouter } from "./routes/agent.js";
+import { agentRouter } from "./routes/agent/index.js";
 import { adminRouter } from "./routes/admin.js";
 import { betaRouter } from "./routes/beta.js";
 import { feedbackRouter } from "./routes/feedback.js";
+import { agentsRouter } from "./routes/agents.js";
 
 import { startCronJobs } from "./jobs/cronJobs.js";
 import { AuthService } from "./services/auth.js";
@@ -54,9 +55,10 @@ import { startWorkers, stopWorkers } from "./workers/index.js";
 import { closeQueues } from "./lib/queues.js";
 import { startMonitoring, stopMonitoring } from "./lib/monitoring.js";
 import { logger } from "./utils/logger.js";
-import { initFuturaScheduler, stopFuturaScheduler } from "./lib/futuraScheduler.js";
+
 import { startAlertsCron, stopAlertsCron } from "./cron/alertsCron.js";
 import { startRetentionCron, stopRetentionCron } from "./cron/retentionCron.js";
+import { logMem0Status } from "./services/mem0/mem0Client.js";
 import { LRUCache } from "lru-cache";
 
 // 🛡️ RATE LIMITING IMPORTS
@@ -97,6 +99,7 @@ async function testPaddleWebhookRoute(): Promise<void> {
         "Paddle-Signature": "test-signature",
       },
       body: JSON.stringify({ test: true }),
+      signal: AbortSignal.timeout(5_000),
     });
 
     if (response.status === 400) {
@@ -126,6 +129,7 @@ const app = express();
 // Trust first proxy (Railway reverse proxy) so req.ip returns real client IP
 app.set("trust proxy", 1);
 const server = http.createServer(app);
+let activeWss: WebSocketServer | null = null;
 
 const PORT = backendConfig.port;
 const NODE_ENV = backendConfig.nodeEnv;
@@ -235,12 +239,13 @@ app.use("/api/quiz-limits", quizLimitsRouter);
 app.use("/api/sync-limits", sync_limitsRouter);
 app.use("/api/updates", updatesRouter);
 app.use("/api/upload", uploadRouter);
-app.use("/api/daily-article", dailyArticleRouter);
+
 app.use("/api/user", userRouter);
 app.use("/api/jobs", jobsRouter); // 🎯 Récupération résultats jobs BullMQ
 app.use("/api/agent", aiRateLimit, aiBurstRateLimit, agentRouter); // 🤖 Agent Pennote + burst protection
 app.use("/api/beta", betaRouter); // 🎯 Beta management
 app.use("/api/feedback", feedbackRouter); // 📝 Beta feedback reports
+app.use("/api/agents", agentsRouter); // 🤖 Agent Marketplace
 
 app.use("*", (_req, res) => res.status(404).json({ error: "Route non trouvée" }));
 app.use(
@@ -260,7 +265,7 @@ const authenticateTokenWS = async (token: string) => {
   }
 };
 
-const setupYjsWebSocket = (server: http.Server) => {
+const setupYjsWebSocket = (server: http.Server): WebSocketServer => {
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 }); // 1 MB
   const persistence = new PrismaPersistence();
   const connections = new Map<string, number>(); // Compteur de connexions par document
@@ -733,6 +738,8 @@ const setupYjsWebSocket = (server: http.Server) => {
   logger.log("   - /ws/collaboration/ (Yjs)");
   logger.log("   - /ws/save/ (Sauvegarde)");
   logger.log("   - /ws/quiz-progress/ (Progression quiz)");
+
+  return wss;
 };
 
 server.listen(PORT, async () => {
@@ -741,6 +748,9 @@ server.listen(PORT, async () => {
   logger.log(`✨ VERSION: RATE-LIMITED-SECURE - ${new Date().toISOString()}`);
   logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
+  // 🧠 Afficher le statut Mem0
+  logMem0Status();
+
   // 🛡️ Afficher la configuration du rate limiting
   logRateLimitConfig();
   logWebSocketRateLimitConfig();
@@ -748,7 +758,7 @@ server.listen(PORT, async () => {
   // 🛡️ Démarrer le nettoyage périodique des trackers WebSocket
   startWebSocketCleanup();
 
-  setupYjsWebSocket(server);
+  activeWss = setupYjsWebSocket(server);
 
   try {
     await DatabaseHealthCheck.displayDiagnostic();
@@ -762,9 +772,6 @@ server.listen(PORT, async () => {
 
       // 🎯 Démarrer les workers BullMQ pour jobs asynchrones
       startWorkers();
-
-      // 📅 Initialiser le planificateur d'articles Futura (rafraîchissement hebdomadaire)
-      await initFuturaScheduler();
 
       // 📊 Démarrer le monitoring système (toutes les 5 minutes)
       startMonitoring(5);
@@ -788,25 +795,59 @@ server.listen(PORT, async () => {
   }
 });
 
-// 🧹 Graceful shutdown - Arrêter proprement les workers et queues
-process.on("SIGTERM", async () => {
-  logger.log("🛑 [SHUTDOWN] Signal SIGTERM reçu, arrêt gracieux...");
+// 🧹 Graceful shutdown - Arrêter proprement toutes les ressources
+async function gracefulShutdown(signal: string): Promise<void> {
+  logger.log(`🛑 [SHUTDOWN] Signal ${signal} reçu, arrêt gracieux...`);
+
+  // 1. Arrêter les crons et monitoring
   stopMonitoring();
   stopAlertsCron();
   stopRetentionCron();
-  await stopFuturaScheduler();
+
+  // 2. Arrêter les workers et queues BullMQ
   await stopWorkers();
   await closeQueues();
+
+  // 3. Arrêter le serveur HTTP (stop accepting new connections)
+  await new Promise<void>((resolve) => {
+    server.close(() => {
+      logger.log("🛑 [SHUTDOWN] Serveur HTTP fermé");
+      resolve();
+    });
+    // Force resolve après 5s si des connexions traînent
+    setTimeout(resolve, 5000);
+  });
+
+  // 4. Fermer les connexions WebSocket
+  if (activeWss) {
+    for (const client of activeWss.clients) {
+      client.close(1001, "Server shutting down");
+    }
+    await new Promise<void>((resolve) => {
+      activeWss!.close(() => {
+        logger.log("🛑 [SHUTDOWN] WebSocket server fermé");
+        resolve();
+      });
+      setTimeout(resolve, 3000);
+    });
+  }
+
+  // 5. Fermer la connexion Redis
+  try {
+    await redis.quit();
+    logger.log("🛑 [SHUTDOWN] Redis déconnecté");
+  } catch (err) {
+    logger.error("🛑 [SHUTDOWN] Erreur fermeture Redis:", err);
+  }
+
+  logger.log("🛑 [SHUTDOWN] Arrêt gracieux terminé");
   process.exit(0);
+}
+
+process.on("SIGTERM", () => {
+  gracefulShutdown("SIGTERM");
 });
 
-process.on("SIGINT", async () => {
-  logger.log("🛑 [SHUTDOWN] Signal SIGINT reçu, arrêt gracieux...");
-  stopMonitoring();
-  stopAlertsCron();
-  stopRetentionCron();
-  await stopFuturaScheduler();
-  await stopWorkers();
-  await closeQueues();
-  process.exit(0);
+process.on("SIGINT", () => {
+  gracefulShutdown("SIGINT");
 });

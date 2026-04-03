@@ -20,6 +20,7 @@ const feedbackRateLimit = rateLimit({
 const feedbackSchema = z.object({
   type: z.enum(["bug", "suggestion", "other"]),
   message: z.string().min(1).max(1000),
+  whatsappName: z.string().max(100).optional(),
   currentUrl: z.string().max(500).optional(),
   userAgent: z.string().max(500).optional(),
   errorLogs: z
@@ -52,7 +53,7 @@ feedbackRouter.post(
     }
 
     const user = (req as Request & { user: { id: string; email: string } }).user;
-    const { type, message, currentUrl, userAgent, errorLogs } = parsed.data;
+    const { type, message, whatsappName, currentUrl, userAgent, errorLogs } = parsed.data;
 
     try {
       await EmailService.sendFeedbackReport({
@@ -60,6 +61,7 @@ feedbackRouter.post(
         userEmail: user.email,
         type,
         message,
+        whatsappName,
         currentUrl,
         userAgent,
         errorLogs,

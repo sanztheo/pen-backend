@@ -33,67 +33,94 @@ export class BetaCronService {
    * Runs hourly.
    */
   static async checkInactiveUsers(): Promise<CronJobResult> {
+    const lockKey = "cron:lock:checkInactiveUsers";
+    const acquired = await redis.set(lockKey, "1", "EX", CRON_LOCK_TTL_SECONDS, "NX");
+
+    if (!acquired) {
+      logger.log("[BETA_CRON] checkInactiveUsers: skipped (another instance holds the lock)");
+      return { processed: 0, errors: 0 };
+    }
+
+    try {
+      return await BetaCronService._checkInactiveUsersLocked();
+    } finally {
+      await redis.del(lockKey).catch((err: unknown) => {
+        logger.warn("[BETA_CRON] Failed to release checkInactiveUsers lock:", err);
+      });
+    }
+  }
+
+  private static async _checkInactiveUsersLocked(): Promise<CronJobResult> {
     const thresholdDate = new Date(Date.now() - INACTIVITY_THRESHOLD_DAYS * 24 * 60 * 60 * 1000);
     const now = new Date();
     const reactivationDeadline = new Date(
       now.getTime() + REACTIVATION_WINDOW_DAYS * 24 * 60 * 60 * 1000,
     );
 
-    const inactiveUsers = await prisma.user.findMany({
-      where: {
-        betaStatus: "active",
-        OR: [
-          { lastHeartbeatAt: { lt: thresholdDate } },
-          // Only flag null-heartbeat users if they joined before the threshold
-          // (freshly activated/promoted users must NOT be deactivated immediately)
-          {
-            lastHeartbeatAt: null,
-            betaJoinedAt: { lt: thresholdDate },
-          },
-        ],
-      },
-      select: { id: true, lastHeartbeatAt: true },
-    });
+    const inactiveWhere = {
+      betaStatus: "active" as const,
+      OR: [
+        { lastHeartbeatAt: { lt: thresholdDate } },
+        // Only flag null-heartbeat users if they joined before the threshold
+        // (freshly activated/promoted users must NOT be deactivated immediately)
+        {
+          lastHeartbeatAt: null,
+          betaJoinedAt: { lt: thresholdDate },
+        },
+      ],
+    };
 
-    if (inactiveUsers.length === 0) {
+    let totalDeactivated = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const batch = await prisma.user.findMany({
+        where: inactiveWhere,
+        select: { id: true, lastHeartbeatAt: true },
+        take: DELETION_BATCH_SIZE,
+      });
+
+      if (batch.length === 0) {
+        break;
+      }
+
+      const batchIds = batch.map((u) => u.id);
+
+      const result = await prisma.user.updateMany({
+        where: {
+          id: { in: batchIds },
+          ...inactiveWhere,
+        },
+        data: {
+          betaStatus: "inactive",
+          betaDeactivatedAt: now,
+          betaReactivationDeadline: reactivationDeadline,
+        },
+      });
+
+      totalDeactivated += result.count;
+
+      for (const user of batch) {
+        logger.log(
+          `[BETA_CRON] Deactivated user ${user.id} (last heartbeat: ${user.lastHeartbeatAt?.toISOString() ?? "never"})`,
+        );
+      }
+
+      hasMore = batch.length === DELETION_BATCH_SIZE;
+    }
+
+    if (totalDeactivated === 0) {
       logger.log("[BETA_CRON] checkInactiveUsers: no inactive users found");
       return { processed: 0, errors: 0 };
     }
-
-    const userIds = inactiveUsers.map((u) => u.id);
-
-    const result = await prisma.user.updateMany({
-      where: {
-        id: { in: userIds },
-        betaStatus: "active",
-        OR: [
-          { lastHeartbeatAt: { lt: thresholdDate } },
-          {
-            lastHeartbeatAt: null,
-            betaJoinedAt: { lt: thresholdDate },
-          },
-        ],
-      },
-      data: {
-        betaStatus: "inactive",
-        betaDeactivatedAt: now,
-        betaReactivationDeadline: reactivationDeadline,
-      },
-    });
 
     await redis.del(STATUS_CACHE_KEY).catch((err: unknown) => {
       logger.warn("[BETA_CRON] Redis cache invalidation failed after deactivation:", err);
     });
 
-    for (const user of inactiveUsers) {
-      logger.log(
-        `[BETA_CRON] Deactivated user ${user.id} (last heartbeat: ${user.lastHeartbeatAt?.toISOString() ?? "never"})`,
-      );
-    }
+    logger.log(`[BETA_CRON] checkInactiveUsers: ${totalDeactivated} users deactivated`);
 
-    logger.log(`[BETA_CRON] checkInactiveUsers: ${result.count} users deactivated`);
-
-    return { processed: result.count, errors: 0 };
+    return { processed: totalDeactivated, errors: 0 };
   }
 
   /**
@@ -101,17 +128,31 @@ export class BetaCronService {
    * Runs Monday 00:00 UTC. Uses batch UPDATE (no row-by-row loop).
    */
   static async resetWeeklyCounters(): Promise<CronJobResult> {
-    const result = await prisma.user.updateMany({
-      where: { betaStatus: "active" },
-      data: {
-        weeklyActiveTimeSeconds: 0,
-        weeklySessionCount: 0,
-      },
-    });
+    const lockKey = "cron:lock:resetWeeklyCounters";
+    const acquired = await redis.set(lockKey, "1", "EX", CRON_LOCK_TTL_SECONDS, "NX");
 
-    logger.log(`[BETA_CRON] resetWeeklyCounters: ${result.count} users reset`);
+    if (!acquired) {
+      logger.log("[BETA_CRON] resetWeeklyCounters: skipped (another instance holds the lock)");
+      return { processed: 0, errors: 0 };
+    }
 
-    return { processed: result.count, errors: 0 };
+    try {
+      const result = await prisma.user.updateMany({
+        where: { betaStatus: "active" },
+        data: {
+          weeklyActiveTimeSeconds: 0,
+          weeklySessionCount: 0,
+        },
+      });
+
+      logger.log(`[BETA_CRON] resetWeeklyCounters: ${result.count} users reset`);
+
+      return { processed: result.count, errors: 0 };
+    } finally {
+      await redis.del(lockKey).catch((err: unknown) => {
+        logger.warn("[BETA_CRON] Failed to release resetWeeklyCounters lock:", err);
+      });
+    }
   }
 
   /**
@@ -120,6 +161,24 @@ export class BetaCronService {
    * Runs hourly.
    */
   static async processWaitlist(): Promise<CronJobResult> {
+    const lockKey = "cron:lock:processWaitlist";
+    const acquired = await redis.set(lockKey, "1", "EX", CRON_LOCK_TTL_SECONDS, "NX");
+
+    if (!acquired) {
+      logger.log("[BETA_CRON] processWaitlist: skipped (another instance holds the lock)");
+      return { processed: 0, errors: 0 };
+    }
+
+    try {
+      return await BetaCronService._processWaitlistLocked();
+    } finally {
+      await redis.del(lockKey).catch((err: unknown) => {
+        logger.warn("[BETA_CRON] Failed to release processWaitlist lock:", err);
+      });
+    }
+  }
+
+  private static async _processWaitlistLocked(): Promise<CronJobResult> {
     let promoted = 0;
     let errors = 0;
 
@@ -468,12 +527,19 @@ export class BetaCronService {
             name: user.name,
             newPosition: user.position,
           });
-          await prisma.betaWaitlist.update({
-            where: { id: user.id },
-            data: {
-              notifiedAt: new Date(),
-              metadata: { ...user.existingMeta, lastNotifiedPosition: user.position },
-            },
+          await prisma.$transaction(async (tx) => {
+            const fresh = await tx.betaWaitlist.findUnique({
+              where: { id: user.id },
+              select: { metadata: true },
+            });
+            const freshMeta = (fresh?.metadata as Record<string, unknown> | null) ?? {};
+            await tx.betaWaitlist.update({
+              where: { id: user.id },
+              data: {
+                notifiedAt: new Date(),
+                metadata: { ...freshMeta, lastNotifiedPosition: user.position },
+              },
+            });
           });
         }),
       );

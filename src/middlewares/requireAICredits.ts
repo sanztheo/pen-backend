@@ -57,23 +57,7 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
       const cost = config.dynamicCost ? config.dynamicCost(req) : (config.cost ?? 0.5);
       const action = config.action || `ai_${req.path.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-      // 1. Vérifier si l'utilisateur peut utiliser l'IA
-      const canUse = await AICreditsService.canUseAI(userId);
-      if (!canUse) {
-        secureLog("warn: 🚨 [AI-CREDITS] Tentative usage IA sans crédits", {
-          userId,
-          path: req.path,
-          action,
-        });
-        return res.status(403).json({
-          success: false,
-          error: "Limite de crédits IA atteinte",
-          code: "CREDITS_EXHAUSTED",
-          limitReached: true,
-        });
-      }
-
-      // 2. Déduire les crédits
+      // Déduire les crédits (l'UPSERT atomique vérifie déjà la limite via CASE guard)
       const deductionResult = await AICreditsService.deductCredits(userId, cost, action);
       if (!deductionResult.success) {
         secureLog("warn: 🚨 [AI-CREDITS] Échec déduction crédits", {

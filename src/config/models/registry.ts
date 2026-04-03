@@ -95,6 +95,39 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
       maxOutputTokens: 32_000,
     },
   },
+  "gpt-5.4-nano": {
+    // $0.20 / $1.25
+    id: "gpt-5.4-nano",
+    provider: "openai",
+    pricing: { input: 0.2, output: 1.25 },
+    capabilities: {
+      reasoning: true,
+      fixedTemp: true,
+      streaming: true,
+      structuredOutput: true,
+      vision: true,
+      toolCalling: true,
+      maxContextTokens: 128_000,
+      maxOutputTokens: 64_000,
+    },
+  },
+
+  // ── Codex (code-specialist, tool calling) ──────────────────────────────
+  "gpt-5.1-codex-mini": {
+    // $0.25 / $2.00
+    id: "gpt-5.1-codex-mini",
+    provider: "openai",
+    pricing: { input: 0.25, output: 2 },
+    capabilities: {
+      reasoning: true,
+      fixedTemp: true,
+      streaming: true,
+      structuredOutput: true,
+      toolCalling: true,
+      maxContextTokens: 400_000,
+      maxOutputTokens: 100_000,
+    },
+  },
 
   // ── GPT-4.1 family (non-reasoning, 1M context) ────────────────────────
   "gpt-4.1": {

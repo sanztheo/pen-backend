@@ -1,6 +1,7 @@
 import express from "express";
 import { logger } from "../utils/logger.js";
 import { paddle, PaddleBillingService } from "../services/billing/paddleBilling.js";
+import { withTimeout, PADDLE_TIMEOUT_MS } from "../utils/timeout.js";
 import { prisma } from "../lib/prisma.js";
 import {
   EventName,
@@ -144,7 +145,11 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
     // 1️⃣ Vérifier la signature Paddle (ASYNC - nécessite await)
     let event: Awaited<ReturnType<typeof paddle.webhooks.unmarshal>>;
     try {
-      event = await paddle.webhooks.unmarshal(rawBody, secretKey, signature);
+      event = await withTimeout(
+        paddle.webhooks.unmarshal(rawBody, secretKey, signature),
+        PADDLE_TIMEOUT_MS,
+        "Paddle webhooks.unmarshal",
+      );
       logger.log(`✅ [Paddle Webhook] Signature valide`);
     } catch (e: unknown) {
       const errorMessage = e instanceof Error ? e.message : String(e);
@@ -159,15 +164,23 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
     // 🔍 DEBUG: Log le type d'événement reçu
     logger.log(`📨 [Paddle Webhook] Type: ${eventType}, EventID: ${eventId}`);
 
-    // 2️⃣ IDEMPOTENCE - Éviter de traiter 2x le même événement
+    // 2️⃣ IDEMPOTENCE - Create-first with P2002 catch (avoids TOCTOU race)
     if (eventId) {
-      const alreadyProcessed = await prisma.webhookEvent.findUnique({
-        where: { eventId },
-      });
-
-      if (alreadyProcessed) {
-        logger.log(`⏭️ [Paddle Webhook] Event déjà traité: ${eventType} - ${eventId}`);
-        return res.status(200).json({ skipped: true, reason: "already_processed" });
+      try {
+        await prisma.webhookEvent.create({
+          data: { eventId, type: eventType, processedAt: new Date() },
+        });
+      } catch (err: unknown) {
+        const isPrismaUniqueViolation =
+          err !== null &&
+          typeof err === "object" &&
+          "code" in err &&
+          (err as { code: string }).code === "P2002";
+        if (isPrismaUniqueViolation) {
+          logger.log(`⏭️ [Paddle Webhook] Event déjà traité: ${eventType} - ${eventId}`);
+          return res.status(200).json({ skipped: true, reason: "already_processed" });
+        }
+        throw err;
       }
     }
 
@@ -239,12 +252,6 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
       }
 
       // Si pas de trial ou pas de userId, juste logger
-      if (eventId) {
-        await prisma.webhookEvent.create({
-          data: { eventId, type: eventType, processedAt: new Date() },
-        });
-      }
-
       return res.status(200).json({ success: true, message: "subscription_created_logged" });
     }
 
@@ -290,12 +297,6 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         currentPeriodEnd,
       );
 
-      if (eventId) {
-        await prisma.webhookEvent.create({
-          data: { eventId, type: eventType, processedAt: new Date() },
-        });
-      }
-
       return res.status(200).json({ success: true });
     }
 
@@ -334,12 +335,6 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         cancelAtPeriodEnd: scheduledChange?.action === "cancel",
       });
 
-      if (eventId) {
-        await prisma.webhookEvent.create({
-          data: { eventId, type: eventType, processedAt: new Date() },
-        });
-      }
-
       return res.status(200).json({ success: true });
     }
 
@@ -370,12 +365,6 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         logger.log(`✅ [Paddle Webhook] Subscription marquée pour annulation: ${userId}`);
       }
 
-      if (eventId) {
-        await prisma.webhookEvent.create({
-          data: { eventId, type: eventType, processedAt: new Date() },
-        });
-      }
-
       return res.status(200).json({ success: true });
     }
 
@@ -390,12 +379,6 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
 
       // Mettre en pause = retour temporaire au free
       await PaddleBillingService.finalizeCancel(userId);
-
-      if (eventId) {
-        await prisma.webhookEvent.create({
-          data: { eventId, type: eventType, processedAt: new Date() },
-        });
-      }
 
       return res.status(200).json({ success: true });
     }
@@ -436,12 +419,6 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         currentPeriodEnd,
       );
 
-      if (eventId) {
-        await prisma.webhookEvent.create({
-          data: { eventId, type: eventType, processedAt: new Date() },
-        });
-      }
-
       return res.status(200).json({ success: true });
     }
 
@@ -454,12 +431,6 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
       });
 
       // Juste logger, la subscription.activated gère l'activation
-      if (eventId) {
-        await prisma.webhookEvent.create({
-          data: { eventId, type: eventType, processedAt: new Date() },
-        });
-      }
-
       return res.status(200).json({ success: true, message: "payment_completed_logged" });
     }
 
@@ -474,23 +445,11 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
 
       // TODO: Envoyer email "Problème de paiement"
 
-      if (eventId) {
-        await prisma.webhookEvent.create({
-          data: { eventId, type: eventType, processedAt: new Date() },
-        });
-      }
-
       return res.status(200).json({ success: true, message: "payment_failed_logged" });
     }
 
-    // Si on arrive ici, événement non géré mais valide
+    // Si on arrive ici, événement non géré mais valide (already recorded for idempotency)
     logger.log(`⏭️ [Paddle Webhook] Event non géré: ${eventType}`);
-
-    if (eventId) {
-      await prisma.webhookEvent.create({
-        data: { eventId, type: eventType, processedAt: new Date() },
-      });
-    }
 
     return res.status(200).json({ received: true, unhandled: eventType });
   } catch (err: unknown) {

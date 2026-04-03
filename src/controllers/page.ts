@@ -166,46 +166,47 @@ export const createPage = async (req: Request, res: Response) => {
     const slug = `${baseSlug}-${timestamp}${randomSuffix}`;
 
     const beforeCreate = Date.now();
-    // 🚀 PHASE 1 OPTIMIZATION: Transaction ultra-light (1 seule query)
-    const page = await prisma.page.create({
-      data: {
-        title: validatedData.title,
-        slug,
-        position,
-        projectId: validatedData.projectId,
-        workspaceId: finalWorkspaceId,
-        parentId: validatedData.parentId,
-        createdBy: req.user!.id,
-        blockNoteContent: validatedData.blockNoteContent as Prisma.InputJsonValue | undefined,
-      },
-      include: {
-        author: {
-          select: { id: true, firstName: true, lastName: true, email: true },
+    // Transaction: page creation + counter increment (atomic to prevent desync)
+    const page = await prisma.$transaction(async (tx) => {
+      const created = await tx.page.create({
+        data: {
+          title: validatedData.title,
+          slug,
+          position,
+          projectId: validatedData.projectId,
+          workspaceId: finalWorkspaceId,
+          parentId: validatedData.parentId,
+          createdBy: req.user!.id,
+          blockNoteContent: validatedData.blockNoteContent as Prisma.InputJsonValue | undefined,
         },
-        project: { select: { id: true, name: true, workspaceId: true } },
-        children: {
-          where: { isArchived: false },
-          orderBy: { position: "asc" },
+        include: {
+          author: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
+          project: { select: { id: true, name: true, workspaceId: true } },
+          children: {
+            where: { isArchived: false },
+            orderBy: { position: "asc" },
+          },
+          _count: { select: { children: true } },
         },
-        _count: { select: { children: true } },
-      },
+      });
+
+      await tx.userLimits.update({
+        where: { userId },
+        data: { pagesUsed: { increment: 1 } },
+      });
+
+      return created;
     });
     logger.log(`⏱️  [PERF] Création page DB: ${Date.now() - beforeCreate}ms`);
 
-    // 🚀 PHASE 1 OPTIMIZATION: Updates d'activité et compteurs en asynchrone (non-bloquant)
-    // Ces opérations ne sont pas critiques pour la réponse client
+    // Activity updates (non-critical, fire-and-forget is OK)
     Promise.all([
-      // Incrémenter compteur utilisateur
-      prisma.userLimits.update({
-        where: { userId },
-        data: { pagesUsed: { increment: 1 } },
-      }),
-      // Mettre à jour activité workspace
       prisma.workspace.update({
         where: { id: finalWorkspaceId },
         data: { lastActivityAt: new Date() },
       }),
-      // Mettre à jour activité projet si applicable
       validatedData.projectId
         ? prisma.project.update({
             where: { id: validatedData.projectId },
@@ -213,8 +214,7 @@ export const createPage = async (req: Request, res: Response) => {
           })
         : Promise.resolve(null),
     ]).catch((error) => {
-      logger.error("⚠️ [ASYNC] Erreur updates non-bloquants:", error);
-      // Ne pas bloquer la réponse, juste logger
+      logger.error("⚠️ [ASYNC] Erreur updates activité:", error);
     });
 
     // 🧠 RAG: Traiter la page pour l'embedding (mode asynchrone, pas bloquant)
@@ -830,11 +830,10 @@ export const deletePage = async (req: Request, res: Response) => {
         // 🧠 RAG: supprimer la/les sources liées à la page (et descendants) AVANT la suppression
         try {
           const { userPagesRAG } = await import("../services/rag/userPages.js");
-          // Racine + descendants (même workspace)
           const allIds = [id, ...allDescendantIds];
-          for (const pid of allIds) {
-            await userPagesRAG.removeUserPage(pid, req.user!.id, page.workspace.id);
-          }
+          await Promise.all(
+            allIds.map((pid) => userPagesRAG.removeUserPage(pid, req.user!.id, page.workspace.id)),
+          );
         } catch (e) {
           logger.warn("🧠 [RAG] Échec suppression sources liées à la page (continuation):", e);
         }
@@ -928,9 +927,11 @@ export const cleanupArchivedPages = async (req: Request, res: Response) => {
     try {
       const { userPagesRAG } = await import("../services/rag/userPages.js");
 
-      for (const page of archivedPages) {
-        await userPagesRAG.removeUserPage(page.id, req.user!.id, page.workspaceId);
-      }
+      await Promise.all(
+        archivedPages.map((page) =>
+          userPagesRAG.removeUserPage(page.id, req.user!.id, page.workspaceId),
+        ),
+      );
     } catch (error) {
       logger.error("🧠 [RAG] Erreur suppression sources:", error);
     }

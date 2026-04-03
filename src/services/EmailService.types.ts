@@ -62,6 +62,7 @@ export interface FeedbackReportInput {
   userEmail: string;
   type: "bug" | "suggestion" | "other";
   message: string;
+  whatsappName?: string;
   currentUrl?: string;
   userAgent?: string;
   errorLogs?: FeedbackErrorLog[];

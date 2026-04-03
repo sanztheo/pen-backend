@@ -289,9 +289,13 @@ export class SessionMemorySystem {
     averageQueriesPerSession: number;
     mostUsedSources: Array<{ sourceId: string; title: string; count: number }>;
   }> {
+    const MAX_STATS_SESSIONS = 1000;
+
     const sessions = await prisma.rAGSession.findMany({
       where: { userId },
       include: { sourcesUsed: { select: { id: true, title: true } } },
+      orderBy: { lastQueryAt: "desc" },
+      take: MAX_STATS_SESSIONS,
     });
 
     const activeSessions = sessions.filter(

@@ -10,7 +10,7 @@ import { BETA_LIVE } from "../config/beta.js";
 // Configuration des tâches
 const HEALTH_CHECK_SCHEDULE = "0 */6 * * *"; // Toutes les 6 heures
 const RAG_CLEANUP_SCHEDULE = "0 3 * * *"; // Tous les jours à 3h du matin
-const DAILY_ARTICLE_SCHEDULE = "0 0 * * *"; // Tous les jours à minuit
+
 const MONTHLY_RESET_SCHEDULE = "0 2 * * *"; // Tous les jours à 2h du matin
 const DAILY_LIMITS_RESET_SCHEDULE = "0 0 * * *"; // Tous les jours à minuit
 const BETA_CHECK_INACTIVE_SCHEDULE = "0 * * * *"; // :00 — désactive les inactifs en premier
@@ -60,35 +60,49 @@ export function startCronJobs() {
     async () => {
       logger.log("\n🧹 [CRON] Démarrage nettoyage RAG automatique...");
       try {
-        const { cleanupService } = await import("../services/rag/cleanup.js");
+        const { redis } = await import("../lib/redis.js");
+        const lockKey = "cron:lock:ragCleanup";
+        const acquired = await redis.set(lockKey, "1", "EX", 3600, "NX");
+        if (!acquired) {
+          logger.log("[CRON] ragCleanup: skipped (another instance holds the lock)");
+          return;
+        }
 
-        // Nettoyage avec 7 jours d'âge maximum
-        const stats = await cleanupService.cleanupUnusedSources({
-          maxAge: 7,
-          dryRun: false,
-          includeUserSources: false, // Seulement sources globales
-          batchSize: 100,
-        });
+        try {
+          const { cleanupService } = await import("../services/rag/cleanup.js");
 
-        logger.log(`✅ [CRON] Nettoyage RAG terminé:`, {
-          sourcesDeleted: stats.sourcesDeleted,
-          chunksDeleted: stats.chunksDeleted,
-          spaceFreedMB: stats.spaceFreedMB.toFixed(2),
-          durationMs: stats.duration,
-        });
+          // Nettoyage avec 7 jours d'âge maximum
+          const stats = await cleanupService.cleanupUnusedSources({
+            maxAge: 7,
+            dryRun: false,
+            includeUserSources: false, // Seulement sources globales
+            batchSize: 100,
+          });
 
-        // Log des statistiques de stockage après nettoyage
-        const storageStats = await cleanupService.getStorageStats();
-        logger.log(`📊 [CRON] Statistiques après nettoyage:`, storageStats);
+          logger.log(`✅ [CRON] Nettoyage RAG terminé:`, {
+            sourcesDeleted: stats.sourcesDeleted,
+            chunksDeleted: stats.chunksDeleted,
+            spaceFreedMB: stats.spaceFreedMB.toFixed(2),
+            durationMs: stats.duration,
+          });
 
-        // 🗑️ Nettoyage des fichiers utilisateur non utilisés depuis 7 jours
-        logger.log("\n🗑️ [CRON] Nettoyage des fichiers utilisateur...");
-        const fileStats = await cleanupService.cleanupOldUserFiles(7);
-        logger.log(`✅ [CRON] Fichiers utilisateurs nettoyés:`, {
-          filesDeleted: fileStats.count,
-          chunksDeleted: fileStats.chunksDeleted,
-          spaceFreedMB: fileStats.spaceFreedMB.toFixed(2),
-        });
+          // Log des statistiques de stockage après nettoyage
+          const storageStats = await cleanupService.getStorageStats();
+          logger.log(`📊 [CRON] Statistiques après nettoyage:`, storageStats);
+
+          // 🗑️ Nettoyage des fichiers utilisateur non utilisés depuis 7 jours
+          logger.log("\n🗑️ [CRON] Nettoyage des fichiers utilisateur...");
+          const fileStats = await cleanupService.cleanupOldUserFiles(7);
+          logger.log(`✅ [CRON] Fichiers utilisateurs nettoyés:`, {
+            filesDeleted: fileStats.count,
+            chunksDeleted: fileStats.chunksDeleted,
+            spaceFreedMB: fileStats.spaceFreedMB.toFixed(2),
+          });
+        } finally {
+          await redis.del(lockKey).catch((err: unknown) => {
+            logger.warn("[CRON] Failed to release ragCleanup lock:", err);
+          });
+        }
       } catch (error) {
         logger.error("❌ [CRON] Erreur lors du nettoyage RAG:", error);
       }
@@ -100,59 +114,34 @@ export function startCronJobs() {
 
   logger.log(`✅ Tâche de nettoyage RAG programmée: ${RAG_CLEANUP_SCHEDULE} (Europe/Paris)`);
 
-  // 📰 Fetch de l'article scientifique du jour (Futura Sciences)
-  const dailyArticleTask = cron.schedule(
-    DAILY_ARTICLE_SCHEDULE,
-    async () => {
-      logger.log("\n📰 [CRON] Fetch de l'article scientifique du jour...");
-      try {
-        const { FuturaRssService } = await import("../services/futuraRss.service.js");
-
-        // Récupérer et sauvegarder l'article de la semaine
-        const latestArticle = await FuturaRssService.fetchLatestArticle();
-
-        if (latestArticle) {
-          const savedArticle = await FuturaRssService.saveWeeklyArticle(latestArticle);
-
-          if (savedArticle) {
-            logger.log(
-              `✅ [CRON] Article de la semaine sauvegardé: "${savedArticle.title.substring(0, 50)}..."`,
-            );
-
-            // Nettoyer les anciens articles (garder seulement 7 jours)
-            const deletedCount = await FuturaRssService.cleanupOldArticles();
-            logger.log(`🗑️ [CRON] ${deletedCount} ancien(s) article(s) supprimé(s)`);
-          } else {
-            logger.warn("⚠️ [CRON] Article déjà existant pour cette semaine");
-          }
-        } else {
-          logger.error("❌ [CRON] Aucun article récupéré depuis Futura Sciences");
-        }
-      } catch (error) {
-        logger.error("❌ [CRON] Erreur lors du fetch de l'article quotidien:", error);
-      }
-    },
-    {
-      timezone: "Europe/Paris",
-    },
-  );
-
-  logger.log(`✅ Tâche article quotidien programmée: ${DAILY_ARTICLE_SCHEDULE} (Europe/Paris)`);
-
   // 🔄 Reset mensuel des limitations pour les users gratuits
   const monthlyResetTask = cron.schedule(
     MONTHLY_RESET_SCHEDULE,
     async () => {
       logger.log("\n🔄 [CRON] Démarrage du reset mensuel...");
       try {
-        const { processMonthlyResets } = await import("../lib/monthlyReset.js");
+        const { redis } = await import("../lib/redis.js");
+        const lockKey = "cron:lock:monthlyReset";
+        const acquired = await redis.set(lockKey, "1", "EX", 300, "NX");
+        if (!acquired) {
+          logger.log("[CRON] monthlyReset: skipped (another instance holds the lock)");
+          return;
+        }
 
-        const result = await processMonthlyResets();
+        try {
+          const { processMonthlyResets } = await import("../lib/monthlyReset.js");
 
-        logger.log(`✅ [CRON] Reset mensuel terminé:`, {
-          usersReset: result.resetCount,
-          downgrades: result.downgradeCount,
-        });
+          const result = await processMonthlyResets();
+
+          logger.log(`✅ [CRON] Reset mensuel terminé:`, {
+            usersReset: result.resetCount,
+            downgrades: result.downgradeCount,
+          });
+        } finally {
+          await redis.del(lockKey).catch((err: unknown) => {
+            logger.warn("[CRON] Failed to release monthlyReset lock:", err);
+          });
+        }
       } catch (error) {
         logger.error("❌ [CRON] Erreur lors du reset mensuel:", error);
       }
@@ -170,31 +159,45 @@ export function startCronJobs() {
     async () => {
       logger.log("\n🔄 [CRON] Démarrage du reset quotidien des limites quiz avancés...");
       try {
-        const { startDailyLimitsReset } = await import("../services/cron/resetLimitsCron.js");
+        const { redis } = await import("../lib/redis.js");
+        const lockKey = "cron:lock:dailyLimitsReset";
+        const acquired = await redis.set(lockKey, "1", "EX", 300, "NX");
+        if (!acquired) {
+          logger.log("[CRON] dailyLimitsReset: skipped (another instance holds the lock)");
+          return;
+        }
 
-        // Exécuter le reset immédiatement
-        const { prisma } = await import("../lib/prisma.js");
-        const now = new Date();
-        const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        try {
+          const { startDailyLimitsReset } = await import("../services/cron/resetLimitsCron.js");
 
-        const result = await prisma.userLimits.updateMany({
-          where: {
-            advancedQuizzesResetAt: {
-              lte: twentyFourHoursAgo,
+          // Exécuter le reset immédiatement
+          const { prisma } = await import("../lib/prisma.js");
+          const now = new Date();
+          const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+          const result = await prisma.userLimits.updateMany({
+            where: {
+              advancedQuizzesResetAt: {
+                lte: twentyFourHoursAgo,
+              },
+              advancedQuizzesUsed: {
+                gt: 0,
+              },
             },
-            advancedQuizzesUsed: {
-              gt: 0,
+            data: {
+              advancedQuizzesUsed: 0,
+              advancedQuizzesResetAt: null,
             },
-          },
-          data: {
-            advancedQuizzesUsed: 0,
-            advancedQuizzesResetAt: null,
-          },
-        });
+          });
 
-        logger.log(
-          `✅ [CRON] Reset quotidien terminé: ${result.count} utilisateur(s) réinitialisé(s)`,
-        );
+          logger.log(
+            `✅ [CRON] Reset quotidien terminé: ${result.count} utilisateur(s) réinitialisé(s)`,
+          );
+        } finally {
+          await redis.del(lockKey).catch((err: unknown) => {
+            logger.warn("[CRON] Failed to release dailyLimitsReset lock:", err);
+          });
+        }
       } catch (error) {
         logger.error("❌ [CRON] Erreur lors du reset quotidien:", error);
       }
@@ -338,6 +341,26 @@ export function startCronJobs() {
     logger.log("⏸️ Beta management cron jobs désactivés (BETA_LIVE = false)");
   }
 
+  // 📧 Retry pending emails that failed due to rate limits
+  const emailRetryTask = cron.schedule(
+    "45 * * * *", // :45 — retry pending emails every hour
+    async () => {
+      logger.log("\n📧 [CRON] Retry pending emails...");
+      try {
+        const { retryPendingEmails } = await import("../services/EmailService.js");
+        const result = await retryPendingEmails();
+        logger.log(
+          `✅ [CRON] Email retry: ${result.sent} sent, ${result.failed} failed, ${result.dropped} dropped, ${result.remaining} remaining`,
+        );
+      } catch (error) {
+        logger.error("❌ [CRON] Erreur email retry:", error);
+      }
+    },
+    { timezone: "UTC" },
+  );
+
+  logger.log("✅ Tâche email retry programmée: 45 * * * * (UTC)");
+
   // En développement, ajouter une tâche de test plus fréquente
   if (NODE_ENV === "development") {
     // Tâche de test toutes les 5 minutes (désactivée par défaut)
@@ -368,9 +391,9 @@ export function startCronJobs() {
   const tasks = [
     healthCheckTask,
     ragCleanupTask,
-    dailyArticleTask,
     monthlyResetTask,
     dailyLimitsResetTask,
+    emailRetryTask,
     ...(BETA_LIVE
       ? [
           betaCheckInactiveTask,
@@ -388,7 +411,6 @@ export function startCronJobs() {
   return {
     healthCheck: healthCheckTask,
     ragCleanup: ragCleanupTask,
-    dailyArticle: dailyArticleTask,
     monthlyReset: monthlyResetTask,
     dailyLimitsReset: dailyLimitsResetTask,
     ...(BETA_LIVE

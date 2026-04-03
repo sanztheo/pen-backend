@@ -210,12 +210,22 @@ export class AICreditsService {
     });
 
     try {
-      // Récupérer les limites actuelles de l'utilisateur
-      const userLimits = await prisma.userLimits.findUnique({
+      // Atomic refund: single UPDATE avoids read-then-write race condition
+      const now = new Date();
+      await prisma.$executeRaw`
+        UPDATE "user_limits"
+        SET "ai_credits_used" = GREATEST(0, "ai_credits_used" - ${amount}),
+            "updated_at" = ${now}
+        WHERE "user_id" = ${userId}
+      `;
+
+      // Read final state for response
+      const updatedLimits = await prisma.userLimits.findUnique({
         where: { userId },
+        select: { aiCreditsUsed: true, aiCreditsLimit: true },
       });
 
-      if (!userLimits) {
+      if (!updatedLimits) {
         SecureLogger.error(`❌ [SERVER-CREDITS] Utilisateur inexistant pour remboursement`, {
           userId,
         });
@@ -225,35 +235,7 @@ export class AICreditsService {
         };
       }
 
-      SecureLogger.debug(`📊 [SERVER-CREDITS] Limites utilisateur avant remboursement`, {
-        userId,
-        currentUsage: userLimits.aiCreditsUsed,
-        limit: userLimits.aiCreditsLimit,
-      });
-
-      // Calculer le nouveau usage (ne peut pas être négatif)
-      const newAiCreditsUsed = Math.max(0, userLimits.aiCreditsUsed - amount);
-      SecureLogger.debug(`💳 [SERVER-CREDITS] Calcul remboursement`, {
-        userId,
-        previousUsage: userLimits.aiCreditsUsed,
-        refundAmount: amount,
-        newUsage: newAiCreditsUsed,
-      });
-
-      // Mettre à jour les crédits
-      const updatedLimits = await prisma.userLimits.update({
-        where: { userId },
-        data: {
-          aiCreditsUsed: newAiCreditsUsed,
-        },
-      });
-
-      SecureLogger.debug(`💳 [SERVER-CREDITS] Crédits remboursés`, {
-        userId,
-        newUsage: updatedLimits.aiCreditsUsed,
-      });
-
-      // Enregistrer le remboursement dans les logs
+      // Record the refund audit log
       await this.recordRefund(userId, "ai_refund", amount, {
         action,
         reason: "generation_failure",
@@ -261,19 +243,15 @@ export class AICreditsService {
 
       const newBalance =
         updatedLimits.aiCreditsLimit === -1
-          ? -1 // Illimité
-          : updatedLimits.aiCreditsLimit - updatedLimits.aiCreditsUsed;
-
-      const result = {
-        success: true,
-        newBalance: newBalance < 0 ? 0 : newBalance,
-      };
+          ? -1
+          : Math.max(0, updatedLimits.aiCreditsLimit - updatedLimits.aiCreditsUsed);
 
       SecureLogger.debug(`✅ [SERVER-CREDITS] Remboursement réussi`, {
         userId,
-        newBalance: result.newBalance,
+        newBalance,
       });
-      return result;
+
+      return { success: true, newBalance };
     } catch (error) {
       SecureLogger.error("❌ Erreur lors du remboursement des crédits IA", error);
       return {
@@ -371,30 +349,21 @@ export class AICreditsService {
    */
   static async resetMonthlyCredits(userId: string): Promise<boolean> {
     try {
-      const userLimits = await prisma.userLimits.findUnique({
-        where: { userId },
-      });
-
-      if (!userLimits || userLimits.resetType !== "monthly") {
-        return false;
-      }
-
       const now = new Date();
-      const lastReset = userLimits.lastResetAt;
       const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
 
-      if (lastReset < oneMonthAgo) {
-        await prisma.userLimits.update({
-          where: { userId },
-          data: {
-            aiCreditsUsed: 0,
-            lastResetAt: now,
-          },
-        });
-        return true;
-      }
+      // Atomic: reset only if monthly type AND last reset older than one month
+      const affected = await prisma.$executeRaw`
+        UPDATE "user_limits"
+        SET "ai_credits_used" = 0,
+            "last_reset_at" = ${now},
+            "updated_at" = ${now}
+        WHERE "user_id" = ${userId}
+          AND "reset_type" = 'monthly'
+          AND "last_reset_at" < ${oneMonthAgo}
+      `;
 
-      return false;
+      return affected > 0;
     } catch (error) {
       SecureLogger.error("Erreur lors de la réinitialisation des crédits", error);
       return false;

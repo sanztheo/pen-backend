@@ -17,43 +17,45 @@ function env(key: string): string | undefined {
 export const MODELS = {
   // ── Agent (chat principal) ────────────────────────────────────────────────
   /** Chat agent principal — thinking contrôlé via providerOptions */
-  AGENT_PRIMARY: env("AGENT_MODEL") || "gemini-3.1-flash-lite-preview",
+  AGENT_PRIMARY: env("AGENT_MODEL") || "gemini-3-flash-preview",
+  /** Fallback si le provider principal est down (circuit breaker) */
+  AGENT_FALLBACK: env("AGENT_FALLBACK_MODEL") || "gpt-4o-mini",
   /** Workflows — steps rapides, pas de thinking */
-  AGENT_FAST: "gemini-3.1-flash-lite-preview",
+  AGENT_FAST: "gemini-3-flash-preview",
   /** Workflows — steps complexes (thinking via providerOptions) */
-  AGENT_THINKING: "gemini-3.1-flash-lite-preview",
+  AGENT_THINKING: "gemini-3-flash-preview",
 
-  // ── Quiz (Gemini flash-lite — 382 t/s, 97% JSON compliance) ──────────────
+  // ── Quiz (Gemini 3 Flash — reasoning + structured output) ────────────────
   /** Generation de questions quiz */
-  QUIZ_GENERATION: "gemini-3.1-flash-lite-preview",
+  QUIZ_GENERATION: "gemini-3-flash-preview",
   /** Correction de quiz */
-  QUIZ_CORRECTION: "gemini-3.1-flash-lite-preview",
+  QUIZ_CORRECTION: "gemini-3-flash-preview",
   /** Batch explanation generation during correction */
-  QUIZ_EXPLANATION: "gemini-3.1-flash-lite-preview",
+  QUIZ_EXPLANATION: "gemini-3-flash-preview",
   /** Preprocessor quiz */
-  PREPROCESSOR: "gemini-3.1-flash-lite-preview",
+  PREPROCESSOR: "gemini-3-flash-preview",
   /** Extraction de concepts */
-  EXTRACTION: "gemini-3.1-flash-lite-preview",
+  EXTRACTION: "gemini-3-flash-preview",
   /** Clustering thematique */
-  CLUSTERING: "gemini-3.1-flash-lite-preview",
+  CLUSTERING: "gemini-3-flash-preview",
   /** Graphiques quiz + controller */
-  GRAPHICS: "gemini-3.1-flash-lite-preview",
+  GRAPHICS: "gemini-3-flash-preview",
   /** Fonctions assistant quiz */
-  ASSISTANT_FUNCTIONS: "gemini-3.1-flash-lite-preview",
+  ASSISTANT_FUNCTIONS: "gemini-3-flash-preview",
 
   // ── Taches legeres ────────────────────────────────────────────────────────
   /** Taches legeres (titres quiz, RSS, micro-taches) */
-  LIGHTWEIGHT: "gemini-3.1-flash-lite-preview",
+  LIGHTWEIGHT: "gemini-3-flash-preview",
   /** Validation pertinence RSS */
   RSS_VALIDATION: "gpt-5-nano",
 
   // ── Contenu & detection ───────────────────────────────────────────────────
   /** Generation contenu editeur (dashboard) */
-  CONTENT_DEFAULT: env("OPENAI_DASHBOARD_MODEL") || "gemini-3.1-flash-lite-preview",
+  CONTENT_DEFAULT: env("OPENAI_DASHBOARD_MODEL") || "gemini-3-flash-preview",
   /** Detection type question RAG */
-  DETECTION: env("OPENAI_DETECTION_MODEL") || "gemini-3.1-flash-lite-preview",
+  DETECTION: env("OPENAI_DETECTION_MODEL") || "gemini-3-flash-preview",
   /** Titre de conversation */
-  CONVERSATION_TITLE: "gemini-3.1-flash-lite-preview",
+  CONVERSATION_TITLE: "gemini-3-flash-preview",
   /** Recherche web (OpenAI Responses API — reste sur OpenAI) */
   WEB_SEARCH: "gpt-4o-mini",
 
@@ -83,5 +85,5 @@ export function getSupportedModels(): [string, ...string[]] {
       return validated as [string, ...string[]];
     }
   }
-  return ["gemini-3.1-flash-lite-preview", "gpt-4o-mini", "gpt-5-mini"];
+  return ["gemini-3-flash-preview", "gpt-4o-mini", "gpt-5-mini"];
 }

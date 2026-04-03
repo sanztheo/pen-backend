@@ -90,7 +90,164 @@ interface SendEmailParams {
   label: string;
 }
 
-async function sendEmail(params: SendEmailParams): Promise<void> {
+// ─── Global rate-limited email queue ────────────────────────
+// Resend limit: 25 req/s (upgraded) — we enforce 20/s with safety margin.
+// Every email in the app passes through this single queue,
+// eliminating burst issues from cron jobs, admin bulk actions, etc.
+const MAX_EMAILS_PER_SECOND = 20;
+const SLOT_INTERVAL_MS = Math.ceil(1_000 / MAX_EMAILS_PER_SECOND);
+const MAX_QUEUE_SIZE = 500;
+
+interface QueuedEmail {
+  params: SendEmailParams;
+  resolve: () => void;
+  reject: (err: unknown) => void;
+}
+
+const emailQueue: QueuedEmail[] = [];
+let queueProcessing = false;
+let lastSendTimestamp = 0;
+
+async function drainQueue(): Promise<void> {
+  if (queueProcessing) return;
+  queueProcessing = true;
+
+  try {
+    while (emailQueue.length > 0) {
+      const item = emailQueue.shift()!;
+
+      // Enforce minimum interval between sends
+      const elapsed = Date.now() - lastSendTimestamp;
+      if (elapsed < SLOT_INTERVAL_MS) {
+        await delay(SLOT_INTERVAL_MS - elapsed);
+      }
+
+      try {
+        await sendEmailDirect(item.params);
+        item.resolve();
+      } catch (err: unknown) {
+        item.reject(err);
+      }
+
+      lastSendTimestamp = Date.now();
+    }
+  } finally {
+    queueProcessing = false;
+  }
+
+  // Items may have been enqueued while we were in the finally block
+  if (emailQueue.length > 0) {
+    void drainQueue();
+  }
+}
+
+function sendEmail(params: SendEmailParams): Promise<void> {
+  if (emailQueue.length >= MAX_QUEUE_SIZE) {
+    logger.warn(`[EmailService] Queue full (${MAX_QUEUE_SIZE}), dropping email: ${params.label}`);
+    return Promise.reject(new Error("queue_full"));
+  }
+  return new Promise<void>((resolve, reject) => {
+    emailQueue.push({ params, resolve, reject });
+    if (emailQueue.length > 1) {
+      logger.log(`[EmailService] Queue depth: ${emailQueue.length}`);
+    }
+    void drainQueue();
+  });
+}
+
+// ─── Pending email store (Redis) ────────────────────────────
+// Emails that fail due to daily rate limits are stored in Redis
+// and retried by a cron job every hour.
+const PENDING_EMAIL_KEY = "email:pending";
+const MAX_RETRY_COUNT = 3;
+
+interface PendingEmail {
+  params: SendEmailParams;
+  retryCount: number;
+  storedAt: number;
+}
+
+async function storePendingEmail(params: SendEmailParams, retryCount = 0): Promise<void> {
+  try {
+    const { redis } = await import("../lib/redis.js");
+    const entry: PendingEmail = { params, retryCount, storedAt: Date.now() };
+    await redis.rpush(PENDING_EMAIL_KEY, JSON.stringify(entry));
+    logger.warn(
+      `[EmailService] Stored pending email (attempt ${retryCount + 1}/${MAX_RETRY_COUNT}): ${params.label} to ${maskEmail(params.to)}`,
+    );
+  } catch (err: unknown) {
+    logger.error("[EmailService] Failed to store pending email in Redis:", err);
+  }
+}
+
+/**
+ * Retry pending emails from Redis. Called by cron every hour.
+ * Processes up to 50 emails per run, respecting rate limits.
+ */
+export async function retryPendingEmails(): Promise<{
+  sent: number;
+  failed: number;
+  dropped: number;
+  remaining: number;
+}> {
+  const { redis } = await import("../lib/redis.js");
+  const total = await redis.llen(PENDING_EMAIL_KEY);
+
+  if (total === 0) return { sent: 0, failed: 0, dropped: 0, remaining: 0 };
+
+  logger.log(`[EmailService] Retrying ${total} pending emails...`);
+
+  let sent = 0;
+  let failed = 0;
+  let dropped = 0;
+  const batchSize = Math.min(total, 50);
+
+  for (let i = 0; i < batchSize; i++) {
+    const raw = await redis.lpop(PENDING_EMAIL_KEY);
+    if (!raw) break;
+
+    let entry: PendingEmail;
+    try {
+      entry = JSON.parse(raw) as PendingEmail;
+    } catch {
+      dropped++;
+      continue;
+    }
+
+    // Drop emails that exceeded max retries or are older than 24h
+    const ageMs = Date.now() - entry.storedAt;
+    if (entry.retryCount >= MAX_RETRY_COUNT || ageMs > 86_400_000) {
+      dropped++;
+      logger.warn(
+        `[EmailService] Dropped pending email (retries: ${entry.retryCount}, age: ${Math.round(ageMs / 60_000)}min): ${entry.params.label}`,
+      );
+      continue;
+    }
+
+    try {
+      await sendEmailDirect(entry.params);
+      sent++;
+    } catch {
+      // Still failing — push back with incremented retry count
+      await storePendingEmail(entry.params, entry.retryCount + 1);
+      failed++;
+      break; // Stop batch if still rate limited
+    }
+
+    await delay(SLOT_INTERVAL_MS);
+  }
+
+  const remaining = await redis.llen(PENDING_EMAIL_KEY);
+  logger.log(
+    `[EmailService] Pending retry complete: ${sent} sent, ${failed} failed, ${dropped} dropped, ${remaining} remaining`,
+  );
+
+  return { sent, failed, dropped, remaining };
+}
+
+// ─── Direct send (called by queue — includes retry logic) ───
+
+async function sendEmailDirect(params: SendEmailParams): Promise<void> {
   if (!isValidEmail(params.to)) {
     logger.warn(`[EmailService] Invalid recipient email for ${params.label}, skipping`);
     return;
@@ -119,6 +276,9 @@ async function sendEmail(params: SendEmailParams): Promise<void> {
           await delay(RETRY_DELAY_MS);
           continue;
         }
+        if (isRetryableError(error)) {
+          void storePendingEmail(params);
+        }
         logger.error(
           `[EmailService] Resend API error (${params.label}):`,
           sanitizeResendError(error),
@@ -135,6 +295,9 @@ async function sendEmail(params: SendEmailParams): Promise<void> {
         );
         await delay(RETRY_DELAY_MS);
         continue;
+      }
+      if (isRetryableError(err)) {
+        void storePendingEmail(params);
       }
       logger.error(`[EmailService] Failed to send ${params.label}:`, err);
       return;
@@ -218,6 +381,9 @@ export function _resetForTest(): void {
     throw new Error("_resetForTest is only available in test environment");
   }
   initPromise = null;
+  emailQueue.length = 0;
+  queueProcessing = false;
+  lastSendTimestamp = 0;
 }
 
 /** @internal — for unit tests only */
@@ -447,6 +613,7 @@ function buildFeedbackReportHtml(input: FeedbackReportInput): string {
           <tr>
             <td style="padding:6px 0;color:#71717a;font-size:13px;"><strong>Email:</strong> ${escapeHtml(input.userEmail)}</td>
           </tr>
+          ${input.whatsappName ? `<tr><td style="padding:6px 0;color:#71717a;font-size:13px;"><strong>WhatsApp:</strong> ${escapeHtml(input.whatsappName)}</td></tr>` : ""}
           ${input.currentUrl ? `<tr><td style="padding:6px 0;color:#71717a;font-size:13px;"><strong>URL:</strong> ${escapeHtml(input.currentUrl)}</td></tr>` : ""}
           ${input.userAgent ? `<tr><td style="padding:6px 0;color:#71717a;font-size:13px;"><strong>User-Agent:</strong> ${escapeHtml(input.userAgent)}</td></tr>` : ""}
           <tr>
