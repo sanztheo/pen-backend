@@ -24,7 +24,7 @@ export type QuestionType = "OPEN_QUESTION" | "MULTIPLE_CHOICE" | "TRUE_FALSE" | 
 /**
  * Plans d'abonnement
  */
-export type SubscriptionPlan = "free_user" | "premium";
+export type SubscriptionPlan = "free_user" | "premium" | "ultra";
 
 /**
  * Limites par plan d'abonnement

@@ -38,6 +38,7 @@ import { quizPreprocessorAgent } from "../services/quiz/preprocessor/QuizPreproc
 import type { PreprocessorPromptParams } from "../services/quiz/preprocessor/prompts.js";
 import { generateQuizTitle } from "../services/quiz/utils/titleGenerator.js";
 import { SUBSCRIPTION_LIMITS } from "../services/quiz/preprocessor/constants.js";
+import { normalizePlan } from "../utils/plans.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types pour le streaming de quiz
@@ -288,7 +289,7 @@ export class QuizStreamingController {
           select: { plan: true },
         });
 
-        const plan = subscription?.plan === "premium" ? "premium" : "free_user";
+        const plan = normalizePlan(subscription?.plan);
         const maxPagesSelection = SUBSCRIPTION_LIMITS[plan].maxPagesSelection;
 
         if (pagesCount > maxPagesSelection) {
@@ -993,7 +994,7 @@ export class QuizStreamingController {
           if (subscription.isPremium) {
             useIntelligentGeneration = true;
             logger.log(
-              `🧠 [PREMIUM-INTELLIGENT] Mode intelligent activé automatiquement pour l'utilisateur premium ${userId}`,
+              `🧠 [PAID-INTELLIGENT] Mode intelligent activé automatiquement pour l'utilisateur ${subscription.plan} ${userId}`,
             );
           }
         } catch (error) {

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { GraphicsController } from "../controllers/graphicsController.js";
 import { authenticateToken } from "../middlewares/auth.js";
 import { requireAICredits } from "../middlewares/requireAICredits.js";
-import { requirePremiumPlan } from "../middlewares/requirePremiumPlan.js";
+import { requirePaidPlan } from "../middlewares/requirePaidPlan.js";
 
 const router = Router();
 const graphicsController = new GraphicsController();
@@ -11,7 +11,7 @@ const graphicsController = new GraphicsController();
 router.post(
   "/generate",
   authenticateToken,
-  requirePremiumPlan(),
+  requirePaidPlan(),
   requireAICredits({ cost: 1.0, action: "ai_graphic_generation" }),
   (req, res) => {
     graphicsController.generateGraphic(req, res);

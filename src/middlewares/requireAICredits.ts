@@ -6,8 +6,9 @@
 import { Request, Response, NextFunction } from "express";
 import { AICreditsService } from "../services/credits/aiCreditsService.js";
 import { AuthUser } from "../services/auth.js";
-import { prisma } from "../lib/prisma.js";
 import { secureLog } from "../lib/secureLogging.js";
+import { findSelectableModel } from "../config/models/selectable.js";
+import { DailyModelLimitService } from "../services/credits/dailyModelLimit.js";
 
 interface AuthRequest extends Request {
   user?: AuthUser;
@@ -37,30 +38,38 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
         });
       }
 
-      // SÉCURITÉ: Vérifier que l'utilisateur existe en base de données
-      const userExists = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true },
-      });
-      if (!userExists) {
-        secureLog("error: ❌ [AI-CREDITS] Tentative d'utilisation pour un utilisateur inexistant", {
-          userId,
-        });
-        return res.status(404).json({
-          success: false,
-          error: "Utilisateur non trouvé",
-          code: "USER_NOT_FOUND",
-        });
+      // Calculer le coût (dynamique si fourni, sinon fixe)
+      const baseCost = config.dynamicCost ? config.dynamicCost(req) : (config.cost ?? 1);
+      const action = config.action || `ai_${req.path.replace(/[^a-zA-Z0-9]/g, "_")}`;
+      // Fix: frontend sends modelSelection (composite ID), not modelId
+      const modelCompositeId = (req.body?.modelSelection ?? req.body?.modelId) as
+        | string
+        | undefined;
+      const selectedModel = modelCompositeId ? findSelectableModel(modelCompositeId) : undefined;
+      const multiplier = selectedModel?.creditMultiplier ?? 1;
+      const cost = baseCost * multiplier;
+
+      const isExpensive =
+        selectedModel &&
+        (selectedModel.creditTier === "premium" || selectedModel.creditTier === "elite");
+      if (isExpensive) {
+        const dailyCheck = await DailyModelLimitService.checkDailyLimit(userId, cost);
+        if (!dailyCheck.allowed) {
+          return res.status(429).json({
+            success: false,
+            error: "DAILY_MODEL_LIMIT",
+            message: `Limite quotidienne pour les modèles premium atteinte. ${dailyCheck.remaining} crédits restants aujourd'hui.`,
+            code: "DAILY_MODEL_LIMIT",
+            remaining: dailyCheck.remaining,
+            dailyLimit: dailyCheck.dailyLimit,
+            resetsAt: "midnight UTC",
+          });
+        }
       }
 
-      // 💰 Calculer le coût (dynamique si fourni, sinon fixe)
-      const cost = config.dynamicCost ? config.dynamicCost(req) : (config.cost ?? 0.5);
-      const action = config.action || `ai_${req.path.replace(/[^a-zA-Z0-9]/g, "_")}`;
-
-      // Déduire les crédits (l'UPSERT atomique vérifie déjà la limite via CASE guard)
       const deductionResult = await AICreditsService.deductCredits(userId, cost, action);
       if (!deductionResult.success) {
-        secureLog("warn: 🚨 [AI-CREDITS] Échec déduction crédits", {
+        secureLog("warn: [AI-CREDITS] Credit deduction failed", {
           userId,
           path: req.path,
           action,
@@ -71,9 +80,14 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
           success: false,
           error: deductionResult.message,
           code: "CREDITS_DEDUCTION_FAILED",
+          creditCost: cost,
           remainingCredits: deductionResult.remainingCredits,
           limitReached: deductionResult.limitReached,
         });
+      }
+
+      if (isExpensive) {
+        await DailyModelLimitService.checkAndIncrement(userId, cost);
       }
 
       // 3. Ajouter infos crédits à la requête

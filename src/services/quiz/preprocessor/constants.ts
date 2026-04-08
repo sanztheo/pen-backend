@@ -1,24 +1,41 @@
 // preprocessor/constants.ts - Constantes des limites par plan
+// Les valeurs numériques dérivent de PLAN_LIMITS (source unique de vérité).
+// Seuls allowedQuestionTypes et advancedQuizzes sont spécifiques au quiz.
 
+import { PLAN_LIMITS } from "../../../config/planLimits.js";
 import { SubscriptionLimits, SubscriptionPlan, QuestionType } from "./types.js";
 
+/** Types de questions autorisés par plan (quiz-spécifique, pas dans PLAN_LIMITS) */
+const ALLOWED_QUESTION_TYPES: Record<SubscriptionPlan, QuestionType[]> = {
+  free_user: ["MULTIPLE_CHOICE", "TRUE_FALSE"],
+  premium: ["OPEN_QUESTION", "MULTIPLE_CHOICE", "TRUE_FALSE", "MATCHING"],
+  ultra: ["OPEN_QUESTION", "MULTIPLE_CHOICE", "TRUE_FALSE", "MATCHING"],
+};
+
 /**
- * Limites par plan d'abonnement
+ * Limites par plan d'abonnement — dérivées de PLAN_LIMITS + quiz-specific fields
  */
 export const SUBSCRIPTION_LIMITS: Record<SubscriptionPlan, SubscriptionLimits> = {
   free_user: {
-    maxQuestionsPerQuiz: 10,
-    allowedQuestionTypes: ["MULTIPLE_CHOICE", "TRUE_FALSE"],
-    maxPagesSelection: 2,
-    maxQuizzesPerMonth: 5,
-    advancedQuizzes: false,
+    maxQuestionsPerQuiz: PLAN_LIMITS.free_user.questionsPerQuizLimit,
+    allowedQuestionTypes: ALLOWED_QUESTION_TYPES.free_user,
+    maxPagesSelection: PLAN_LIMITS.free_user.pagesSelectionLimit,
+    maxQuizzesPerMonth: PLAN_LIMITS.free_user.customQuizzesLimit,
+    advancedQuizzes: PLAN_LIMITS.free_user.advancedQuizzesLimit === -1,
   },
   premium: {
-    maxQuestionsPerQuiz: 40,
-    allowedQuestionTypes: ["OPEN_QUESTION", "MULTIPLE_CHOICE", "TRUE_FALSE", "MATCHING"],
-    maxPagesSelection: 30,
-    maxQuizzesPerMonth: -1, // Illimité
-    advancedQuizzes: true,
+    maxQuestionsPerQuiz: PLAN_LIMITS.premium.questionsPerQuizLimit,
+    allowedQuestionTypes: ALLOWED_QUESTION_TYPES.premium,
+    maxPagesSelection: PLAN_LIMITS.premium.pagesSelectionLimit,
+    maxQuizzesPerMonth: PLAN_LIMITS.premium.customQuizzesLimit,
+    advancedQuizzes: PLAN_LIMITS.premium.advancedQuizzesLimit === -1,
+  },
+  ultra: {
+    maxQuestionsPerQuiz: PLAN_LIMITS.ultra.questionsPerQuizLimit,
+    allowedQuestionTypes: ALLOWED_QUESTION_TYPES.ultra,
+    maxPagesSelection: PLAN_LIMITS.ultra.pagesSelectionLimit,
+    maxQuizzesPerMonth: PLAN_LIMITS.ultra.customQuizzesLimit,
+    advancedQuizzes: PLAN_LIMITS.ultra.advancedQuizzesLimit === -1,
   },
 };
 
@@ -28,6 +45,7 @@ export const SUBSCRIPTION_LIMITS: Record<SubscriptionPlan, SubscriptionLimits> =
 export const DEFAULT_QUESTION_TYPES: Record<SubscriptionPlan, QuestionType[]> = {
   free_user: ["MULTIPLE_CHOICE", "TRUE_FALSE"],
   premium: ["MULTIPLE_CHOICE", "TRUE_FALSE", "OPEN_QUESTION", "MATCHING"],
+  ultra: ["MULTIPLE_CHOICE", "TRUE_FALSE", "OPEN_QUESTION", "MATCHING"],
 };
 
 /**
@@ -35,9 +53,10 @@ export const DEFAULT_QUESTION_TYPES: Record<SubscriptionPlan, QuestionType[]> = 
  */
 export const UPGRADE_MESSAGES = {
   questionCount:
-    "Le plan Free est limité à 10 questions par quiz. Passez à Premium pour jusqu'à 40 questions.",
-  questionTypes: "Les types de questions OPEN_QUESTION et MATCHING sont réservés au plan Premium.",
+    "Votre plan est limité en nombre de questions. Passez au plan supérieur pour en débloquer davantage.",
+  questionTypes:
+    "Les types de questions OPEN_QUESTION et MATCHING nécessitent un plan Pro ou Ultra.",
   pagesSelection:
-    "Le plan Free est limité à 2 pages. Passez à Premium pour sélectionner jusqu'à 30 pages.",
-  advancedQuizzes: "Les quiz avancés sont réservés au plan Premium.",
+    "Votre plan est limité en nombre de pages. Passez au plan supérieur pour en sélectionner davantage.",
+  advancedQuizzes: "Les quiz avancés nécessitent un plan Pro ou Ultra.",
 } as const;

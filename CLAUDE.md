@@ -101,7 +101,7 @@ app.post("/webhooks/paddle", express.raw({ type: "application/json" }), handler)
 
 ## Variables d'Environnement
 
-Secrets geres via **Infisical** (`/Backend/DEV`, `/Backend/PROD`).
+Secrets geres via **Infisical** (`/Backend` avec `--env=dev` ou `--env=prod`).
 
 ```bash
 # Lancer avec injection des secrets

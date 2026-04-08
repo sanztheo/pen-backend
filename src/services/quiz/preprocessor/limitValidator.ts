@@ -2,6 +2,7 @@
 
 import { prisma } from "../../../lib/prisma.js";
 import { SUBSCRIPTION_LIMITS, DEFAULT_QUESTION_TYPES, UPGRADE_MESSAGES } from "./constants.js";
+import { normalizePlan } from "../../../utils/plans.js";
 import type {
   QuizPreprocessorOutput,
   UserQuizContext,
@@ -92,27 +93,23 @@ export class QuizLimitValidator {
    * Récupère le contexte utilisateur avec son plan et ses limites
    */
   private async getUserContext(userId: string): Promise<UserQuizContext> {
-    // Récupérer la subscription
-    const subscription = await prisma.userSubscription.findUnique({
-      where: { userId },
-    });
+    const [subscription, existingLimits] = await Promise.all([
+      prisma.userSubscription.findUnique({ where: { userId } }),
+      prisma.userLimits.findUnique({ where: { userId } }),
+    ]);
 
-    // Récupérer les limites actuelles
-    let userLimits = await prisma.userLimits.findUnique({
-      where: { userId },
-    });
+    const plan = normalizePlan(subscription?.plan) as SubscriptionPlan;
+    let userLimits = existingLimits;
 
-    const plan: SubscriptionPlan = subscription?.plan === "premium" ? "premium" : "free_user";
-
-    // Si pas de limites, créer avec valeurs par défaut
+    // Si pas de limites, créer avec valeurs par défaut du plan
     if (!userLimits) {
-      const isPremium = plan === "premium";
+      const planDefaults = SUBSCRIPTION_LIMITS[plan];
       userLimits = await prisma.userLimits.create({
         data: {
           userId,
-          questionsPerQuizLimit: isPremium ? 40 : 10,
-          pagesSelectionLimit: isPremium ? 30 : 2,
-          customQuizzesLimit: isPremium ? -1 : 5,
+          questionsPerQuizLimit: planDefaults.maxQuestionsPerQuiz,
+          pagesSelectionLimit: planDefaults.maxPagesSelection,
+          customQuizzesLimit: planDefaults.maxQuizzesPerMonth,
           customQuizzesUsed: 0,
         },
       });
@@ -169,17 +166,15 @@ export class QuizLimitValidator {
       };
     }
 
-    // Vérifier le quota mensuel (seulement pour free)
-    if (userContext.plan === "free_user") {
-      if (
-        userContext.currentLimits.customQuizzesLimit !== -1 &&
-        userContext.currentLimits.customQuizzesUsed >= userContext.currentLimits.customQuizzesLimit
-      ) {
-        return {
-          allowed: false,
-          reason: "Quota mensuel de quiz atteint. Passez à Premium pour des quiz illimités.",
-        };
-      }
+    // Vérifier le quota mensuel (si limité)
+    if (
+      userContext.currentLimits.customQuizzesLimit !== -1 &&
+      userContext.currentLimits.customQuizzesUsed >= userContext.currentLimits.customQuizzesLimit
+    ) {
+      return {
+        allowed: false,
+        reason: "Quota mensuel de quiz atteint. Passez au plan supérieur pour plus de quiz.",
+      };
     }
 
     return { allowed: true };

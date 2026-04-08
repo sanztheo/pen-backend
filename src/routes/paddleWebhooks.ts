@@ -1,6 +1,7 @@
 import express from "express";
 import { logger } from "../utils/logger.js";
 import { paddle, PaddleBillingService } from "../services/billing/paddleBilling.js";
+import { getPlanFromProductId } from "../config/paddle.js";
 import { withTimeout, PADDLE_TIMEOUT_MS } from "../utils/timeout.js";
 import { prisma } from "../lib/prisma.js";
 import {
@@ -206,6 +207,20 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
     const subData = isSubscriptionEvent(event) ? event.data : undefined;
     const txnData = isTransactionEvent(event) ? event.data : undefined;
 
+    // Extract product ID from subscription items to determine plan (premium vs ultra)
+    const subProductId =
+      (subData?.items?.[0] as { price?: { productId?: string } } | undefined)?.price?.productId ??
+      "";
+    const subscribedPlan = getPlanFromProductId(subProductId);
+    if (subscribedPlan === "free_user") {
+      logger.error("[WEBHOOK] Unrecognized product ID in subscription event", {
+        productId: subProductId,
+        eventType,
+      });
+      return res.status(200).json({ received: true, warning: "unrecognized_product" });
+    }
+    const activePlan = subscribedPlan;
+
     // 📝 subscription.created - Subscription créée
     // 🎁 Si status "trialing" → Activer premium immédiatement pour le trial
     if (eventType === EventName.SubscriptionCreated) {
@@ -234,19 +249,14 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
           paddleSubscriptionId,
         });
 
-        await PaddleBillingService.activatePremium(
+        await PaddleBillingService.activatePlan(
           userId,
+          activePlan,
           paddleCustomerId,
           paddleSubscriptionId,
           trialEnd,
           { trialStart, trialEnd },
         );
-
-        if (eventId) {
-          await prisma.webhookEvent.create({
-            data: { eventId, type: eventType, processedAt: new Date() },
-          });
-        }
 
         return res.status(200).json({ success: true, message: "trial_activated" });
       }
@@ -289,9 +299,10 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         currentPeriodEnd: currentPeriodEnd.toISOString(),
       });
 
-      // Activer le premium
-      await PaddleBillingService.activatePremium(
+      // Activer le plan (premium ou ultra)
+      await PaddleBillingService.activatePlan(
         userId,
+        activePlan,
         paddleCustomerId,
         paddleSubscriptionId,
         currentPeriodEnd,
@@ -315,9 +326,16 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         : undefined;
       const scheduledChange = subData?.scheduledChange;
 
+      const updatedProductId =
+        (subData?.items?.[0] as { price?: { productId?: string } } | undefined)?.price?.productId ??
+        "";
+      const updatedPlan = getPlanFromProductId(updatedProductId);
+
       logger.log(`🔄 [Paddle Webhook] subscription.updated:`, {
         userId,
         status: subData?.status,
+        updatedProductId,
+        updatedPlan,
         currentPeriodStart: currentPeriodStart?.toISOString(),
         currentPeriodEnd: currentPeriodEnd?.toISOString(),
         scheduledChange: scheduledChange
@@ -328,12 +346,34 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
           : undefined,
       });
 
-      // Mettre à jour les périodes
-      await PaddleBillingService.updateSubscription(userId, {
-        currentPeriodStart,
-        currentPeriodEnd,
-        cancelAtPeriodEnd: scheduledChange?.action === "cancel",
-      });
+      if (updatedPlan !== "free_user") {
+        const paddleCustomerId = subData?.customerId;
+        const paddleSubscriptionId = subData?.id;
+
+        if (paddleCustomerId && paddleSubscriptionId) {
+          const periodEnd = currentPeriodEnd ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
+          await PaddleBillingService.activatePlan(
+            userId,
+            updatedPlan,
+            paddleCustomerId,
+            paddleSubscriptionId,
+            periodEnd,
+          );
+        } else {
+          await PaddleBillingService.updateSubscription(userId, {
+            currentPeriodStart,
+            currentPeriodEnd,
+            cancelAtPeriodEnd: scheduledChange?.action === "cancel",
+          });
+        }
+      } else {
+        await PaddleBillingService.updateSubscription(userId, {
+          currentPeriodStart,
+          currentPeriodEnd,
+          cancelAtPeriodEnd: scheduledChange?.action === "cancel",
+        });
+      }
 
       return res.status(200).json({ success: true });
     }
@@ -411,9 +451,10 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         paddleSubscriptionId,
       });
 
-      // Réactiver le premium
-      await PaddleBillingService.activatePremium(
+      // Réactiver le plan
+      await PaddleBillingService.activatePlan(
         userId,
+        activePlan,
         paddleCustomerId,
         paddleSubscriptionId,
         currentPeriodEnd,

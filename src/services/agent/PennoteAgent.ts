@@ -196,12 +196,14 @@ function buildProviderOptions(
   if (provider === "google") {
     // thinkingOverride is already a valid Google thinkingLevel for selectable models
     const level = thinkingOverride || thinking;
-    return {
-      google: {
-        thinkingConfig: { thinkingLevel: level, includeThoughts: true },
-        useSearchGrounding: enableNativeWebSearch,
-      },
+    const googleOptions: Record<string, unknown> = {
+      useSearchGrounding: enableNativeWebSearch,
     };
+    // Google only accepts "minimal"|"low"|"medium"|"high" — omit thinkingConfig for "none"
+    if (level !== "none") {
+      googleOptions.thinkingConfig = { thinkingLevel: level, includeThoughts: true };
+    }
+    return { google: googleOptions };
   }
 
   // OpenAI: reasoning_effort for reasoning models

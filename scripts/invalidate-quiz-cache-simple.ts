@@ -1,7 +1,7 @@
 /**
  * Script pour invalider le cache de contexte quiz
  *
- * Usage: infisical run --path=/Backend/DEV -- npx tsx scripts/invalidate-quiz-cache-simple.ts
+ * Usage: infisical run --env=dev --path=/Backend -- npx tsx scripts/invalidate-quiz-cache-simple.ts
  * Ou via npm: npm run cache:invalidate:quiz
  */
 import Redis from "ioredis";
@@ -10,7 +10,7 @@ async function invalidateQuizCache() {
   const redisUrl = process.env.REDIS_URL;
   if (!redisUrl) {
     console.error(
-      "❌ REDIS_URL manquant - lancer avec: infisical run --path=/Backend/DEV -- npx tsx scripts/invalidate-quiz-cache-simple.ts",
+      "❌ REDIS_URL manquant - lancer avec: infisical run --env=dev --path=/Backend -- npx tsx scripts/invalidate-quiz-cache-simple.ts",
     );
     process.exit(1);
   }

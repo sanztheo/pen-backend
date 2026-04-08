@@ -178,8 +178,8 @@ async function main(): Promise<void> {
       baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
     });
 
-    await testProvider("Gemini SIMPLE", gemini, "gemini-2.0-flash-lite", 500, SIMPLE_PROMPT);
-    await testJsonStrict("Gemini", gemini, "gemini-2.0-flash-lite", 1500);
+    await testProvider("Gemini SIMPLE", gemini, "gemini-2.5-flash-lite", 500, SIMPLE_PROMPT);
+    await testJsonStrict("Gemini", gemini, "gemini-2.5-flash-lite", 1500);
   } else {
     console.log("\n⚠️  GEMINI_API_KEY non définie — skip");
   }

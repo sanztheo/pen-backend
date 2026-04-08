@@ -16,7 +16,7 @@ interface AuthRequest extends Request {
  * Middleware pour vérifier qu'un utilisateur a un plan premium actif.
  * Bloque l'accès aux fonctionnalités premium pour les comptes gratuits.
  */
-export const requirePremiumPlan = () => {
+export const requirePaidPlan = () => {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const userId = req.user?.id;
@@ -43,7 +43,7 @@ export const requirePremiumPlan = () => {
       // Vérifier si l'utilisateur a un plan premium actif
       const hasPremiumPlan =
         subscription &&
-        subscription.plan === "premium" &&
+        (subscription.plan === "premium" || subscription.plan === "ultra") &&
         subscription.status === "active" &&
         subscription.currentPeriodEnd &&
         new Date(subscription.currentPeriodEnd) > new Date();

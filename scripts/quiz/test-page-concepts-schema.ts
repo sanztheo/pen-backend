@@ -2,7 +2,7 @@
  * 🧪 Test Script - PageConcepts Schema Validation
  * PEN-14: Vérifie que le modèle PageConcepts fonctionne correctement
  *
- * Usage: infisical run --path=/Backend/DEV -- npx tsx scripts/quiz/test-page-concepts-schema.ts
+ * Usage: infisical run --env=dev --path=/Backend -- npx tsx scripts/quiz/test-page-concepts-schema.ts
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -31,9 +31,7 @@ async function main() {
   });
 
   if (!testPage) {
-    console.log(
-      "   ⚠️  Aucune page trouvée, création d'un test avec ID fictif",
-    );
+    console.log("   ⚠️  Aucune page trouvée, création d'un test avec ID fictif");
     console.log("   ℹ️  Le test CRUD sera ignoré");
   } else {
     console.log(`   ✅ Page trouvée: "${testPage.title}" (${testPage.id})`);
@@ -123,9 +121,7 @@ async function main() {
     include: { concepts: true },
   });
   if (pageWithConcepts) {
-    console.log(
-      `   ✅ Page avec concepts trouvée: "${pageWithConcepts.title}"`,
-    );
+    console.log(`   ✅ Page avec concepts trouvée: "${pageWithConcepts.title}"`);
   } else {
     console.log("   ℹ️  Aucune page avec concepts (normal après cleanup)");
   }

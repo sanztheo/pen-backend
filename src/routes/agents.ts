@@ -9,6 +9,7 @@ import { PRESET_AGENTS } from "../services/agent/presetAgents.js";
 import { google } from "../config/providers.js";
 import { logger } from "../utils/logger.js";
 import { getRateLimitStoreWithFallback } from "../config/rateLimitStore.js";
+import { PLAN_LIMITS } from "../config/planLimits.js";
 
 const generatePromptRateLimit = rateLimit({
   windowMs: 60 * 1000, // 1 minute
@@ -27,11 +28,7 @@ router.use(authenticateToken);
 router.use(requireUser);
 router.use(agentsCrudRateLimit);
 
-// ============================================================================
-// MAX CUSTOM AGENTS PER USER
-// ============================================================================
-
-const MAX_CUSTOM_AGENTS_PER_USER = 50;
+import type { SubscriptionPlan } from "@prisma/client";
 
 // ============================================================================
 // VALIDATION SCHEMAS
@@ -104,14 +101,20 @@ router.post("/custom", async (req, res) => {
 
     // Check max agents per user limit + create in single transaction (avoid TOCTOU)
     const agent = await prisma.$transaction(async (tx) => {
-      const existingCount = await tx.customAgent.count({
-        where: { userId, isActive: true },
-      });
+      const [existingCount, subscription] = await Promise.all([
+        tx.customAgent.count({ where: { userId, isActive: true } }),
+        tx.userSubscription.findUnique({ where: { userId }, select: { plan: true } }),
+      ]);
 
-      if (existingCount >= MAX_CUSTOM_AGENTS_PER_USER) {
+      const plan: SubscriptionPlan = subscription?.plan ?? "free_user";
+      const maxAgents = PLAN_LIMITS[plan].customAgentsLimit;
+
+      if (existingCount >= maxAgents) {
         throw Object.assign(new Error("MAX_AGENTS_REACHED"), {
           statusCode: 403,
           existingCount,
+          maxAgents,
+          plan,
         });
       }
 
@@ -132,16 +135,17 @@ router.post("/custom", async (req, res) => {
     res.status(201).json({ success: true, data: agent });
   } catch (error: unknown) {
     if (error instanceof Error && error.message === "MAX_AGENTS_REACHED") {
-      const err = error as Error & { existingCount: number };
+      const err = error as Error & { existingCount: number; maxAgents: number; plan: string };
       logger.warn("[AGENTS] Max custom agents limit reached:", {
         userId: req.user?.id,
         existingCount: err.existingCount,
+        plan: err.plan,
       });
       res.status(403).json({
         success: false,
         error: "MAX_AGENTS_REACHED",
-        message: `Vous avez atteint la limite de ${MAX_CUSTOM_AGENTS_PER_USER} agents personnalisés.`,
-        limits: { used: err.existingCount, max: MAX_CUSTOM_AGENTS_PER_USER },
+        message: `Vous avez atteint la limite de ${err.maxAgents} agents personnalisés.`,
+        limits: { used: err.existingCount, max: err.maxAgents, plan: err.plan },
       });
       return;
     }

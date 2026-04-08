@@ -16,12 +16,16 @@ export {
 } from "./helpers.js";
 export {
   AGENT_SELECTABLE_MODELS,
-  TIER_MULTIPLIER,
+  CREDIT_TIERS,
   findSelectableModel,
   parseCompositeId,
+  getModelsForPlan,
+  getCreditMultiplier,
   type SelectableModel,
-  type ModelTier,
+  type CreditTier,
+  type RequiredPlan,
 } from "./selectable.js";
+export { findFallbackModel, type FallbackReason, type FallbackResult } from "./fallback.js";
 
 // ── Startup validation ─────────────────────────────────────────────────────
 import { logger } from "../../utils/logger.js";

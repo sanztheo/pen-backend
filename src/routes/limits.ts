@@ -2,6 +2,8 @@ import express from "express";
 import { authenticateToken } from "../middlewares/auth.js";
 import { prisma } from "../lib/prisma.js";
 import { logger } from "../utils/logger.js";
+import { PLAN_LIMITS } from "../config/planLimits.js";
+import type { SubscriptionPlan } from "@prisma/client";
 
 const router = express.Router();
 
@@ -25,34 +27,30 @@ router.get("/", authenticateToken, async (req, res) => {
 
     // Si l'utilisateur n'a pas encore de limitations, les créer avec les valeurs par défaut
     if (!userLimits) {
-      const isPremium = subscription?.plan === "premium";
+      const plan = (subscription?.plan ?? "free_user") as SubscriptionPlan;
+      const limits = PLAN_LIMITS[plan];
 
       userLimits = await prisma.userLimits.upsert({
         where: { userId },
         update: {
-          // Mettre à jour les limites selon le plan si elles existent déjà
-          aiCreditsLimit: isPremium ? -1 : 50,
-          workspacesLimit: isPremium ? -1 : 2,
+          aiCreditsLimit: limits.aiCreditsLimit,
+          workspacesLimit: limits.workspacesLimit,
           projectsLimit: -1,
-          pagesLimit: isPremium ? -1 : 20,
-          customQuizzesLimit: isPremium ? -1 : 5,
-          presetSequencesLimit: isPremium ? -1 : 1,
-          pagesSelectionLimit: isPremium ? 30 : 2,
-          questionsPerQuizLimit: isPremium ? 40 : 10,
+          customQuizzesLimit: limits.customQuizzesLimit,
+          presetSequencesLimit: limits.presetSequencesLimit,
+          pagesSelectionLimit: limits.pagesSelectionLimit,
+          questionsPerQuizLimit: limits.questionsPerQuizLimit,
         },
         create: {
           userId,
-          // Limites selon le plan
-          aiCreditsLimit: isPremium ? -1 : 50,
-          workspacesLimit: isPremium ? -1 : 2,
+          aiCreditsLimit: limits.aiCreditsLimit,
+          workspacesLimit: limits.workspacesLimit,
           projectsLimit: -1,
-          pagesLimit: isPremium ? -1 : 20,
-          customQuizzesLimit: isPremium ? -1 : 5,
-          presetSequencesLimit: isPremium ? -1 : 1,
-          pagesSelectionLimit: isPremium ? 30 : 2,
-          questionsPerQuizLimit: isPremium ? 40 : 10,
-          advancedQuizzesLimit: 10,
-          // Usage par défaut à 0
+          customQuizzesLimit: limits.customQuizzesLimit,
+          presetSequencesLimit: limits.presetSequencesLimit,
+          pagesSelectionLimit: limits.pagesSelectionLimit,
+          questionsPerQuizLimit: limits.questionsPerQuizLimit,
+          advancedQuizzesLimit: limits.advancedQuizzesLimit,
           aiCreditsUsed: 0,
           workspacesUsed: 0,
           projectsUsed: 0,
@@ -64,9 +62,14 @@ router.get("/", authenticateToken, async (req, res) => {
       });
     }
 
+    const plan = (subscription?.plan ?? "free_user") as SubscriptionPlan;
+
     res.json({
       success: true,
-      limits: userLimits,
+      limits: {
+        ...userLimits,
+        customAgentsLimit: PLAN_LIMITS[plan].customAgentsLimit,
+      },
       nextResetDate: subscription?.currentPeriodEnd || null,
     });
   } catch (error) {
@@ -88,22 +91,22 @@ router.put("/sync", authenticateToken, async (req, res) => {
       where: { userId },
     });
 
-    const isPremium = subscription?.plan === "premium";
+    const plan = (subscription?.plan ?? "free_user") as SubscriptionPlan;
+    const limits = PLAN_LIMITS[plan];
 
     // Mettre à jour les limites selon le plan
     const userLimits = await prisma.userLimits.upsert({
       where: { userId },
       create: {
         userId,
-        aiCreditsLimit: isPremium ? -1 : 50,
-        workspacesLimit: isPremium ? -1 : 2,
-        projectsLimit: isPremium ? -1 : 4,
-        pagesLimit: isPremium ? -1 : 20,
-        customQuizzesLimit: isPremium ? -1 : 5,
-        presetSequencesLimit: isPremium ? -1 : 1,
-        pagesSelectionLimit: isPremium ? 30 : 2,
-        questionsPerQuizLimit: isPremium ? 40 : 10,
-        advancedQuizzesLimit: 10,
+        aiCreditsLimit: limits.aiCreditsLimit,
+        workspacesLimit: limits.workspacesLimit,
+        projectsLimit: -1,
+        customQuizzesLimit: limits.customQuizzesLimit,
+        presetSequencesLimit: limits.presetSequencesLimit,
+        pagesSelectionLimit: limits.pagesSelectionLimit,
+        questionsPerQuizLimit: limits.questionsPerQuizLimit,
+        advancedQuizzesLimit: limits.advancedQuizzesLimit,
         aiCreditsUsed: 0,
         workspacesUsed: 0,
         projectsUsed: 0,
@@ -113,14 +116,13 @@ router.put("/sync", authenticateToken, async (req, res) => {
         advancedQuizzesUsed: 0,
       },
       update: {
-        aiCreditsLimit: isPremium ? -1 : 50,
-        workspacesLimit: isPremium ? -1 : 2,
-        projectsLimit: isPremium ? -1 : 4,
-        pagesLimit: isPremium ? -1 : 20,
-        customQuizzesLimit: isPremium ? -1 : 5,
-        presetSequencesLimit: isPremium ? -1 : 1,
-        pagesSelectionLimit: isPremium ? 30 : 2,
-        questionsPerQuizLimit: isPremium ? 40 : 10,
+        aiCreditsLimit: limits.aiCreditsLimit,
+        workspacesLimit: limits.workspacesLimit,
+        projectsLimit: -1,
+        customQuizzesLimit: limits.customQuizzesLimit,
+        presetSequencesLimit: limits.presetSequencesLimit,
+        pagesSelectionLimit: limits.pagesSelectionLimit,
+        questionsPerQuizLimit: limits.questionsPerQuizLimit,
       },
     });
 

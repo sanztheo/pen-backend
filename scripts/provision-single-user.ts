@@ -6,10 +6,10 @@
  * 4. Send welcome email with credentials
  *
  * Usage:
- *   infisical run --path=/Backend/PROD -- npx tsx scripts/provision-single-user.ts <email> <firstName> <lastName>
+ *   infisical run --env=prod --path=/Backend -- npx tsx scripts/provision-single-user.ts <email> <firstName> <lastName>
  *
  * Example:
- *   infisical run --path=/Backend/PROD -- npx tsx scripts/provision-single-user.ts alice@example.com Alice Dupont
+ *   infisical run --env=prod --path=/Backend -- npx tsx scripts/provision-single-user.ts alice@example.com Alice Dupont
  */
 
 import { createClerkClient } from "@clerk/backend";

@@ -6,7 +6,7 @@ import { authenticateToken, blockImpersonation } from "../middlewares/auth.js";
 import { validateEmail } from "../middlewares/validateEmail.js";
 import { prisma } from "../lib/prisma.js";
 import { redis } from "../lib/redis.js";
-import { PADDLE_CONFIG } from "../config/paddle.js";
+import { PADDLE_CONFIG, isPremiumPrice, isUltraPrice } from "../config/paddle.js";
 import { withTimeout, PADDLE_TIMEOUT_MS } from "../utils/timeout.js";
 import { billingRateLimit } from "../middlewares/rateLimiting.js";
 
@@ -55,13 +55,13 @@ router.get("/stats", authenticateToken, async (req, res) => {
     }
 
     const subscription = await PaddleBillingService.getUserSubscription(userId);
-    const isPremium = subscription.plan === "premium" && subscription.isActive;
 
     res.json({
       success: true,
       stats: {
         subscription,
-        isPremium,
+        isPremium: subscription.isPremium && subscription.isActive,
+        plan: subscription.plan,
       },
     });
   } catch (error) {
@@ -98,6 +98,7 @@ router.post("/checkout-session", authenticateToken, validateEmail, async (req, r
     const checkoutSchema = z.object({
       priceId: z.string().startsWith("pri_").optional(),
       interval: z.enum(["monthly", "yearly"]).optional(),
+      plan: z.enum(["premium", "ultra"]).optional(),
     });
 
     const parsed = checkoutSchema.safeParse(req.body);
@@ -108,26 +109,50 @@ router.post("/checkout-session", authenticateToken, validateEmail, async (req, r
       });
     }
 
-    const { priceId, interval } = parsed.data;
+    const { priceId, interval, plan } = parsed.data;
+    const targetPlan = plan ?? "premium";
 
-    // Determiner le priceId si non fourni
-    const selectedPriceId =
-      priceId ||
-      (interval === "yearly"
-        ? PADDLE_CONFIG.prices.premiumYearly
-        : PADDLE_CONFIG.prices.premiumMonthly);
+    // Determine the priceId based on plan + interval
+    let selectedPriceId: string;
+    if (priceId) {
+      selectedPriceId = priceId;
+    } else if (targetPlan === "ultra") {
+      selectedPriceId =
+        interval === "yearly"
+          ? PADDLE_CONFIG.prices.ultraYearly
+          : PADDLE_CONFIG.prices.ultraMonthly;
+    } else {
+      selectedPriceId =
+        interval === "yearly"
+          ? PADDLE_CONFIG.prices.premiumYearly
+          : PADDLE_CONFIG.prices.premiumMonthly;
+    }
 
     if (!selectedPriceId) {
-      return res.status(400).json({ error: "Prix non configure" });
+      return res.status(400).json({ error: "Prix non configure pour ce plan" });
     }
 
     // Validate that the priceId is a known Paddle price
-    if (
-      priceId &&
-      priceId !== PADDLE_CONFIG.prices.premiumMonthly &&
-      priceId !== PADDLE_CONFIG.prices.premiumYearly
-    ) {
+    const knownPrices = [
+      PADDLE_CONFIG.prices.premiumMonthly,
+      PADDLE_CONFIG.prices.premiumYearly,
+      PADDLE_CONFIG.prices.ultraMonthly,
+      PADDLE_CONFIG.prices.ultraYearly,
+    ].filter(Boolean);
+
+    if (priceId && !knownPrices.includes(priceId)) {
       return res.status(400).json({ error: "Prix invalide" });
+    }
+
+    if (priceId) {
+      const priceIsUltra = isUltraPrice(priceId);
+      const priceIsPremium = isPremiumPrice(priceId);
+      if (targetPlan === "ultra" && !priceIsUltra) {
+        return res.status(400).json({ error: "Price does not match the requested plan" });
+      }
+      if (targetPlan === "premium" && !priceIsPremium) {
+        return res.status(400).json({ error: "Price does not match the requested plan" });
+      }
     }
 
     // Check if user already had a trial (trialStart not null)
@@ -324,12 +349,13 @@ router.post("/upgrade", authenticateToken, async (req, res) => {
       return res.json(JSON.parse(cached));
     }
 
-    // Verifier si deja premium
+    // Verifier si deja ultra (seul plan qui ne peut pas upgrader)
     const currentSub = await PaddleBillingService.getUserSubscription(userId);
-    if (currentSub.isPremium) {
+    if (currentSub.plan === "ultra") {
       return res.status(400).json({
-        error: "Deja premium",
-        message: "Vous avez deja un abonnement premium actif",
+        error: "Deja ultra",
+        message: "Vous avez deja le plan le plus élevé",
+        currentPlan: currentSub.plan,
       });
     }
 
@@ -364,21 +390,37 @@ router.post("/upgrade", authenticateToken, async (req, res) => {
  * GET /api/billing/prices
  * Retourne les prix configures (pour affichage frontend)
  */
-router.get("/prices", async (_req, res) => {
+router.get("/prices", authenticateToken, async (_req, res) => {
   res.json({
     success: true,
     prices: {
-      monthly: {
-        id: PADDLE_CONFIG.prices.premiumMonthly,
-        amount: 12,
-        currency: "EUR",
-        interval: "month",
+      premium: {
+        monthly: {
+          id: PADDLE_CONFIG.prices.premiumMonthly,
+          amount: 13,
+          currency: "EUR",
+          interval: "month",
+        },
+        yearly: {
+          id: PADDLE_CONFIG.prices.premiumYearly,
+          amount: 109,
+          currency: "EUR",
+          interval: "year",
+        },
       },
-      yearly: {
-        id: PADDLE_CONFIG.prices.premiumYearly,
-        amount: 144,
-        currency: "EUR",
-        interval: "year",
+      ultra: {
+        monthly: {
+          id: PADDLE_CONFIG.prices.ultraMonthly,
+          amount: 25,
+          currency: "EUR",
+          interval: "month",
+        },
+        yearly: {
+          id: PADDLE_CONFIG.prices.ultraYearly,
+          amount: 209,
+          currency: "EUR",
+          interval: "year",
+        },
       },
     },
     trial: PADDLE_CONFIG.trial,
