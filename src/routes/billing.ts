@@ -351,7 +351,7 @@ router.post("/change-plan", authenticateToken, blockImpersonation, async (req, r
     // Get current subscription
     const subscription = await prisma.userSubscription.findUnique({
       where: { userId },
-      select: { plan: true, paddleSubscriptionId: true },
+      select: { plan: true, paddleSubscriptionId: true, paddleCustomerId: true },
     });
 
     if (!subscription?.paddleSubscriptionId) {
@@ -391,7 +391,7 @@ router.post("/change-plan", authenticateToken, blockImpersonation, async (req, r
     await PaddleBillingService.activatePlan(
       userId,
       targetPlan,
-      subscription.paddleSubscriptionId, // reuse existing IDs
+      subscription.paddleCustomerId ?? subscription.paddleSubscriptionId,
       subscription.paddleSubscriptionId,
       new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     );
