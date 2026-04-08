@@ -223,6 +223,13 @@ const MODE_CONFIGS: Record<PromptKey, ModeConfig> = {
       "DO NOT rush - methodically cover every aspect of the topic",
       "Each paragraph should contain substantive information, not filler",
       "</quality_constraints>",
+      "",
+      "<rewrite_override>",
+      "These length and quality guidelines apply EQUALLY to rewritePageContent and createPage.",
+      "When the user asks to rewrite, redo, or expand a page in DEEP mode, the rewritten content MUST meet the same 4000-8000 word minimum.",
+      "Do NOT apply the 'smallest scope tool' rule when the user explicitly asks for a comprehensive course, big content, or full rewrite.",
+      "In deep creation mode: rewritePageContent = full comprehensive rewrite following ALL content guidelines above.",
+      "</rewrite_override>",
     ],
   },
 };
