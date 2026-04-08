@@ -3,7 +3,7 @@
  * Crée des pages avec du contenu éducatif pour tester les services PEN-14 à PEN-18
  *
  * Usage:
- *   infisical run --path=/Backend/DEV -- npx tsx scripts/quiz/seed-test-pages.ts
+ *   infisical run --env=dev --path=/Backend -- npx tsx scripts/quiz/seed-test-pages.ts
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -586,9 +586,7 @@ async function main() {
   console.log("✅ SEED TERMINÉ");
   console.log("=".repeat(60));
   console.log("\n💡 Pour tester l'intégration:");
-  console.log(
-    `   npx tsx scripts/quiz/test-streaming-integration.ts ${workspace.id}`,
-  );
+  console.log(`   npx tsx scripts/quiz/test-streaming-integration.ts ${workspace.id}`);
 }
 
 main()

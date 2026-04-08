@@ -566,6 +566,7 @@ enum BetaStatus {
 enum SubscriptionPlan {
   free_user
   premium
+  ultra
 }
 
 enum SubscriptionStatus {

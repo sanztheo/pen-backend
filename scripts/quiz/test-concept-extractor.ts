@@ -3,8 +3,8 @@
  * PEN-15: Test l'extraction des concepts d'une page
  *
  * Usage:
- *   infisical run --path=/Backend/DEV -- npx tsx scripts/quiz/test-concept-extractor.ts
- *   infisical run --path=/Backend/DEV -- npx tsx scripts/quiz/test-concept-extractor.ts <pageId>
+ *   infisical run --env=dev --path=/Backend -- npx tsx scripts/quiz/test-concept-extractor.ts
+ *   infisical run --env=dev --path=/Backend -- npx tsx scripts/quiz/test-concept-extractor.ts <pageId>
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -49,9 +49,7 @@ async function main() {
 
     if (!page) {
       console.log("   ⚠️ Aucune page avec contenu trouvée");
-      console.log(
-        "   ℹ️ Utilisez: npx tsx scripts/quiz/test-concept-extractor.ts <pageId>",
-      );
+      console.log("   ℹ️ Utilisez: npx tsx scripts/quiz/test-concept-extractor.ts <pageId>");
       process.exit(0);
     }
 
@@ -88,9 +86,7 @@ async function main() {
 
   if (result.concepts) {
     console.log("\n   📝 Keywords:");
-    result.concepts.keywords.forEach((k, i) =>
-      console.log(`      ${i + 1}. ${k}`),
-    );
+    result.concepts.keywords.forEach((k, i) => console.log(`      ${i + 1}. ${k}`));
 
     console.log("\n   📖 Definitions:");
     const defs = Object.entries(result.concepts.definitions);
@@ -104,18 +100,14 @@ async function main() {
 
     console.log("\n   🎯 Key Points:");
     if (result.concepts.keyPoints.length > 0) {
-      result.concepts.keyPoints.forEach((kp, i) =>
-        console.log(`      ${i + 1}. ${kp}`),
-      );
+      result.concepts.keyPoints.forEach((kp, i) => console.log(`      ${i + 1}. ${kp}`));
     } else {
       console.log("      (aucun)");
     }
 
     console.log("\n   🔢 Formulas:");
     if (result.concepts.formulas.length > 0) {
-      result.concepts.formulas.forEach((f, i) =>
-        console.log(`      ${i + 1}. $${f}$`),
-      );
+      result.concepts.formulas.forEach((f, i) => console.log(`      ${i + 1}. $${f}$`));
     } else {
       console.log("      (aucune)");
     }

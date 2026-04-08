@@ -33,16 +33,31 @@ describe("SUBSCRIPTION_LIMITS constants", () => {
   it("should have correct limits for premium plan", () => {
     const premiumLimits = SUBSCRIPTION_LIMITS.premium;
 
-    expect(premiumLimits.maxQuestionsPerQuiz).toBe(40);
+    expect(premiumLimits.maxQuestionsPerQuiz).toBe(20);
     expect(premiumLimits.allowedQuestionTypes).toEqual([
       "OPEN_QUESTION",
       "MULTIPLE_CHOICE",
       "TRUE_FALSE",
       "MATCHING",
     ]);
-    expect(premiumLimits.maxPagesSelection).toBe(30);
-    expect(premiumLimits.maxQuizzesPerMonth).toBe(-1); // Illimité
+    expect(premiumLimits.maxPagesSelection).toBe(10);
+    expect(premiumLimits.maxQuizzesPerMonth).toBe(20);
     expect(premiumLimits.advancedQuizzes).toBe(true);
+  });
+
+  it("should have correct limits for ultra plan", () => {
+    const ultraLimits = SUBSCRIPTION_LIMITS.ultra;
+
+    expect(ultraLimits.maxQuestionsPerQuiz).toBe(40);
+    expect(ultraLimits.allowedQuestionTypes).toEqual([
+      "OPEN_QUESTION",
+      "MULTIPLE_CHOICE",
+      "TRUE_FALSE",
+      "MATCHING",
+    ]);
+    expect(ultraLimits.maxPagesSelection).toBe(30);
+    expect(ultraLimits.maxQuizzesPerMonth).toBe(-1); // Illimité
+    expect(ultraLimits.advancedQuizzes).toBe(true);
   });
 });
 
@@ -136,7 +151,7 @@ describe("QuizLimitValidator - validateAndCorrect", () => {
     expect(result.correctedOutput.correctedByLimits).toBe(true);
   });
 
-  it("should pass validation for premium user with high count", async () => {
+  it("should pass validation for premium user within limits", async () => {
     // Mock premium user
     mockUserSubscriptionFindUnique.mockResolvedValue({
       userId: "user-premium",
@@ -145,6 +160,36 @@ describe("QuizLimitValidator - validateAndCorrect", () => {
     });
     mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-premium",
+      questionsPerQuizLimit: 20,
+      pagesSelectionLimit: 10,
+      customQuizzesLimit: 20,
+      customQuizzesUsed: 0,
+    });
+
+    const aiSuggestion: QuizPreprocessorOutput = {
+      recommendedQuestionCount: 18,
+      questionTypes: Array(18).fill("MULTIPLE_CHOICE") as QuestionType[],
+      difficulty: "hard",
+      suggestedTimeLimit: 60,
+      reasoning: "Advanced quiz",
+    };
+
+    const result = await validator.validateAndCorrect(aiSuggestion, "user-premium");
+
+    expect(result.isValid).toBe(true);
+    expect(result.corrections).toEqual([]);
+    expect(result.upgradeRequired).toBe(false);
+  });
+
+  it("should pass validation for ultra user with high count", async () => {
+    // Mock ultra user
+    mockUserSubscriptionFindUnique.mockResolvedValue({
+      userId: "user-ultra",
+      plan: "ultra",
+      status: "active",
+    });
+    mockUserLimitsFindUnique.mockResolvedValue({
+      userId: "user-ultra",
       questionsPerQuizLimit: 40,
       pagesSelectionLimit: 30,
       customQuizzesLimit: -1,
@@ -159,7 +204,7 @@ describe("QuizLimitValidator - validateAndCorrect", () => {
       reasoning: "Advanced quiz",
     };
 
-    const result = await validator.validateAndCorrect(aiSuggestion, "user-premium");
+    const result = await validator.validateAndCorrect(aiSuggestion, "user-ultra");
 
     expect(result.isValid).toBe(true);
     expect(result.corrections).toEqual([]);
@@ -337,7 +382,7 @@ describe("QuizLimitValidator - canCreateQuiz", () => {
     const result = await validator.canCreateQuiz("user-1", 15, ["MULTIPLE_CHOICE"]);
 
     expect(result.allowed).toBe(false);
-    expect(result.reason).toContain("limité à 10 questions");
+    expect(result.reason).toContain("limité en nombre de questions");
   });
 
   it("should reject free user using premium question types", async () => {
@@ -353,7 +398,7 @@ describe("QuizLimitValidator - canCreateQuiz", () => {
     const result = await validator.canCreateQuiz("user-1", 5, ["OPEN_QUESTION", "MATCHING"]);
 
     expect(result.allowed).toBe(false);
-    expect(result.reason).toContain("Premium");
+    expect(result.reason).toContain("Pro ou Ultra");
   });
 
   it("should reject free user who reached monthly quota", async () => {
@@ -372,7 +417,7 @@ describe("QuizLimitValidator - canCreateQuiz", () => {
     expect(result.reason).toContain("Quota mensuel");
   });
 
-  it("should allow premium user with unlimited quota", async () => {
+  it("should allow premium user within quota", async () => {
     mockUserSubscriptionFindUnique.mockResolvedValue({
       userId: "user-premium",
       plan: "premium",
@@ -380,13 +425,32 @@ describe("QuizLimitValidator - canCreateQuiz", () => {
     });
     mockUserLimitsFindUnique.mockResolvedValue({
       userId: "user-premium",
+      questionsPerQuizLimit: 20,
+      pagesSelectionLimit: 10,
+      customQuizzesLimit: 20,
+      customQuizzesUsed: 5,
+    });
+
+    const result = await validator.canCreateQuiz("user-premium", 18, ["OPEN_QUESTION", "MATCHING"]);
+
+    expect(result.allowed).toBe(true);
+  });
+
+  it("should allow ultra user with unlimited quota", async () => {
+    mockUserSubscriptionFindUnique.mockResolvedValue({
+      userId: "user-ultra",
+      plan: "ultra",
+      status: "active",
+    });
+    mockUserLimitsFindUnique.mockResolvedValue({
+      userId: "user-ultra",
       questionsPerQuizLimit: 40,
       pagesSelectionLimit: 30,
       customQuizzesLimit: -1, // Illimité
       customQuizzesUsed: 100,
     });
 
-    const result = await validator.canCreateQuiz("user-premium", 30, ["OPEN_QUESTION", "MATCHING"]);
+    const result = await validator.canCreateQuiz("user-ultra", 35, ["OPEN_QUESTION", "MATCHING"]);
 
     expect(result.allowed).toBe(true);
   });
@@ -410,8 +474,16 @@ describe("QuizLimitValidator - getLimitsForPlan", () => {
   it("should return correct limits for premium", () => {
     const limits = validator.getLimitsForPlan("premium");
 
-    expect(limits.maxQuestionsPerQuiz).toBe(40);
+    expect(limits.maxQuestionsPerQuiz).toBe(20);
     expect(limits.allowedQuestionTypes).toContain("OPEN_QUESTION");
+    expect(limits.advancedQuizzes).toBe(true);
+  });
+
+  it("should return correct limits for ultra", () => {
+    const limits = validator.getLimitsForPlan("ultra");
+
+    expect(limits.maxQuestionsPerQuiz).toBe(40);
+    expect(limits.allowedQuestionTypes).toContain("MATCHING");
     expect(limits.advancedQuizzes).toBe(true);
   });
 });

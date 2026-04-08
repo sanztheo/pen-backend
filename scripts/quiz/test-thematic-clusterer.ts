@@ -3,8 +3,8 @@
  * PEN-16: Test le clustering thématique des pages
  *
  * Usage:
- *   infisical run --path=/Backend/DEV -- npx tsx scripts/quiz/test-thematic-clusterer.ts
- *   infisical run --path=/Backend/DEV -- npx tsx scripts/quiz/test-thematic-clusterer.ts <workspaceId>
+ *   infisical run --env=dev --path=/Backend -- npx tsx scripts/quiz/test-thematic-clusterer.ts
+ *   infisical run --env=dev --path=/Backend -- npx tsx scripts/quiz/test-thematic-clusterer.ts <workspaceId>
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -32,9 +32,7 @@ async function main() {
   let pageIds: string[] = [];
 
   if (workspaceId) {
-    console.log(
-      `\n📄 2. Récupération des pages du workspace ${workspaceId}...`,
-    );
+    console.log(`\n📄 2. Récupération des pages du workspace ${workspaceId}...`);
     const pages = await prisma.page.findMany({
       where: {
         project: { workspaceId },
@@ -65,12 +63,8 @@ async function main() {
     });
 
     if (pages.length < 5) {
-      console.log(
-        `   ⚠️ Seulement ${pages.length} pages trouvées (minimum 5 recommandé)`,
-      );
-      console.log(
-        "   ℹ️ Utilisez: npx tsx scripts/quiz/test-thematic-clusterer.ts <workspaceId>",
-      );
+      console.log(`   ⚠️ Seulement ${pages.length} pages trouvées (minimum 5 recommandé)`);
+      console.log("   ℹ️ Utilisez: npx tsx scripts/quiz/test-thematic-clusterer.ts <workspaceId>");
     }
 
     pageIds = pages.map((p) => p.id);
@@ -80,8 +74,7 @@ async function main() {
       pages.slice(0, 5).forEach((p, i) => {
         console.log(`      ${i + 1}. "${p.title}"`);
       });
-      if (pages.length > 5)
-        console.log(`      ... et ${pages.length - 5} autres`);
+      if (pages.length > 5) console.log(`      ... et ${pages.length - 5} autres`);
     }
   }
 
@@ -95,9 +88,7 @@ async function main() {
 
   for (const size of testSizes) {
     console.log(`\n${"─".repeat(60)}`);
-    console.log(
-      `🎯 3.${testSizes.indexOf(size) + 1} Test clustering avec ${size} pages...`,
-    );
+    console.log(`🎯 3.${testSizes.indexOf(size) + 1} Test clustering avec ${size} pages...`);
     console.log("─".repeat(60));
 
     const testPageIds = pageIds.slice(0, size);
@@ -116,9 +107,7 @@ async function main() {
     console.log("\n   📁 Détails des clusters:");
     for (const cluster of result.clusters) {
       console.log(`\n      🏷️ "${cluster.name}"`);
-      console.log(
-        `         📝 ${cluster.description || "(pas de description)"}`,
-      );
+      console.log(`         📝 ${cluster.description || "(pas de description)"}`);
       console.log(`         📄 Pages: ${cluster.pages.length}`);
       cluster.pages.slice(0, 3).forEach((p) => {
         console.log(`            - "${p.title}"`);
@@ -126,33 +115,19 @@ async function main() {
       if (cluster.pages.length > 3) {
         console.log(`            ... et ${cluster.pages.length - 3} autres`);
       }
-      console.log(
-        `         🔑 Keywords: ${cluster.keywords.slice(0, 5).join(", ")}`,
-      );
+      console.log(`         🔑 Keywords: ${cluster.keywords.slice(0, 5).join(", ")}`);
       console.log(`         🎚️ Difficulté: ${cluster.difficulty}`);
-      console.log(
-        `         📊 Importance: ${(cluster.importance * 100).toFixed(1)}%`,
-      );
-      console.log(
-        `         ❓ Questions suggérées: ${cluster.suggestedQuestionCount}`,
-      );
+      console.log(`         📊 Importance: ${(cluster.importance * 100).toFixed(1)}%`);
+      console.log(`         ❓ Questions suggérées: ${cluster.suggestedQuestionCount}`);
     }
 
     // Vérifier la distribution des quotas
     console.log("\n   📊 Distribution des questions:");
-    const totalQuestions = result.clusters.reduce(
-      (sum, c) => sum + c.suggestedQuestionCount,
-      0,
-    );
+    const totalQuestions = result.clusters.reduce((sum, c) => sum + c.suggestedQuestionCount, 0);
     console.log(`      Total: ${totalQuestions} questions`);
     for (const cluster of result.clusters) {
-      const percentage = (
-        (cluster.suggestedQuestionCount / totalQuestions) *
-        100
-      ).toFixed(1);
-      console.log(
-        `      • "${cluster.name}": ${cluster.suggestedQuestionCount} (${percentage}%)`,
-      );
+      const percentage = ((cluster.suggestedQuestionCount / totalQuestions) * 100).toFixed(1);
+      console.log(`      • "${cluster.name}": ${cluster.suggestedQuestionCount} (${percentage}%)`);
     }
   }
 
@@ -184,9 +159,7 @@ async function main() {
   });
 
   if (testConcepts && testConcepts.embedding.length > 0) {
-    const lastResult = await ThematicClustererService.clusterPages(
-      pageIds.slice(0, 10),
-    );
+    const lastResult = await ThematicClustererService.clusterPages(pageIds.slice(0, 10));
     const nearest = ThematicClustererService.findNearestCluster(
       testConcepts.embedding,
       lastResult.clusters,

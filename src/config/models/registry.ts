@@ -288,21 +288,6 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
       maxOutputTokens: 65_536,
     },
   },
-  "gemini-3-flash": {
-    // $0.50 / $3.00
-    id: "gemini-3-flash",
-    provider: "google",
-    pricing: { input: 0.5, output: 3 },
-    capabilities: {
-      reasoning: true,
-      streaming: true,
-      structuredOutput: true,
-      vision: true,
-      toolCalling: true,
-      maxContextTokens: 1_000_000,
-      maxOutputTokens: 65_536,
-    },
-  },
   "gemini-2.5-pro": {
     // $1.25 / $10.00
     id: "gemini-2.5-pro",
@@ -348,34 +333,6 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
       maxOutputTokens: 65_536,
     },
   },
-  "gemini-2.0-flash": {
-    // $0.10 / $0.40
-    id: "gemini-2.0-flash",
-    provider: "google",
-    pricing: { input: 0.1, output: 0.4 },
-    capabilities: {
-      streaming: true,
-      structuredOutput: true,
-      vision: true,
-      toolCalling: true,
-      maxContextTokens: 1_000_000,
-      maxOutputTokens: 8_192,
-    },
-  },
-  "gemini-2.0-flash-lite": {
-    // $0.075 / $0.30
-    id: "gemini-2.0-flash-lite",
-    provider: "google",
-    pricing: { input: 0.075, output: 0.3 },
-    capabilities: {
-      streaming: true,
-      structuredOutput: true,
-      vision: true,
-      toolCalling: true,
-      maxContextTokens: 1_000_000,
-      maxOutputTokens: 8_192,
-    },
-  },
   "gemini-3.1-flash-lite-preview": {
     // $0.25 / $1.50 — cheap, fast, 1M context
     id: "gemini-3.1-flash-lite-preview",
@@ -388,6 +345,52 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
       toolCalling: true,
       maxContextTokens: 1_000_000,
       maxOutputTokens: 65_536,
+    },
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Google Gemma 4 (free API, tool calling, thinking, 256K context)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  "gemma-4-31b-it": {
+    id: "gemma-4-31b-it",
+    provider: "google",
+    pricing: { input: 0, output: 0 },
+    capabilities: {
+      reasoning: true,
+      streaming: true,
+      structuredOutput: true,
+      vision: true,
+      toolCalling: true,
+      maxContextTokens: 256_000,
+      maxOutputTokens: 8_192,
+    },
+  },
+  "gemma-4-26b-a4b-it": {
+    id: "gemma-4-26b-a4b-it",
+    provider: "google",
+    pricing: { input: 0, output: 0 },
+    capabilities: {
+      reasoning: true,
+      streaming: true,
+      structuredOutput: true,
+      vision: true,
+      toolCalling: true,
+      maxContextTokens: 256_000,
+      maxOutputTokens: 8_192,
+    },
+  },
+  "gemma-4-e4b-it": {
+    id: "gemma-4-e4b-it",
+    provider: "google",
+    pricing: { input: 0, output: 0 },
+    capabilities: {
+      streaming: true,
+      structuredOutput: true,
+      vision: true,
+      toolCalling: true,
+      maxContextTokens: 128_000,
+      maxOutputTokens: 8_192,
     },
   },
 
@@ -455,21 +458,6 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
       maxOutputTokens: 64_000,
     },
   },
-  "claude-3-5-haiku": {
-    // $0.80 / $4.00
-    id: "claude-3-5-haiku",
-    provider: "anthropic",
-    pricing: { input: 0.8, output: 4 },
-    capabilities: {
-      streaming: true,
-      structuredOutput: true,
-      vision: true,
-      toolCalling: true,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 8_192,
-    },
-  },
-
   // ═══════════════════════════════════════════════════════════════════════════
   // DeepSeek (V3.2 unified pricing)
   // ═══════════════════════════════════════════════════════════════════════════

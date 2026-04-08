@@ -71,3 +71,10 @@ export function getProviderInstance(modelId: string): AnyProvider {
   if (!provider) return undefined;
   return PROVIDER_MAP[provider];
 }
+
+/**
+ * Check if a provider has its API key configured and is available.
+ */
+export function isProviderAvailable(provider: Provider): boolean {
+  return PROVIDER_MAP[provider] !== undefined;
+}

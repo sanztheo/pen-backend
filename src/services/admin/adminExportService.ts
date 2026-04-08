@@ -145,7 +145,7 @@ export class AdminExportService {
       lastLoginAt: u.lastLoginAt,
       workspacesCount: u._count.ownedWorkspaces,
       pagesCount: u._count.pages,
-      plan: (u.subscription?.plan as "free_user" | "premium") || "free_user",
+      plan: (u.subscription?.plan as "free_user" | "premium" | "ultra") || "free_user",
     }));
   }
 
@@ -156,7 +156,7 @@ export class AdminExportService {
     return {
       Email: user.email,
       Nom: `${user.firstName} ${user.lastName}`.trim(),
-      Plan: user.plan === "premium" ? "Premium" : "Free",
+      Plan: user.plan === "ultra" ? "Ultra" : user.plan === "premium" ? "Pro" : "Free",
       Status: user.isActive ? "Actif" : "Inactif",
       "Date inscription": user.createdAt.toISOString(),
       "Dernière connexion": user.lastLoginAt?.toISOString() || "Jamais",

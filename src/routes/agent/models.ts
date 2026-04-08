@@ -1,31 +1,49 @@
 /**
  * Agent Models Route
  *
- * GET /models — Returns selectable models filtered by provider API key availability.
+ * GET /models — Returns ALL selectable models with locked/unavailable flags.
+ * locked = user's plan is insufficient.
+ * unavailable = provider API key not configured (fallback system handles it).
  */
 
 import { Router } from "express";
-import type { Request, Response } from "express";
-import { AGENT_SELECTABLE_MODELS, MODELS } from "../../config/models.js";
-import { getProviderInstance } from "../../config/providers.js";
-import type { SelectableModel } from "../../config/models.js";
+import type { Response } from "express";
+import { AGENT_SELECTABLE_MODELS, MODELS, getModelsForPlan } from "../../config/models.js";
+import { isProviderAvailable } from "../../config/providers.js";
+import type { RequiredPlan } from "../../config/models.js";
+import { authenticateToken } from "../../middlewares/auth.js";
+import { prisma } from "../../lib/prisma.js";
 import { logger } from "../../utils/logger.js";
 
 export const modelsRouter = Router();
 
-modelsRouter.get("/models", (_req: Request, res: Response) => {
+modelsRouter.get("/models", authenticateToken, async (req, res: Response) => {
   try {
-    logger.info("[Models] Fetching available models");
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    // Filter models whose provider has a configured API key
-    const availableModels: SelectableModel[] = AGENT_SELECTABLE_MODELS.filter((model) => {
-      const provider = getProviderInstance(model.modelId);
-      return provider !== undefined;
+    // Get user's subscription plan
+    const subscription = await prisma.userSubscription.findUnique({
+      where: { userId },
+      select: { plan: true },
     });
+    const userPlan: RequiredPlan = (subscription?.plan as RequiredPlan) ?? "free_user";
+
+    // Models accessible to this plan
+    const accessibleIds = new Set(getModelsForPlan(userPlan).map((model) => model.id));
+
+    // Return ALL models with locked flag (plan-gated)
+    // The model fallback system handles provider unavailability transparently
+    const modelsWithFlags = AGENT_SELECTABLE_MODELS.map((model) => ({
+      ...model,
+      locked: !accessibleIds.has(model.id),
+      available: isProviderAvailable(model.provider),
+    }));
 
     res.json({
-      models: availableModels,
+      models: modelsWithFlags,
       defaultModelId: MODELS.AGENT_PRIMARY,
+      userPlan,
     });
   } catch (error) {
     logger.error("[Models] Failed to fetch available models:", error);

@@ -19,10 +19,18 @@ export const PADDLE_PLANS = {
     paddlePriceId: null,
   },
   premium: {
-    name: "Premium",
+    name: "Pro",
     paddlePriceId: PADDLE_CONFIG.prices.premiumMonthly,
   },
+  ultra: {
+    name: "Ultra",
+    paddlePriceId: PADDLE_CONFIG.prices.ultraMonthly || null,
+  },
 } as const;
+
+/** Re-export depuis la source unique de vérité */
+import { PLAN_LIMITS } from "../../config/planLimits.js";
+export { PLAN_LIMITS };
 
 /**
  * Client Paddle SDK initialisé avec les credentials
@@ -70,7 +78,7 @@ export class PaddleBillingService {
         ...subscription,
         planInfo: PADDLE_PLANS[subscription.plan],
         isActive: subscription.status === "active",
-        isPremium: subscription.plan === "premium",
+        isPremium: subscription.plan === "premium" || subscription.plan === "ultra",
       };
     } catch (error) {
       logger.error("❌ [PADDLE] Erreur récupération abonnement:", error);
@@ -100,8 +108,9 @@ export class PaddleBillingService {
    * @param periodEnd - Date de fin de période
    * @param trialDates - Optionnel: dates de trial si l'utilisateur est en période d'essai
    */
-  static async activatePremium(
+  static async activatePlan(
     userId: string,
+    plan: "premium" | "ultra",
     paddleCustomerId: string,
     paddleSubscriptionId: string,
     periodEnd: Date,
@@ -129,13 +138,13 @@ export class PaddleBillingService {
       const status: SubscriptionStatus = isTrial ? "trialing" : "active";
 
       logger.log(
-        `⬆️ [PADDLE] Activation Premium pour: ${userId} (${isTrial ? "TRIAL" : "ACTIVE"})`,
+        `⬆️ [PADDLE] Activation ${plan} pour: ${userId} (${isTrial ? "TRIAL" : "ACTIVE"})`,
       );
 
       const subscription = await prisma.userSubscription.upsert({
         where: { userId },
         update: {
-          plan: "premium",
+          plan,
           status,
           paddleCustomerId,
           paddleSubscriptionId,
@@ -151,7 +160,7 @@ export class PaddleBillingService {
         },
         create: {
           userId,
-          plan: "premium",
+          plan,
           status,
           paddleCustomerId,
           paddleSubscriptionId,
@@ -166,9 +175,9 @@ export class PaddleBillingService {
       });
 
       // Synchroniser les limites utilisateur
-      await this.syncUserLimitsAfterPlanChange(userId, "premium");
+      await this.syncUserLimitsAfterPlanChange(userId, plan);
 
-      logger.log(`✅ [PADDLE] Premium activé pour: ${userId} (status: ${status})`);
+      logger.log(`✅ [PADDLE] ${plan} activé pour: ${userId} (status: ${status})`);
       return subscription;
     } catch (error) {
       logger.error("❌ [PADDLE] Erreur activation Premium:", error);
@@ -180,7 +189,7 @@ export class PaddleBillingService {
    * Annule l'abonnement d'un utilisateur (appelé par le webhook)
    * Note: L'accès reste actif jusqu'à currentPeriodEnd
    */
-  static async cancelSubscription(userId: string, effectiveDate?: Date) {
+  static async cancelSubscription(userId: string, _effectiveDate?: Date) {
     try {
       logger.log(`🚫 [PADDLE] Annulation abonnement pour: ${userId}`);
 
@@ -267,7 +276,7 @@ export class PaddleBillingService {
 
   /**
    * Synchronise les limites utilisateur après un changement de plan
-   * IMPORTANT: Lors d'un downgrade (premium → free), les compteurs sont remis à 0
+   * IMPORTANT: Lors d'un downgrade, les compteurs sont remis à 0
    */
   static async syncUserLimitsAfterPlanChange(userId: string, newPlan: SubscriptionPlan) {
     try {
@@ -276,16 +285,18 @@ export class PaddleBillingService {
         newPlan,
       });
 
-      const isPremium = newPlan === "premium";
+      const limits = PLAN_LIMITS[newPlan];
 
-      // Vérifier si c'est un downgrade (premium → free)
+      // Vérifier si c'est un downgrade (ancien limit > nouveau limit)
       const currentLimits = await prisma.userLimits.findUnique({
         where: { userId },
         select: { aiCreditsLimit: true },
       });
 
-      // Downgrade = ancien plan était premium (-1) ET nouveau plan est free
-      const isDowngrade = currentLimits?.aiCreditsLimit === -1 && !isPremium;
+      const isDowngrade =
+        currentLimits &&
+        currentLimits.aiCreditsLimit > limits.aiCreditsLimit &&
+        limits.aiCreditsLimit !== -1;
 
       // Calculer l'usage des ressources permanentes (workspaces, projets)
       const [workspacesCount, projectsCount] = await Promise.all([
@@ -302,16 +313,13 @@ export class PaddleBillingService {
       let lastResetAtValue: Date | undefined;
 
       if (isDowngrade) {
-        // 🔄 DOWNGRADE: Remettre tous les compteurs mensuels à 0
-        // L'utilisateur commence un nouveau cycle gratuit
         aiCreditsUsedValue = 0;
         customQuizzesUsedValue = 0;
         presetSequencesUsedValue = 0;
-        lastResetAtValue = new Date(); // Nouveau cycle commence maintenant
+        lastResetAtValue = new Date();
 
         SecureLogger.log(`🔄 [PADDLE] Downgrade détecté - Reset des compteurs pour: ${userId}`);
       } else {
-        // Pas de downgrade: recalculer depuis les tables
         const [customQuizzesCount, presetSequencesCount, aiCreditsAggregated] = await Promise.all([
           prisma.quiz.count({ where: { userId, preset: "NONE" } }),
           prisma.quizSequence.count({ where: { userId } }),
@@ -330,33 +338,30 @@ export class PaddleBillingService {
         aiCreditsUsedValue = Math.max(0, aiCreditsAggregated);
         customQuizzesUsedValue = customQuizzesCount;
         presetSequencesUsedValue = presetSequencesCount;
-        // lastResetAt reste inchangé (undefined = pas de mise à jour)
       }
 
-      // Synchroniser les limites avec l'usage et le nouveau plan
       const updatedLimits = await prisma.userLimits.upsert({
         where: { userId },
         update: {
-          aiCreditsLimit: isPremium ? -1 : 50,
-          workspacesLimit: isPremium ? -1 : 2,
+          aiCreditsLimit: limits.aiCreditsLimit,
+          workspacesLimit: limits.workspacesLimit,
           projectsLimit: -1,
-          customQuizzesLimit: isPremium ? -1 : 5,
-          presetSequencesLimit: isPremium ? -1 : 1,
+          customQuizzesLimit: limits.customQuizzesLimit,
+          presetSequencesLimit: limits.presetSequencesLimit,
           workspacesUsed: workspacesCount,
           projectsUsed: projectsCount,
           customQuizzesUsed: customQuizzesUsedValue,
           presetSequencesUsed: presetSequencesUsedValue,
           aiCreditsUsed: aiCreditsUsedValue,
-          // Mettre à jour lastResetAt seulement si downgrade
           ...(lastResetAtValue && { lastResetAt: lastResetAtValue }),
         },
         create: {
           userId,
-          aiCreditsLimit: isPremium ? -1 : 50,
-          workspacesLimit: isPremium ? -1 : 2,
+          aiCreditsLimit: limits.aiCreditsLimit,
+          workspacesLimit: limits.workspacesLimit,
           projectsLimit: -1,
-          customQuizzesLimit: isPremium ? -1 : 5,
-          presetSequencesLimit: isPremium ? -1 : 1,
+          customQuizzesLimit: limits.customQuizzesLimit,
+          presetSequencesLimit: limits.presetSequencesLimit,
           aiCreditsUsed: aiCreditsUsedValue,
           workspacesUsed: workspacesCount,
           projectsUsed: projectsCount,
@@ -368,7 +373,7 @@ export class PaddleBillingService {
 
       SecureLogger.debug(`✅ [PADDLE] Limites synchronisées`, {
         userId,
-        newPlan: isPremium ? "PREMIUM" : "FREE",
+        newPlan,
         isDowngrade,
         limits: {
           aiCredits: `${updatedLimits.aiCreditsUsed}/${updatedLimits.aiCreditsLimit === -1 ? "∞" : updatedLimits.aiCreditsLimit}`,

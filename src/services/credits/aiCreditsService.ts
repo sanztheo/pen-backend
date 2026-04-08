@@ -6,7 +6,6 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { SecureLogger } from "../../middlewares/secureLogging.js";
-import { retryPrismaTransaction } from "../../lib/retryWithBackoff.js";
 
 export interface CreditDeductionResult {
   success: boolean;
@@ -20,65 +19,52 @@ export class AICreditsService {
    * Déduire des crédits IA (ULTRA-OPTIMISÉ POUR GRANDE ÉCHELLE)
    * Utilise UPSERT atomique pour éliminer complètement les deadlocks
    * @param userId - ID de l'utilisateur
-   * @param amount - Montant à déduire (par défaut 0.5)
+   * @param amount - Montant final à déduire (multiplier déjà appliqué par le middleware)
    * @param action - Type d'action (optionnel pour tracking)
    */
   static async deductCredits(
     userId: string,
-    amount: number = 0.5,
+    amount: number = 1,
     action?: string,
   ): Promise<CreditDeductionResult> {
+    const effectiveCost = amount;
+
     SecureLogger.debug(`🚀 [SERVER-CREDITS] Déduction ultra-optimisée`, {
       userId,
       action,
-      amount,
+      effectiveCost,
     });
 
     try {
-      // 🎯 UPSERT ATOMIQUE OPTIMISÉ POUR SCALABILITÉ 1000+ UTILISATEURS
-      // Implémentation exacte selon BACKEND_CONTEXT.md pour zero deadlock
       const now = new Date();
-      const result = await prisma.$executeRaw`
+      const rows = await prisma.$queryRaw<{ ai_credits_used: number; ai_credits_limit: number }[]>`
         INSERT INTO "user_limits" (
-          "user_id", "ai_credits_used", "ai_credits_limit", 
+          "user_id", "ai_credits_used", "ai_credits_limit",
           "workspaces_used", "workspaces_limit", "projects_used", "projects_limit",
           "custom_quizzes_used", "custom_quizzes_limit", "preset_sequences_used", "preset_sequences_limit",
           "last_reset_at", "reset_type", "created_at", "updated_at", "pages_limit", "pages_used"
         )
         VALUES (
-          ${userId}, ${amount}, 50, 
+          ${userId}, ${effectiveCost}, 50,
           0, 2, 0, 4,
           0, 5, 0, 1,
           ${now}, 'monthly', ${now}, ${now}, -1, 0
         )
-        ON CONFLICT ("user_id") 
-        DO UPDATE SET 
-          "ai_credits_used" = CASE 
-            WHEN "user_limits"."ai_credits_limit" = -1 THEN "user_limits"."ai_credits_used" + ${amount}
-            WHEN "user_limits"."ai_credits_used" + ${amount} <= "user_limits"."ai_credits_limit"
-            THEN "user_limits"."ai_credits_used" + ${amount}
+        ON CONFLICT ("user_id")
+        DO UPDATE SET
+          "ai_credits_used" = CASE
+            WHEN "user_limits"."ai_credits_limit" = -1 THEN "user_limits"."ai_credits_used" + ${effectiveCost}
+            WHEN "user_limits"."ai_credits_used" + ${effectiveCost} <= "user_limits"."ai_credits_limit"
+            THEN "user_limits"."ai_credits_used" + ${effectiveCost}
             ELSE "user_limits"."ai_credits_used"
           END,
           "updated_at" = ${now}
+        RETURNING "ai_credits_used", "ai_credits_limit"
       `;
 
-      SecureLogger.debug(`⚡ [SERVER-CREDITS] UPSERT atomique exécuté`, {
-        userId,
-        amount,
-        affected: result,
-      });
-
-      // Lecture finale pour validation (optimisée avec SELECT specific)
-      const finalLimits = await prisma.userLimits.findUnique({
-        where: { userId },
-        select: {
-          aiCreditsUsed: true,
-          aiCreditsLimit: true,
-        },
-      });
-
+      const finalLimits = rows[0];
       if (!finalLimits) {
-        SecureLogger.error(`❌ [SERVER-CREDITS] Limites introuvables après UPSERT`, { userId });
+        SecureLogger.error("[SERVER-CREDITS] No row returned from UPSERT RETURNING", { userId });
         return {
           success: false,
           remainingCredits: 0,
@@ -87,21 +73,19 @@ export class AICreditsService {
         };
       }
 
-      // Validation intelligente du succès
-      const expectedMinUsage = result === 0 ? amount : finalLimits.aiCreditsUsed; // Si UPDATE, minimum attendu
-      const deductionSucceeded = finalLimits.aiCreditsUsed >= expectedMinUsage;
+      const aiCreditsUsed = Number(finalLimits.ai_credits_used);
+      const aiCreditsLimit = Number(finalLimits.ai_credits_limit);
+      const deductionSucceeded = aiCreditsLimit === -1 || aiCreditsUsed <= aiCreditsLimit;
 
       if (!deductionSucceeded) {
         const currentRemainingCredits =
-          finalLimits.aiCreditsLimit === -1
-            ? -1
-            : Math.max(0, finalLimits.aiCreditsLimit - finalLimits.aiCreditsUsed);
+          aiCreditsLimit === -1 ? -1 : Math.max(0, aiCreditsLimit - aiCreditsUsed);
 
-        SecureLogger.warn(`❌ [SERVER-CREDITS] Limite atteinte (déduction refusée)`, {
+        SecureLogger.warn("[SERVER-CREDITS] Limit reached (deduction refused)", {
           userId,
-          amount,
-          currentUsage: finalLimits.aiCreditsUsed,
-          limit: finalLimits.aiCreditsLimit,
+          effectiveCost,
+          currentUsage: aiCreditsUsed,
+          limit: aiCreditsLimit,
           remainingCredits: currentRemainingCredits,
         });
 
@@ -113,23 +97,19 @@ export class AICreditsService {
         };
       }
 
-      // Succès - calculer les crédits restants
       const remainingCredits =
-        finalLimits.aiCreditsLimit === -1
-          ? -1 // Illimité
-          : Math.max(0, finalLimits.aiCreditsLimit - finalLimits.aiCreditsUsed);
+        aiCreditsLimit === -1 ? -1 : Math.max(0, aiCreditsLimit - aiCreditsUsed);
 
-      SecureLogger.debug(`✅ [SERVER-CREDITS] Déduction ultra-rapide réussie`, {
+      SecureLogger.debug("[SERVER-CREDITS] Deduction succeeded", {
         userId,
-        amount,
-        newUsage: finalLimits.aiCreditsUsed,
+        effectiveCost,
+        newUsage: aiCreditsUsed,
         remainingCredits,
-        operationType: result === 0 ? "UPDATE" : "INSERT",
       });
 
       // Enregistrement usage asynchrone (non-bloquant pour performance)
       setImmediate(() => {
-        this.recordUsage(userId, "ai_action", amount, {
+        this.recordUsage(userId, "ai_action", effectiveCost, {
           action,
           method: "upsert_atomic",
         }).catch((err) => SecureLogger.warn("Erreur enregistrement usage IA (non-critique)", err));

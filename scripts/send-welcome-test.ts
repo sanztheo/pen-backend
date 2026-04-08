@@ -2,7 +2,7 @@
  * Send a single Beta Welcome email with credentials
  *
  * Usage:
- *   infisical run --path=/Backend/PROD -- npx tsx scripts/send-welcome-test.ts email@example.com "Prénom"
+ *   infisical run --env=prod --path=/Backend -- npx tsx scripts/send-welcome-test.ts email@example.com "Prénom"
  */
 
 import { EmailService } from "../src/services/EmailService.js";

@@ -82,7 +82,6 @@ export class UserSyncService {
           }
 
           // 🏠 Créer automatiquement le workspace par défaut SEULEMENT lors de la création d'un nouvel utilisateur
-          // 🎁 Beta users get premium automatically
           if (isNewUser) {
             try {
               await DefaultWorkspaceService.getOrCreateDefaultWorkspace(user.id);
@@ -93,25 +92,28 @@ export class UserSyncService {
               logger.error("❌ [USER-SYNC] Erreur création workspace par défaut:", error);
             }
 
-            // Beta: activate premium for all new signups (atomic transaction)
+            // 3-tier pricing: new signups start on free_user plan.
+            // Existing users with plan "premium" (old Premium = now Pro) keep their plan
+            // until their Paddle subscription renews — Paddle webhooks are the single
+            // source of truth for plan assignment.
             try {
               await prisma.$transaction(async (tx) => {
                 await tx.userSubscription.upsert({
                   where: { userId: user.id },
-                  update: { plan: "premium", status: "active" },
+                  update: {}, // Don't override plan set by Paddle webhook
                   create: {
                     userId: user.id,
-                    plan: "premium",
+                    plan: "free_user",
                     status: "active",
                   },
                 });
-                await PaddleBillingService.syncUserLimitsAfterPlanChange(user.id, "premium");
+                await PaddleBillingService.syncUserLimitsAfterPlanChange(user.id, "free_user");
               });
               logger.log(
-                `[USER-SYNC] Premium beta activated for ${user.firstName} ${user.lastName}`,
+                `[USER-SYNC] Free plan initialized for ${user.firstName} ${user.lastName}`,
               );
             } catch (error) {
-              logger.error("[USER-SYNC] Failed to activate beta premium (rolled back):", error);
+              logger.error("[USER-SYNC] Failed to initialize free plan (rolled back):", error);
             }
           }
 

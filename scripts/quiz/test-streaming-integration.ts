@@ -3,8 +3,8 @@
  * PEN-18: Test l'intégration des services d'intelligence dans le streaming
  *
  * Usage:
- *   infisical run --path=/Backend/DEV -- npx tsx scripts/quiz/test-streaming-integration.ts
- *   infisical run --path=/Backend/DEV -- npx tsx scripts/quiz/test-streaming-integration.ts <workspaceId>
+ *   infisical run --env=dev --path=/Backend -- npx tsx scripts/quiz/test-streaming-integration.ts
+ *   infisical run --env=dev --path=/Backend -- npx tsx scripts/quiz/test-streaming-integration.ts <workspaceId>
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -36,9 +36,7 @@ async function main() {
   let pageIds: string[] = [];
 
   if (workspaceId) {
-    console.log(
-      `\n📄 2. Récupération des pages du workspace ${workspaceId}...`,
-    );
+    console.log(`\n📄 2. Récupération des pages du workspace ${workspaceId}...`);
     const pages = await prisma.page.findMany({
       where: {
         project: { workspaceId },
@@ -79,21 +77,15 @@ async function main() {
 
   const questionCount = 10;
 
-  console.log(
-    `\n   📊 Configuration: ${pageIds.length} pages, ${questionCount} questions`,
-  );
+  console.log(`\n   📊 Configuration: ${pageIds.length} pages, ${questionCount} questions`);
 
   const startTime = Date.now();
-  const intelligentContext = await prepareIntelligentContext(
-    pageIds,
-    questionCount,
-    {
-      enabled: true,
-      maxTokens: 8000,
-      balanceContentTypes: true,
-      generateClusterNames: true,
-    },
-  );
+  const intelligentContext = await prepareIntelligentContext(pageIds, questionCount, {
+    enabled: true,
+    maxTokens: 8000,
+    balanceContentTypes: true,
+    generateClusterNames: true,
+  });
 
   if (!intelligentContext) {
     console.log("   ❌ Contexte intelligent non créé (pas assez de contenu)");
@@ -110,9 +102,7 @@ async function main() {
   for (const cluster of intelligentContext.clusters) {
     console.log(`      • ${cluster.name}`);
     console.log(`        - Pages: ${cluster.pageCount}`);
-    console.log(
-      `        - Importance: ${(cluster.importance * 100).toFixed(0)}%`,
-    );
+    console.log(`        - Importance: ${(cluster.importance * 100).toFixed(0)}%`);
     console.log(`        - Keywords: ${cluster.keywords.join(", ")}`);
   }
 
@@ -137,10 +127,7 @@ async function main() {
 
   console.log("\n   Simulation de génération:");
   for (let i = 0; i < questionCount; i++) {
-    const context = getQuestionContext(
-      i,
-      intelligentContext.questionDistribution,
-    );
+    const context = getQuestionContext(i, intelligentContext.questionDistribution);
     if (context) {
       console.log(
         `      Question ${i + 1}: Thème "${context.clusterName}" (${context.content.length} chars)`,
@@ -179,9 +166,7 @@ async function main() {
     console.log(`   ${line}`);
   }
   console.log("   ...");
-  console.log(
-    `\n   Taille totale: ${intelligentContext.enrichedRagContext.length} chars`,
-  );
+  console.log(`\n   Taille totale: ${intelligentContext.enrichedRagContext.length} chars`);
 
   // 9. Types de contenu
   console.log("\n" + "─".repeat(60));
@@ -189,9 +174,7 @@ async function main() {
   console.log("─".repeat(60));
 
   console.log("\n   Types:");
-  for (const [type, count] of Object.entries(
-    intelligentContext.stats.contentTypes,
-  )) {
+  for (const [type, count] of Object.entries(intelligentContext.stats.contentTypes)) {
     if (count > 0) {
       console.log(`      • ${type}: ${count} chunks`);
     }

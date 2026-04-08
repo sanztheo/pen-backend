@@ -82,7 +82,7 @@ export interface UserListItem {
   lastLoginAt: Date | null;
   workspacesCount: number;
   pagesCount: number;
-  plan: "free_user" | "premium";
+  plan: "free_user" | "premium" | "ultra";
 }
 
 export interface PaginatedUsers {

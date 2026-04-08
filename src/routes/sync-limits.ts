@@ -7,6 +7,8 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma.js";
 import { authenticateToken } from "../middlewares/auth.js";
 import { SecureLogger } from "../middlewares/secureLogging.js";
+import { PLAN_LIMITS } from "../config/planLimits.js";
+import { normalizePlan } from "../utils/plans.js";
 
 const router = Router();
 
@@ -28,13 +30,14 @@ router.post("/", authenticateToken, async (req: Request, res: Response) => {
       userId,
     });
 
-    // Calculer l'usage réel depuis la base de données
+    // Calculer l'usage réel + récupérer le plan en parallèle
     const [
       workspacesCount,
       projectsCount,
       customQuizzesCount,
       presetSequencesCount,
       aiCreditsUsed,
+      subscription,
     ] = await Promise.all([
       prisma.workspace.count({ where: { ownerId: userId } }),
       prisma.project.count({ where: { createdBy: userId } }),
@@ -47,41 +50,34 @@ router.post("/", authenticateToken, async (req: Request, res: Response) => {
         });
         return result._sum.quantity || 0;
       })(),
+      prisma.userSubscription.findUnique({ where: { userId } }),
     ]);
 
-    // Récupérer l'abonnement actuel pour déterminer les limites
-    const subscription = await prisma.userSubscription.findUnique({
-      where: { userId },
-    });
-
-    const isPremium = subscription?.plan === "premium";
+    const plan = normalizePlan(subscription?.plan);
+    const limits = PLAN_LIMITS[plan];
 
     // Synchroniser les limites avec l'usage réel
     const updatedLimits = await prisma.userLimits.upsert({
       where: { userId },
       update: {
-        // Synchroniser l'usage avec les données réelles
         workspacesUsed: workspacesCount,
         projectsUsed: projectsCount,
         customQuizzesUsed: customQuizzesCount,
         presetSequencesUsed: presetSequencesCount,
         aiCreditsUsed: Math.max(0, aiCreditsUsed),
-        // Mettre à jour les limites selon le plan (au cas où)
-        aiCreditsLimit: isPremium ? -1 : 50,
-        workspacesLimit: isPremium ? -1 : 2,
+        aiCreditsLimit: limits.aiCreditsLimit,
+        workspacesLimit: limits.workspacesLimit,
         projectsLimit: -1,
-        customQuizzesLimit: isPremium ? -1 : 5,
-        presetSequencesLimit: isPremium ? -1 : 1,
+        customQuizzesLimit: limits.customQuizzesLimit,
+        presetSequencesLimit: limits.presetSequencesLimit,
       },
       create: {
         userId,
-        // Limites selon le plan
-        aiCreditsLimit: isPremium ? -1 : 50,
-        workspacesLimit: isPremium ? -1 : 2,
+        aiCreditsLimit: limits.aiCreditsLimit,
+        workspacesLimit: limits.workspacesLimit,
         projectsLimit: -1,
-        customQuizzesLimit: isPremium ? -1 : 5,
-        presetSequencesLimit: isPremium ? -1 : 1,
-        // Usage synchronisé avec la réalité
+        customQuizzesLimit: limits.customQuizzesLimit,
+        presetSequencesLimit: limits.presetSequencesLimit,
         aiCreditsUsed: Math.max(0, aiCreditsUsed),
         workspacesUsed: workspacesCount,
         projectsUsed: projectsCount,
@@ -92,7 +88,7 @@ router.post("/", authenticateToken, async (req: Request, res: Response) => {
 
     SecureLogger.debug(`✅ [SYNC-LIMITS] Limites synchronisées`, {
       userId,
-      plan: isPremium ? "PREMIUM" : "FREE",
+      plan,
       usage: {
         workspaces: workspacesCount,
         projects: projectsCount,
@@ -120,7 +116,7 @@ router.post("/", authenticateToken, async (req: Request, res: Response) => {
           customQuizzesUsed: updatedLimits.customQuizzesUsed,
           presetSequencesUsed: updatedLimits.presetSequencesUsed,
         },
-        plan: isPremium ? "premium" : "free",
+        plan,
       },
     });
   } catch (error) {

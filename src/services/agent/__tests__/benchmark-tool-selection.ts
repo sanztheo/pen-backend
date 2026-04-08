@@ -71,7 +71,7 @@ function buildModelConfigs(): ModelConfig[] {
   if (googleProvider)
     configs.push({
       id: "gemini-3-flash-preview",
-      label: "gemini-3-flash",
+      label: "gemini-3-flash-preview",
       provider: googleProvider,
     });
   if (openaiProvider)

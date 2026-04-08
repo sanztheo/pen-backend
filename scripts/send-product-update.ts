@@ -3,16 +3,16 @@
  *
  * Usage:
  *   # Dry run (preview recipients, no emails sent):
- *   infisical run --path=/Backend/PROD -- npx tsx scripts/send-product-update.ts --dry-run
+ *   infisical run --env=prod --path=/Backend -- npx tsx scripts/send-product-update.ts --dry-run
  *
  *   # Send to yourself first:
- *   infisical run --path=/Backend/PROD -- npx tsx scripts/send-product-update.ts --test redacted@example.com
+ *   infisical run --env=prod --path=/Backend -- npx tsx scripts/send-product-update.ts --test redacted@example.com
  *
  *   # Send to all active users:
- *   infisical run --path=/Backend/PROD -- npx tsx scripts/send-product-update.ts --send
+ *   infisical run --env=prod --path=/Backend -- npx tsx scripts/send-product-update.ts --send
  *
  * Env vars required:
- *   RESEND_API_KEY — Resend API key (from Infisical /Backend/PROD)
+ *   RESEND_API_KEY — Resend API key (from Infisical /Backend env=prod)
  *   DATABASE_URL   — prod database (from Infisical) OR DB_PROD from .env.prod
  */
 

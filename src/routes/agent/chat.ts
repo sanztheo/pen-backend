@@ -8,6 +8,7 @@ import { logger } from "../../utils/logger.js";
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { requireAICredits } from "../../middlewares/requireAICredits.js";
+import { modelFallback } from "../../middlewares/modelFallback.js";
 import {
   runPennoteAgent,
   detectIntent,
@@ -43,6 +44,7 @@ chatRouter.post(
   aiConcurrencyLimit,
   dailyTokenQuota,
   verifyWorkspaceAccess,
+  modelFallback(calculateDynamicCost),
   requireAICredits({ dynamicCost: calculateDynamicCost, action: "agent_chat" }),
   async (req: Request, res: Response) => {
     try {
@@ -264,7 +266,20 @@ chatRouter.post(
         generateMessageId: generateId,
         messageMetadata: ({ part }) => {
           if (part.type === "start") {
-            return { model: modelDisplayName };
+            const fb = req.modelFallback;
+            return {
+              model: modelDisplayName,
+              ...(fb && {
+                fallback: {
+                  originalModel: fb.original.name,
+                  fallbackModel: fb.fallback.name,
+                  reason:
+                    fb.reason === "insufficient_credits"
+                      ? "insufficient_credits"
+                      : "model_unavailable",
+                },
+              }),
+            };
           }
         },
         async consumeSseStream({ stream }) {

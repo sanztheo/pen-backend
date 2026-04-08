@@ -3,8 +3,8 @@
  * PEN-17: Test la sélection intelligente de contenu
  *
  * Usage:
- *   infisical run --path=/Backend/DEV -- npx tsx scripts/quiz/test-smart-content-selector.ts
- *   infisical run --path=/Backend/DEV -- npx tsx scripts/quiz/test-smart-content-selector.ts <workspaceId> [maxTokens]
+ *   infisical run --env=dev --path=/Backend -- npx tsx scripts/quiz/test-smart-content-selector.ts
+ *   infisical run --env=dev --path=/Backend -- npx tsx scripts/quiz/test-smart-content-selector.ts <workspaceId> [maxTokens]
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -36,9 +36,7 @@ async function main() {
   let pageIds: string[] = [];
 
   if (workspaceId) {
-    console.log(
-      `\n📄 2. Récupération des pages du workspace ${workspaceId}...`,
-    );
+    console.log(`\n📄 2. Récupération des pages du workspace ${workspaceId}...`);
     const pages = await prisma.page.findMany({
       where: {
         project: { workspaceId },
@@ -84,14 +82,10 @@ async function main() {
   const testCluster = clusterResult.clusters[0];
   console.log(`   ✅ Cluster de test: "${testCluster.name}"`);
   console.log(`      • Pages: ${testCluster.pages.length}`);
-  console.log(
-    `      • Keywords: ${testCluster.keywords.slice(0, 5).join(", ")}`,
-  );
+  console.log(`      • Keywords: ${testCluster.keywords.slice(0, 5).join(", ")}`);
 
   // 4. Test avec différentes limites de tokens
-  const tokenLimits = maxTokensArg
-    ? [parseInt(maxTokensArg)]
-    : [4000, 8000, 16000];
+  const tokenLimits = maxTokensArg ? [parseInt(maxTokensArg)] : [4000, 8000, 16000];
 
   for (const maxTokens of tokenLimits) {
     console.log(`\n${"─".repeat(60)}`);
@@ -99,16 +93,14 @@ async function main() {
     console.log("─".repeat(60));
 
     const startTime = Date.now();
-    const selected = await SmartContentSelectorService.selectForCluster(
-      testCluster,
-      { maxTokens, balanceTypes: true },
-    );
+    const selected = await SmartContentSelectorService.selectForCluster(testCluster, {
+      maxTokens,
+      balanceTypes: true,
+    });
 
     console.log(`\n   ⏱️ Temps: ${Date.now() - startTime}ms`);
     console.log(`   📦 Chunks sélectionnés: ${selected.chunks.length}`);
-    console.log(
-      `   🔢 Tokens utilisés: ${selected.totalTokens} / ${maxTokens}`,
-    );
+    console.log(`   🔢 Tokens utilisés: ${selected.totalTokens} / ${maxTokens}`);
     console.log(`   📊 Couverture: ${(selected.coverage * 100).toFixed(1)}%`);
 
     // Distribution par type
@@ -123,9 +115,7 @@ async function main() {
     console.log("\n   📝 Échantillon de chunks sélectionnés:");
     for (const chunk of selected.chunks.slice(0, 5)) {
       const preview =
-        chunk.content.length > 60
-          ? chunk.content.slice(0, 60) + "..."
-          : chunk.content;
+        chunk.content.length > 60 ? chunk.content.slice(0, 60) + "..." : chunk.content;
       console.log(`      [${chunk.type}] ${preview}`);
     }
     if (selected.chunks.length > 5) {
@@ -147,10 +137,9 @@ async function main() {
   console.log("📝 5. Test formatForPrompt...");
   console.log("─".repeat(60));
 
-  const selected = await SmartContentSelectorService.selectForCluster(
-    testCluster,
-    { maxTokens: 4000 },
-  );
+  const selected = await SmartContentSelectorService.selectForCluster(testCluster, {
+    maxTokens: 4000,
+  });
   const formatted = SmartContentSelectorService.formatForPrompt(selected);
 
   console.log("\n   Aperçu du contenu formaté:");
@@ -187,15 +176,11 @@ async function main() {
   console.log("⚡ 7. Test optimizeForTokenLimit...");
   console.log("─".repeat(60));
 
-  const allSelected = await SmartContentSelectorService.selectForCluster(
-    testCluster,
-    { maxTokens: 16000 },
-  );
+  const allSelected = await SmartContentSelectorService.selectForCluster(testCluster, {
+    maxTokens: 16000,
+  });
 
-  const optimized = SmartContentSelectorService.optimizeForTokenLimit(
-    allSelected.chunks,
-    2000,
-  );
+  const optimized = SmartContentSelectorService.optimizeForTokenLimit(allSelected.chunks, 2000);
   const optimizedTokens = optimized.reduce((sum, c) => sum + c.tokens, 0);
 
   console.log(`\n   📦 Chunks originaux: ${allSelected.chunks.length}`);
