@@ -127,8 +127,13 @@ export const AGENT_SELECTABLE_MODELS: readonly SelectableModel[] = [
     "free_user",
   ),
 
-  // Gemini 2.5 Flash
+  // Gemini 2.5 Flash — 4 thinking levels (thinkingBudget)
   m("gemini-2.5-flash", "Gemini 2.5 Flash", "google", "google", "none", "eco", "free_user"),
+  m("gemini-2.5-flash", "Gemini 2.5 Flash", "google", "google", "low", "eco", "free_user"),
+  m("gemini-2.5-flash", "Gemini 2.5 Flash", "google", "google", "medium", "eco", "free_user"),
+  m("gemini-2.5-flash", "Gemini 2.5 Flash", "google", "google", "high", "eco", "free_user"),
+
+  // Gemini 2.5 Flash Lite
   m(
     "gemini-2.5-flash-lite",
     "Gemini 2.5 Flash Lite",
@@ -139,13 +144,40 @@ export const AGENT_SELECTABLE_MODELS: readonly SelectableModel[] = [
     "free_user",
   ),
 
-  // Gemini 3.1 Flash Lite Preview
+  // Gemini 3.1 Flash Lite Preview — 4 thinking levels
   m(
     "gemini-3.1-flash-lite-preview",
     "Gemini 3.1 Flash Lite",
     "google",
     "google",
-    "none",
+    "minimal",
+    "eco",
+    "free_user",
+  ),
+  m(
+    "gemini-3.1-flash-lite-preview",
+    "Gemini 3.1 Flash Lite",
+    "google",
+    "google",
+    "low",
+    "eco",
+    "free_user",
+  ),
+  m(
+    "gemini-3.1-flash-lite-preview",
+    "Gemini 3.1 Flash Lite",
+    "google",
+    "google",
+    "medium",
+    "eco",
+    "free_user",
+  ),
+  m(
+    "gemini-3.1-flash-lite-preview",
+    "Gemini 3.1 Flash Lite",
+    "google",
+    "google",
+    "high",
     "eco",
     "free_user",
   ),
@@ -164,45 +196,135 @@ export const AGENT_SELECTABLE_MODELS: readonly SelectableModel[] = [
   m("gpt-5.1-codex-mini", "Codex Mini", "openai", "openai", "medium", "eco", "premium"),
   m("gpt-5.1-codex-mini", "Codex Mini", "openai", "openai", "high", "eco", "premium"),
 
-  // Kimi K2.5 — Pro-selectable eco model
+  // Kimi K2.5 — 4 thinking levels
   m("kimi-k2.5", "Kimi K2.5", "moonshot", "moonshot", "none", "eco", "premium"),
+  m("kimi-k2.5", "Kimi K2.5", "moonshot", "moonshot", "low", "eco", "premium"),
   m("kimi-k2.5", "Kimi K2.5", "moonshot", "moonshot", "medium", "eco", "premium"),
+  m("kimi-k2.5", "Kimi K2.5", "moonshot", "moonshot", "high", "eco", "premium"),
   m("kimi-k2-0905", "Kimi K2", "moonshot", "moonshot", "none", "eco", "free_user"),
 
   // DeepSeek — Pro-selectable eco model
   m("deepseek-chat", "DeepSeek Chat", "deepseek", "deepseek", "none", "eco", "premium"),
   m("deepseek-reasoner", "DeepSeek Reasoner", "deepseek", "deepseek", "none", "eco", "free_user"),
 
-  // Gemma 4 — Free models, Pro-selectable, tool calling + thinking
+  // Gemma 4 31B — 4 thinking levels (reasoning-capable)
   m("gemma-4-31b-it", "Gemma 4 31B", "google", "google", "none", "eco", "premium"),
+  m("gemma-4-31b-it", "Gemma 4 31B", "google", "google", "low", "eco", "premium"),
+  m("gemma-4-31b-it", "Gemma 4 31B", "google", "google", "medium", "eco", "premium"),
+  m("gemma-4-31b-it", "Gemma 4 31B", "google", "google", "high", "eco", "premium"),
+
+  // Gemma 4 MoE — 4 thinking levels (reasoning-capable)
   m("gemma-4-26b-a4b-it", "Gemma 4 MoE", "google", "google", "none", "eco", "premium"),
+  m("gemma-4-26b-a4b-it", "Gemma 4 MoE", "google", "google", "low", "eco", "premium"),
+  m("gemma-4-26b-a4b-it", "Gemma 4 MoE", "google", "google", "medium", "eco", "premium"),
+  m("gemma-4-26b-a4b-it", "Gemma 4 MoE", "google", "google", "high", "eco", "premium"),
+
+  // Gemma 4 Mini — no reasoning support
   m("gemma-4-e4b-it", "Gemma 4 Mini", "google", "google", "none", "eco", "premium"),
 
   // ── Tier 2: Standard (2 credits) — Ultra only ─────────────────────────────
 
+  // GPT-5 — 3 reasoning levels (high = premium due to reasoning token cost)
   m("gpt-5", "GPT-5", "openai", "openai", "low", "standard", "ultra"),
+  m("gpt-5", "GPT-5", "openai", "openai", "medium", "standard", "ultra"),
+  m("gpt-5", "GPT-5", "openai", "openai", "high", "premium", "ultra"),
+
+  // GPT-5 Mini — 2 reasoning levels
   m("gpt-5-mini", "GPT-5 Mini", "openai", "openai", "low", "standard", "ultra"),
+  m("gpt-5-mini", "GPT-5 Mini", "openai", "openai", "medium", "standard", "ultra"),
+
+  // GPT-5.1 — 3 reasoning levels (high = premium)
   m("gpt-5.1", "GPT-5.1", "openai", "openai", "low", "standard", "ultra"),
+  m("gpt-5.1", "GPT-5.1", "openai", "openai", "medium", "standard", "ultra"),
+  m("gpt-5.1", "GPT-5.1", "openai", "openai", "high", "premium", "ultra"),
+
+  // Gemini 2.5 Pro — 4 thinking levels (thinkingBudget)
   m("gemini-2.5-pro", "Gemini 2.5 Pro", "google", "google", "none", "standard", "ultra"),
-  m("gemini-3.1-pro-preview", "Gemini 3.1 Pro", "google", "google", "none", "standard", "ultra"),
+  m("gemini-2.5-pro", "Gemini 2.5 Pro", "google", "google", "low", "standard", "ultra"),
+  m("gemini-2.5-pro", "Gemini 2.5 Pro", "google", "google", "medium", "standard", "ultra"),
+  m("gemini-2.5-pro", "Gemini 2.5 Pro", "google", "google", "high", "premium", "ultra"),
+
+  // Gemini 3.1 Pro — 3 thinking levels (high = premium)
+  m("gemini-3.1-pro-preview", "Gemini 3.1 Pro", "google", "google", "low", "standard", "ultra"),
+  m("gemini-3.1-pro-preview", "Gemini 3.1 Pro", "google", "google", "medium", "standard", "ultra"),
+  m("gemini-3.1-pro-preview", "Gemini 3.1 Pro", "google", "google", "high", "premium", "ultra"),
+
   m("gpt-4.1", "GPT-4.1", "openai", "openai", "none", "standard", "ultra"),
+
+  // o4-mini — 3 reasoning levels (high = premium)
+  m("o4-mini", "o4-mini", "openai", "openai", "low", "standard", "ultra"),
   m("o4-mini", "o4-mini", "openai", "openai", "medium", "standard", "ultra"),
-  m("kimi-k2-thinking", "Kimi K2 Thinking", "moonshot", "moonshot", "high", "standard", "ultra"),
+  m("o4-mini", "o4-mini", "openai", "openai", "high", "premium", "ultra"),
+
+  m("kimi-k2-thinking", "Kimi K2 Thinking", "moonshot", "moonshot", "high", "premium", "ultra"),
+  // Grok 3 Mini — 2 reasoning levels (high = premium)
   m("grok-3-mini", "Grok 3 Mini", "xai", "xai", "low", "standard", "ultra"),
+  m("grok-3-mini", "Grok 3 Mini", "xai", "xai", "high", "premium", "ultra"),
+
+  // Claude Haiku 4.5 — 4 thinking levels (high = premium)
   m("claude-haiku-4-5", "Claude Haiku 4.5", "anthropic", "anthropic", "none", "standard", "ultra"),
+  m("claude-haiku-4-5", "Claude Haiku 4.5", "anthropic", "anthropic", "low", "standard", "ultra"),
+  m(
+    "claude-haiku-4-5",
+    "Claude Haiku 4.5",
+    "anthropic",
+    "anthropic",
+    "medium",
+    "standard",
+    "ultra",
+  ),
+  m("claude-haiku-4-5", "Claude Haiku 4.5", "anthropic", "anthropic", "high", "premium", "ultra"),
 
   // ── Tier 3: Premium (3 credits) — Ultra only ──────────────────────────────
 
+  // Claude Sonnet 4.5 — 4 thinking levels
   m("claude-sonnet-4-5", "Claude Sonnet 4.5", "anthropic", "anthropic", "none", "premium", "ultra"),
+  m("claude-sonnet-4-5", "Claude Sonnet 4.5", "anthropic", "anthropic", "low", "premium", "ultra"),
+  m(
+    "claude-sonnet-4-5",
+    "Claude Sonnet 4.5",
+    "anthropic",
+    "anthropic",
+    "medium",
+    "premium",
+    "ultra",
+  ),
+  m("claude-sonnet-4-5", "Claude Sonnet 4.5", "anthropic", "anthropic", "high", "elite", "ultra"),
+
+  // Claude Sonnet 4.6 — 4 thinking levels
   m("claude-sonnet-4-6", "Claude Sonnet 4.6", "anthropic", "anthropic", "none", "premium", "ultra"),
+  m("claude-sonnet-4-6", "Claude Sonnet 4.6", "anthropic", "anthropic", "low", "premium", "ultra"),
+  m(
+    "claude-sonnet-4-6",
+    "Claude Sonnet 4.6",
+    "anthropic",
+    "anthropic",
+    "medium",
+    "premium",
+    "ultra",
+  ),
+  m("claude-sonnet-4-6", "Claude Sonnet 4.6", "anthropic", "anthropic", "high", "elite", "ultra"),
+
+  // GPT-5.2 — 3 reasoning levels (high = elite)
   m("gpt-5.2", "GPT-5.2", "openai", "openai", "low", "premium", "ultra"),
+  m("gpt-5.2", "GPT-5.2", "openai", "openai", "medium", "premium", "ultra"),
+  m("gpt-5.2", "GPT-5.2", "openai", "openai", "high", "elite", "ultra"),
+
   m("gpt-4o", "GPT-4o", "openai", "openai", "none", "premium", "ultra"),
-  m("o3", "o3", "openai", "openai", "high", "premium", "ultra"),
+
+  // o3 — 2 reasoning levels (high = elite)
+  m("o3", "o3", "openai", "openai", "medium", "premium", "ultra"),
+  m("o3", "o3", "openai", "openai", "high", "elite", "ultra"),
+
   m("grok-3", "Grok 3", "xai", "xai", "none", "premium", "ultra"),
 
   // ── Tier 4: Elite (5 credits) — Ultra only ─────────────────────────────────
 
+  // Claude Opus 4.6 — 4 thinking levels
   m("claude-opus-4-6", "Claude Opus 4.6", "anthropic", "anthropic", "none", "elite", "ultra"),
+  m("claude-opus-4-6", "Claude Opus 4.6", "anthropic", "anthropic", "low", "elite", "ultra"),
+  m("claude-opus-4-6", "Claude Opus 4.6", "anthropic", "anthropic", "medium", "elite", "ultra"),
+  m("claude-opus-4-6", "Claude Opus 4.6", "anthropic", "anthropic", "high", "elite", "ultra"),
 ];
 
 // ── O(1) index built once at module load ────────────────────────────────────

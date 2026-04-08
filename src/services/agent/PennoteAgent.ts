@@ -199,9 +199,20 @@ function buildProviderOptions(
     const googleOptions: Record<string, unknown> = {
       useSearchGrounding: enableNativeWebSearch,
     };
-    // Google only accepts "minimal"|"low"|"medium"|"high" — omit thinkingConfig for "none"
+    // Gemini 2.5 uses thinkingBudget (token count), 3.x uses thinkingLevel (named levels)
     if (level !== "none") {
-      googleOptions.thinkingConfig = { thinkingLevel: level, includeThoughts: true };
+      const isGemini25 = modelId.includes("2.5");
+      if (isGemini25) {
+        const budgetMap: Record<string, number> = {
+          minimal: 1024,
+          low: 4096,
+          medium: 8192,
+          high: 16384,
+        };
+        googleOptions.thinkingConfig = { thinkingBudget: budgetMap[level] ?? 8192 };
+      } else {
+        googleOptions.thinkingConfig = { thinkingLevel: level, includeThoughts: true };
+      }
     }
     return { google: googleOptions };
   }
@@ -229,6 +240,20 @@ function buildProviderOptions(
       const budgetTokens = level === "high" ? 8192 : level === "medium" ? 4096 : 2048;
       return {
         moonshotai: {
+          thinking: { type: "enabled", budgetTokens },
+        },
+      };
+    }
+    return {};
+  }
+
+  // Anthropic Claude: extended thinking with budgetTokens
+  if (provider === "anthropic") {
+    const level = thinkingOverride || thinking;
+    if (level !== "none") {
+      const budgetTokens = level === "high" ? 20000 : level === "medium" ? 10000 : 5000;
+      return {
+        anthropic: {
           thinking: { type: "enabled", budgetTokens },
         },
       };
