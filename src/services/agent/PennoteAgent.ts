@@ -199,8 +199,10 @@ function buildProviderOptions(
     const googleOptions: Record<string, unknown> = {
       useSearchGrounding: enableNativeWebSearch,
     };
-    // Gemini 2.5 uses thinkingBudget (token count), 3.x uses thinkingLevel (named levels)
-    if (level !== "none") {
+    // Gemma models use control tokens for thinking, NOT thinkingConfig API param — skip
+    const isGemma = modelId.includes("gemma");
+    if (level !== "none" && !isGemma) {
+      // Gemini 2.5 uses thinkingBudget (token count), 3.x uses thinkingLevel (named levels)
       const isGemini25 = modelId.includes("2.5");
       if (isGemini25) {
         const budgetMap: Record<string, number> = {
