@@ -334,11 +334,12 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
     },
   },
   "gemini-3.1-flash-lite-preview": {
-    // $0.25 / $1.50 — cheap, fast, 1M context
+    // $0.25 / $1.50 — cheap, fast, 1M context, supports thinkingLevel
     id: "gemini-3.1-flash-lite-preview",
     provider: "google",
     pricing: { input: 0.25, output: 1.5 },
     capabilities: {
+      reasoning: true,
       streaming: true,
       structuredOutput: true,
       vision: true,
