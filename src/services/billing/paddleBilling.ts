@@ -77,7 +77,7 @@ export class PaddleBillingService {
       return {
         ...subscription,
         planInfo: PADDLE_PLANS[subscription.plan],
-        isActive: subscription.status === "active",
+        isActive: subscription.status === "active" || subscription.status === "trialing",
         isPremium: subscription.plan === "premium" || subscription.plan === "ultra",
       };
     } catch (error) {
