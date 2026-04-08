@@ -34,7 +34,7 @@ export const MODE_CONFIG = {
   },
   deep: {
     maxSteps: 12,
-    maxTokens: 16384,
+    maxTokens: 32768,
     description: "Recherche approfondie et contenu détaillé",
     thinking: "high" as ThinkingLevel,
   },
