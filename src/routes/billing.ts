@@ -376,11 +376,18 @@ router.post("/change-plan", authenticateToken, blockImpersonation, async (req, r
 
     logger.log(`[BILLING] Plan change: ${subscription.plan} → ${targetPlan} pour user ${userId}`);
 
-    // Update subscription via Paddle API (prorated immediately)
+    // Check if subscription is trialing — Paddle restricts item changes during trial
+    const subStatus = await prisma.userSubscription.findUnique({
+      where: { userId },
+      select: { status: true },
+    });
+    const isTrialing = subStatus?.status === "trialing";
+
+    // Update subscription via Paddle API
     await withTimeout(
       paddle.subscriptions.update(subscription.paddleSubscriptionId, {
         items: [{ priceId: newPriceId, quantity: 1 }],
-        prorationBillingMode: "prorated_immediately",
+        prorationBillingMode: isTrialing ? "do_not_bill" : "prorated_immediately",
       }),
       PADDLE_TIMEOUT_MS,
       "Paddle subscriptions.update",
