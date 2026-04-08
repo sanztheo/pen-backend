@@ -328,60 +328,82 @@ router.post("/cancel", authenticateToken, blockImpersonation, async (req, res) =
 });
 
 /**
- * POST /api/billing/upgrade
- * Retourne les informations de checkout pour upgrade
- * (Le paiement se fait cote frontend avec Paddle.js)
+ * POST /api/billing/change-plan
+ * Change le plan d'un abonné existant (Pro → Ultra ou Ultra → Pro)
+ * via Paddle subscriptions.update() avec proration immédiate.
  */
-router.post("/upgrade", authenticateToken, async (req, res) => {
+router.post("/change-plan", authenticateToken, blockImpersonation, async (req, res) => {
   try {
     const userId = req.user?.id;
-    const userEmail = req.user?.email;
-
     if (!userId) {
       return res.status(401).json({ error: "Utilisateur non authentifie" });
     }
 
-    // Dedup: retourner la reponse cachee si double-click (30s TTL)
-    const dedupKey = `billing:upgrade:${userId}`;
-    const cached = await redis.get(dedupKey);
-    if (cached) {
-      logger.log(`[BILLING] Upgrade dedup hit pour user ${userId}`);
-      return res.json(JSON.parse(cached));
+    const schema = z.object({
+      targetPlan: z.enum(["premium", "ultra"]),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Plan cible invalide" });
+    }
+    const { targetPlan } = parsed.data;
+
+    // Get current subscription
+    const subscription = await prisma.userSubscription.findUnique({
+      where: { userId },
+      select: { plan: true, paddleSubscriptionId: true },
+    });
+
+    if (!subscription?.paddleSubscriptionId) {
+      return res.status(400).json({ error: "Aucun abonnement actif" });
+    }
+    if (subscription.plan === targetPlan) {
+      return res.status(400).json({ error: "Vous etes deja sur ce plan" });
+    }
+    if (subscription.plan === "free_user") {
+      return res.status(400).json({ error: "Utilisez le checkout pour souscrire" });
     }
 
-    // Verifier si deja ultra (seul plan qui ne peut pas upgrader)
-    const currentSub = await PaddleBillingService.getUserSubscription(userId);
-    if (currentSub.plan === "ultra") {
-      return res.status(400).json({
-        error: "Deja ultra",
-        message: "Vous avez deja le plan le plus élevé",
-        currentPlan: currentSub.plan,
-      });
+    // Determine the new price ID (monthly — Paddle keeps the billing cycle)
+    const newPriceId =
+      targetPlan === "ultra"
+        ? PADDLE_CONFIG.prices.ultraMonthly
+        : PADDLE_CONFIG.prices.premiumMonthly;
+
+    if (!newPriceId) {
+      return res.status(500).json({ error: "Prix non configure" });
     }
 
-    // Retourner les infos pour ouvrir le checkout Paddle
-    const responseData = {
-      success: true,
-      checkout: {
-        priceId: PADDLE_CONFIG.prices.premiumMonthly,
-        customData: {
-          clerkUserId: userId,
-        },
-        customer: {
-          email: userEmail,
-        },
-      },
-    };
+    logger.log(`[BILLING] Plan change: ${subscription.plan} → ${targetPlan} pour user ${userId}`);
 
-    // Cache pour dedup (30s TTL)
-    await redis.set(dedupKey, JSON.stringify(responseData), "EX", 30);
+    // Update subscription via Paddle API (prorated immediately)
+    await withTimeout(
+      paddle.subscriptions.update(subscription.paddleSubscriptionId, {
+        items: [{ priceId: newPriceId, quantity: 1 }],
+        prorationBillingMode: "prorated_immediately",
+      }),
+      PADDLE_TIMEOUT_MS,
+      "Paddle subscriptions.update",
+    );
 
-    res.json(responseData);
+    // The webhook will handle the actual plan change in DB
+    // But we can optimistically update for faster UI feedback
+    await PaddleBillingService.activatePlan(
+      userId,
+      targetPlan,
+      subscription.paddleSubscriptionId, // reuse existing IDs
+      subscription.paddleSubscriptionId,
+      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    );
+
+    logger.log(`[BILLING] Plan change reussi: ${targetPlan} pour user ${userId}`);
+
+    res.json({ success: true, newPlan: targetPlan });
   } catch (error) {
-    logger.error("[API] Erreur upgrade:", error);
+    logger.error("[API] Erreur change-plan:", error);
     res.status(500).json({
-      error: "Erreur lors de la preparation de l'upgrade",
-      details: "Une erreur est survenue",
+      error: "Erreur lors du changement de plan",
+      details: error instanceof Error ? error.message : "Une erreur est survenue",
     });
   }
 });
