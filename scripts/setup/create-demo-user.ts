@@ -13,10 +13,11 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-const DEMO_EMAIL = "demo@pennote.app";
-const DEMO_PASSWORD = "Demo2026!Pennote";
-const DEMO_FIRST_NAME = "Demo";
-const DEMO_LAST_NAME = "User";
+const randomId = Math.random().toString(36).slice(2, 8);
+const DEMO_EMAIL = `test-${randomId}@pennote.app`;
+const DEMO_PASSWORD = `Test${randomId}!Pn`;
+const DEMO_FIRST_NAME = "Test";
+const DEMO_LAST_NAME = `User-${randomId}`;
 
 async function createDemoUser(): Promise<void> {
   const secretKey = process.env.CLERK_SECRET_KEY;
@@ -83,14 +84,14 @@ async function createDemoUser(): Promise<void> {
     // 3. Subscription premium (beta)
     await prisma.userSubscription.upsert({
       where: { userId: clerkUserId },
-      update: { plan: "premium", status: "active" },
+      update: { plan: "free_user", status: "active" },
       create: {
         userId: clerkUserId,
-        plan: "premium",
+        plan: "free_user",
         status: "active",
       },
     });
-    console.log("DB: subscription premium active");
+    console.log("DB: subscription free_user active");
 
     // 4. Limites
     await prisma.userLimits.upsert({
