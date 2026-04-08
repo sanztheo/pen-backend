@@ -208,18 +208,31 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
     const txnData = isTransactionEvent(event) ? event.data : undefined;
 
     // Extract product ID from subscription items to determine plan (premium vs ultra)
-    const subProductId =
-      (subData?.items?.[0] as { price?: { productId?: string } } | undefined)?.price?.productId ??
-      "";
-    const subscribedPlan = getPlanFromProductId(subProductId);
-    if (subscribedPlan === "free_user") {
-      logger.error("[WEBHOOK] Unrecognized product ID in subscription event", {
-        productId: subProductId,
+    // Only for subscription events — transaction events don't have items
+    let activePlan: "premium" | "ultra" | undefined;
+    if (subData) {
+      const subProductId = subData.items?.[0]?.price?.productId ?? "";
+      const subscribedPlan = getPlanFromProductId(subProductId);
+
+      logger.log(`[WEBHOOK] Product ID extraction:`, {
         eventType,
+        subProductId: subProductId || "(empty)",
+        subscribedPlan,
+        itemsCount: subData.items?.length ?? 0,
       });
-      return res.status(200).json({ received: true, warning: "unrecognized_product" });
+
+      if (subscribedPlan !== "free_user") {
+        activePlan = subscribedPlan;
+      } else if (subProductId) {
+        // Product ID present but unrecognized — log and continue without plan change
+        logger.error("[WEBHOOK] Unrecognized product ID", {
+          productId: subProductId,
+          eventType,
+        });
+      }
+      // If subProductId is empty (items not populated), activePlan stays undefined
+      // Individual handlers decide what to do (e.g., subscription.updated can still update dates)
     }
-    const activePlan = subscribedPlan;
 
     // 📝 subscription.created - Subscription créée
     // 🎁 Si status "trialing" → Activer premium immédiatement pour le trial
@@ -235,14 +248,20 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         customData,
       });
 
-      // 🎁 TRIAL: Si status "trialing", activer premium immédiatement
-      if (subscriptionStatus === "trialing" && userId && paddleCustomerId && paddleSubscriptionId) {
+      // 🎁 TRIAL: Si status "trialing", activer le plan immédiatement
+      if (
+        subscriptionStatus === "trialing" &&
+        userId &&
+        paddleCustomerId &&
+        paddleSubscriptionId &&
+        activePlan
+      ) {
         const trialStart = new Date();
         const trialEnd = subData?.currentBillingPeriod?.endsAt
           ? new Date(subData.currentBillingPeriod.endsAt)
           : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 jours par défaut
 
-        logger.log(`🎁 [Paddle Webhook] TRIAL activé pour user ${userId}:`, {
+        logger.log(`🎁 [Paddle Webhook] TRIAL ${activePlan} activé pour user ${userId}:`, {
           trialStart: trialStart.toISOString(),
           trialEnd: trialEnd.toISOString(),
           paddleCustomerId,
@@ -276,6 +295,14 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
+      if (!activePlan) {
+        logger.error(`❌ [Paddle Webhook] subscription.activated: could not determine plan`, {
+          userId,
+          itemsCount: subData?.items?.length ?? 0,
+        });
+        return res.status(200).json({ skipped: true, reason: "unknown_plan" });
+      }
+
       const paddleCustomerId = subData?.customerId;
       const paddleSubscriptionId = subData?.id;
 
@@ -293,13 +320,13 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
 
       logger.log(`✅ [Paddle Webhook] subscription.activated:`, {
         userId,
+        activePlan,
         paddleCustomerId,
         paddleSubscriptionId,
         status: subData?.status,
         currentPeriodEnd: currentPeriodEnd.toISOString(),
       });
 
-      // Activer le plan (premium ou ultra)
       await PaddleBillingService.activatePlan(
         userId,
         activePlan,
@@ -326,9 +353,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         : undefined;
       const scheduledChange = subData?.scheduledChange;
 
-      const updatedProductId =
-        (subData?.items?.[0] as { price?: { productId?: string } } | undefined)?.price?.productId ??
-        "";
+      const updatedProductId = subData?.items?.[0]?.price?.productId ?? "";
       const updatedPlan = getPlanFromProductId(updatedProductId);
 
       logger.log(`🔄 [Paddle Webhook] subscription.updated:`, {
@@ -452,6 +477,13 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
       });
 
       // Réactiver le plan
+      if (!activePlan) {
+        logger.error(`❌ [Paddle Webhook] subscription.resumed: could not determine plan`, {
+          userId,
+        });
+        return res.status(200).json({ skipped: true, reason: "unknown_plan" });
+      }
+
       await PaddleBillingService.activatePlan(
         userId,
         activePlan,
