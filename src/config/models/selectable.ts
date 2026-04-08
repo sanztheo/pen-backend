@@ -207,19 +207,9 @@ export const AGENT_SELECTABLE_MODELS: readonly SelectableModel[] = [
   m("deepseek-chat", "DeepSeek Chat", "deepseek", "deepseek", "none", "eco", "premium"),
   m("deepseek-reasoner", "DeepSeek Reasoner", "deepseek", "deepseek", "none", "eco", "free_user"),
 
-  // Gemma 4 31B — 4 thinking levels (reasoning-capable)
+  // Gemma 4 — thinking via control tokens, NOT thinkingConfig API (no level variants)
   m("gemma-4-31b-it", "Gemma 4 31B", "google", "google", "none", "eco", "premium"),
-  m("gemma-4-31b-it", "Gemma 4 31B", "google", "google", "low", "eco", "premium"),
-  m("gemma-4-31b-it", "Gemma 4 31B", "google", "google", "medium", "eco", "premium"),
-  m("gemma-4-31b-it", "Gemma 4 31B", "google", "google", "high", "eco", "premium"),
-
-  // Gemma 4 MoE — 4 thinking levels (reasoning-capable)
   m("gemma-4-26b-a4b-it", "Gemma 4 MoE", "google", "google", "none", "eco", "premium"),
-  m("gemma-4-26b-a4b-it", "Gemma 4 MoE", "google", "google", "low", "eco", "premium"),
-  m("gemma-4-26b-a4b-it", "Gemma 4 MoE", "google", "google", "medium", "eco", "premium"),
-  m("gemma-4-26b-a4b-it", "Gemma 4 MoE", "google", "google", "high", "eco", "premium"),
-
-  // Gemma 4 Mini — no reasoning support
   m("gemma-4-e4b-it", "Gemma 4 Mini", "google", "google", "none", "eco", "premium"),
 
   // ── Tier 2: Standard (2 credits) — Ultra only ─────────────────────────────
