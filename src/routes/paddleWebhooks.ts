@@ -371,6 +371,8 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
           : undefined,
       });
 
+      const hasPendingCancel = scheduledChange?.action === "cancel";
+
       if (updatedPlan !== "free_user") {
         const paddleCustomerId = subData?.customerId;
         const paddleSubscriptionId = subData?.id;
@@ -385,18 +387,29 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
             paddleSubscriptionId,
             periodEnd,
           );
+
+          // Preserve cancel state if subscription has a scheduled cancellation
+          // activatePlan resets cancelAtPeriodEnd — restore it here
+          if (hasPendingCancel) {
+            await PaddleBillingService.updateSubscription(userId, {
+              cancelAtPeriodEnd: true,
+            });
+            logger.log(
+              `🔄 [Paddle Webhook] Cancel state preserved after plan update for user ${userId}`,
+            );
+          }
         } else {
           await PaddleBillingService.updateSubscription(userId, {
             currentPeriodStart,
             currentPeriodEnd,
-            cancelAtPeriodEnd: scheduledChange?.action === "cancel",
+            cancelAtPeriodEnd: hasPendingCancel,
           });
         }
       } else {
         await PaddleBillingService.updateSubscription(userId, {
           currentPeriodStart,
           currentPeriodEnd,
-          cancelAtPeriodEnd: scheduledChange?.action === "cancel",
+          cancelAtPeriodEnd: hasPendingCancel,
         });
       }
 

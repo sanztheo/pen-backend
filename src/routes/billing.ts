@@ -301,13 +301,50 @@ router.post("/cancel", authenticateToken, blockImpersonation, async (req, res) =
     }
 
     // Annuler via l'API Paddle (effective a la fin de la periode)
-    await withTimeout(
-      paddle.subscriptions.cancel(subscription.paddleSubscriptionId, {
-        effectiveFrom: "next_billing_period",
-      }),
-      PADDLE_TIMEOUT_MS,
-      "Paddle subscriptions.cancel",
-    );
+    try {
+      await withTimeout(
+        paddle.subscriptions.cancel(subscription.paddleSubscriptionId, {
+          effectiveFrom: "next_billing_period",
+        }),
+        PADDLE_TIMEOUT_MS,
+        "Paddle subscriptions.cancel",
+      );
+    } catch (paddleError: unknown) {
+      const errorCode =
+        paddleError !== null && typeof paddleError === "object" && "code" in paddleError
+          ? (paddleError as { code: string }).code
+          : undefined;
+
+      if (errorCode === "subscription_locked_pending_changes") {
+        // Paddle is still processing a recent change (e.g., plan switch)
+        // Check if cancellation is already scheduled
+        try {
+          const paddleSub = await withTimeout(
+            paddle.subscriptions.get(subscription.paddleSubscriptionId),
+            PADDLE_TIMEOUT_MS,
+            "Paddle subscriptions.get (cancel check)",
+          );
+          if (paddleSub.scheduledChange?.action === "cancel") {
+            logger.log(`[BILLING] Annulation deja programmee dans Paddle pour user ${userId}`);
+            // Fall through to DB update
+          } else {
+            return res.status(409).json({
+              error: "Un changement de plan est en cours de traitement",
+              message: "Veuillez reessayer dans quelques instants.",
+              retryable: true,
+            });
+          }
+        } catch {
+          return res.status(409).json({
+            error: "Un changement de plan est en cours de traitement",
+            message: "Veuillez reessayer dans quelques instants.",
+            retryable: true,
+          });
+        }
+      } else {
+        throw paddleError;
+      }
+    }
 
     // Marquer comme annule dans la DB
     await PaddleBillingService.cancelSubscription(userId);
@@ -351,7 +388,13 @@ router.post("/change-plan", authenticateToken, blockImpersonation, async (req, r
     // Get current subscription
     const subscription = await prisma.userSubscription.findUnique({
       where: { userId },
-      select: { plan: true, paddleSubscriptionId: true, paddleCustomerId: true },
+      select: {
+        plan: true,
+        paddleSubscriptionId: true,
+        paddleCustomerId: true,
+        currentPeriodStart: true,
+        currentPeriodEnd: true,
+      },
     });
 
     if (!subscription?.paddleSubscriptionId) {
@@ -364,11 +407,22 @@ router.post("/change-plan", authenticateToken, blockImpersonation, async (req, r
       return res.status(400).json({ error: "Utilisez le checkout pour souscrire" });
     }
 
-    // Determine the new price ID (monthly — Paddle keeps the billing cycle)
+    // Detect billing interval from current period duration
+    const periodMs =
+      subscription.currentPeriodEnd && subscription.currentPeriodStart
+        ? subscription.currentPeriodEnd.getTime() - subscription.currentPeriodStart.getTime()
+        : 0;
+    const isYearly = periodMs > 300 * 24 * 60 * 60 * 1000;
+
+    // Match the new price ID to the current billing interval
     const newPriceId =
       targetPlan === "ultra"
-        ? PADDLE_CONFIG.prices.ultraMonthly
-        : PADDLE_CONFIG.prices.premiumMonthly;
+        ? isYearly
+          ? PADDLE_CONFIG.prices.ultraYearly
+          : PADDLE_CONFIG.prices.ultraMonthly
+        : isYearly
+          ? PADDLE_CONFIG.prices.premiumYearly
+          : PADDLE_CONFIG.prices.premiumMonthly;
 
     if (!newPriceId) {
       return res.status(500).json({ error: "Prix non configure" });
