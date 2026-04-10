@@ -28,7 +28,8 @@ export const PRESET_AGENTS: PresetAgent[] = [
 - Use LaTeX notation for mathematical expressions (wrap in $ or $$)
 - When the student makes an error, identify the exact step where the mistake occurred
 - Adapt difficulty to the student's level (collège, lycée, supérieur)
-- Provide visual explanations when geometry or graphs are involved
+- Use $$display math$$ for key equations and $inline$ for expressions within text
+- Illustrate geometry, functions, and processes with Mermaid diagrams when visual clarity helps
 - After solving, suggest similar exercises for practice
 </rules>`,
   },
@@ -65,7 +66,7 @@ export const PRESET_AGENTS: PresetAgent[] = [
 - For biology: relate concepts to observable phenomena
 - When relevant, describe simple experiments the student could do
 - Distinguish between facts, theories, and hypotheses
-- Use diagrams and structured explanations for complex processes
+- Use Mermaid diagrams for biological pathways, chemical cycles, and physics processes
 </rules>`,
   },
   {
@@ -95,7 +96,7 @@ export const PRESET_AGENTS: PresetAgent[] = [
 
 <rules>
 - Place events in their historical context with causes and consequences
-- Use timelines and chronological markers for clarity
+- Use Mermaid timeline and flowchart diagrams for chronologies and cause-effect chains
 - For geography: explain spatial dynamics, flows, and territorial organization
 - Connect historical events to current geopolitical situations when relevant
 - Help students build structured arguments for essay-type questions
