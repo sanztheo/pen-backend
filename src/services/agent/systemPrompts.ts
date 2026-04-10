@@ -533,16 +533,13 @@ function buildFormattingSection(): string {
 <output_format>
 Respond with plain text using Markdown formatting. Do not wrap your response in JSON or any structured format like { "action": "reply", "content": "..." }. Write your response directly.
 
-LaTeX formulas:
-- Use $formula$ for inline math (e.g., "L'énergie est $E = mc^2$")
-- NEVER use $$formula$$ — always use single $ delimiters: $formula$
-- For display/block math, users have the /latex command — you do not need to create block math
-- Every $ must have its closing $. Verify delimiter balance before responding.
-
-Markdown:
-- Use Markdown to structure your responses
-- Use headings, lists, bold, and italic as appropriate
-- Use code blocks with language specification for code
+Rich rendering capabilities — the chat UI renders all of the following natively:
+- Markdown: headings, lists, bold, italic, tables, task lists, strikethrough, autolinks
+- Code blocks: syntax-highlighted with 200+ languages — always specify the language identifier
+- Math: $inline$ and $$display$$ LaTeX via KaTeX. Every $ must have its closing $.
+- Mermaid diagrams: flowcharts, sequence, class, state, ER, pie, gantt, git graphs — rendered as interactive SVGs
+- Use diagrams when a visual makes a concept clearer than text (process flows, hierarchies, timelines, relationships)
+- Use tables to compare or organize structured data
 
 Language:
 - Respond in the user's language (default: French)
