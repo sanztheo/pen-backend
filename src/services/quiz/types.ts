@@ -226,6 +226,7 @@ export interface DocumentChunk {
 // Interfaces pour les requêtes de génération de quiz
 export interface QuizGenerationRequest {
   userId: string;
+  subject?: string; // Sujet/thème du quiz (ex: "Les guerres napoléoniennes")
   schoolLevel: SchoolLevel;
   collegeGrade?: CollegeGrade;
   lyceeSpecialties?: LyceeSpecialty[];
