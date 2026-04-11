@@ -64,6 +64,13 @@ export class PromptUtils {
     // Construire les spécifications personnalisées
     const customizations = [];
 
+    // Sujet/thème spécifique demandé par l'utilisateur
+    if (request.subject && request.subject.trim().length > 0) {
+      customizations.push(
+        `- SUBJECT / THEME: Generate questions specifically about: ${request.subject}. All questions MUST be related to this topic.`,
+      );
+    }
+
     // Spécialités/matières (vérifier à la fois specialties, lyceeSpecialties et selectedSpecialties)
     const specialtiesList =
       request.specialties || request.lyceeSpecialties || request.selectedSpecialties;

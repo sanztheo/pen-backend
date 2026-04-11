@@ -60,6 +60,7 @@ interface SSEEventData {
 
 /** Requête de session de streaming */
 interface StreamingSessionRequest {
+  subject?: string;
   schoolLevel?: string;
   questionTypes?: string[];
   questionCount?: number;
@@ -230,6 +231,7 @@ export class QuizStreamingController {
       }
 
       const {
+        subject,
         schoolLevel,
         preset,
         specificSubject,
@@ -243,7 +245,7 @@ export class QuizStreamingController {
         title,
         description,
         coursesOnly,
-        ragContext, // 🆕 Récupérer le contexte RAG
+        ragContext,
       } = req.body;
 
       // 🧠 Debug: Vérifier la réception du contexte RAG
@@ -452,7 +454,7 @@ export class QuizStreamingController {
           quizTitle = await generateQuizTitle({
             schoolLevel,
             pageNames,
-            subject: specificSubject,
+            subject: subject || specificSubject,
             questionCount,
           });
           logger.log(`[TITLE-GEN] Titre généré: "${quizTitle}"`);
@@ -464,12 +466,13 @@ export class QuizStreamingController {
             userId,
             title: quizTitle,
             schoolLevel,
-            questions: [], // Sera rempli progressivement
+            questions: [],
             isCompleted: false,
             preset: preset || "NONE",
             selectedSpecialties: lyceeSpecialties || [],
             higherEdField,
-            status: "generating", // Nouvel état
+            subject: subject || undefined,
+            status: "generating",
           },
         });
 
@@ -486,6 +489,7 @@ export class QuizStreamingController {
         // Construction de la requête de base
         const baseRequest = {
           userId,
+          subject,
           schoolLevel,
           preset,
           specificSubject,
@@ -498,7 +502,7 @@ export class QuizStreamingController {
           title,
           description,
           coursesOnly,
-          ragContext, // 🆕 Transmettre le contexte RAG à l'assistant
+          ragContext,
         };
 
         for (let i = 0; i < questionCount; i++) {
@@ -808,27 +812,28 @@ export class QuizStreamingController {
     try {
       // Récupérer les paramètres de la session
       const {
+        subject: sessionSubject,
         schoolLevel: bodySchoolLevel,
         questionTypes: bodyQuestionTypes = ["MULTIPLE_CHOICE"],
         questionCount: bodyQuestionCount = 10,
         collegeGrade,
         lyceeSpecialties,
-        higherEdLevel, // 🆕 Niveau études sup (L1, M1, etc.)
+        higherEdLevel,
         higherEdField,
         preset,
         title,
         description,
         coursesOnly,
-        ragContext, // 🆕 Récupérer le contexte RAG
-        pageProjectIds, // 🆕 Récupérer les IDs des pages
+        ragContext,
+        pageProjectIds,
         specificSubject,
         sequentialConfig,
         targetGrade,
         timeLimit,
         difficulty: bodyDifficulty,
-        useIntelligentGeneration: requestUseIntelligent = false, // 🧠 PEN-18: Mode intelligent
-        usePersonalization = false, // 🎯 PEN-32: Récupérer personnalisation depuis DB
-        letAIChoose = false, // 🎯 PEN-35: Laisser l'IA choisir les paramètres
+        useIntelligentGeneration: requestUseIntelligent = false,
+        usePersonalization = false,
+        letAIChoose = false,
       } = session.request;
 
       // 🧠 Debug: Vérifier les données récupérées de la session
@@ -1048,7 +1053,7 @@ export class QuizStreamingController {
         quizTitle = await generateQuizTitle({
           schoolLevel: schoolLevel || SchoolLevel.COLLEGE,
           pageNames,
-          subject: specificSubject,
+          subject: sessionSubject || specificSubject,
           questionCount,
           difficulty,
         });
@@ -1062,15 +1067,15 @@ export class QuizStreamingController {
           userId,
           title: quizTitle,
           schoolLevel: quizSchoolLevel,
-          questions: [], // Sera rempli progressivement
+          questions: [],
           isCompleted: false,
           status: "generating",
           preset: (preset as QuizPreset) || QuizPreset.NONE,
           collegeGrade: (collegeGrade as CollegeGrade) || null,
           higherEdField,
+          subject: sessionSubject || undefined,
           createdAt: new Date(),
           updatedAt: new Date(),
-          // templateId est optionnel pour les quiz streaming
         },
       });
 
@@ -1218,6 +1223,7 @@ export class QuizStreamingController {
 
       const baseRequest: Record<string, unknown> = {
         userId,
+        subject: sessionSubject,
         schoolLevel,
         questionCount: 1,
         collegeGrade,
@@ -1232,7 +1238,7 @@ export class QuizStreamingController {
         title,
         description,
         coursesOnly,
-        ragContext: effectiveRagContext, // 🧠 Contexte enrichi si mode intelligent
+        ragContext: effectiveRagContext,
         timeLimit,
         difficulty,
       };
