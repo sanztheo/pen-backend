@@ -2132,10 +2132,12 @@ Q${i + 1} (${c.isCorrect ? "✓" : "✗"}, ${c.score}/${c.maxScore} pts):
 
 Génère une analyse JSON avec:
 1. "summary": Un résumé personnalisé (2-3 phrases) basé sur la performance globale
-2. "strengths": 3-4 points forts observés dans les réponses
-3. "weaknesses": 3-4 axes d'amélioration identifiés
-4. "recommendations": 4-5 recommandations concrètes et personnalisées pour progresser
-5. "personalizedTips": 2-3 conseils spécifiques basés sur les erreurs commises
+2. "strengths": Points forts observés dans les réponses. Tableau vide [] si aucun point fort notable
+3. "weaknesses": Axes d'amélioration identifiés. Tableau vide [] si la copie est excellente et qu'il n'y a rien à signaler
+4. "recommendations": Recommandations concrètes et personnalisées pour progresser. Tableau vide [] si l'élève maîtrise le sujet et qu'aucune recommandation n'est pertinente
+5. "personalizedTips": Conseils spécifiques basés sur les erreurs commises. Tableau vide [] si aucune erreur notable
+
+IMPORTANT: Ne force PAS du contenu dans chaque section. Si l'élève a un score parfait ou quasi-parfait, il est normal que "weaknesses", "recommendations" et "personalizedTips" soient des tableaux vides. Inversement, si le score est très faible, "strengths" peut être vide. La qualité prime sur la quantité — ne remplis que les sections où tu as quelque chose de réellement pertinent à dire.
 
 Format JSON STRICT requis.`;
 
