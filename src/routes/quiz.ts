@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { UnifiedQuizController as QuizController } from "../controllers/quiz/index.js";
-import { QuizStreamingController } from "../controllers/quizStreaming.js";
+import { QuizStreamingController } from "../controllers/quiz-streaming/index.js";
 import { authenticateToken } from "../middlewares/auth.js";
 import {
   requireCustomQuizLimits,

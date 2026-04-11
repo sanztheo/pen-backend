@@ -6,7 +6,7 @@ import { logger } from "../../utils/logger.js";
 import { setupSSEHeaders } from "../../utils/sse.js";
 import { OpenAIAssistantService } from "../../services/quiz/assistant/index.js";
 import { SessionManager } from "./sessionManager.js";
-import { createSSESender } from "./sseFactory.js";
+import { createSSESenderWithDisconnect } from "./sseFactory.js";
 import { validateGenerateParams } from "./validators.js";
 import {
   resolvePersonalization,
@@ -53,7 +53,6 @@ export async function createStreamingSession(req: Request, res: Response): Promi
     logger.error("[STREAM-SESSION] Error creating session:", error);
     res.status(500).json({
       error: "Erreur lors de la création de la session",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
     });
   }
 }
@@ -74,7 +73,19 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
     "Access-Control-Allow-Headers": "Cache-Control",
   });
 
-  const sendSSE = createSSESender(res);
+  const abortController = new AbortController();
+  const { send: sendSSE, markDisconnected, isDisconnected } = createSSESenderWithDisconnect(res);
+
+  req.on("close", () => {
+    if (!abortController.signal.aborted) {
+      markDisconnected();
+      abortController.abort();
+      logger.log(
+        `[STREAM-SESSION] Client disconnected, aborting generation (session: ${sessionId})`,
+      );
+    }
+  });
+
   sendSSE("connected", { message: "Connexion SSE établie" });
 
   // --- 2. Validate JWT token from query params ---
@@ -294,6 +305,7 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
         sendSSE,
         assistantService,
         prisma,
+        isDisconnected,
       });
     } else {
       generatedQuestions = await generateQuestionsStandard({
@@ -305,6 +317,7 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
         sendSSE,
         assistantService,
         prisma,
+        isDisconnected,
       });
     }
 
@@ -342,7 +355,6 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
     logger.error("[STREAM-SESSION] Generation error:", error);
     sendSSE("error", {
       message: "Erreur lors de la génération du quiz",
-      details: error instanceof Error ? error.message : "Erreur inconnue",
     });
   }
 
