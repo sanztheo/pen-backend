@@ -6,7 +6,11 @@ import {
   requireCustomQuizLimits,
   requirePresetSequenceLimits,
 } from "../middlewares/requireQuizLimits.js";
-import { preprocessorRateLimit } from "../middlewares/rateLimiting.js";
+import {
+  preprocessorRateLimit,
+  quizCorrectSingleRateLimit,
+  quizCompleteRateLimit,
+} from "../middlewares/rateLimiting.js";
 import { quizStatsRouter } from "./quizStats.js";
 
 const router = Router();
@@ -52,6 +56,15 @@ router.put("/preferences", QuizController.updateUserPreferences);
 router.get("/pages-projects", QuizController.getPagesProjects);
 router.post("/analyze-pages-projects", QuizController.analyzePagesProjects);
 router.post("/context-rag", QuizController.buildQuizRAGContext);
+
+// Pipeline correction routes
+// SÉCURITÉ: Rate limit par userId pour éviter abus LLM (60 req/10min, 10 req/10min)
+router.post(
+  "/:id/correct-single",
+  quizCorrectSingleRateLimit,
+  QuizStreamingController.correctSingleQuestion,
+);
+router.post("/:id/complete", quizCompleteRateLimit, QuizStreamingController.completeQuiz);
 
 // Routes spécifiques à un quiz
 router.get("/:id", QuizController.getQuiz);
