@@ -349,6 +349,7 @@ model Quiz {
   timeLimit           Int?             @map("time_limit")
   difficulty          String?          @db.VarChar(20)
   questionTypes       Json?            @map("question_types")
+  subject             String?          @db.VarChar(500)
   result              QuizResult?
   template            QuizTemplate?    @relation(fields: [templateId], references: [id])
   user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
