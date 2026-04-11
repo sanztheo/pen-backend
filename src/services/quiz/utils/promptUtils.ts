@@ -98,13 +98,11 @@ export class PromptUtils {
           return specialtyNames[s] || s;
         })
         .join(", ");
-      customizations.push(
-        `- MATIÈRES SPÉCIFIQUES : Concentre-toi UNIQUEMENT sur ${specialtiesStr}`,
-      );
+      customizations.push(`- SPECIFIC SUBJECTS: Focus ONLY on ${specialtiesStr}`);
     }
 
     // Niveau et filière études supérieures
-    if (request.schoolLevel === "ETUDES_SUPERIEURES") {
+    if (request.schoolLevel === SchoolLevel.ETUDES_SUPERIEURES) {
       // Niveau d'études (L1, L2, L3, M1, M2, Doctorat, BTS, DUT, Prépa)
       if (request.higherEdLevel) {
         const levelLabels: Record<string, string> = {
@@ -120,14 +118,14 @@ export class PromptUtils {
         };
         const levelLabel = levelLabels[request.higherEdLevel] || request.higherEdLevel;
         customizations.push(
-          `- NIVEAU D'ÉTUDES : Adapte la complexité et les attentes au niveau ${levelLabel}`,
+          `- EDUCATION LEVEL: Adapt complexity and expectations to ${levelLabel}`,
         );
       }
 
       // Filière d'études
       if (request.higherEdField) {
         customizations.push(
-          `- FILIÈRE D'ÉTUDES : Toutes les questions doivent être spécifiques à ${request.higherEdField}`,
+          `- FIELD OF STUDY: All questions must be specific to ${request.higherEdField}`,
         );
       }
     }
@@ -135,10 +133,10 @@ export class PromptUtils {
     // Types de questions avec répartition équitable OBLIGATOIRE
     if (request.questionTypes && request.questionTypes.length > 0) {
       const typeNames: Record<string, string> = {
-        MULTIPLE_CHOICE: "Questions à choix multiples (QCM)",
-        TRUE_FALSE: "Questions Vrai/Faux",
-        OPEN_QUESTION: "Questions ouvertes",
-        MATCHING: "Questions d'association",
+        MULTIPLE_CHOICE: "Multiple Choice (MCQ)",
+        TRUE_FALSE: "True/False",
+        OPEN_QUESTION: "Open-ended questions",
+        MATCHING: "Matching questions",
       };
 
       const questionCount = request.questionCount || 10;
@@ -148,7 +146,7 @@ export class PromptUtils {
         // Un seul type : toutes les questions de ce type
         const typeName = typeNames[request.questionTypes[0]] || request.questionTypes[0];
         customizations.push(
-          `- TYPES DE QUESTIONS : Génère ${questionCount} questions EXCLUSIVEMENT de type ${typeName}`,
+          `- QUESTION TYPES: Generate ${questionCount} questions EXCLUSIVELY of type ${typeName}`,
         );
       } else {
         // Plusieurs types : répartition équitable OBLIGATOIRE
@@ -159,17 +157,17 @@ export class PromptUtils {
         request.questionTypes.forEach((type, index) => {
           const countForThisType = basePerType + (index < remainder ? 1 : 0);
           const typeName = typeNames[type] || type;
-          distributionDetails.push(`${countForThisType} questions de type ${typeName}`);
+          distributionDetails.push(`${countForThisType} questions of type ${typeName}`);
         });
 
         customizations.push(
-          `- RÉPARTITION OBLIGATOIRE DES TYPES : Sur ${questionCount} questions totales, génère EXACTEMENT :`,
+          `- MANDATORY TYPE DISTRIBUTION: Out of ${questionCount} total questions, generate EXACTLY:`,
         );
         distributionDetails.forEach((detail) => {
           customizations.push(`  • ${detail}`);
         });
         customizations.push(
-          `-  CRITIQUE : Cette répartition est STRICTEMENT OBLIGATOIRE. Ne génère PAS uniquement des QCM !`,
+          `-  CRITICAL: This distribution is STRICTLY MANDATORY. Do NOT generate only MCQs!`,
         );
       }
     }
@@ -177,12 +175,12 @@ export class PromptUtils {
     // Difficulté
     const difficulty = (request as unknown as { difficulty?: unknown }).difficulty;
     if (typeof difficulty === "string" && difficulty !== "adaptatif") {
-      customizations.push(`- NIVEAU DE DIFFICULTÉ : ${difficulty.toUpperCase()}`);
+      customizations.push(`- DIFFICULTY LEVEL: ${difficulty.toUpperCase()}`);
     }
 
     // Note cible
     if (request.targetGrade) {
-      customizations.push(`- OBJECTIF : Vise une note de ${request.targetGrade}/20`);
+      customizations.push(`- TARGET GRADE: Aim for a score of ${request.targetGrade}/20`);
     }
 
     // Construire le prompt final
@@ -191,34 +189,34 @@ export class PromptUtils {
         basePrompt +
         `
 
-PARAMÈTRES PERSONNALISÉS OBLIGATOIRES :
+MANDATORY CUSTOM PARAMETERS:
 ${customizations.join("\n")}
 
-IMPORTANT : Respecte STRICTEMENT ces paramètres. Ne génère aucune question en dehors des matières/types spécifiés.
+IMPORTANT: STRICTLY follow these parameters. Do NOT generate any question outside the specified subjects/types.
 
- RÈGLES ABSOLUES :
-- Si seules les "Questions ouvertes" sont demandées, ne génère AUCUNE question de type MULTIPLE_CHOICE, TRUE_FALSE, ou MATCHING
-- Si plusieurs types sont demandés, RÉPARTIS-LES ÉQUITABLEMENT (ex: 4 questions avec QCM+OPEN → 2 QCM + 2 OPEN)
-- Ne génère JAMAIS uniquement des QCM si d'autres types sont dans la liste demandée
-- Si une matière spécifique est demandée (ex: NSI), ne génère AUCUNE question d'autres matières
-- Chaque question doit correspondre EXACTEMENT aux critères spécifiés
-- CONTRÔLE FINAL : Vérifie que tu as bien respecté la répartition des types avant de finaliser`;
+ABSOLUTE RULES:
+- If only "Open-ended questions" are requested, do NOT generate any MULTIPLE_CHOICE, TRUE_FALSE, or MATCHING questions
+- If multiple types are requested, DISTRIBUTE THEM EVENLY (e.g. 4 questions with MCQ+OPEN -> 2 MCQ + 2 OPEN)
+- NEVER generate only MCQs if other types are in the requested list
+- If a specific subject is requested (e.g. NSI), do NOT generate questions from other subjects
+- Each question must match the specified criteria EXACTLY
+- FINAL CHECK: Verify that you have respected the type distribution before finalizing`;
 
       // Ajouter les instructions spécifiques aux types de questions si spécifiés
       if (request.questionTypes && request.questionTypes.length > 0) {
         const typeInstructions = request.questionTypes
           .map((type) => this.getQuestionTypePrompt(type))
           .join("\n");
-        customPrompt += `\n\nINSTRUCTIONS SPÉCIFIQUES AUX TYPES DE QUESTIONS :\n${typeInstructions}`;
+        customPrompt += `\n\nQUESTION TYPE-SPECIFIC INSTRUCTIONS:\n${typeInstructions}`;
 
         // Rappel critique de la répartition pour plusieurs types
         if (request.questionTypes.length > 1) {
-          customPrompt += `\n\n🚨 RAPPEL CRITIQUE DE RÉPARTITION :
-Avec ${request.questionTypes.length} types demandés pour ${request.questionCount || 10} questions :
-- Ne génère PAS uniquement des QCM même si c'est plus facile !
-- Répartis équitablement entre TOUS les types demandés
-- Exemple concret : Si tu demandes QCM + Questions ouvertes pour 4 questions → génère 2 QCM + 2 Questions ouvertes
-- Vérification finale obligatoire : Compte le nombre de questions de chaque type avant de finaliser`;
+          customPrompt += `\n\nCRITICAL DISTRIBUTION REMINDER:
+With ${request.questionTypes.length} types requested for ${request.questionCount || 10} questions:
+- Do NOT generate only MCQs even if it is easier!
+- Distribute evenly across ALL requested types
+- Concrete example: If MCQ + Open-ended for 4 questions -> generate 2 MCQ + 2 Open-ended
+- Mandatory final verification: Count the number of questions of each type before finalizing`;
         }
       }
 
@@ -302,7 +300,7 @@ Avec ${request.questionTypes.length} types demandés pour ${request.questionCoun
    */
   private static getPartielsSubjectName(
     request: QuizGenerationRequest,
-    subject: ExamSubject,
+    _subject: ExamSubject,
   ): string {
     // Utiliser le nom stocké dans subjectResults quand disponible
     if (
