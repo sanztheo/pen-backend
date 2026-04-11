@@ -1,0 +1,25 @@
+import { LyceeSpecialty } from "../../services/quiz/types.js";
+
+export const LYCEE_SPECIALTY_LABELS: Record<LyceeSpecialty, string> = {
+  [LyceeSpecialty.MATHEMATIQUES]: "Mathématiques",
+  [LyceeSpecialty.PHYSIQUE_CHIMIE]: "Physique-Chimie",
+  [LyceeSpecialty.SVT]: "Sciences de la Vie et de la Terre",
+  [LyceeSpecialty.HISTOIRE_GEO]: "Histoire-Géographie",
+  [LyceeSpecialty.SES]: "Sciences Économiques et Sociales",
+  [LyceeSpecialty.LANGUES_LITTERATURE]: "Langues, littératures et cultures étrangères",
+  [LyceeSpecialty.LLCER_ANGLAIS]: "LLCER Anglais",
+  [LyceeSpecialty.LLCER_ESPAGNOL]: "LLCER Espagnol",
+  [LyceeSpecialty.LLCER_ALLEMAND]: "LLCER Allemand",
+  [LyceeSpecialty.LLCER_ITALIEN]: "LLCER Italien",
+  [LyceeSpecialty.ARTS_PLASTIQUES]: "Arts Plastiques",
+  [LyceeSpecialty.MUSIQUE]: "Musique",
+  [LyceeSpecialty.THEATRE]: "Théâtre",
+  [LyceeSpecialty.CINEMA_AUDIOVISUEL]: "Cinéma-Audiovisuel",
+  [LyceeSpecialty.DANSE]: "Danse",
+  [LyceeSpecialty.HISTOIRE_DES_ARTS]: "Histoire des Arts",
+  [LyceeSpecialty.NSI]: "Numérique et Sciences Informatiques",
+  [LyceeSpecialty.SI]: "Sciences de l'Ingénieur",
+  [LyceeSpecialty.SCIENCES_INGENIEUR]: "Sciences de l'Ingénieur",
+  [LyceeSpecialty.BIOLOGIE_ECOLOGIE]: "Biologie-Écologie",
+  [LyceeSpecialty.SPORT]: "Éducation Physique et Sportive",
+};
