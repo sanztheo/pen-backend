@@ -504,6 +504,60 @@ export const conversationsCrudRateLimit = rateLimit({
 });
 
 /**
+ * 18. RATE LIMIT QUIZ CORRECTION (single question)
+ * Protection des corrections IA par question — coût LLM par appel
+ * 60 req/10min par user — un quiz a ~20 questions, marge pour retries
+ */
+const QUIZ_CORRECT_SINGLE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const QUIZ_CORRECT_SINGLE_MAX = 60;
+
+export const quizCorrectSingleRateLimit = rateLimit({
+  ...createBaseConfig("rl:quiz-correct:"),
+  windowMs: QUIZ_CORRECT_SINGLE_WINDOW_MS,
+  max: QUIZ_CORRECT_SINGLE_MAX,
+  message: {
+    success: false,
+    error: "QUIZ_CORRECT_RATE_LIMIT_EXCEEDED",
+    message: "Trop de corrections de questions. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "10 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      return `blocked_no_user_${getIpKey(req)}`;
+    }
+    return `user_${userId}`;
+  },
+});
+
+/**
+ * 19. RATE LIMIT QUIZ COMPLETE
+ * Protection de la finalisation de quiz — une seule fois par quiz
+ * 10 req/10min par user — un seul appel légitime par quiz
+ */
+const QUIZ_COMPLETE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+const QUIZ_COMPLETE_MAX = 10;
+
+export const quizCompleteRateLimit = rateLimit({
+  ...createBaseConfig("rl:quiz-complete:"),
+  windowMs: QUIZ_COMPLETE_WINDOW_MS,
+  max: QUIZ_COMPLETE_MAX,
+  message: {
+    success: false,
+    error: "QUIZ_COMPLETE_RATE_LIMIT_EXCEEDED",
+    message: "Trop de finalisations de quiz. Veuillez réessayer dans quelques minutes.",
+    retryAfter: "10 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      return `blocked_no_user_${getIpKey(req)}`;
+    }
+    return `user_${userId}`;
+  },
+});
+
+/**
  * Helper pour vérifier si le rate limiting est activé
  */
 export const isRateLimitEnabled = (): boolean => {
