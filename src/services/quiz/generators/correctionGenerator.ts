@@ -965,6 +965,156 @@ IMPORTANT : Réponds UNIQUEMENT en JSON valide pour les ${openQuestions.length} 
   }
 
   /**
+   * Corrects a single question (any type).
+   * For open questions, delegates to correctSingleOpenQuestion (AI-based).
+   * For closed questions (MCQ, TRUE_FALSE, MATCHING), delegates to correctClosedQuestions.
+   */
+  static async correctSingle(
+    question: Question,
+    userAnswer: UserAnswer | undefined,
+    request: QuizCorrectionRequest,
+  ): Promise<QuestionCorrectionResult> {
+    if (question.type === "OPEN_QUESTION") {
+      logger.info(`[CORRECTION] correctSingle: open question ${question.id}, delegating to AI`);
+      return this.correctSingleOpenQuestion(question as OpenQuestion, userAnswer, request);
+    }
+
+    // Closed question: MCQ, TRUE_FALSE, MATCHING
+    logger.info(`[CORRECTION] correctSingle: closed question ${question.id} (${question.type})`);
+    const userAnswers: UserAnswer[] = userAnswer ? [userAnswer] : [];
+    const results = this.correctClosedQuestions([question], userAnswers);
+
+    if (results.length === 0) {
+      // Edge case: correctClosedQuestions filters by type — should not happen
+      // but handle defensively
+      return {
+        questionId: question.id,
+        userAnswer: answerValueToString(userAnswer?.answer),
+        correctAnswer: "",
+        score: 0,
+        maxScore: question.points || 1,
+        isCorrect: false,
+        explanation: "Impossible de corriger cette question.",
+      };
+    }
+
+    return results[0];
+  }
+
+  /**
+   * Finalizes a quiz after all individual corrections are collected.
+   * Sorts corrections by question order, recalculates scores,
+   * generates AI analysis and enriches closed questions with Gemini suggestions (in parallel).
+   */
+  static async finalizeCorrections(
+    questions: Question[],
+    corrections: QuestionCorrectionResult[],
+    request: QuizCorrectionRequest,
+  ): Promise<{
+    sortedCorrections: QuestionCorrectionResult[];
+    scores: {
+      totalScore: number;
+      maxScore: number;
+      percentage: number;
+      adaptedGrade: number;
+    };
+    analysis: {
+      summary: string;
+      strengths: string[];
+      weaknesses: string[];
+      recommendations: string[];
+      personalizedTips: string[];
+    };
+  }> {
+    if (corrections.length === 0) {
+      logger.info("[CORRECTION] finalizeCorrections: no corrections to finalize");
+      return {
+        sortedCorrections: [],
+        scores: { totalScore: 0, maxScore: 0, percentage: 0, adaptedGrade: 0 },
+        analysis: {
+          summary: "Aucune question corrigée.",
+          strengths: [],
+          weaknesses: [],
+          recommendations: [],
+          personalizedTips: [],
+        },
+      };
+    }
+
+    // Sort corrections by original question order
+    const sortedCorrections = [...corrections].sort((a, b) => {
+      const indexA = questions.findIndex((q) => q.id === a.questionId);
+      const indexB = questions.findIndex((q) => q.id === b.questionId);
+      return indexA - indexB;
+    });
+
+    // Recalculate scores from individual corrections
+    const { realTotalScore, realMaxScore, realPercentage, realAdaptedGrade } =
+      this.recalculateScores(sortedCorrections);
+
+    logger.info(
+      `[CORRECTION] finalizeCorrections: ${sortedCorrections.length} questions, score ${realTotalScore}/${realMaxScore} (${realPercentage.toFixed(1)}%)`,
+    );
+
+    // Separate closed corrections for targeted Gemini enrichment
+    const closedCorrections = sortedCorrections.filter((c) => {
+      const q = questions.find((q) => q.id === c.questionId);
+      return q && q.type !== "OPEN_QUESTION";
+    });
+
+    // Run AI analysis and closed-question enrichment in parallel
+    const ANALYSIS_TIMEOUT_MS = 15_000;
+    const analysisFallback = {
+      summary: `Score: ${realTotalScore}/${realMaxScore} (${realPercentage.toFixed(1)}%)`,
+      strengths: [] as string[],
+      weaknesses: [] as string[],
+      recommendations: [] as string[],
+      personalizedTips: [] as string[],
+    };
+
+    const [analysis, enhancedClosed] = await Promise.all([
+      Promise.race([
+        this.generateDetailedAnalysis(
+          questions,
+          sortedCorrections,
+          request,
+          realTotalScore,
+          realMaxScore,
+          realPercentage,
+        ),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Analysis timeout")), ANALYSIS_TIMEOUT_MS),
+        ),
+      ]).catch((err) => {
+        logger.warn("[CORRECTION] generateDetailedAnalysis failed or timed out:", err);
+        return analysisFallback;
+      }),
+      closedCorrections.length > 0
+        ? this.generateSuggestionsForClosedQuestions(closedCorrections, questions).catch(
+            () => closedCorrections,
+          )
+        : Promise.resolve([]),
+    ]);
+
+    // Merge enhanced closed corrections back with open corrections (preserve question order)
+    const finalCorrections = sortedCorrections.map((c) => {
+      const enhanced = enhancedClosed.find((e) => e.questionId === c.questionId);
+      return enhanced || c;
+    });
+
+    return {
+      sortedCorrections: finalCorrections,
+      scores: {
+        totalScore: realTotalScore,
+        maxScore: realMaxScore,
+        percentage: Math.round(realPercentage * 100) / 100,
+        adaptedGrade: Math.round(realAdaptedGrade * 100) / 100,
+      },
+      analysis,
+    };
+  }
+
+  /**
    * Helper : Extrait les points forts depuis les corrections
    */
   private static extractStrengthsFromCorrections(corrections: BaseCorrectionResult[]): string[] {
