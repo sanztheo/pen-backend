@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest";
 import { getCreditMultiplier } from "../../../config/models/selectable.js";
 
 describe("Variable credit cost", () => {
