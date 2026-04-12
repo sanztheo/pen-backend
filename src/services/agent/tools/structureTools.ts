@@ -38,7 +38,11 @@ function formatPages(nodes: PageNode[], indent: number, visited: Set<string>): s
     visited.add(node.id);
     const prefix = "  ".repeat(indent);
     const icon = node.icon ? `${node.icon} ` : "";
-    lines.push(`${prefix}├─ ${icon}${node.title || "Untitled"} [pageId: ${node.id}]`);
+    const safeTitle = (node.title || "Untitled")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .slice(0, 100);
+    lines.push(`${prefix}├─ ${icon}${safeTitle} [pageId: ${node.id}]`);
     if (node.children.length > 0) {
       lines.push(...formatPages(node.children, indent + 1, visited));
     }
@@ -64,7 +68,8 @@ function formatProject(
   const lines: string[] = [];
   const prefix = "  ".repeat(indent);
   const pagesInProject = projectPages.get(projId) || [];
-  lines.push(`${prefix}📁 ${proj.name} [projectId: ${proj.id}] (${pagesInProject.length} pages)`);
+  const safeName = proj.name.replace(/</g, "&lt;").replace(/>/g, "&gt;").slice(0, 100);
+  lines.push(`${prefix}📁 ${safeName} [projectId: ${proj.id}] (${pagesInProject.length} pages)`);
   lines.push(...formatPages(pagesInProject, indent + 1, visited));
   for (const childId of proj.children) {
     lines.push(...formatProject(childId, indent + 1, projectMap, projectPages, visited));
