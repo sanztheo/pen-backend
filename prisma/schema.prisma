@@ -146,6 +146,8 @@ model Project {
 
   @@index([createdBy])
   @@index([workspaceId, isArchived])
+  @@index([parentId])
+  @@index([workspaceId, parentId, isArchived, position])
   @@map("projects")
 }
 
@@ -180,6 +182,8 @@ model Page {
   @@index([createdBy])
   @@index([workspaceId, isArchived])
   @@index([projectId, isArchived])
+  @@index([parentId])
+  @@index([workspaceId, parentId, isArchived, position])
   @@map("pages")
 }
 
