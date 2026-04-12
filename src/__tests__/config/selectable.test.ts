@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest";
 import {
   AGENT_SELECTABLE_MODELS,
   CREDIT_TIERS,

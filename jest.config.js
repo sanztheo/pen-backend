@@ -42,6 +42,10 @@ export default {
   testPathIgnorePatterns: [
     "/node_modules/",
     "/dist/",
+    // Vitest-based tests (use vi.mock / vi.fn) — incompatible with Jest ESM.
+    // These will be migrated to vitest runner separately.
+    "quiz-streaming/__tests__/(parameterResolver|intelligentGenerator|standardGenerator|pipelineCorrection|quizCompletionController|singleCorrectionController|sourceAnalyzer|sseFactory|sessionManager)\\.test\\.ts$",
+    "__tests__/services/credits/dailyModelLimit\\.test\\.ts$",
   ],
 
   // Coverage configuration

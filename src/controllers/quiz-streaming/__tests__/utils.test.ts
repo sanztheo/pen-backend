@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest";
 import { LyceeSpecialty } from "../../../services/quiz/types.js";
 import {
   getSpecialtyLabel,
