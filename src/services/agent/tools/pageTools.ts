@@ -279,45 +279,25 @@ export function createPageTools(ctx: PageToolsContext, skipApproval = false) {
       },
     }),
 
+    // @deprecated — use deletePage from organizationTools instead. Kept as alias for existing conversation history compatibility.
     archivePage: tool({
-      description: `Archives (soft-deletes) a page. The page will no longer appear in the workspace. This action is reversible by the user. IMPORTANT: Only archive pages when the user EXPLICITLY asks to delete, remove, or archive a specific page. Never archive pages proactively.`,
+      description: `Archives (soft-deletes) a page. DEPRECATED: prefer using deletePage instead, which also archives sub-pages recursively.`,
       inputSchema: archivePageSchema,
       needsApproval: !skipApproval,
       execute: async ({ pageId }) => {
-        logger.log(`🔍 [TOOL:archivePage] pageId=${pageId}`);
+        logger.log(`[TOOL:archivePage] DEPRECATED — delegating to archivePageTree for ${pageId}`);
 
         try {
-          // Atomic update — avoids TOCTOU race between findFirst + update
-          const result = await prisma.page.updateMany({
-            where: { id: pageId, workspaceId: ctx.workspaceId, isArchived: false },
-            data: { isArchived: true },
-          });
-
-          if (result.count === 0) {
-            return {
-              success: false,
-              error: "Page not found in this workspace or already archived.",
-              pageId,
-            };
-          }
-
-          // Get title for the response (after successful update)
-          const page = await prisma.page.findUnique({
-            where: { id: pageId },
-            select: { title: true },
-          });
-
-          logger.log(
-            `✅ [TOOL:archivePage] Page archived: "${page?.title ?? "Untitled"}" (ID: ${pageId})`,
-          );
-
+          const { archivePageTree: archiveTree } = await import("../../reorderService.js");
+          const result = await archiveTree(pageId, ctx.workspaceId);
           return {
             success: true,
             pageId,
-            title: page?.title ?? "Untitled",
+            title: result.title,
+            archivedCount: result.archivedCount,
           };
         } catch (error) {
-          logger.error(`❌ [TOOL:archivePage] Error:`, error);
+          logger.error(`[TOOL:archivePage] Error:`, error);
           return {
             success: false,
             error: "Failed to archive page. Try again.",
