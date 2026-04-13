@@ -24,6 +24,7 @@ import {
   bulkDelete,
   emptyTrashSync,
 } from "../services/trashService.js";
+import { withSerializableRetry } from "../services/withSerializableRetry.js";
 import { emptyTrashQueue } from "../jobs/emptyTrashJob.js";
 import {
   listTrashQuerySchema,
@@ -39,6 +40,18 @@ import {
 
 function sendError(res: Response, e: unknown, op: string, ctx: Record<string, unknown>): Response {
   if (e instanceof HttpError) {
+    // Security: collapse 403 (forbidden workspace) and 404 (missing page)
+    // into a single generic NOT_FOUND response so the client cannot tell
+    // whether a given page id exists in another workspace — otherwise this
+    // endpoint leaks an enumeration oracle. Real reason is logged server-side.
+    if (e.status === 403 || e.status === 404) {
+      logger.info(`[TRASH] ${op} access denied`, {
+        ...ctx,
+        status: e.status,
+        reason: e.message,
+      });
+      return res.status(404).json({ error: "NOT_FOUND" });
+    }
     logger.info(`[TRASH] ${op} ${e.message}`, { ...ctx, status: e.status });
     return res.status(e.status).json({ error: e.message });
   }
@@ -70,7 +83,10 @@ export async function archivePageHandler(req: Request, res: Response): Promise<R
   try {
     const workspaceId = await loadPageWorkspaceOrThrow(id);
     await assertUserCanAccessWorkspace(userId, workspaceId);
-    const result = await archiveCascade({ pageId: id, workspaceId });
+    // Retry on Postgres serialization_failure — the Serializable isolation
+    // level used by archiveCascade can conflict with concurrent archives at
+    // the same parent and the contract is "retry the whole tx".
+    const result = await withSerializableRetry(() => archiveCascade({ pageId: id, workspaceId }));
     return res.status(200).json({ success: true, ...result });
   } catch (e) {
     return sendError(res, e, "archive", { id, userId });
@@ -90,7 +106,8 @@ export async function restorePageHandler(req: Request, res: Response): Promise<R
   try {
     const workspaceId = await loadPageWorkspaceOrThrow(id);
     await assertUserCanAccessWorkspace(userId, workspaceId);
-    const result = await restoreCascade({ pageId: id, workspaceId });
+    // Same retry contract as archive — see archivePageHandler above.
+    const result = await withSerializableRetry(() => restoreCascade({ pageId: id, workspaceId }));
     return res.status(200).json({ success: true, ...result });
   } catch (e) {
     return sendError(res, e, "restore", { id, userId });
@@ -126,11 +143,12 @@ export async function bulkDeleteTrashHandler(req: Request, res: Response): Promi
     return res.status(400).json({ error: "INVALID_BODY", details: parsed.error.flatten() });
   }
   const { workspaceId, ids } = parsed.data;
+  const userId = req.user?.id;
   try {
-    const result = await bulkDelete({ workspaceId, ids });
+    const result = await bulkDelete({ workspaceId, ids, userId });
     return res.status(200).json({ success: true, ...result });
   } catch (e) {
-    return sendError(res, e, "bulkDelete", { workspaceId, count: ids.length });
+    return sendError(res, e, "bulkDelete", { workspaceId, count: ids.length, userId });
   }
 }
 
@@ -140,29 +158,32 @@ export async function emptyTrashHandler(req: Request, res: Response): Promise<Re
     return res.status(400).json({ error: "INVALID_BODY", details: parsed.error.flatten() });
   }
   const { workspaceId } = parsed.data;
+  const userId = req.user?.id;
   try {
     try {
-      const result = await emptyTrashSync({ workspaceId });
+      const result = await emptyTrashSync({ workspaceId, userId });
       return res.status(200).json({ success: true, mode: "sync", ...result });
     } catch (innerErr) {
       const msg = innerErr instanceof Error ? innerErr.message : String(innerErr);
       if (msg === "TRASH_TOO_LARGE") {
         // Above EMPTY_SYNC_MAX → enqueue BullMQ job (Task 4bis worker handles it).
+        // Pass userId so the async worker's DeletionAuditLog row identifies
+        // the real caller (not just the workspace).
         const job = await emptyTrashQueue.add(
           "empty-trash",
-          { workspaceId },
+          { workspaceId, userId },
           {
             attempts: 3,
             backoff: { type: "exponential", delay: 2000 },
             removeOnComplete: { age: 3600 },
           },
         );
-        logger.info("[TRASH] emptyTrash queued", { workspaceId, jobId: job.id });
+        logger.info("[TRASH] emptyTrash queued", { workspaceId, jobId: job.id, userId });
         return res.status(202).json({ success: true, mode: "async", jobId: job.id });
       }
       throw innerErr;
     }
   } catch (e) {
-    return sendError(res, e, "emptyTrash", { workspaceId });
+    return sendError(res, e, "emptyTrash", { workspaceId, userId });
   }
 }

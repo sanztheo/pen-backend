@@ -19,6 +19,17 @@ import { afterAll, beforeAll, afterEach, describe, expect, it } from "@jest/glob
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import request from "supertest";
+
+// Hard-stop if this file is ever evaluated outside the Jest runner.
+// `testAuthenticateToken` below bypasses Clerk by trusting a plain header —
+// if a dev copy-pastes this pattern into a non-test module, Postgres/Clerk
+// would start accepting forged `x-test-user` headers in prod. NODE_ENV is
+// set to "test" automatically by Jest, so this throws only in foreign contexts.
+if (process.env.NODE_ENV !== "test") {
+  throw new Error(
+    "trash.test.ts / testAuthenticateToken imported in non-test context — refusing to run",
+  );
+}
 import {
   archivePageHandler,
   restorePageHandler,
