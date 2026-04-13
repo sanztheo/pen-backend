@@ -155,11 +155,14 @@ export async function bulkDeleteTrashHandler(req: Request, res: Response): Promi
 }
 
 export async function emptyTrashHandler(req: Request, res: Response): Promise<Response> {
-  const parsed = emptyTrashBodySchema.safeParse(req.body);
+  // workspaceId is read from query (DELETE + JSON body is fragile across
+  // fetch impls and proxies). `verifyWorkspaceAccess` has already validated
+  // the user → workspace membership before we reach this handler.
+  const workspaceId = (req.query.workspaceId as string | undefined) ?? req.body?.workspaceId;
+  const parsed = emptyTrashBodySchema.safeParse({ workspaceId });
   if (!parsed.success) {
     return res.status(400).json({ error: "INVALID_BODY", details: parsed.error.flatten() });
   }
-  const { workspaceId } = parsed.data;
   const userId = req.user?.id;
   try {
     try {
