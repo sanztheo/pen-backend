@@ -33,24 +33,38 @@ interface EmptyTrashJobResult {
 
 const connection = redis as unknown as import("bullmq").ConnectionOptions;
 
+// In NODE_ENV=test we avoid constructing a real BullMQ Queue/Worker because
+// importing this module transitively from unit tests would open a live Redis
+// connection (ECONNREFUSED in CI where no Redis is running).
+const isTestEnv = process.env.NODE_ENV === "test";
+
+type QueueStub = Pick<Queue<EmptyTrashJobData, EmptyTrashJobResult>, "add" | "close">;
+
 // 📨 Queue (enqueue depuis les routes /trash quand count > EMPTY_SYNC_MAX)
-export const emptyTrashQueue = new Queue<EmptyTrashJobData, EmptyTrashJobResult>(QUEUE_NAME, {
-  connection,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: {
-      type: "exponential",
-      delay: 5000,
-    },
-    removeOnComplete: {
-      age: 3600,
-      count: 100,
-    },
-    removeOnFail: {
-      age: 86400,
-    },
-  },
-});
+export const emptyTrashQueue = (
+  isTestEnv
+    ? ({
+        add: async () => ({ id: "test-noop" }) as unknown as Job<EmptyTrashJobData>,
+        close: async () => undefined,
+      } satisfies QueueStub)
+    : new Queue<EmptyTrashJobData, EmptyTrashJobResult>(QUEUE_NAME, {
+        connection,
+        defaultJobOptions: {
+          attempts: 3,
+          backoff: {
+            type: "exponential",
+            delay: 5000,
+          },
+          removeOnComplete: {
+            age: 3600,
+            count: 100,
+          },
+          removeOnFail: {
+            age: 86400,
+          },
+        },
+      })
+) as Queue<EmptyTrashJobData, EmptyTrashJobResult>;
 
 async function processEmptyTrashJob(job: Job<EmptyTrashJobData>): Promise<EmptyTrashJobResult> {
   const { workspaceId, userId } = job.data;
@@ -116,24 +130,34 @@ async function processEmptyTrashJob(job: Job<EmptyTrashJobData>): Promise<EmptyT
   return { deletedCount: totalDeleted };
 }
 
-// 👷 Worker
-export const emptyTrashWorker = new Worker<EmptyTrashJobData, EmptyTrashJobResult>(
-  QUEUE_NAME,
-  processEmptyTrashJob,
-  {
-    connection,
-    concurrency: 2,
-  },
-);
+// 👷 Worker — skipped entirely in NODE_ENV=test to avoid a live Redis connection.
+export const emptyTrashWorker = (
+  isTestEnv
+    ? ({
+        name: QUEUE_NAME,
+        close: async () => undefined,
+        on: () => undefined,
+        isRunning: async () => false,
+        isPaused: async () => false,
+      } as unknown as Worker<EmptyTrashJobData, EmptyTrashJobResult>)
+    : new Worker<EmptyTrashJobData, EmptyTrashJobResult>(QUEUE_NAME, processEmptyTrashJob, {
+        connection,
+        concurrency: 2,
+      })
+) as Worker<EmptyTrashJobData, EmptyTrashJobResult>;
 
-emptyTrashWorker.on("completed", (job, result) => {
-  logger.log(`[EMPTY-TRASH-WORKER] Job ${job.id} completed: ${result.deletedCount} pages deleted`);
-});
+if (!isTestEnv) {
+  emptyTrashWorker.on("completed", (job, result) => {
+    logger.log(
+      `[EMPTY-TRASH-WORKER] Job ${job.id} completed: ${result.deletedCount} pages deleted`,
+    );
+  });
 
-emptyTrashWorker.on("failed", (job, error) => {
-  logger.error(`[EMPTY-TRASH-WORKER] Job ${job?.id} failed:`, error.message);
-});
+  emptyTrashWorker.on("failed", (job, error) => {
+    logger.error(`[EMPTY-TRASH-WORKER] Job ${job?.id} failed:`, error.message);
+  });
 
-emptyTrashWorker.on("error", (error) => {
-  logger.error("[EMPTY-TRASH-WORKER] Worker error:", error);
-});
+  emptyTrashWorker.on("error", (error) => {
+    logger.error("[EMPTY-TRASH-WORKER] Worker error:", error);
+  });
+}

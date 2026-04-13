@@ -46,6 +46,10 @@ export default {
     // These will be migrated to vitest runner separately.
     "quiz-streaming/__tests__/(parameterResolver|intelligentGenerator|standardGenerator|pipelineCorrection|quizCompletionController|singleCorrectionController|sourceAnalyzer|sseFactory|sessionManager)\\.test\\.ts$",
     "__tests__/services/credits/dailyModelLimit\\.test\\.ts$",
+    // Trash integration tests — require a real Postgres (Infisical dev env).
+    // Not runnable in CI where DATABASE_URL is absent.
+    "routes/__tests__/trash\\.test\\.ts$",
+    "services/__tests__/trashService\\.test\\.ts$",
   ],
 
   // Coverage configuration
