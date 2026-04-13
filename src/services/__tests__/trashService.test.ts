@@ -79,6 +79,8 @@ describe("archiveCascade", () => {
     expect(r?.isArchived).toBe(true);
     expect(r?.archivedRootId).toBeNull();
     expect(r?.archivedAt).toBeInstanceOf(Date);
+    expect(r!.archivedAt!.getTime()).toBeGreaterThan(Date.now() - 5000);
+    expect(r!.archivedAt!.getTime()).toBeLessThanOrEqual(Date.now());
     expect(r?.archivedPosition).toBe(0);
     expect(c?.isArchived).toBe(true);
     expect(c?.archivedRootId).toBe(root.id);
@@ -127,5 +129,57 @@ describe("archiveCascade", () => {
     await expect(archiveCascade({ pageId: p.id, workspaceId })).rejects.toThrow(
       "PAGE_NOT_FOUND_OR_ALREADY_ARCHIVED",
     );
+  });
+
+  it("archives a leaf page (no descendants) and returns archivedCount=1", async () => {
+    const leaf = await prisma.page.create({
+      data: { workspaceId, title: "Leaf", position: 0, createdBy: TEST_USER_ID },
+    });
+    const result = await archiveCascade({ pageId: leaf.id, workspaceId });
+    expect(result.archivedCount).toBe(1);
+    const after = await prisma.page.findUnique({ where: { id: leaf.id } });
+    expect(after?.isArchived).toBe(true);
+    expect(after?.archivedRootId).toBeNull();
+  });
+
+  it("refuses to archive a page that belongs to another workspace (cross-workspace isolation)", async () => {
+    // Create a SECOND workspace + a page in it
+    const otherUserId = `test-trash-other-${Date.now()}`;
+    const otherUser = await prisma.user.create({
+      data: {
+        id: otherUserId,
+        email: `trash-other-${Date.now()}@test.pennote.dev`,
+        firstName: "Other",
+        lastName: "Test",
+      },
+    });
+    const otherWorkspace = await prisma.workspace.create({
+      data: {
+        name: `trash-test-other-${Date.now()}`,
+        ownerId: otherUser.id,
+      },
+    });
+    const otherPage = await prisma.page.create({
+      data: {
+        workspaceId: otherWorkspace.id,
+        title: "Other",
+        position: 0,
+        createdBy: otherUser.id,
+      },
+    });
+
+    // Attempt to archive otherPage using OUR workspaceId
+    await expect(archiveCascade({ pageId: otherPage.id, workspaceId })).rejects.toThrow(
+      "PAGE_NOT_FOUND_OR_ALREADY_ARCHIVED",
+    );
+
+    // Verify the page is STILL not archived
+    const stillThere = await prisma.page.findUnique({ where: { id: otherPage.id } });
+    expect(stillThere?.isArchived).toBe(false);
+
+    // Cleanup
+    await prisma.page.delete({ where: { id: otherPage.id } });
+    await prisma.workspace.delete({ where: { id: otherWorkspace.id } });
+    await prisma.user.delete({ where: { id: otherUser.id } });
   });
 });

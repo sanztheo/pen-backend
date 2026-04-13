@@ -15,8 +15,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { logger } from "../utils/logger.js";
 
-const MAX_CASCADE_DEPTH = 100;
-const MAX_CASCADE_NODES = 10_000;
+export const MAX_CASCADE_DEPTH = 100;
+export const MAX_CASCADE_NODES = 10_000;
 
 export interface ArchiveCascadeInput {
   pageId: string;
@@ -31,62 +31,68 @@ export async function archiveCascade({
   pageId,
   workspaceId,
 }: ArchiveCascadeInput): Promise<ArchiveCascadeResult> {
-  return prisma.$transaction(async (tx) => {
-    const root = await tx.page.findFirst({
-      where: { id: pageId, workspaceId, isArchived: false },
-      select: { id: true, parentId: true, position: true },
-    });
-    if (!root) {
-      throw new Error("PAGE_NOT_FOUND_OR_ALREADY_ARCHIVED");
-    }
-
-    const descendantIds = await collectDescendantIds(tx, pageId, workspaceId);
-    if (descendantIds.length > MAX_CASCADE_NODES) {
-      throw new Error("TREE_TOO_LARGE");
-    }
-
-    const now = new Date();
-
-    // 1) Snapshot position into archivedPosition, then mark root archived
-    await tx.page.update({
-      where: { id: pageId },
-      data: {
-        isArchived: true,
-        archivedAt: now,
-        archivedRootId: null,
-        archivedPosition: root.position,
-      },
-    });
-
-    // 2) Close the visual gap left by the archive: shift down siblings
-    //    positioned after the root (strict >, not >=).
-    await tx.page.updateMany({
-      where: {
-        workspaceId,
-        parentId: root.parentId,
-        isArchived: false,
-        position: { gt: root.position },
-        NOT: { id: root.id },
-      },
-      data: { position: { decrement: 1 } },
-    });
-
-    // 3) Cascade: mark all descendants as archived, tagged with the root id
-    if (descendantIds.length > 0) {
-      await tx.page.updateMany({
-        where: { id: { in: descendantIds }, workspaceId, isArchived: false },
-        data: { isArchived: true, archivedAt: now, archivedRootId: pageId },
+  // Serializable isolation — prevents two issues:
+  // 1. Concurrent archives at the same parent both decrementing positions stale-read style
+  // 2. New child inserted between CTE snapshot and updateMany, becoming an orphan of an archived parent
+  // Postgres will raise serialization_failure on conflict — caller (Task 7 handler) should retry once.
+  return prisma.$transaction(
+    async (tx) => {
+      const root = await tx.page.findFirst({
+        where: { id: pageId, workspaceId, isArchived: false },
+        select: { id: true, parentId: true, position: true },
       });
-    }
+      if (!root) {
+        throw new Error("PAGE_NOT_FOUND_OR_ALREADY_ARCHIVED");
+      }
 
-    logger.info("[TRASH] archiveCascade", {
-      pageId,
-      workspaceId,
-      descendants: descendantIds.length,
-    });
+      const descendantIds = await collectDescendantIds(tx, pageId, workspaceId);
+      if (descendantIds.length > MAX_CASCADE_NODES) {
+        throw new Error("TREE_TOO_LARGE");
+      }
 
-    return { archivedCount: 1 + descendantIds.length };
-  });
+      const now = new Date();
+
+      // 1) Snapshot position into archivedPosition, then mark root archived
+      await tx.page.update({
+        where: { id: pageId },
+        data: {
+          isArchived: true,
+          archivedAt: now,
+          archivedRootId: null,
+          archivedPosition: root.position,
+        },
+      });
+
+      // 2) Close the visual gap left by the archive: shift down siblings
+      //    positioned after the root (strict >, not >=).
+      await tx.page.updateMany({
+        where: {
+          workspaceId,
+          parentId: root.parentId,
+          isArchived: false,
+          position: { gt: root.position },
+        },
+        data: { position: { decrement: 1 } },
+      });
+
+      // 3) Cascade: mark all descendants as archived, tagged with the root id
+      if (descendantIds.length > 0) {
+        await tx.page.updateMany({
+          where: { id: { in: descendantIds }, workspaceId, isArchived: false },
+          data: { isArchived: true, archivedAt: now, archivedRootId: pageId },
+        });
+      }
+
+      logger.info("[TRASH] archiveCascade", {
+        pageId,
+        workspaceId,
+        descendants: descendantIds.length,
+      });
+
+      return { archivedCount: 1 + descendantIds.length };
+    },
+    { isolationLevel: "Serializable" },
+  );
 }
 
 /**
@@ -112,7 +118,7 @@ async function collectDescendantIds(
           AND p.is_archived = false
           AND t.depth < ${MAX_CASCADE_DEPTH}
     )
-    SELECT id FROM tree
+    SELECT id FROM tree LIMIT ${MAX_CASCADE_NODES + 1}
   `;
   return rows.map((r) => r.id);
 }
