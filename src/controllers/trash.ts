@@ -84,7 +84,9 @@ export async function archivePageHandler(req: Request, res: Response): Promise<R
     // Retry on Postgres serialization_failure — the Serializable isolation
     // level used by archiveCascade can conflict with concurrent archives at
     // the same parent and the contract is "retry the whole tx".
-    const result = await withSerializableRetry(() => archiveCascade({ pageId: id, workspaceId }));
+    const result = await withSerializableRetry(() =>
+      archiveCascade({ pageId: id, workspaceId, userId }),
+    );
     return res.status(200).json({ success: true, ...result });
   } catch (e) {
     return sendError(res, e, "archive", { id, userId });
@@ -105,7 +107,9 @@ export async function restorePageHandler(req: Request, res: Response): Promise<R
     // Single-query auth: see archivePageHandler for rationale.
     const workspaceId = await loadPageWorkspaceForUserOrThrow(id, userId);
     // Same retry contract as archive — see archivePageHandler above.
-    const result = await withSerializableRetry(() => restoreCascade({ pageId: id, workspaceId }));
+    const result = await withSerializableRetry(() =>
+      restoreCascade({ pageId: id, workspaceId, userId }),
+    );
     return res.status(200).json({ success: true, ...result });
   } catch (e) {
     return sendError(res, e, "restore", { id, userId });
