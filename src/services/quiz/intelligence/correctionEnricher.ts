@@ -168,6 +168,15 @@ export class CorrectionEnricherService {
     corrections: QuestionResult[],
     config: EnrichmentConfig,
   ): Promise<EnrichedQuestionResult[]> {
+    // Early return: no sources to search → skip all RAG calls
+    if (
+      !config.workspaceId &&
+      (!config.quizSourcePageIds || config.quizSourcePageIds.length === 0)
+    ) {
+      logger.log(`📚 [ENRICHER] Skipping: no workspace or source pages configured`);
+      return corrections.map((c) => ({ ...c, sourceReferences: [], isEnriched: false }));
+    }
+
     logger.log(`📚 [ENRICHER] Enrichissement batch: ${corrections.length} corrections`);
 
     const enrichedResults: EnrichedQuestionResult[] = [];
