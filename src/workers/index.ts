@@ -9,9 +9,10 @@ import { logger } from "../utils/logger.js";
 import { quizWorker } from "./quiz.worker.js";
 
 import { exportWorker } from "./export.worker.js";
+import { emptyTrashWorker } from "../jobs/emptyTrashJob.js";
 
 // 📊 Liste de tous les workers actifs
-const workers = [quizWorker, exportWorker];
+const workers = [quizWorker, exportWorker, emptyTrashWorker];
 
 // 🚀 Démarrer tous les workers
 export const startWorkers = () => {
@@ -49,4 +50,4 @@ export const getWorkersStats = async () => {
 };
 
 // 🎯 Exporter les workers individuellement si besoin
-export { quizWorker, exportWorker };
+export { quizWorker, exportWorker, emptyTrashWorker };

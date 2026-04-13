@@ -112,7 +112,7 @@ export interface MovePageParams {
 export async function movePage(params: MovePageParams): Promise<{ movedCount: number }> {
   const { pageId, workspaceId } = params;
   const targetParentPageId = params.targetParentPageId;
-  let targetProjectId = params.targetProjectId;
+  const targetProjectId = params.targetProjectId;
 
   // --- Validation (read-only, outside transaction) ---
   const page = await prisma.page.findFirst({
@@ -395,6 +395,17 @@ export async function countProjectTreeItems(
   return { projectCount: pc, pageCount: pgc, total: pc + pgc };
 }
 
+/**
+ * Archives a project tree (root + descendant projects + their pages) into
+ * the trash. Thin wrapper around `archiveProjectCascade` — kept for
+ * backwards compatibility with the agent `deleteProject` tool which expects
+ * `{ archivedCount, name }`.
+ *
+ * The previous impl set `is_archived = true` manually via raw SQL without
+ * touching `archived_at`, `archived_root_id`, `archived_root_type` or
+ * `archived_position`, so items never surfaced in the trash listing and
+ * couldn't be restored. Delegating to `archiveProjectCascade` fixes both.
+ */
 export async function archiveProjectTree(
   projectId: string,
   workspaceId: string,
@@ -405,32 +416,14 @@ export async function archiveProjectTree(
   });
   if (!project) throw new ReorderServiceError("PROJECT_NOT_FOUND", "Project not found");
 
-  const [projectCount, pageCount] = await prisma.$transaction([
-    prisma.$executeRaw`
-      WITH RECURSIVE tree AS (
-        SELECT id FROM projects WHERE id = ${projectId}::uuid AND workspace_id = ${workspaceId}::uuid
-        UNION ALL
-        SELECT p.id FROM projects p INNER JOIN tree t ON p.parent_id = t.id
-      )
-      UPDATE projects SET is_archived = true, updated_at = NOW()
-      WHERE id IN (SELECT id FROM tree) AND is_archived = false
-    `,
-    prisma.$executeRaw`
-      WITH RECURSIVE ptree AS (
-        SELECT id FROM projects WHERE id = ${projectId}::uuid AND workspace_id = ${workspaceId}::uuid
-        UNION ALL
-        SELECT p.id FROM projects p INNER JOIN ptree t ON p.parent_id = t.id
-      ),
-      page_tree AS (
-        SELECT id FROM pages WHERE project_id IN (SELECT id FROM ptree) AND workspace_id = ${workspaceId}::uuid
-        UNION ALL
-        SELECT p.id FROM pages p INNER JOIN page_tree t ON p.parent_id = t.id
-      )
-      UPDATE pages SET is_archived = true, updated_at = NOW()
-      WHERE id IN (SELECT id FROM page_tree) AND is_archived = false
-    `,
-  ]);
+  const { archiveProjectCascade } = await import("./trashService.js");
+  const result = await archiveProjectCascade({ projectId, workspaceId });
 
-  logger.log(`[REORDER_SERVICE] archiveProjectTree: ${projectCount} projects, ${pageCount} pages`);
-  return { archivedCount: projectCount + pageCount, name: project.name };
+  logger.log(
+    `[REORDER_SERVICE] archiveProjectTree: ${result.archivedProjects} projects, ${result.archivedPages} pages`,
+  );
+  return {
+    archivedCount: result.archivedProjects + result.archivedPages,
+    name: project.name,
+  };
 }

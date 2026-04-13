@@ -124,28 +124,34 @@ model WorkspaceMember {
 }
 
 model Project {
-  name           String        @db.VarChar(255)
-  description    String?
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy      String        @map("created_by") @db.VarChar(255)
-  isArchived     Boolean       @default(false) @map("is_archived")
-  lastActivityAt DateTime      @default(now()) @map("last_activity_at") @db.Timestamptz(6)
-  settings       Json          @default("{}")
-  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  workspaceId    String        @map("workspace_id") @db.Uuid
-  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  position       Int           @default(0)
-  isPinned       Boolean       @default(false) @map("is_pinned")
-  parentId       String?       @map("parent_id") @db.Uuid // 🚀 Nouveau: support des projets imbriqués
-  activityLogs   ActivityLog[]
-  pages          Page[]
-  owner          User          @relation("ProjectOwner", fields: [createdBy], references: [id])
-  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  parent         Project?      @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children       Project[]     @relation("ProjectHierarchy")
+  name             String        @db.VarChar(255)
+  description      String?
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy        String        @map("created_by") @db.VarChar(255)
+  isArchived       Boolean       @default(false) @map("is_archived")
+  archivedAt       DateTime?     @map("archived_at") @db.Timestamptz(6)
+  archivedRootId   String?       @map("archived_root_id") @db.Uuid
+  archivedRootType String?       @map("archived_root_type") @db.VarChar(10)
+  archivedPosition Int?          @map("archived_position")
+  lastActivityAt   DateTime      @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  settings         Json          @default("{}")
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  workspaceId      String        @map("workspace_id") @db.Uuid
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  position         Int           @default(0)
+  isPinned         Boolean       @default(false) @map("is_pinned")
+  parentId         String?       @map("parent_id") @db.Uuid
+  activityLogs     ActivityLog[]
+  pages            Page[]
+  owner            User          @relation("ProjectOwner", fields: [createdBy], references: [id])
+  workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent           Project?      @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children         Project[]     @relation("ProjectHierarchy")
 
   @@index([createdBy])
   @@index([workspaceId, isArchived])
+  @@index([workspaceId, isArchived, archivedAt])
+  @@index([archivedRootId])
   @@index([parentId])
   @@index([workspaceId, parentId, isArchived, position])
   @@map("projects")
@@ -156,6 +162,10 @@ model Page {
   createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   createdBy        String             @map("created_by") @db.VarChar(255)
   isArchived       Boolean            @default(false) @map("is_archived")
+  archivedAt       DateTime?          @map("archived_at") @db.Timestamptz(6)
+  archivedRootId   String?            @map("archived_root_id") @db.Uuid
+  archivedRootType String?            @map("archived_root_type") @db.VarChar(10)
+  archivedPosition Int?               @map("archived_position")
   parentId         String?            @map("parent_id") @db.Uuid
   position         Int                @default(0)
   projectId        String?            @map("project_id") @db.Uuid
@@ -180,10 +190,14 @@ model Page {
   concepts         PageConcepts?
 
   @@index([createdBy])
-  @@index([workspaceId, isArchived])
+  @@index([workspaceId, isArchived, archivedAt])
   @@index([projectId, isArchived])
   @@index([parentId])
   @@index([workspaceId, parentId, isArchived, position])
+  // NOTE: partial index "page_archived_at_partial_idx" on (archived_at) WHERE is_archived = true
+  // (Prisma DSL ne supporte pas les partial index — DDL idempotente dans
+  // prisma/sql/page_trash_partial_index.sql, à re-run après tout db push --force-reset).
+  @@index([archivedRootId])
   @@map("pages")
 }
 
@@ -836,4 +850,24 @@ model UserDashboardLayout {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_dashboard_layouts")
+}
+
+// 🗑️ GDPR-durable audit trail for trash deletions.
+// Logs to process stdout (Railway/Datadog) have a 7-30d retention window
+// that does not satisfy GDPR Art. 30 record-keeping obligations. Every
+// bulk_delete / empty_trash / purge_30d run writes a row here AFTER the
+// successful delete so the audit reflects reality instead of intent.
+model DeletionAuditLog {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId   String   @map("workspace_id") @db.Uuid
+  userId        String?  @map("user_id") @db.VarChar(255)
+  action        String   @db.VarChar(50)
+  rootIds       String[] @map("root_ids") @db.Uuid
+  descendantIds String[] @map("descendant_ids") @db.Uuid
+  totalCount    Int      @map("total_count")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, createdAt])
+  @@index([createdAt])
+  @@map("deletion_audit_log")
 }
