@@ -6,6 +6,8 @@
 import { logger } from "../utils/logger.js";
 import { prisma } from "../lib/prisma.js";
 import { DefaultWorkspaceService } from "./defaultWorkspace.js";
+import { archiveProjectCascade } from "./trashService.js";
+import { withSerializableRetry } from "./withSerializableRetry.js";
 import {
   cacheUserLimits,
   cacheWorkspace,
@@ -312,7 +314,13 @@ export class SimplifiedContentService {
   }
 
   /**
-   * Supprime un projet et décremente les compteurs
+   * Archive un projet dans la corbeille (soft delete). Le projet + toutes
+   * ses sous-pages et sous-projets sont taggués via archiveProjectCascade
+   * et apparaissent dans la corbeille pendant 30 jours.
+   *
+   * Les compteurs userLimits ne sont PAS décrémentés ici — un projet en
+   * corbeille compte toujours dans le quota. La décrémentation arrive au
+   * hard-delete final (bulk-delete / empty-trash / purge).
    */
   static async deleteProject(userId: string, projectId: string) {
     try {
@@ -324,22 +332,20 @@ export class SimplifiedContentService {
           workspaceId: defaultWorkspaceId,
           createdBy: userId,
         },
+        select: { id: true, workspaceId: true, isArchived: true },
       });
       if (!project) throw new Error("Projet non trouvé");
+      if (project.isArchived) throw new Error("Projet déjà dans la corbeille");
 
-      const pagesCount = await prisma.page.count({ where: { projectId } });
+      const result = await withSerializableRetry(() =>
+        archiveProjectCascade({
+          projectId,
+          workspaceId: project.workspaceId,
+          userId,
+        }),
+      );
 
-      await prisma.$transaction(async (tx) => {
-        await tx.project.delete({ where: { id: projectId } });
-        await tx.$executeRaw`
-          UPDATE "user_limits"
-          SET "projects_used" = GREATEST(0, "projects_used" - 1),
-              "pages_used" = GREATEST(0, "pages_used" - ${pagesCount})
-          WHERE "user_id" = ${userId}
-        `;
-      });
-
-      return { success: true };
+      return { success: true, ...result };
     } catch (error) {
       logger.error("❌ [SIMPLIFIED-CONTENT] Erreur suppression projet:", error);
       throw error;

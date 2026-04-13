@@ -140,13 +140,51 @@ export async function restoreProjectCascade({
   const result = await prisma.$transaction(
     async (tx) => {
       const root = await tx.project.findFirst({
-        where: { id: projectId, workspaceId, isArchived: true, archivedRootId: null },
-        select: { id: true, parentId: true, archivedPosition: true },
+        where: { id: projectId, workspaceId },
+        select: { id: true, isArchived: true, parentId: true, archivedPosition: true },
       });
       if (!root) {
         throw new Error("PROJECT_NOT_IN_TRASH");
       }
 
+      // Merge path: project is already live (restored earlier via child restore)
+      // but still has archived children. Just un-archive the remaining children.
+      if (!root.isArchived) {
+        const projResult = await tx.project.updateMany({
+          where: { archivedRootId: projectId, archivedRootType: "project", workspaceId },
+          data: {
+            isArchived: false,
+            archivedAt: null,
+            archivedRootId: null,
+            archivedRootType: null,
+            archivedPosition: null,
+          },
+        });
+        const pageResult = await tx.page.updateMany({
+          where: { archivedRootId: projectId, archivedRootType: "project", workspaceId },
+          data: {
+            isArchived: false,
+            archivedAt: null,
+            archivedRootId: null,
+            archivedRootType: null,
+            archivedPosition: null,
+          },
+        });
+
+        logger.info("[TRASH] restoreProjectCascade (merge)", {
+          projectId,
+          workspaceId,
+          projects: projResult.count,
+          pages: pageResult.count,
+        });
+
+        return {
+          restoredProjects: projResult.count,
+          restoredPages: pageResult.count,
+        };
+      }
+
+      // Standard path: project is archived with archivedRootId=null (root item)
       let targetParentId = root.parentId;
       if (targetParentId) {
         const parent = await tx.project.findFirst({

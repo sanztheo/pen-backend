@@ -15,6 +15,7 @@ import {
   archivePageHandler,
   restorePageHandler,
   listTrashHandler,
+  listTrashChildrenHandler,
   bulkDeleteTrashHandler,
   emptyTrashHandler,
 } from "../controllers/trash.js";
@@ -251,6 +252,7 @@ router.get("/project/:projectId", getProjectPages);
 // matches the literal `/trash` segment first. Reordering these lines below
 // `/:id` would cause `DELETE /trash` to hit `deletePage` with id="trash".
 router.get("/trash", trashLimiter, verifyWorkspaceAccess, listTrashHandler);
+router.get("/trash/:id/children", trashLimiter, verifyWorkspaceAccess, listTrashChildrenHandler);
 router.post("/trash/bulk-delete", trashLimiter, verifyWorkspaceAccess, bulkDeleteTrashHandler);
 router.delete("/trash", trashLimiter, verifyWorkspaceAccess, emptyTrashHandler);
 // Per-page archive / restore. Workspace authorization happens INSIDE the

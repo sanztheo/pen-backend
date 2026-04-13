@@ -7,7 +7,8 @@
  */
 export { archiveCascade, restoreCascade } from "./trash/archivePage.js";
 export { archiveProjectCascade, restoreProjectCascade } from "./trash/archiveProject.js";
-export { listTrash } from "./trash/list.js";
+export { restoreChildFromProject } from "./trash/restoreChild.js";
+export { listTrash, listTrashChildren } from "./trash/list.js";
 export { bulkDelete } from "./trash/bulkDelete.js";
 export { emptyTrashSync } from "./trash/emptyTrash.js";
 export { purgeOlderThan30Days } from "./trash/purge.js";

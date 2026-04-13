@@ -115,12 +115,31 @@ export async function archiveCascade({
  * Restores a page from the trash, putting it back at its original sibling
  * position (or at the workspace root if the original parent is gone). All
  * cascade-archived descendants (archivedRootType="page") are un-archived too.
+ *
+ * If the page is a descendant of a project archive (archivedRootType="project"),
+ * delegates to restoreChildFromProject which also restores the parent project.
  */
 export async function restoreCascade({
   pageId,
   workspaceId,
   userId,
 }: RestoreCascadeInput): Promise<RestoreCascadeResult> {
+  // Check if this is a child page inside a project archive — delegate if so.
+  const maybChild = await prisma.page.findFirst({
+    where: { id: pageId, workspaceId, isArchived: true },
+    select: { archivedRootId: true, archivedRootType: true },
+  });
+  if (maybChild?.archivedRootId && maybChild.archivedRootType === "project") {
+    const { restoreChildFromProject } = await import("./restoreChild.js");
+    const childResult = await restoreChildFromProject({
+      childId: pageId,
+      childType: "page",
+      workspaceId,
+      userId,
+    });
+    return { restoredCount: childResult.restoredCount };
+  }
+
   const result = await prisma.$transaction(
     async (tx) => {
       const root = await tx.page.findFirst({
