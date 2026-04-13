@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { redis } from "../../lib/redis.js";
 import { logger } from "../../utils/logger.js";
@@ -68,6 +69,7 @@ export async function correctSingleQuestion(req: Request, res: Response): Promis
         hasDocuments: true,
         preset: true,
         sourceDocuments: true,
+        pipelineCorrections: true,
       },
     });
 
@@ -130,16 +132,37 @@ export async function correctSingleQuestion(req: Request, res: Response): Promis
       correctionRequest,
     );
 
-    // Mark question as corrected in Redis (non-blocking on failure)
+    // Persist correction: Redis (fast read) + DB (durability) — non-blocking on failure
+    const correctionJson = JSON.stringify(correction);
+    const pipelineKey = `quiz:${quizId}:pipeline:${questionId}`;
+
     try {
-      await redis.sadd(correctedKey, questionId);
-      await redis.expire(correctedKey, 3600); // 1h TTL
+      const redisPipeline = redis.pipeline();
+      redisPipeline.sadd(correctedKey, questionId);
+      redisPipeline.expire(correctedKey, 14400); // 4h TTL
+      redisPipeline.set(pipelineKey, correctionJson, "EX", 14400); // 4h TTL
+      await redisPipeline.exec();
     } catch (redisErr) {
-      logger.warn("[PIPELINE-CORRECTION] Redis mark-corrected failed (non-blocking):", redisErr);
+      logger.warn("[PIPELINE-CORRECTION] Redis persist failed (non-blocking):", redisErr);
     }
 
+    // Save to DB for crash recovery (non-blocking — don't fail the response)
+    const existingCorrections = (quiz.pipelineCorrections as Record<string, unknown> | null) ?? {};
+    const updatedCorrections = {
+      ...existingCorrections,
+      [questionId]: correction,
+    } as unknown as Prisma.InputJsonValue;
+    prisma.quiz
+      .update({
+        where: { id: quizId },
+        data: { pipelineCorrections: updatedCorrections },
+      })
+      .catch((dbErr) =>
+        logger.warn("[PIPELINE-CORRECTION] DB persist failed (non-blocking):", dbErr),
+      );
+
     logger.info(
-      `[PIPELINE-CORRECTION] Question ${questionId} corrected: score ${correction.score}/${correction.maxScore}`,
+      `[PIPELINE-CORRECTION] Question ${questionId} corrected & persisted: score ${correction.score}/${correction.maxScore}`,
     );
 
     res.json({ correction });

@@ -17,7 +17,7 @@ import {
   CorrectionEnricherService,
   type EnrichmentConfig,
 } from "../../services/quiz/intelligence/index.js";
-import { invalidateQuizHistoryCache } from "../../lib/redis.js";
+import { invalidateQuizHistoryCache, redis } from "../../lib/redis.js";
 import type { CorrectionResultItem, QuizWithExtras } from "./types.js";
 
 const completeQuizSchema = z.object({
@@ -81,6 +81,7 @@ export async function completeQuiz(req: Request, res: Response): Promise<void> {
         hasDocuments: true,
         preset: true,
         sourceDocuments: true,
+        pipelineCorrections: true,
       },
     });
 
@@ -117,18 +118,53 @@ export async function completeQuiz(req: Request, res: Response): Promise<void> {
       workspaceContent: [],
     };
 
-    // Re-correct ALL answers server-side — never trust client-sent scores
+    // Load cached corrections from pipeline (Redis first, DB fallback)
+    type CorrectionResult = Awaited<ReturnType<typeof CorrectionGenerator.correctSingle>>;
+    const cachedCorrections = new Map<string, CorrectionResult>();
+
+    // Try Redis batch read
+    try {
+      const redisKeys = questions.map((q) => `quiz:${quizId}:pipeline:${q.id}`);
+      const redisValues = await redis.mget(...redisKeys);
+      for (let i = 0; i < questions.length; i++) {
+        const raw = redisValues[i];
+        if (raw) {
+          cachedCorrections.set(questions[i].id, JSON.parse(raw));
+        }
+      }
+    } catch (redisErr) {
+      logger.warn("[QUIZ-COMPLETE] Redis batch read failed (will use DB fallback):", redisErr);
+    }
+
+    // DB fallback for any missing corrections
+    if (cachedCorrections.size < questions.length && quiz.pipelineCorrections) {
+      const dbCorrections = quiz.pipelineCorrections as Record<string, unknown>;
+      for (const question of questions) {
+        if (!cachedCorrections.has(question.id) && dbCorrections[question.id]) {
+          cachedCorrections.set(question.id, dbCorrections[question.id] as CorrectionResult);
+        }
+      }
+    }
+
+    const cacheHits = cachedCorrections.size;
+    const cacheMisses = questions.length - cacheHits;
     logger.info(
-      `[QUIZ-COMPLETE] Re-correcting ${questions.length} questions server-side for quiz ${quizId}`,
+      `[QUIZ-COMPLETE] Pipeline cache: ${cacheHits} hits, ${cacheMisses} misses for quiz ${quizId}`,
     );
+
+    // Only re-correct questions that have no cached correction
     const serverCorrections = await Promise.all(
       questions.map(async (question) => {
+        const cached = cachedCorrections.get(question.id);
+        if (cached) return cached;
+
+        // Fallback: re-correct (closed questions are instant, open questions hit LLM)
         const userAnswer = userAnswers.find((a) => a.questionId === question.id);
         return CorrectionGenerator.correctSingle(question, userAnswer, correctionRequest);
       }),
     );
     logger.info(
-      `[QUIZ-COMPLETE] Server re-correction complete: ${serverCorrections.length} corrections computed`,
+      `[QUIZ-COMPLETE] Corrections ready: ${serverCorrections.length} total (${cacheHits} cached, ${cacheMisses} re-corrected)`,
     );
 
     // Finalize corrections: sort, recalculate scores, generate AI analysis
