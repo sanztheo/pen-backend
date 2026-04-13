@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { redis } from "../../lib/redis.js";
 import { logger } from "../../utils/logger.js";
@@ -69,7 +68,6 @@ export async function correctSingleQuestion(req: Request, res: Response): Promis
         hasDocuments: true,
         preset: true,
         sourceDocuments: true,
-        pipelineCorrections: true,
       },
     });
 
@@ -147,19 +145,15 @@ export async function correctSingleQuestion(req: Request, res: Response): Promis
     }
 
     // Save to DB for crash recovery (non-blocking — don't fail the response)
-    const existingCorrections = (quiz.pipelineCorrections as Record<string, unknown> | null) ?? {};
-    const updatedCorrections = {
-      ...existingCorrections,
-      [questionId]: correction,
-    } as unknown as Prisma.InputJsonValue;
-    prisma.quiz
-      .update({
-        where: { id: quizId },
-        data: { pipelineCorrections: updatedCorrections },
-      })
-      .catch((dbErr) =>
-        logger.warn("[PIPELINE-CORRECTION] DB persist failed (non-blocking):", dbErr),
-      );
+    // Uses Postgres jsonb || operator for atomic merge — no lost updates under concurrency
+    prisma.$executeRaw`
+        UPDATE quizzes
+        SET pipeline_corrections = COALESCE(pipeline_corrections, '{}'::jsonb) || ${JSON.stringify({ [questionId]: correction })}::jsonb,
+            updated_at = NOW()
+        WHERE id = ${quizId}::uuid
+      `.catch((dbErr) =>
+      logger.warn("[PIPELINE-CORRECTION] DB persist failed (non-blocking):", dbErr),
+    );
 
     logger.info(
       `[PIPELINE-CORRECTION] Question ${questionId} corrected & persisted: score ${correction.score}/${correction.maxScore}`,
