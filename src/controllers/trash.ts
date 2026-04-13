@@ -32,11 +32,7 @@ import {
   emptyTrashBodySchema,
   pageIdParamSchema,
 } from "../validators/trash.js";
-import {
-  loadPageWorkspaceOrThrow,
-  assertUserCanAccessWorkspace,
-  HttpError,
-} from "../services/authzService.js";
+import { loadPageWorkspaceForUserOrThrow, HttpError } from "../services/authzService.js";
 
 function sendError(res: Response, e: unknown, op: string, ctx: Record<string, unknown>): Response {
   if (e instanceof HttpError) {
@@ -81,8 +77,10 @@ export async function archivePageHandler(req: Request, res: Response): Promise<R
     return res.status(401).json({ error: "UNAUTHENTICATED" });
   }
   try {
-    const workspaceId = await loadPageWorkspaceOrThrow(id);
-    await assertUserCanAccessWorkspace(userId, workspaceId);
+    // Single-query auth: load page workspaceId gated on user access.
+    // Collapses the previous loadPageWorkspaceOrThrow + assertUserCanAccessWorkspace
+    // into one findFirst — halves DB round-trips on every archive call.
+    const workspaceId = await loadPageWorkspaceForUserOrThrow(id, userId);
     // Retry on Postgres serialization_failure — the Serializable isolation
     // level used by archiveCascade can conflict with concurrent archives at
     // the same parent and the contract is "retry the whole tx".
@@ -104,8 +102,8 @@ export async function restorePageHandler(req: Request, res: Response): Promise<R
     return res.status(401).json({ error: "UNAUTHENTICATED" });
   }
   try {
-    const workspaceId = await loadPageWorkspaceOrThrow(id);
-    await assertUserCanAccessWorkspace(userId, workspaceId);
+    // Single-query auth: see archivePageHandler for rationale.
+    const workspaceId = await loadPageWorkspaceForUserOrThrow(id, userId);
     // Same retry contract as archive — see archivePageHandler above.
     const result = await withSerializableRetry(() => restoreCascade({ pageId: id, workspaceId }));
     return res.status(200).json({ success: true, ...result });
