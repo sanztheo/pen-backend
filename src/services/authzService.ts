@@ -56,3 +56,32 @@ export async function assertUserCanAccessWorkspace(
     throw new HttpError(403, "FORBIDDEN");
   }
 }
+
+/**
+ * Load a page's workspaceId, but only if the user has access to it.
+ * Throws HttpError(404, "NOT_FOUND") if the page doesn't exist OR the user
+ * has no access — the trash `sendError` collapses 403/404 anyway, so emitting
+ * 404 directly avoids leaking page-existence to unauthorized callers.
+ *
+ * Single query — replaces sequential `loadPageWorkspaceOrThrow` +
+ * `assertUserCanAccessWorkspace` (halves DB round-trips on archive/restore).
+ * Includes archived pages so `/restore` can find them.
+ */
+export async function loadPageWorkspaceForUserOrThrow(
+  pageId: string,
+  userId: string,
+): Promise<string> {
+  const page = await prisma.page.findFirst({
+    where: {
+      id: pageId,
+      workspace: {
+        OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
+      },
+    },
+    select: { workspaceId: true },
+  });
+  if (!page) {
+    throw new HttpError(404, "NOT_FOUND");
+  }
+  return page.workspaceId;
+}
