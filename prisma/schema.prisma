@@ -156,6 +156,9 @@ model Page {
   createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   createdBy        String             @map("created_by") @db.VarChar(255)
   isArchived       Boolean            @default(false) @map("is_archived")
+  archivedAt       DateTime?          @map("archived_at")
+  archivedRootId   String?            @map("archived_root_id") @db.Uuid
+  archivedPosition Int?               @map("archived_position")
   parentId         String?            @map("parent_id") @db.Uuid
   position         Int                @default(0)
   projectId        String?            @map("project_id") @db.Uuid
@@ -180,10 +183,14 @@ model Page {
   concepts         PageConcepts?
 
   @@index([createdBy])
-  @@index([workspaceId, isArchived])
+  @@index([workspaceId, isArchived, archivedAt])
   @@index([projectId, isArchived])
   @@index([parentId])
   @@index([workspaceId, parentId, isArchived, position])
+  // NOTE: partial index "page_archived_at_partial_idx" on (archived_at) WHERE is_archived = true
+  // créé manuellement via `prisma db execute` (non géré par Prisma DSL).
+  // À recréer si la DB est rebuild from scratch.
+  @@index([archivedRootId])
   @@map("pages")
 }
 
