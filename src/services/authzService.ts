@@ -85,3 +85,27 @@ export async function loadPageWorkspaceForUserOrThrow(
   }
   return page.workspaceId;
 }
+
+/**
+ * Project equivalent of loadPageWorkspaceForUserOrThrow. Includes archived
+ * projects so /projects/:id/restore can find a trashed project. Same 404
+ * collapse pattern — never leaks project existence to unauthorized callers.
+ */
+export async function loadProjectWorkspaceForUserOrThrow(
+  projectId: string,
+  userId: string,
+): Promise<string> {
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      workspace: {
+        OR: [{ ownerId: userId }, { members: { some: { userId, isActive: true } } }],
+      },
+    },
+    select: { workspaceId: true },
+  });
+  if (!project) {
+    throw new HttpError(404, "NOT_FOUND");
+  }
+  return project.workspaceId;
+}

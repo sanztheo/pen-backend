@@ -36,3 +36,8 @@ export const emptyTrashBodySchema = z.object({
 export const pageIdParamSchema = z.object({
   id: z.string().uuid(),
 });
+
+// POST /projects/:id/restore (and DELETE /projects/:id which archives)
+export const projectIdParamSchema = z.object({
+  id: z.string().uuid(),
+});

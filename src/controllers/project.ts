@@ -1,8 +1,9 @@
 import { Request, Response } from "express";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { logger } from "../utils/logger.js";
+import { archiveProjectCascade } from "../services/trashService.js";
+import { withSerializableRetry } from "../services/withSerializableRetry.js";
 
 // Schémas de validation
 const createProjectSchema = z.object({
@@ -393,6 +394,14 @@ export const updateProject = async (req: Request, res: Response) => {
 };
 
 // Supprimer un projet
+/**
+ * Soft-delete a project: archives it and its whole subtree (pages + nested
+ * projects) into the trash. Restorable via POST /projects/:id/restore.
+ *
+ * userLimits counters are NOT decremented here — the project still consumes
+ * quota while in the trash. Decrement happens when the trash is emptied or
+ * the project is bulk-deleted (hard delete in trashService).
+ */
 export const deleteProject = async (req: Request, res: Response) => {
   try {
     if (!req.user) {
@@ -401,69 +410,46 @@ export const deleteProject = async (req: Request, res: Response) => {
 
     const { id } = req.params;
 
-    // Vérifier les permissions (propriétaire du projet ou du workspace)
     const project = await prisma.project.findFirst({
       where: {
         id,
-        OR: [
-          { createdBy: req.user.id },
-          {
-            workspace: {
-              ownerId: req.user.id,
-            },
-          },
-        ],
+        OR: [{ createdBy: req.user.id }, { workspace: { ownerId: req.user.id } }],
       },
+      select: { id: true, workspaceId: true, isArchived: true },
     });
 
     if (!project) {
       return res.status(404).json({ error: "Projet non trouvé ou permissions insuffisantes" });
     }
+    if (project.isArchived) {
+      return res.status(404).json({ error: "Projet déjà dans la corbeille" });
+    }
 
-    // Compter les pages avant suppression pour ajuster les compteurs
-    const pagesCount = await prisma.page.count({
-      where: { projectId: id },
+    const result = await withSerializableRetry(() =>
+      archiveProjectCascade({
+        projectId: id,
+        workspaceId: project.workspaceId,
+        userId: req.user!.id,
+      }),
+    );
+
+    res.json({
+      success: true,
+      message: "Projet archivé dans la corbeille",
+      ...result,
     });
-
-    // Supprimer le projet et décrémenter les compteurs d'usage
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // Supprimer le projet et toutes ses pages en cascade
-      await tx.project.delete({
-        where: { id },
-      });
-
-      // Décrémenter les compteurs d'usage des projets et pages
-      await tx.userLimits.update({
-        where: { userId: req.user!.id },
-        data: {
-          projectsUsed: {
-            decrement: 1,
-          },
-          pagesUsed: {
-            decrement: pagesCount,
-          },
-        },
-      });
-    });
-
-    // ❌ LOGS D'ACTIVITÉ DÉSACTIVÉS pour économiser l'espace
-    // await prisma.activityLog.create({
-    //   data: {
-    //     userId: req.user.id,
-    //     workspaceId: project.workspaceId,
-    //     projectId: id,
-    //     action: 'delete',
-    //     entityType: 'project',
-    //     entityId: id,
-    //     details: {
-    //       projectName: project.name
-    //     }
-    //   }
-    // });
-
-    res.json({ message: "Projet supprimé avec succès" });
   } catch (error) {
-    logger.error("Erreur suppression projet:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg === "PROJECT_NOT_FOUND_OR_ALREADY_ARCHIVED") {
+      return res.status(404).json({ error: "Projet non trouvé" });
+    }
+    if (msg === "TREE_TOO_LARGE") {
+      return res.status(400).json({ error: "TREE_TOO_LARGE" });
+    }
+    logger.error("[PROJECT] deleteProject failed", {
+      projectId: req.params.id,
+      error: msg,
+    });
     res.status(500).json({ error: "Erreur interne du serveur" });
   }
 };
