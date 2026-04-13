@@ -20,6 +20,8 @@ import { logger } from "../utils/logger.js";
 import {
   archiveCascade,
   restoreCascade,
+  archiveProjectCascade,
+  restoreProjectCascade,
   listTrash,
   bulkDelete,
   emptyTrashSync,
@@ -31,8 +33,13 @@ import {
   bulkDeleteBodySchema,
   emptyTrashBodySchema,
   pageIdParamSchema,
+  projectIdParamSchema,
 } from "../validators/trash.js";
-import { loadPageWorkspaceForUserOrThrow, HttpError } from "../services/authzService.js";
+import {
+  loadPageWorkspaceForUserOrThrow,
+  loadProjectWorkspaceForUserOrThrow,
+  HttpError,
+} from "../services/authzService.js";
 
 function sendError(res: Response, e: unknown, op: string, ctx: Record<string, unknown>): Response {
   if (e instanceof HttpError) {
@@ -52,7 +59,12 @@ function sendError(res: Response, e: unknown, op: string, ctx: Record<string, un
     return res.status(e.status).json({ error: e.message });
   }
   const msg = e instanceof Error ? e.message : String(e);
-  if (msg === "PAGE_NOT_FOUND_OR_ALREADY_ARCHIVED" || msg === "PAGE_NOT_IN_TRASH") {
+  if (
+    msg === "PAGE_NOT_FOUND_OR_ALREADY_ARCHIVED" ||
+    msg === "PAGE_NOT_IN_TRASH" ||
+    msg === "PROJECT_NOT_FOUND_OR_ALREADY_ARCHIVED" ||
+    msg === "PROJECT_NOT_IN_TRASH"
+  ) {
     logger.info(`[TRASH] ${op} not-found`, { ...ctx, reason: msg });
     return res.status(404).json({ error: "NOT_FOUND" });
   }
@@ -90,6 +102,48 @@ export async function archivePageHandler(req: Request, res: Response): Promise<R
     return res.status(200).json({ success: true, ...result });
   } catch (e) {
     return sendError(res, e, "archive", { id, userId });
+  }
+}
+
+export async function archiveProjectHandler(req: Request, res: Response): Promise<Response> {
+  const parsed = projectIdParamSchema.safeParse(req.params);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "INVALID_PROJECT_ID" });
+  }
+  const { id } = parsed.data;
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: "UNAUTHENTICATED" });
+  }
+  try {
+    const workspaceId = await loadProjectWorkspaceForUserOrThrow(id, userId);
+    const result = await withSerializableRetry(() =>
+      archiveProjectCascade({ projectId: id, workspaceId, userId }),
+    );
+    return res.status(200).json({ success: true, ...result });
+  } catch (e) {
+    return sendError(res, e, "archiveProject", { id, userId });
+  }
+}
+
+export async function restoreProjectHandler(req: Request, res: Response): Promise<Response> {
+  const parsed = projectIdParamSchema.safeParse(req.params);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "INVALID_PROJECT_ID" });
+  }
+  const { id } = parsed.data;
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: "UNAUTHENTICATED" });
+  }
+  try {
+    const workspaceId = await loadProjectWorkspaceForUserOrThrow(id, userId);
+    const result = await withSerializableRetry(() =>
+      restoreProjectCascade({ projectId: id, workspaceId, userId }),
+    );
+    return res.status(200).json({ success: true, ...result });
+  } catch (e) {
+    return sendError(res, e, "restoreProject", { id, userId });
   }
 }
 

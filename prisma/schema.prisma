@@ -124,28 +124,34 @@ model WorkspaceMember {
 }
 
 model Project {
-  name           String        @db.VarChar(255)
-  description    String?
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  createdBy      String        @map("created_by") @db.VarChar(255)
-  isArchived     Boolean       @default(false) @map("is_archived")
-  lastActivityAt DateTime      @default(now()) @map("last_activity_at") @db.Timestamptz(6)
-  settings       Json          @default("{}")
-  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-  workspaceId    String        @map("workspace_id") @db.Uuid
-  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  position       Int           @default(0)
-  isPinned       Boolean       @default(false) @map("is_pinned")
-  parentId       String?       @map("parent_id") @db.Uuid // 🚀 Nouveau: support des projets imbriqués
-  activityLogs   ActivityLog[]
-  pages          Page[]
-  owner          User          @relation("ProjectOwner", fields: [createdBy], references: [id])
-  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  parent         Project?      @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
-  children       Project[]     @relation("ProjectHierarchy")
+  name             String        @db.VarChar(255)
+  description      String?
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdBy        String        @map("created_by") @db.VarChar(255)
+  isArchived       Boolean       @default(false) @map("is_archived")
+  archivedAt       DateTime?     @map("archived_at") @db.Timestamptz(6)
+  archivedRootId   String?       @map("archived_root_id") @db.Uuid
+  archivedRootType String?       @map("archived_root_type") @db.VarChar(10)
+  archivedPosition Int?          @map("archived_position")
+  lastActivityAt   DateTime      @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  settings         Json          @default("{}")
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  workspaceId      String        @map("workspace_id") @db.Uuid
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  position         Int           @default(0)
+  isPinned         Boolean       @default(false) @map("is_pinned")
+  parentId         String?       @map("parent_id") @db.Uuid
+  activityLogs     ActivityLog[]
+  pages            Page[]
+  owner            User          @relation("ProjectOwner", fields: [createdBy], references: [id])
+  workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent           Project?      @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children         Project[]     @relation("ProjectHierarchy")
 
   @@index([createdBy])
   @@index([workspaceId, isArchived])
+  @@index([workspaceId, isArchived, archivedAt])
+  @@index([archivedRootId])
   @@index([parentId])
   @@index([workspaceId, parentId, isArchived, position])
   @@map("projects")
@@ -157,9 +163,8 @@ model Page {
   createdBy        String             @map("created_by") @db.VarChar(255)
   isArchived       Boolean            @default(false) @map("is_archived")
   archivedAt       DateTime?          @map("archived_at") @db.Timestamptz(6)
-  archivedRootId     String?            @map("archived_root_id") @db.Uuid
-  archivedRoot       Page?              @relation("PageArchiveRoot", fields: [archivedRootId], references: [id], onDelete: SetNull)
-  archiveDescendants Page[]             @relation("PageArchiveRoot")
+  archivedRootId   String?            @map("archived_root_id") @db.Uuid
+  archivedRootType String?            @map("archived_root_type") @db.VarChar(10)
   archivedPosition Int?               @map("archived_position")
   parentId         String?            @map("parent_id") @db.Uuid
   position         Int                @default(0)
