@@ -38,7 +38,7 @@ export async function listTrash({
         p.icon,
         p.archived_at,
         p.parent_id,
-        (SELECT title FROM "pages" WHERE id = p.parent_id) AS parent_title,
+        (SELECT title FROM "pages" WHERE id = p.parent_id AND workspace_id = ${workspaceId}::uuid) AS parent_title,
         'page'::text AS type
       FROM "pages" p
       WHERE p.workspace_id = ${workspaceId}::uuid
@@ -51,7 +51,7 @@ export async function listTrash({
         NULL::varchar AS icon,
         pr.archived_at,
         pr.parent_id,
-        (SELECT name FROM "projects" WHERE id = pr.parent_id) AS parent_title,
+        (SELECT name FROM "projects" WHERE id = pr.parent_id AND workspace_id = ${workspaceId}::uuid) AS parent_title,
         'project'::text AS type
       FROM "projects" pr
       WHERE pr.workspace_id = ${workspaceId}::uuid
@@ -70,7 +70,7 @@ export async function listTrash({
           SELECT archived_at FROM "projects" WHERE archived_root_id = gp.id AND is_archived = true
         ) sub) AS archived_at,
         gp.parent_id,
-        (SELECT name FROM "projects" WHERE id = gp.parent_id) AS parent_title,
+        (SELECT name FROM "projects" WHERE id = gp.parent_id AND workspace_id = ${workspaceId}::uuid) AS parent_title,
         'project'::text AS type
       FROM "projects" gp
       WHERE gp.workspace_id = ${workspaceId}::uuid
@@ -131,7 +131,7 @@ export async function listTrashChildren({
       NULL::varchar AS icon,
       pr.archived_at,
       pr.parent_id,
-      (SELECT name FROM "projects" WHERE id = pr.parent_id) AS parent_title,
+      (SELECT name FROM "projects" WHERE id = pr.parent_id AND workspace_id = ${workspaceId}::uuid) AS parent_title,
       'project'::text AS type
     FROM "projects" pr
     WHERE pr.workspace_id = ${workspaceId}::uuid
@@ -144,7 +144,7 @@ export async function listTrashChildren({
       p.icon,
       p.archived_at,
       p.parent_id,
-      (SELECT title FROM "pages" WHERE id = p.parent_id) AS parent_title,
+      (SELECT title FROM "pages" WHERE id = p.parent_id AND workspace_id = ${workspaceId}::uuid) AS parent_title,
       'page'::text AS type
     FROM "pages" p
     WHERE p.workspace_id = ${workspaceId}::uuid

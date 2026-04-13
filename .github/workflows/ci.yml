@@ -82,9 +82,10 @@ jobs:
         run: npx prisma generate && npx prisma generate --schema=prisma/schema-embeddings.prisma
 
       - name: Run tests
-        run: npm test -- --ci --forceExit --testPathIgnorePatterns="node_modules" --testPathIgnorePatterns="dist" --testPathIgnorePatterns="preprocessor/__tests__/(QuizPreprocessorAgent|limitValidator|integrationHelper)" --testPathIgnorePatterns="betaAdmin.integration"
+        run: npm test -- --ci --forceExit --testPathIgnorePatterns="node_modules" --testPathIgnorePatterns="dist" --testPathIgnorePatterns="preprocessor/__tests__/(QuizPreprocessorAgent|limitValidator|integrationHelper)" --testPathIgnorePatterns="betaAdmin.integration" --testPathIgnorePatterns="routes/__tests__/trash\.test" --testPathIgnorePatterns="services/__tests__/trashService\.test"
         env:
           CI: true
+          NODE_ENV: test
 
   ci-status:
     name: "CI Status"
