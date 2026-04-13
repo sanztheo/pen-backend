@@ -558,6 +558,33 @@ export const quizCompleteRateLimit = rateLimit({
 });
 
 /**
+ * 20. RATE LIMIT TRASH (Corbeille)
+ * Protection des opérations de corbeille (archive/restore/list/bulk-delete/empty)
+ * 30 req/min par user — opérations destructives, limite stricte
+ */
+const TRASH_WINDOW_MS = 60 * 1000; // 1 minute
+const TRASH_MAX = 30;
+
+export const trashLimiter = rateLimit({
+  ...createBaseConfig("rl:trash:"),
+  windowMs: TRASH_WINDOW_MS,
+  max: TRASH_MAX,
+  message: {
+    success: false,
+    error: "TRASH_RATE_LIMIT_EXCEEDED",
+    message: "Trop d'opérations sur la corbeille. Veuillez réessayer dans une minute.",
+    retryAfter: "1 minute",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      return `blocked_no_user_${getIpKey(req)}`;
+    }
+    return `user_${userId}`;
+  },
+});
+
+/**
  * Helper pour vérifier si le rate limiting est activé
  */
 export const isRateLimitEnabled = (): boolean => {
