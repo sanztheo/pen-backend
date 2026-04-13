@@ -174,40 +174,57 @@ export async function completeQuiz(req: Request, res: Response): Promise<void> {
       correctionRequest,
     );
 
-    // Enrich corrections with source references
+    // Enrich corrections with source references (only when quiz has document sources)
     let enrichedCorrections: CorrectionResultItem[] =
       sortedCorrections as unknown as CorrectionResultItem[];
-    try {
-      logger.info(`[QUIZ-COMPLETE] Enriching ${sortedCorrections.length} corrections...`);
 
-      const enrichConfig: EnrichmentConfig = {
-        userId,
-        workspaceId: undefined,
-        maxReferencesPerQuestion: 2,
-        minRelevanceThreshold: 0.35,
-        enableConceptSuggestions: true,
-      };
+    const sourceDocuments = (quizExtras.sourceDocuments as Array<{ source?: string }>) || [];
+    const hasSourcesForEnrichment = quiz.hasDocuments && sourceDocuments.length > 0;
 
-      const enrichResult = await CorrectionEnricherService.enrichCorrections(
-        questions,
-        sortedCorrections as unknown as Parameters<
-          typeof CorrectionEnricherService.enrichCorrections
-        >[1],
-        enrichConfig,
-      );
-      enrichedCorrections = enrichResult as unknown as CorrectionResultItem[];
+    if (hasSourcesForEnrichment) {
+      try {
+        // Extract unique source IDs from quiz's existing sourceDocuments (already fetched at generation)
+        const quizSourcePageIds = [
+          ...new Set(
+            sourceDocuments.map((doc) => doc.source).filter((s): s is string => Boolean(s)),
+          ),
+        ];
 
-      const enrichedCount = enrichedCorrections.filter(
-        (c: CorrectionResultItem) => c.isEnriched,
-      ).length;
-      if (enrichedCount > 0) {
         logger.info(
-          `[QUIZ-COMPLETE] ${enrichedCount}/${enrichedCorrections.length} corrections enriched`,
+          `[QUIZ-COMPLETE] Enriching ${sortedCorrections.length} corrections with ${quizSourcePageIds.length} source pages`,
         );
+
+        const enrichConfig: EnrichmentConfig = {
+          userId,
+          workspaceId: undefined,
+          quizSourcePageIds,
+          maxReferencesPerQuestion: 2,
+          minRelevanceThreshold: 0.35,
+          enableConceptSuggestions: true,
+        };
+
+        const enrichResult = await CorrectionEnricherService.enrichCorrections(
+          questions,
+          sortedCorrections as unknown as Parameters<
+            typeof CorrectionEnricherService.enrichCorrections
+          >[1],
+          enrichConfig,
+        );
+        enrichedCorrections = enrichResult as unknown as CorrectionResultItem[];
+
+        const enrichedCount = enrichedCorrections.filter(
+          (c: CorrectionResultItem) => c.isEnriched,
+        ).length;
+        if (enrichedCount > 0) {
+          logger.info(
+            `[QUIZ-COMPLETE] ${enrichedCount}/${enrichedCorrections.length} corrections enriched`,
+          );
+        }
+      } catch (enrichError) {
+        logger.warn("[QUIZ-COMPLETE] Enrichment failed (non-blocking):", enrichError);
       }
-    } catch (enrichError) {
-      logger.warn("[QUIZ-COMPLETE] Enrichment failed (non-blocking):", enrichError);
-      // Continue with non-enriched corrections
+    } else {
+      logger.info(`[QUIZ-COMPLETE] Skipping enrichment: no document sources for quiz ${quizId}`);
     }
 
     // Persist in atomic transaction
