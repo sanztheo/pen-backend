@@ -156,7 +156,8 @@ export async function restoreCascade({
       let targetPosition = root.archivedPosition ?? 0;
 
       // If the original parent vanished or was archived, reanchor to workspace
-      // root at the end so we never restore into an invalid tree location.
+      // root so we never restore into an invalid tree location. The max-at-target
+      // clamp below handles position assignment uniformly for both branches.
       if (targetParentId) {
         const parent = await tx.page.findFirst({
           where: { id: targetParentId, workspaceId, isArchived: false },
@@ -164,13 +165,19 @@ export async function restoreCascade({
         });
         if (!parent) {
           targetParentId = null;
-          const maxRoot = await tx.page.aggregate({
-            where: { workspaceId, parentId: null, isArchived: false },
-            _max: { position: true },
-          });
-          targetPosition = (maxRoot._max.position ?? -1) + 1;
         }
       }
+
+      // Clamp targetPosition to current max + 1 at the destination. If user
+      // archived at position 50 but siblings were deleted meanwhile, current
+      // max may be 2 — restoring to 50 would leave a hole and a phantom slot.
+      // Runs uniformly for original-parent and reanchor-to-root branches.
+      const maxAtTarget = await tx.page.aggregate({
+        where: { workspaceId, parentId: targetParentId, isArchived: false },
+        _max: { position: true },
+      });
+      const currentMax = maxAtTarget._max.position ?? -1;
+      targetPosition = Math.min(targetPosition, currentMax + 1);
 
       // Shift +1 siblings whose position >= targetPosition. Raw SQL so we can
       // switch on parent_id null/value and filter by workspace_id explicitly.
@@ -182,11 +189,6 @@ export async function restoreCascade({
            AND is_archived = false
            AND position >= ${targetPosition}
       `);
-
-      const descendants = await tx.page.findMany({
-        where: { archivedRootId: pageId, workspaceId },
-        select: { id: true },
-      });
 
       await tx.page.update({
         where: { id: pageId },
@@ -200,26 +202,28 @@ export async function restoreCascade({
         },
       });
 
-      if (descendants.length > 0) {
-        await tx.page.updateMany({
-          where: { id: { in: descendants.map((d) => d.id) } },
-          data: {
-            isArchived: false,
-            archivedAt: null,
-            archivedRootId: null,
-            archivedPosition: null,
-          },
-        });
-      }
+      // Direct updateMany on the archivedRootId predicate — no need to fetch
+      // the descendant id list into memory first. Saves holding 10k UUIDs in
+      // the Serializable transaction on large cascades.
+      const descendantsResult = await tx.page.updateMany({
+        where: { archivedRootId: pageId, workspaceId },
+        data: {
+          isArchived: false,
+          archivedAt: null,
+          archivedRootId: null,
+          archivedPosition: null,
+        },
+      });
+      const descendantsCount = descendantsResult.count;
 
       logger.info("[TRASH] restoreCascade", {
         pageId,
         workspaceId,
-        descendants: descendants.length,
+        descendants: descendantsCount,
         reparentedToRoot: targetParentId === null && root.parentId !== null,
       });
 
-      return { restoredCount: 1 + descendants.length };
+      return { restoredCount: 1 + descendantsCount };
     },
     { isolationLevel: "Serializable" },
   );
@@ -452,28 +456,33 @@ export async function emptyTrashSync({
   workspaceId,
   userId,
 }: EmptyTrashSyncInput): Promise<{ deletedCount: number }> {
+  // Pre-flight count to decide sync vs async route. The handler catches
+  // TRASH_TOO_LARGE and reroutes to the BullMQ worker.
   const count = await prisma.page.count({
     where: { workspaceId, isArchived: true },
   });
   if (count > EMPTY_SYNC_MAX) {
     throw new Error("TRASH_TOO_LARGE");
   }
+  if (count === 0) {
+    return { deletedCount: 0 };
+  }
 
-  // 1. Collect archived ids and split roots/descendants for the audit row.
-  const archivedPages = await prisma.page.findMany({
-    where: { workspaceId, isArchived: true },
-    select: { id: true, archivedRootId: true },
-  });
-  const allPageIds = archivedPages.map((p) => p.id);
-  const rootIds = archivedPages.filter((p) => p.archivedRootId === null).map((p) => p.id);
-  const descendantIds = archivedPages.filter((p) => p.archivedRootId !== null).map((p) => p.id);
+  // Single round-trip DELETE ... RETURNING archived_root_id so we can split
+  // roots/descendants for the audit row without a separate findMany. Replaces
+  // the previous count + findMany + deleteMany (3 round-trips) with count + 1.
+  const deleted = await prisma.$queryRaw<{ id: string; archived_root_id: string | null }[]>`
+    DELETE FROM "pages"
+    WHERE workspace_id = ${workspaceId}::uuid
+      AND is_archived = true
+    RETURNING id, archived_root_id
+  `;
 
-  // 2. Atomic delete first.
-  const result = await prisma.page.deleteMany({
-    where: { workspaceId, isArchived: true },
-  });
+  const allPageIds = deleted.map((p) => p.id);
+  const rootIds = deleted.filter((p) => p.archived_root_id === null).map((p) => p.id);
+  const descendantIds = deleted.filter((p) => p.archived_root_id !== null).map((p) => p.id);
 
-  // 3. Durable audit row, then 4. best-effort embeddings cleanup.
+  // Durable audit row, then best-effort embeddings cleanup.
   await recordDeletionAudit({
     workspaceId,
     userId,
@@ -483,8 +492,8 @@ export async function emptyTrashSync({
   });
   await cleanupEmbeddingsForPages(allPageIds);
 
-  logger.info("[TRASH] emptyTrashSync", { workspaceId, deleted: result.count });
-  return { deletedCount: result.count };
+  logger.info("[TRASH] emptyTrashSync", { workspaceId, deleted: deleted.length });
+  return { deletedCount: deleted.length };
 }
 
 /**
