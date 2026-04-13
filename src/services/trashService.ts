@@ -215,17 +215,16 @@ export async function cleanupEmbeddingsForPages(pageIds: string[]): Promise<void
   if (pageIds.length === 0) return;
   try {
     const { prismaEmbeddings } = await import("../lib/prismaEmbeddings.js");
-    // `metadata.pageId` is a JSON path — build one OR clause per pageId since
-    // Prisma's JSON filter doesn't support `in` on a nested path.
-    const sources = await prismaEmbeddings.rAGSource.findMany({
-      where: {
-        sourceType: "WORKSPACE_PAGE",
-        OR: pageIds.map((pageId) => ({
-          metadata: { path: ["pageId"], equals: pageId },
-        })),
-      },
-      select: { id: true },
-    });
+    // Index-friendly query: use `= ANY($1::text[])` so Postgres can use the
+    // partial expression index `rag_source_page_id_idx` on
+    // ((metadata->>'pageId')) WHERE source_type = 'WORKSPACE_PAGE'.
+    // Previous impl used an OR array of JSON filters — O(N) query plan size,
+    // no index usage, sequential scan of `rag_sources` every call.
+    const sources = await prismaEmbeddings.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "rag_sources"
+      WHERE source_type = 'WORKSPACE_PAGE'
+        AND metadata->>'pageId' = ANY(${pageIds}::text[])
+    `;
     if (sources.length === 0) return;
     const sourceIds = sources.map((s) => s.id);
     await prismaEmbeddings.$transaction([
