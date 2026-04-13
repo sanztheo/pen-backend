@@ -40,7 +40,7 @@ export async function archiveCascade({
   // 1. Concurrent archives at the same parent both decrementing positions stale-read style
   // 2. New child inserted between CTE snapshot and updateMany, becoming an orphan of an archived parent
   // Postgres will raise serialization_failure on conflict — caller (Task 7 handler) should retry once.
-  return prisma.$transaction(
+  const result = await prisma.$transaction(
     async (tx) => {
       const root = await tx.page.findFirst({
         where: { id: pageId, workspaceId, isArchived: false },
@@ -98,6 +98,30 @@ export async function archiveCascade({
     },
     { isolationLevel: "Serializable" },
   );
+
+  // Best-effort: clean up embeddings for archived pages (root + cascade descendants).
+  // Runs AFTER the transaction commits so a tx rollback doesn't leave the vector
+  // DB wiped with no matching archive on the Postgres side. Soft-fails on its
+  // own — trash flow must never be blocked by a vector DB outage.
+  // Why here and not only on permanent delete: pages in trash shouldn't return
+  // RAG results, and embeddings waste vector DB storage for the full 30-day window.
+  try {
+    const archived = await prisma.page.findMany({
+      where: {
+        workspaceId,
+        OR: [{ id: pageId }, { archivedRootId: pageId }],
+      },
+      select: { id: true },
+    });
+    await cleanupEmbeddingsForPages(archived.map((p) => p.id));
+  } catch (e) {
+    logger.error("[TRASH] post-archive embeddings cleanup failed", {
+      pageId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+
+  return result;
 }
 
 export interface RestoreCascadeInput {
