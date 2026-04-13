@@ -845,3 +845,23 @@ model UserDashboardLayout {
 
   @@map("user_dashboard_layouts")
 }
+
+// 🗑️ GDPR-durable audit trail for trash deletions.
+// Logs to process stdout (Railway/Datadog) have a 7-30d retention window
+// that does not satisfy GDPR Art. 30 record-keeping obligations. Every
+// bulk_delete / empty_trash / purge_30d run writes a row here AFTER the
+// successful delete so the audit reflects reality instead of intent.
+model DeletionAuditLog {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId   String   @map("workspace_id") @db.Uuid
+  userId        String?  @map("user_id") @db.VarChar(255)
+  action        String   @db.VarChar(50)
+  rootIds       String[] @map("root_ids") @db.Uuid
+  descendantIds String[] @map("descendant_ids") @db.Uuid
+  totalCount    Int      @map("total_count")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([workspaceId, createdAt])
+  @@index([createdAt])
+  @@map("deletion_audit_log")
+}
