@@ -15,6 +15,22 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { logger } from "../utils/logger.js";
 import { recordDeletionAudit } from "./auditService.js";
+import { invalidateSidebarCache } from "../lib/redis.js";
+import { redisCache } from "./cache/redisCache.js";
+
+async function invalidateUserCaches(userId: string | undefined): Promise<void> {
+  if (!userId) return;
+  await Promise.all([
+    invalidateSidebarCache(userId).catch((err) =>
+      logger.warn("[TRASH] sidebar cache invalidation failed", { userId, err }),
+    ),
+    redisCache
+      .invalidatePattern(`recent-pages:${userId}:*`, { namespace: "pages" })
+      .catch((err) =>
+        logger.warn("[TRASH] recent-pages cache invalidation failed", { userId, err }),
+      ),
+  ]);
+}
 
 export const MAX_CASCADE_DEPTH = 100;
 export const MAX_CASCADE_NODES = 10_000;
@@ -26,6 +42,8 @@ export const TRASH_RETENTION_DAYS = 30;
 export interface ArchiveCascadeInput {
   pageId: string;
   workspaceId: string;
+  /** Optional — when provided, Redis sidebar/recent-pages caches are invalidated after commit */
+  userId?: string;
 }
 
 export interface ArchiveCascadeResult {
@@ -35,6 +53,7 @@ export interface ArchiveCascadeResult {
 export async function archiveCascade({
   pageId,
   workspaceId,
+  userId,
 }: ArchiveCascadeInput): Promise<ArchiveCascadeResult> {
   // Serializable isolation — prevents two issues:
   // 1. Concurrent archives at the same parent both decrementing positions stale-read style
@@ -121,12 +140,17 @@ export async function archiveCascade({
     });
   }
 
+  // Invalidate Redis caches so sidebar + recent-pages re-fetch fresh state
+  await invalidateUserCaches(userId);
+
   return result;
 }
 
 export interface RestoreCascadeInput {
   pageId: string;
   workspaceId: string;
+  /** Optional — when provided, Redis sidebar/recent-pages caches are invalidated after commit */
+  userId?: string;
 }
 
 export interface RestoreCascadeResult {
@@ -141,8 +165,9 @@ export interface RestoreCascadeResult {
 export async function restoreCascade({
   pageId,
   workspaceId,
+  userId,
 }: RestoreCascadeInput): Promise<RestoreCascadeResult> {
-  return prisma.$transaction(
+  const result = await prisma.$transaction(
     async (tx) => {
       const root = await tx.page.findFirst({
         where: { id: pageId, workspaceId, isArchived: true, archivedRootId: null },
@@ -227,6 +252,11 @@ export async function restoreCascade({
     },
     { isolationLevel: "Serializable" },
   );
+
+  // Invalidate Redis caches so sidebar + recent-pages re-fetch fresh state
+  await invalidateUserCaches(userId);
+
+  return result;
 }
 
 /**
