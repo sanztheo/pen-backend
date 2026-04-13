@@ -16,6 +16,7 @@ import { redis } from "../lib/redis.js";
 import { prisma } from "../lib/prisma.js";
 import { logger } from "../utils/logger.js";
 import { cleanupEmbeddingsForPages } from "../services/trashService.js";
+import { recordDeletionAudit } from "../services/auditService.js";
 
 const QUEUE_NAME = "empty-trash";
 const BATCH = 1000;
@@ -23,6 +24,7 @@ const INTER_BATCH_DELAY_MS = 50;
 
 interface EmptyTrashJobData {
   workspaceId: string;
+  userId?: string;
 }
 
 interface EmptyTrashJobResult {
@@ -51,34 +53,48 @@ export const emptyTrashQueue = new Queue<EmptyTrashJobData, EmptyTrashJobResult>
 });
 
 async function processEmptyTrashJob(job: Job<EmptyTrashJobData>): Promise<EmptyTrashJobResult> {
-  const { workspaceId } = job.data;
+  const { workspaceId, userId } = job.data;
   let totalDeleted = 0;
   let hasMore = true;
+  // Accumulate the full id set across batches so the audit row captures the
+  // whole operation, not just the last batch.
+  const allRootIds: string[] = [];
+  const allDescendantIds: string[] = [];
 
   logger.log(`[EMPTY-TRASH-WORKER] Starting empty-trash for workspace ${workspaceId}`);
 
   while (hasMore) {
-    const batchIds = await prisma.page.findMany({
+    const batchRows = await prisma.page.findMany({
       where: { workspaceId, isArchived: true },
-      select: { id: true },
+      select: { id: true, archivedRootId: true },
       take: BATCH,
     });
 
-    if (batchIds.length === 0) {
+    if (batchRows.length === 0) {
       hasMore = false;
       break;
     }
 
-    const ids = batchIds.map((p) => p.id);
-    await cleanupEmbeddingsForPages(ids);
+    const ids = batchRows.map((p) => p.id);
+
+    // 1. Delete first — Postgres is the source of truth.
     const result = await prisma.page.deleteMany({
       where: { id: { in: ids } },
     });
 
+    // 2. Accumulate for the final audit row (done once at the end).
+    for (const p of batchRows) {
+      if (p.archivedRootId === null) allRootIds.push(p.id);
+      else allDescendantIds.push(p.id);
+    }
+
+    // 3. Best-effort embeddings cleanup per batch (smaller payloads).
+    await cleanupEmbeddingsForPages(ids);
+
     totalDeleted += result.count;
     await job.updateProgress({ deleted: totalDeleted });
 
-    if (batchIds.length < BATCH) {
+    if (batchRows.length < BATCH) {
       hasMore = false;
       break;
     }
@@ -86,11 +102,16 @@ async function processEmptyTrashJob(job: Job<EmptyTrashJobData>): Promise<EmptyT
     await new Promise((resolve) => setTimeout(resolve, INTER_BATCH_DELAY_MS));
   }
 
-  logger.warn("[AUDIT] PAGE_PERMANENTLY_DELETED", {
-    workspaceId,
-    action: "empty_trash_async",
-    totalDeleted,
-  });
+  // 4. Durable GDPR audit row — written AFTER all deletes succeeded.
+  if (totalDeleted > 0) {
+    await recordDeletionAudit({
+      workspaceId,
+      userId,
+      action: "empty_trash_async",
+      rootIds: allRootIds,
+      descendantIds: allDescendantIds,
+    });
+  }
 
   return { deletedCount: totalDeleted };
 }

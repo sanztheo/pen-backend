@@ -14,6 +14,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { logger } from "../utils/logger.js";
+import { recordDeletionAudit } from "./auditService.js";
 
 export const MAX_CASCADE_DEPTH = 100;
 export const MAX_CASCADE_NODES = 10_000;
@@ -325,6 +326,7 @@ export async function listTrash({
 export interface BulkDeleteInput {
   workspaceId: string;
   ids: string[];
+  userId?: string;
 }
 
 export interface BulkDeleteResult {
@@ -337,13 +339,30 @@ export interface BulkDeleteResult {
  * Security: re-validates every id is (a) in the caller's workspace, (b) archived,
  * and (c) a root (archivedRootId=null) via findMany BEFORE deleting. Cross-workspace
  * or already-restored ids are silently dropped.
+ *
+ * Deletion order (critical for durability):
+ *   1. Collect root + descendant ids
+ *   2. Postgres deleteMany (source of truth — must succeed first)
+ *   3. recordDeletionAudit (durable audit row — soft-fail)
+ *   4. cleanupEmbeddingsForPages (best-effort vector DB cleanup — soft-fail)
+ *
+ * Rationale: if we cleaned embeddings before the Postgres delete and the
+ * delete failed, we'd have orphaned Postgres rows with no embeddings.
+ * By inverting the order we guarantee: Postgres is always the source of
+ * truth, and worst-case failure leaves a few orphan embeddings (cleanable
+ * by a later reconciliation job).
  */
-export async function bulkDelete({ workspaceId, ids }: BulkDeleteInput): Promise<BulkDeleteResult> {
+export async function bulkDelete({
+  workspaceId,
+  ids,
+  userId,
+}: BulkDeleteInput): Promise<BulkDeleteResult> {
   if (ids.length === 0) return { deletedCount: 0 };
   if (ids.length > BULK_DELETE_MAX) {
     throw new Error("BULK_LIMIT_EXCEEDED");
   }
 
+  // 1. Validate ownership — drop cross-workspace or non-root ids silently.
   const roots = await prisma.page.findMany({
     where: {
       id: { in: ids },
@@ -351,34 +370,37 @@ export async function bulkDelete({ workspaceId, ids }: BulkDeleteInput): Promise
       isArchived: true,
       archivedRootId: null,
     },
-    select: { id: true, title: true },
+    select: { id: true },
   });
   const validIds = roots.map((r) => r.id);
   if (validIds.length === 0) return { deletedCount: 0 };
 
-  // GDPR audit trail — log structured record BEFORE destructive op.
-  logger.warn("[AUDIT] PAGE_PERMANENTLY_DELETED", {
-    workspaceId,
-    action: "bulk_delete",
-    pages: roots.map((r) => ({ id: r.id, title: r.title })),
-  });
-
-  // Best-effort: collect descendant ids for vector DB cleanup. We could rely
-  // on Postgres cascade alone, but the embeddings DB is a separate DB — it
-  // needs an explicit delete.
+  // 2. Collect descendants for audit + embeddings cleanup.
   const descendants = await prisma.page.findMany({
     where: { workspaceId, archivedRootId: { in: validIds } },
     select: { id: true },
   });
-  const allPageIds = [...validIds, ...descendants.map((d) => d.id)];
-  await cleanupEmbeddingsForPages(allPageIds);
+  const descendantIds = descendants.map((d) => d.id);
+  const allPageIds = [...validIds, ...descendantIds];
 
+  // 3. Atomic delete — Postgres is the source of truth.
   const result = await prisma.page.deleteMany({
     where: {
       workspaceId,
       OR: [{ id: { in: validIds } }, { archivedRootId: { in: validIds } }],
     },
   });
+
+  // 4. After successful delete: durable audit row, then embeddings cleanup.
+  await recordDeletionAudit({
+    workspaceId,
+    userId,
+    action: "bulk_delete",
+    rootIds: validIds,
+    descendantIds,
+  });
+  await cleanupEmbeddingsForPages(allPageIds);
+
   logger.info("[TRASH] bulkDelete", {
     workspaceId,
     requested: ids.length,
@@ -389,15 +411,23 @@ export async function bulkDelete({ workspaceId, ids }: BulkDeleteInput): Promise
 
 export interface EmptyTrashSyncInput {
   workspaceId: string;
+  userId?: string;
 }
 
 /**
  * Synchronous empty for small trashes (≤ EMPTY_SYNC_MAX). Above that,
  * the route handler (Task 7) catches `TRASH_TOO_LARGE` and queues a
  * BullMQ job (Task 4bis).
+ *
+ * Deletion order (see bulkDelete for full rationale):
+ *   1. Collect all archived ids (roots + descendants)
+ *   2. Postgres deleteMany (source of truth)
+ *   3. recordDeletionAudit (durable audit row)
+ *   4. cleanupEmbeddingsForPages (best-effort)
  */
 export async function emptyTrashSync({
   workspaceId,
+  userId,
 }: EmptyTrashSyncInput): Promise<{ deletedCount: number }> {
   const count = await prisma.page.count({
     where: { workspaceId, isArchived: true },
@@ -406,20 +436,30 @@ export async function emptyTrashSync({
     throw new Error("TRASH_TOO_LARGE");
   }
 
+  // 1. Collect archived ids and split roots/descendants for the audit row.
   const archivedPages = await prisma.page.findMany({
     where: { workspaceId, isArchived: true },
-    select: { id: true },
+    select: { id: true, archivedRootId: true },
   });
-  await cleanupEmbeddingsForPages(archivedPages.map((p) => p.id));
+  const allPageIds = archivedPages.map((p) => p.id);
+  const rootIds = archivedPages.filter((p) => p.archivedRootId === null).map((p) => p.id);
+  const descendantIds = archivedPages.filter((p) => p.archivedRootId !== null).map((p) => p.id);
 
-  logger.warn("[AUDIT] PAGE_PERMANENTLY_DELETED", {
-    workspaceId,
-    action: "empty_trash_sync",
-    count,
-  });
+  // 2. Atomic delete first.
   const result = await prisma.page.deleteMany({
     where: { workspaceId, isArchived: true },
   });
+
+  // 3. Durable audit row, then 4. best-effort embeddings cleanup.
+  await recordDeletionAudit({
+    workspaceId,
+    userId,
+    action: "empty_trash_sync",
+    rootIds,
+    descendantIds,
+  });
+  await cleanupEmbeddingsForPages(allPageIds);
+
   logger.info("[TRASH] emptyTrashSync", { workspaceId, deleted: result.count });
   return { deletedCount: result.count };
 }
@@ -438,17 +478,38 @@ export async function purgeOlderThan30Days(): Promise<{ deletedCount: number }> 
   while (true) {
     const batch = await prisma.page.findMany({
       where: { isArchived: true, archivedAt: { lt: cutoff } },
-      select: { id: true },
+      select: { id: true, workspaceId: true, archivedRootId: true },
       take: PURGE_BATCH_SIZE,
     });
     if (batch.length === 0) break;
 
     const batchIds = batch.map((p) => p.id);
-    await cleanupEmbeddingsForPages(batchIds);
 
+    // 1. Delete first — Postgres is the source of truth.
     const result = await prisma.page.deleteMany({
       where: { id: { in: batchIds } },
     });
+
+    // 2. Durable audit rows, grouped by workspace (cron spans all workspaces).
+    const byWorkspace = new Map<string, { roots: string[]; descendants: string[] }>();
+    for (const p of batch) {
+      const entry = byWorkspace.get(p.workspaceId) ?? { roots: [], descendants: [] };
+      if (p.archivedRootId === null) entry.roots.push(p.id);
+      else entry.descendants.push(p.id);
+      byWorkspace.set(p.workspaceId, entry);
+    }
+    for (const [workspaceId, { roots, descendants }] of byWorkspace) {
+      await recordDeletionAudit({
+        workspaceId,
+        action: "purge_30d",
+        rootIds: roots,
+        descendantIds: descendants,
+      });
+    }
+
+    // 3. Best-effort vector DB cleanup.
+    await cleanupEmbeddingsForPages(batchIds);
+
     totalDeleted += result.count;
     logger.info("[TRASH] purge batch", { batch: result.count, total: totalDeleted });
 
