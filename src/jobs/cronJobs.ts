@@ -18,6 +18,9 @@ const BETA_PROCESS_WAITLIST_SCHEDULE = "10 * * * *"; // :10 — promeut depuis l
 const BETA_CLEANUP_EXPIRED_SCHEDULE = "20 * * * *"; // :20 — nettoie les comptes expirés (après check inactive)
 const BETA_POSITION_UPDATES_SCHEDULE = "30 * * * *"; // :30 — envoie les emails de progression waitlist
 const BETA_WEEKLY_RESET_SCHEDULE = "0 0 * * 1"; // Lundi 00:00 UTC
+const TRASH_PURGE_SCHEDULE = "0 3 * * *"; // Tous les jours à 3h du matin (Europe/Paris)
+const TRASH_PURGE_LOCK_TTL = 7200; // 2h — purges massives peuvent dépasser 1h
+const TRASH_PURGE_LOCK_REFRESH_MS = 30 * 60 * 1000; // refresh toutes les 30min
 const NODE_ENV = process.env.NODE_ENV || "development";
 
 export function startCronJobs() {
@@ -211,6 +214,46 @@ export function startCronJobs() {
     `✅ Tâche de reset quotidien des limites programmée: ${DAILY_LIMITS_RESET_SCHEDULE} (Europe/Paris)`,
   );
 
+  // 🗑️ Purge quotidienne des pages dans la corbeille depuis plus de 30 jours
+  const trashPurgeTask = cron.schedule(
+    TRASH_PURGE_SCHEDULE,
+    async () => {
+      logger.log("\n🗑️ [CRON] Démarrage purge corbeille (>30 jours)...");
+      const { redis } = await import("../lib/redis.js");
+      const lockKey = "cron:lock:trashPurge";
+      const acquired = await redis.set(lockKey, "1", "EX", TRASH_PURGE_LOCK_TTL, "NX");
+      if (!acquired) {
+        logger.log("[CRON] trashPurge: skipped (another instance holds the lock)");
+        return;
+      }
+
+      // Refresh périodique du lock pendant la purge (peut dépasser 1h sur gros volumes)
+      const refreshHandle = setInterval(() => {
+        redis.expire(lockKey, TRASH_PURGE_LOCK_TTL).catch((err: unknown) => {
+          logger.warn("[CRON] trashPurge: failed to refresh lock TTL:", err);
+        });
+      }, TRASH_PURGE_LOCK_REFRESH_MS);
+
+      try {
+        const { purgeOlderThan30Days } = await import("../services/trashService.js");
+        const { deletedCount } = await purgeOlderThan30Days();
+        logger.log(`✅ [CRON] Purge corbeille terminée: ${deletedCount} page(s) supprimée(s)`);
+      } catch (error) {
+        logger.error("❌ [CRON] Erreur lors de la purge corbeille:", error);
+      } finally {
+        clearInterval(refreshHandle);
+        await redis.del(lockKey).catch((err: unknown) => {
+          logger.warn("[CRON] Failed to release trashPurge lock:", err);
+        });
+      }
+    },
+    {
+      timezone: "Europe/Paris",
+    },
+  );
+
+  logger.log(`✅ Tâche purge corbeille programmée: ${TRASH_PURGE_SCHEDULE} (Europe/Paris)`);
+
   // ─── Beta Management Cron Jobs ──────────────────────────────
 
   let betaCheckInactiveTask: ReturnType<typeof cron.schedule> | undefined;
@@ -393,6 +436,7 @@ export function startCronJobs() {
     ragCleanupTask,
     monthlyResetTask,
     dailyLimitsResetTask,
+    trashPurgeTask,
     emailRetryTask,
     ...(BETA_LIVE
       ? [
@@ -413,6 +457,7 @@ export function startCronJobs() {
     ragCleanup: ragCleanupTask,
     monthlyReset: monthlyResetTask,
     dailyLimitsReset: dailyLimitsResetTask,
+    trashPurge: trashPurgeTask,
     ...(BETA_LIVE
       ? {
           betaCheckInactive: betaCheckInactiveTask,
