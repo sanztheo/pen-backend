@@ -11,8 +11,17 @@ import {
   getRecentPages,
   togglePagePin,
 } from "../controllers/page.js";
+import {
+  archivePageHandler,
+  restorePageHandler,
+  listTrashHandler,
+  bulkDeleteTrashHandler,
+  emptyTrashHandler,
+} from "../controllers/trash.js";
 import { authenticateToken } from "../middlewares/auth.js";
 import { validateUUID } from "../middlewares/validateUUID.js";
+import { trashLimiter } from "../middlewares/rateLimiting.js";
+import { verifyWorkspaceAccess } from "../middlewares/workspaceAccess.js";
 import { prisma } from "../lib/prisma.js";
 import { cacheBlockNoteContent, invalidateBlockNoteCache } from "../lib/redis.js";
 import { resetYjsDocument } from "../lib/y-prisma.js";
@@ -237,6 +246,19 @@ router.get("/search-content", async (req, res) => {
   }
 });
 router.get("/project/:projectId", getProjectPages);
+
+// 🗑️ TRASH (Corbeille) — MUST be declared BEFORE any `/:id*` route so Express
+// matches the literal `/trash` segment first. Reordering these lines below
+// `/:id` would cause `DELETE /trash` to hit `deletePage` with id="trash".
+router.get("/trash", trashLimiter, verifyWorkspaceAccess, listTrashHandler);
+router.post("/trash/bulk-delete", trashLimiter, verifyWorkspaceAccess, bulkDeleteTrashHandler);
+router.delete("/trash", trashLimiter, verifyWorkspaceAccess, emptyTrashHandler);
+// Per-page archive / restore. Workspace authorization happens INSIDE the
+// handler via loadPageWorkspaceOrThrow + assertUserCanAccessWorkspace because
+// the URL only has the page id.
+router.post("/:id/archive", validateUUID("id"), trashLimiter, archivePageHandler);
+router.post("/:id/restore", validateUUID("id"), trashLimiter, restorePageHandler);
+
 router.get("/:id", validateUUID("id"), getPage);
 router.put("/:id", validateUUID("id"), updatePage);
 router.delete("/:id", validateUUID("id"), deletePage);
