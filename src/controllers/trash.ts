@@ -23,6 +23,7 @@ import {
   archiveProjectCascade,
   restoreProjectCascade,
   listTrash,
+  listTrashChildren,
   bulkDelete,
   emptyTrashSync,
 } from "../services/trashService.js";
@@ -190,6 +191,24 @@ export async function listTrashHandler(req: Request, res: Response): Promise<Res
     return res.status(200).json(result);
   } catch (e) {
     return sendError(res, e, "listTrash", { workspaceId: query.workspaceId });
+  }
+}
+
+export async function listTrashChildrenHandler(req: Request, res: Response): Promise<Response> {
+  // workspaceId has already been validated by verifyWorkspaceAccess middleware.
+  const workspaceId = req.query.workspaceId as string | undefined;
+  const { id } = req.params;
+  if (!workspaceId || !/^[0-9a-f-]{36}$/i.test(workspaceId)) {
+    return res.status(400).json({ error: "INVALID_WORKSPACE_ID" });
+  }
+  if (!/^[0-9a-f-]{36}$/i.test(id)) {
+    return res.status(400).json({ error: "INVALID_ROOT_ID" });
+  }
+  try {
+    const items = await listTrashChildren({ workspaceId, rootId: id });
+    return res.status(200).json({ items });
+  } catch (e) {
+    return sendError(res, e, "listTrashChildren", { workspaceId, rootId: id });
   }
 }
 
