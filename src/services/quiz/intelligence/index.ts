@@ -57,3 +57,14 @@ export {
   type ChatClient,
   type AnalyzeCourseOptions,
 } from "./courseAnalyzer.js";
+
+// Quiz Planner — Pipeline v5 Step [2]: Plan
+export {
+  planQuiz,
+  QuizPlanConfigSchema,
+  QuizBlueprintSchema,
+  type QuizPlanConfig,
+  type PlannedQuestion,
+  type QuizBlueprint,
+  type PlanQuizOptions,
+} from "./quizPlanner.js";
