@@ -1,11 +1,6 @@
-import OpenAI from "openai";
 import { logger } from "../../../utils/logger.js";
 import { MODELS } from "../../../config/models.js";
-
-// Configuration OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { AIService } from "../../ai/base.js";
 
 // Types pour la génération IA de graphiques
 interface GraphicGenerationPrompt {
@@ -38,7 +33,9 @@ export class AIGraphicGenerator {
 
       logger.log(`[AI-GRAPHICS] Génération graphique pour: ${prompt.subject} - ${prompt.topic}`);
 
-      const response = await openai.chat.completions.create({
+      const response = await AIService.getOpenAICompatibleClient(
+        MODELS.GRAPHICS,
+      ).chat.completions.create({
         model: MODELS.GRAPHICS,
         messages: [
           { role: "system", content: systemPrompt },

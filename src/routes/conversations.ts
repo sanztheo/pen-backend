@@ -8,8 +8,8 @@ import {
   verifyConversationAccess,
   verifyWorkspaceOwnership,
 } from "../middlewares/workspaceAccess.js";
-import OpenAI from "openai";
 import { MODELS } from "../config/models.js";
+import { AIService } from "../services/ai/base.js";
 
 // Interface pour les données de création de page dans les messages
 interface PageCreationData {
@@ -29,11 +29,6 @@ type MessageUpdateData = {
 };
 
 const router = Router();
-
-// Configuration OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 // Toutes les routes nécessitent une authentification
 router.use(authenticateToken);
@@ -156,7 +151,9 @@ router.post("/", verifyWorkspaceAccess, async (req, res) => {
     });
 
     try {
-      const titleResponse = await openai.chat.completions.create({
+      const titleResponse = await AIService.getOpenAICompatibleClient(
+        MODELS.CONVERSATION_TITLE,
+      ).chat.completions.create({
         model: MODELS.CONVERSATION_TITLE,
         messages: [
           {
@@ -811,7 +808,9 @@ router.post("/:id/generate-title", verifyConversationAccess, async (req, res) =>
     const firstMessage = conversation.messages[0];
 
     // Générer le nouveau titre
-    const titleResponse = await openai.chat.completions.create({
+    const titleResponse = await AIService.getOpenAICompatibleClient(
+      MODELS.CONVERSATION_TITLE,
+    ).chat.completions.create({
       model: MODELS.CONVERSATION_TITLE,
       messages: [
         {

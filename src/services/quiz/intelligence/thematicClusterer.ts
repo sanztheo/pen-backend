@@ -4,9 +4,9 @@
  */
 
 import { logger } from "../../../utils/logger.js";
-import OpenAI from "openai";
 import { prisma } from "../../../lib/prisma.js";
 import { MODELS } from "../../../config/models.js";
+import { AIService } from "../../ai/base.js";
 import {
   kMeans,
   dbscan,
@@ -16,19 +16,7 @@ import {
 } from "../../../utils/clustering.js";
 import { ConceptExtractorService } from "./conceptExtractor.js";
 
-// Lazy initialization OpenAI
-let openaiClient: OpenAI | null = null;
-
-function getOpenAI(): OpenAI {
-  if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENAI_API_KEY manquant dans les variables d'environnement");
-    }
-    openaiClient = new OpenAI({ apiKey });
-  }
-  return openaiClient;
-}
+// Client resolved via AIService (routes Gemini to Google endpoint, OpenAI to OpenAI, etc.)
 
 /**
  * Page avec ses concepts extraits
@@ -366,7 +354,7 @@ export class ThematicClustererService {
   ): Promise<ThematicCluster[]> {
     logger.log(`🏷️ [ThematicClusterer] Génération des noms pour ${clusters.length} clusters...`);
 
-    const openai = getOpenAI();
+    const client = AIService.getOpenAICompatibleClient(MODELS.CLUSTERING);
 
     for (const cluster of clusters) {
       if (cluster.id === "cluster-misc") continue; // Skip le cluster divers
@@ -379,20 +367,35 @@ Page titles: ${cluster.pages
         .join(", ")}`;
 
       try {
-        const response = await openai.chat.completions.create({
+        const response = await client.chat.completions.create({
           model: MODELS.CLUSTERING,
           messages: [
             { role: "system", content: CLUSTER_NAMING_PROMPT },
             { role: "user", content: context },
           ],
           temperature: 0.5,
-          max_tokens: 100,
-          response_format: { type: "json_object" },
+          max_tokens: 200,
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "cluster_name",
+              strict: true,
+              schema: {
+                type: "object",
+                additionalProperties: false,
+                required: ["name", "description"],
+                properties: {
+                  name: { type: "string", description: "2-5 word thematic name" },
+                  description: { type: "string", description: "1 short sentence" },
+                },
+              },
+            },
+          },
         });
 
-        const result = response.choices[0]?.message?.content;
+        const result = response.choices[0]?.message?.content?.trim();
         if (result) {
-          const parsed = JSON.parse(result);
+          const parsed = JSON.parse(result) as { name?: string; description?: string };
           cluster.name = parsed.name || cluster.name;
           cluster.description = parsed.description || cluster.description;
         }

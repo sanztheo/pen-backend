@@ -11,6 +11,7 @@
 import { logger } from "../../../utils/logger.js";
 import OpenAI from "openai";
 import { z } from "zod";
+import { AIService } from "../../ai/base.js";
 import {
   buildPreprocessorPrompt,
   QUIZ_PREPROCESSOR_SYSTEM_PROMPT,
@@ -68,11 +69,7 @@ export class QuizPreprocessorAgent {
   private openai: OpenAI;
 
   constructor() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("❌ OPENAI_API_KEY manquant dans Infisical");
-    }
-    this.openai = new OpenAI({ apiKey });
+    this.openai = AIService.getOpenAICompatibleClient(PREPROCESSOR_MODEL);
   }
 
   /**

@@ -1,0 +1,1045 @@
+{
+  "timestamp": "2026-04-14T13:23:17.508Z",
+  "summary": {
+    "pageTitle": "🚀 Swift : Le Langage Moderne d'Apple",
+    "runs": 3,
+    "questionCount": 5,
+    "successRate": "3/3",
+    "avgTotalMs": 26125,
+    "avgAnalyzeMs": 5899,
+    "avgPlanMs": 11923,
+    "avgGenerateMs": 8210,
+    "avgTimeToFirstQMs": 26032,
+    "avgSimMean": 0.3671447148347487,
+    "avgSimMax": 0.5470339732029658,
+    "totalPairsAbove080": 0
+  },
+  "runs": [
+    {
+      "runIdx": 1,
+      "success": true,
+      "totalMs": 36271,
+      "analyzeMs": 17466,
+      "planMs": 10241,
+      "generateMs": 8449,
+      "timeToFirstQuestionMs": 36156,
+      "questionCount": 5,
+      "questionsRequested": 5,
+      "questions": [
+        {
+          "id": "q_1715892001_001",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Quelle est la structure interne utilisée par le compilateur pour représenter un type optionnel afin de gérer l'absence de valeur ?",
+          "targetConcept": "Optionnels",
+          "bloomLevel": "recall"
+        },
+        {
+          "id": "q_1715892001_002",
+          "type": "OPEN_QUESTION",
+          "difficulty": "difficile",
+          "question": "Comment l'utilisation des protocoles en Swift permet-elle d'implémenter le polymorphisme pour des types par valeur comme les structures et les énumérations ?",
+          "targetConcept": "Protocoles",
+          "bloomLevel": "comprehension"
+        },
+        {
+          "id": "q_1715892001_003",
+          "type": "TRUE_FALSE",
+          "difficulty": "facile",
+          "question": "Dans le cadre de SwiftUI, l'approche déclarative signifie que le développeur décrit l'état final souhaité de l'interface plutôt que de dicter la séquence d'événements pour la construire.",
+          "targetConcept": "SwiftUI",
+          "bloomLevel": "recall"
+        },
+        {
+          "id": "q_1715892001_004",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Quel est l'impact d'un cycle de conservation (retain cycle) entre deux instances de classes sur le mécanisme d'Automatic Reference Counting (ARC) ?",
+          "targetConcept": "Automatic Reference Counting (ARC)",
+          "bloomLevel": "analysis"
+        },
+        {
+          "id": "q_1715892001_005",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Quelle innovation majeure est introduite avec Swift 6 pour garantir la sécurité lors des accès concurrents aux données ?",
+          "targetConcept": "Isolation des données",
+          "bloomLevel": "recall"
+        }
+      ],
+      "similarity": {
+        "mean": 0.338161683976094,
+        "max": 0.5025155525254358,
+        "pairsAbove080": 0,
+        "pairsAbove085": 0
+      },
+      "events": [
+        {
+          "event": "analyzing",
+          "data": {
+            "message": "Analyzing course content..."
+          },
+          "timestamp": 85
+        },
+        {
+          "event": "planning",
+          "data": {
+            "message": "Planning 5 questions...",
+            "conceptCount": 20
+          },
+          "timestamp": 17466
+        },
+        {
+          "event": "generating",
+          "data": {
+            "message": "Generating questions..."
+          },
+          "timestamp": 27707
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 1,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715892001_001",
+              "question": "Quelle est la structure interne utilisée par le compilateur pour représenter un type optionnel afin de gérer l'absence de valeur ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Une structure de données linéaire de type pile",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Une énumération (enum) possédant les cas 'none' et 'some'",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "Un pointeur générique vers une adresse mémoire nulle",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Une classe héritant de l'objet racine NSNull",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Optionnels",
+                "bloomLevel": "recall",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Tests the student's knowledge of the internal 'enum' structure (none/some) used by the compiler to represent optionality.",
+                "plannedIndex": 1
+              }
+            },
+            "canStartAnswering": true,
+            "message": "Question 1/5 generated"
+          },
+          "timestamp": 36156
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 2,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715892001_002",
+              "question": "Comment l'utilisation des protocoles en Swift permet-elle d'implémenter le polymorphisme pour des types par valeur comme les structures et les énumérations ?",
+              "type": "OPEN_QUESTION",
+              "difficulty": "difficile",
+              "options": [],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "En Swift, les protocoles permettent de définir des contrats de comportement indépendamment de la hiérarchie de classes. Contrairement à l'héritage traditionnel limité aux classes, les protocoles peuvent être adoptés par des structures et des énumérations. Cela permet à différents types par valeur de répondre aux mêmes exigences fonctionnelles, offrant ainsi un polymorphisme flexible et modulaire sans les contraintes de l'héritage de classe.",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Protocoles",
+                "bloomLevel": "comprehension",
+                "plannedDifficulty": "difficile",
+                "plannedAngle": "Examines how protocols enable polymorphism for value types (structs/enums) where traditional class inheritance is impossible.",
+                "plannedIndex": 2
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 2/5 generated"
+          },
+          "timestamp": 36156
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 3,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715892001_003",
+              "question": "Dans le cadre de SwiftUI, l'approche déclarative signifie que le développeur décrit l'état final souhaité de l'interface plutôt que de dicter la séquence d'événements pour la construire.",
+              "type": "TRUE_FALSE",
+              "difficulty": "facile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Vrai",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Faux",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "SwiftUI",
+                "bloomLevel": "recall",
+                "plannedDifficulty": "facile",
+                "plannedAngle": "Verifies the definition of a declarative framework as one where the developer describes the end state rather than the sequence of events.",
+                "plannedIndex": 3
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 3/5 generated"
+          },
+          "timestamp": 36156
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 4,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715892001_004",
+              "question": "Quel est l'impact d'un cycle de conservation (retain cycle) entre deux instances de classes sur le mécanisme d'Automatic Reference Counting (ARC) ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "L'ARC libère immédiatement les deux instances dès qu'une variable devient nulle",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Le compteur de référence tombe à zéro mais la mémoire reste allouée",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "Les instances ne sont jamais libérées de la mémoire car leurs compteurs ne tombent jamais à zéro",
+                  "isCorrect": true
+                },
+                {
+                  "id": "D",
+                  "text": "Le système déclenche une erreur de compilation immédiate lors de la détection du cycle",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Automatic Reference Counting (ARC)",
+                "bloomLevel": "analysis",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Evaluates the ability to predict memory deallocation timing in a scenario involving a retain cycle between two class instances.",
+                "plannedIndex": 4
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 4/5 generated"
+          },
+          "timestamp": 36156
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 5,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715892001_005",
+              "question": "Quelle innovation majeure est introduite avec Swift 6 pour garantir la sécurité lors des accès concurrents aux données ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "La suppression totale du mot-clé var pour les environnements multithreadés",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "L'isolation complète des données pour prévenir les data races au moment de la compilation",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "L'obligation d'utiliser des structures au lieu des classes pour tout calcul parallèle",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "L'automatisation du garbage collection pour remplacer l'ARC",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Isolation des données",
+                "bloomLevel": "recall",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Focuses on the specific compile-time guarantees introduced in Swift 6 to prevent concurrent data races.",
+                "plannedIndex": 5
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 5/5 generated"
+          },
+          "timestamp": 36156
+        }
+      ]
+    },
+    {
+      "runIdx": 2,
+      "success": true,
+      "totalMs": 24663,
+      "analyzeMs": 116,
+      "planMs": 16208,
+      "generateMs": 8253,
+      "timeToFirstQuestionMs": 24577,
+      "questionCount": 5,
+      "questionsRequested": 5,
+      "questions": [
+        {
+          "id": "q_1715846400_001",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "En Swift, comment les optionnels sont-ils implémentés en interne pour gérer l'absence de valeur ?",
+          "targetConcept": "Optionnels",
+          "bloomLevel": "recall"
+        },
+        {
+          "id": "q_1715846400_002",
+          "type": "TRUE_FALSE",
+          "difficulty": "facile",
+          "question": "Le mécanisme Automatic Reference Counting (ARC) libère la mémoire de manière déterministe dès qu'une instance de classe n'est plus utilisée, contrairement au ramasse-miettes (garbage collection) dont le timing est imprévisible.",
+          "targetConcept": "Automatic Reference Counting (ARC)",
+          "bloomLevel": "recall"
+        },
+        {
+          "id": "q_1715846400_003",
+          "type": "OPEN_QUESTION",
+          "difficulty": "difficile",
+          "question": "Comment la programmation orientée protocole en Swift permet-elle de contourner les limitations de l'héritage simple sans subir la complexité de l'héritage multiple ?",
+          "targetConcept": "Protocoles",
+          "bloomLevel": "analysis"
+        },
+        {
+          "id": "q_1715846400_004",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Quelle est la fonction principale du mot-clé 'some' utilisé avec les types de retour opaques dans les hiérarchies de vues SwiftUI ?",
+          "targetConcept": "SwiftUI",
+          "bloomLevel": "recall"
+        },
+        {
+          "id": "q_1715846400_005",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Dans le modèle de concurrence de Swift 6, quel rôle joue le protocole 'Sendable' pour garantir la sécurité des données lors de la compilation ?",
+          "targetConcept": "Isolation des données",
+          "bloomLevel": "comprehension"
+        }
+      ],
+      "similarity": {
+        "mean": 0.4129736572029238,
+        "max": 0.596486438262269,
+        "pairsAbove080": 0,
+        "pairsAbove085": 0
+      },
+      "events": [
+        {
+          "event": "analyzing",
+          "data": {
+            "message": "Analyzing course content..."
+          },
+          "timestamp": 38
+        },
+        {
+          "event": "planning",
+          "data": {
+            "message": "Planning 5 questions...",
+            "conceptCount": 20
+          },
+          "timestamp": 116
+        },
+        {
+          "event": "generating",
+          "data": {
+            "message": "Generating questions..."
+          },
+          "timestamp": 16324
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 1,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_001",
+              "question": "En Swift, comment les optionnels sont-ils implémentés en interne pour gérer l'absence de valeur ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Comme une structure contenant un booléen et une valeur générique",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Comme une énumération générique avec deux cas : .none et .some(Wrapped)",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "Comme une classe de base héritant de NSObject",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Comme un pointeur brut vers un espace mémoire alloué",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Optionnels",
+                "bloomLevel": "recall",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Tests the knowledge of the internal implementation of Optionals as a generic enumeration with specific case names.",
+                "plannedIndex": 1
+              }
+            },
+            "canStartAnswering": true,
+            "message": "Question 1/5 generated"
+          },
+          "timestamp": 24577
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 2,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_002",
+              "question": "Le mécanisme Automatic Reference Counting (ARC) libère la mémoire de manière déterministe dès qu'une instance de classe n'est plus utilisée, contrairement au ramasse-miettes (garbage collection) dont le timing est imprévisible.",
+              "type": "TRUE_FALSE",
+              "difficulty": "facile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Vrai",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Faux",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Automatic Reference Counting (ARC)",
+                "bloomLevel": "recall",
+                "plannedDifficulty": "facile",
+                "plannedAngle": "Tests the ability to distinguish the deterministic nature of ARC memory release from the timing of garbage collection.",
+                "plannedIndex": 2
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 2/5 generated"
+          },
+          "timestamp": 24577
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 3,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_003",
+              "question": "Comment la programmation orientée protocole en Swift permet-elle de contourner les limitations de l'héritage simple sans subir la complexité de l'héritage multiple ?",
+              "type": "OPEN_QUESTION",
+              "difficulty": "difficile",
+              "options": [],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "L'approche par protocoles permet de définir des contrats de comportement que n'importe quel type (classe, structure ou énumération) peut adopter. Contrairement à l'héritage simple qui impose une hiérarchie rigide, un type peut se conformer à plusieurs protocoles simultanément, offrant une flexibilité similaire à l'héritage multiple. Cette modularité favorise la réutilisation du code tout en évitant les problèmes d'ambiguïté structurelle liés aux hiérarchies de classes complexes, car les protocoles se concentrent sur ce que le type 'fait' plutôt que sur ce qu'il 'est'.",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Protocoles",
+                "bloomLevel": "analysis",
+                "plannedDifficulty": "difficile",
+                "plannedAngle": "Examines how Protocol-Oriented Programming resolves structural limitations of single inheritance while avoiding multiple inheritance overhead.",
+                "plannedIndex": 3
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 3/5 generated"
+          },
+          "timestamp": 24577
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 4,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_004",
+              "question": "Quelle est la fonction principale du mot-clé 'some' utilisé avec les types de retour opaques dans les hiérarchies de vues SwiftUI ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Permettre à la fonction de retourner n'importe quel type de vue au moment de l'exécution",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Garantir au compilateur que la fonction renvoie un type spécifique unique conformant au protocole View",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "Convertir automatiquement une structure en une classe de référence",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Désactiver la vérification des types lors de la compilation pour accélérer le rendu",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "SwiftUI",
+                "bloomLevel": "recall",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Identifies the specific function of opaque return types using the 'some' keyword in the view hierarchy declaration.",
+                "plannedIndex": 4
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 4/5 generated"
+          },
+          "timestamp": 24577
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 5,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_005",
+              "question": "Dans le modèle de concurrence de Swift 6, quel rôle joue le protocole 'Sendable' pour garantir la sécurité des données lors de la compilation ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Il crypte les données avant de les envoyer sur le réseau",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Il force le passage des variables par référence entre les différents threads",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "Il identifie les types dont les valeurs peuvent être partagées en toute sécurité entre les domaines d'isolation",
+                  "isCorrect": true
+                },
+                {
+                  "id": "D",
+                  "text": "Il permet de modifier simultanément une même instance depuis plusieurs files d'attente",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Isolation des données",
+                "bloomLevel": "comprehension",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Explores the mechanism of how the Sendable protocol facilitates compile-time data race safety in the Swift 6 concurrency model.",
+                "plannedIndex": 5
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 5/5 generated"
+          },
+          "timestamp": 24577
+        }
+      ]
+    },
+    {
+      "runIdx": 3,
+      "success": true,
+      "totalMs": 17442,
+      "analyzeMs": 114,
+      "planMs": 9321,
+      "generateMs": 7929,
+      "timeToFirstQuestionMs": 17364,
+      "questionCount": 5,
+      "questionsRequested": 5,
+      "questions": [
+        {
+          "id": "q_1715846400_001",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Dans le cadre de l'utilisation d'un enchaînement d'accès à des propriétés via des optionnels, quelle est la conséquence d'une valeur nulle rencontrée au milieu de la chaîne d'exécution ?",
+          "targetConcept": "Optionnels",
+          "bloomLevel": "application"
+        },
+        {
+          "id": "q_1715846400_002",
+          "type": "OPEN_QUESTION",
+          "difficulty": "difficile",
+          "question": "Expliquez comment l'Automatic Reference Counting (ARC) gère la mémoire et pourquoi l'utilisation de références faibles (weak) ou non-possédées (unowned) est nécessaire pour résoudre un cycle de rétention (retain cycle).",
+          "targetConcept": "Automatic Reference Counting (ARC)",
+          "bloomLevel": "analysis"
+        },
+        {
+          "id": "q_1715846400_003",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Comment les protocoles en Swift permettent-ils de fournir un comportement par défaut à plusieurs types disparates (classes, structures ou énumérations) ?",
+          "targetConcept": "Protocoles",
+          "bloomLevel": "application"
+        },
+        {
+          "id": "q_1715846400_004",
+          "type": "TRUE_FALSE",
+          "difficulty": "moyen",
+          "question": "Dans le framework SwiftUI, le développeur est responsable de la gestion manuelle du cycle de vie des instances de vues sous-jacentes lors du processus de réconciliation.",
+          "targetConcept": "SwiftUI",
+          "bloomLevel": "comprehension"
+        },
+        {
+          "id": "q_1715846400_005",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "facile",
+          "question": "Si une variable est initialisée en mélangeant des littéraux numériques et des variables déjà typées sans déclaration explicite, comment Swift détermine-t-il le type de cette nouvelle variable ?",
+          "targetConcept": "Inférence de type",
+          "bloomLevel": "application"
+        }
+      ],
+      "similarity": {
+        "mean": 0.35029880332522834,
+        "max": 0.5420999288211925,
+        "pairsAbove080": 0,
+        "pairsAbove085": 0
+      },
+      "events": [
+        {
+          "event": "analyzing",
+          "data": {
+            "message": "Analyzing course content..."
+          },
+          "timestamp": 38
+        },
+        {
+          "event": "planning",
+          "data": {
+            "message": "Planning 5 questions...",
+            "conceptCount": 20
+          },
+          "timestamp": 114
+        },
+        {
+          "event": "generating",
+          "data": {
+            "message": "Generating questions..."
+          },
+          "timestamp": 9435
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 1,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_001",
+              "question": "Dans le cadre de l'utilisation d'un enchaînement d'accès à des propriétés via des optionnels, quelle est la conséquence d'une valeur nulle rencontrée au milieu de la chaîne d'exécution ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Le programme déclenche immédiatement une erreur de type Null Pointer Exception.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "L'exécution de la chaîne s'interrompt de manière sécurisée et renvoie nil.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "Le système force le dépaquetage de la valeur suivante pour continuer l'exécution.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Le compilateur ignore la valeur nulle et utilise une valeur par défaut automatique.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Optionnels",
+                "bloomLevel": "application",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Evaluating the safety and execution path of multiple chained optional accesses within a single complex conditional statement.",
+                "plannedIndex": 1
+              }
+            },
+            "canStartAnswering": true,
+            "message": "Question 1/5 generated"
+          },
+          "timestamp": 17364
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 2,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_002",
+              "question": "Expliquez comment l'Automatic Reference Counting (ARC) gère la mémoire et pourquoi l'utilisation de références faibles (weak) ou non-possédées (unowned) est nécessaire pour résoudre un cycle de rétention (retain cycle).",
+              "type": "OPEN_QUESTION",
+              "difficulty": "difficile",
+              "options": [],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "L'ARC gère automatiquement la mémoire en suivant et en libérant les instances de classes qui ne sont plus utilisées. Cependant, lorsque deux instances de classe conservent une référence forte l'une vers l'autre, un cycle de rétention se crée, empêchant l'ARC de libérer ces instances même si elles ne sont plus accessibles. Pour briser ce cycle et éviter les fuites de mémoire, le développeur doit définir l'une des relations comme étant une référence faible (weak) ou non-possédée (unowned). Ces types de références n'incrémentent pas le compteur de références, permettant ainsi à l'ARC de libérer l'instance dès que plus aucune référence forte ne pointe vers elle.",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Automatic Reference Counting (ARC)",
+                "bloomLevel": "analysis",
+                "plannedDifficulty": "difficile",
+                "plannedAngle": "Analyzing a complex object relationship graph to pinpoint a hidden memory leak caused by a retain cycle and justifying the specific use of weak or unowned references.",
+                "plannedIndex": 2
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 2/5 generated"
+          },
+          "timestamp": 17364
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 3,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_003",
+              "question": "Comment les protocoles en Swift permettent-ils de fournir un comportement par défaut à plusieurs types disparates (classes, structures ou énumérations) ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "En utilisant l'héritage multiple de classes pour partager les méthodes communes.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "En définissant une implémentation par défaut via une extension du protocole.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "En forçant chaque type à réécrire manuellement le contrat de comportement défini.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "En encapsulant les comportements dans une structure de données globale non-typée.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Protocoles",
+                "bloomLevel": "application",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Applying default protocol implementations via extensions to compose behavior across disparate types without relying on class inheritance.",
+                "plannedIndex": 3
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 3/5 generated"
+          },
+          "timestamp": 17364
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 4,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_004",
+              "question": "Dans le framework SwiftUI, le développeur est responsable de la gestion manuelle du cycle de vie des instances de vues sous-jacentes lors du processus de réconciliation.",
+              "type": "TRUE_FALSE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Vrai",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Faux",
+                  "isCorrect": true
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "SwiftUI",
+                "bloomLevel": "comprehension",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Testing the understanding of the declarative reconciliation process where the framework, not the developer, manages the lifecycle of the underlying view instances.",
+                "plannedIndex": 4
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 4/5 generated"
+          },
+          "timestamp": 17364
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 5,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_005",
+              "question": "Si une variable est initialisée en mélangeant des littéraux numériques et des variables déjà typées sans déclaration explicite, comment Swift détermine-t-il le type de cette nouvelle variable ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "facile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Il utilise l'inférence de type pour deviner le type approprié.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Il convertit systématiquement toutes les valeurs en type String par sécurité.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "Le compilateur rejette l'expression car Swift interdit le mélange de types.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "La variable devient dynamiquement typée et peut changer de type à l'exécution.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Inférence de type",
+                "bloomLevel": "application",
+                "plannedDifficulty": "facile",
+                "plannedAngle": "Determining the resulting inferred data type when a variable is initialized with a mixed expression of numeric literals and existing typed variables.",
+                "plannedIndex": 5
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 5/5 generated"
+          },
+          "timestamp": 17364
+        }
+      ]
+    }
+  ]
+}
