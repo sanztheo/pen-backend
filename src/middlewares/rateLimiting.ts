@@ -456,6 +456,31 @@ export const uploadRateLimit = rateLimit({
 });
 
 /**
+ * 15b. RATE LIMIT PDF EXTRACT (Mistral OCR)
+ * Protection spécifique contre l'abus d'OCR payant ($0.001/page facturé à Pennote).
+ * 10 req/15min par user — assez pour usage légitime (import d'un gros cours),
+ * bloque toute tentative de spam qui exploserait le budget Mistral.
+ */
+const PDF_EXTRACT_WINDOW_MS = 15 * 60 * 1000;
+const PDF_EXTRACT_MAX = 10;
+
+export const pdfExtractRateLimit = rateLimit({
+  ...createBaseConfig("rl:pdf-extract:"),
+  windowMs: PDF_EXTRACT_WINDOW_MS,
+  max: PDF_EXTRACT_MAX,
+  message: {
+    success: false,
+    error: "PDF_EXTRACT_RATE_LIMIT_EXCEEDED",
+    message: "Trop d'imports PDF. Réessaye dans quelques minutes.",
+    retryAfter: "15 minutes",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    return userId ? `pdf_extract_${userId}` : `ip_${getIpKey(req)}`;
+  },
+});
+
+/**
  * 16. RATE LIMIT AGENTS CRUD
  * Protection des routes CRUD agents custom (create, update, delete, list)
  * 60 req/15min par user — opérations normales, limite raisonnable

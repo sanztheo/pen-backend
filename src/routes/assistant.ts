@@ -21,6 +21,7 @@ import { wikipediaSearch } from "../controllers/assistant.js";
 import { verifyWorkspaceAccess } from "../middlewares/workspaceAccess.js";
 import { aiConcurrencyLimit } from "../middlewares/aiConcurrencyLimit.js";
 import { dailyTokenQuota } from "../middlewares/dailyTokenQuota.js";
+import { extractPdfMarkdown } from "../services/ocr/mistralOcr.js";
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -96,14 +97,6 @@ interface BlockNoteBlock {
   content?: BlockNoteContentItem[];
   children?: BlockNoteBlock[];
 }
-
-/** PDF parse result */
-interface PdfParseResult {
-  text?: string;
-}
-
-/** PDF parse function type */
-type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
 
 const router = Router();
 
@@ -566,21 +559,6 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 }, // 50 Mo
 });
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isPdfParseFn(value: unknown): value is PdfParseFn {
-  return typeof value === "function";
-}
-
-function getPdfParseFnFromModule(mod: unknown): PdfParseFn | null {
-  if (isPdfParseFn(mod)) return mod;
-  if (!isRecord(mod)) return null;
-  if (isPdfParseFn(mod.default)) return mod.default;
-  return null;
-}
-
 // Upload simple (extraction texte sans persistance)
 router.post("/upload", upload.array("files", 5), async (req: Request, res: Response) => {
   try {
@@ -596,24 +574,10 @@ router.post("/upload", upload.array("files", 5), async (req: Request, res: Respo
       let text = "";
       if (f.mimetype === "application/pdf") {
         try {
-          let pdfParseFn: PdfParseFn;
-          try {
-            const mod: unknown = await import("pdf-parse/lib/pdf-parse.js");
-            const parsed = getPdfParseFnFromModule(mod);
-            if (!parsed) throw new Error("Invalid pdf-parse module");
-            pdfParseFn = parsed;
-          } catch {
-            const mod: unknown = await import("pdf-parse");
-            const parsed = getPdfParseFnFromModule(mod);
-            if (!parsed) throw new Error("Invalid pdf-parse module");
-            pdfParseFn = parsed;
-          }
-          const data = await pdfParseFn(f.buffer);
-          text = data?.text || "";
+          text = await extractPdfMarkdown(f.buffer, f.originalname);
         } catch (pdfError) {
-          // 🛡️ SÉCURITÉ: Log l'échec du parsing PDF pour monitoring
           logger.warn(
-            `⚠️ [ASSISTANT] PDF parsing failed for "${f.originalname}" (${f.size} bytes):`,
+            `⚠️ [ASSISTANT] PDF extraction failed for "${f.originalname}" (${f.size} bytes):`,
             pdfError instanceof Error ? pdfError.message : "Unknown error",
           );
           text = "";

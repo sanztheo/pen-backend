@@ -32,6 +32,8 @@ import { updatesRouter } from "./routes/updates.js";
 import { userRouter } from "./routes/user.js";
 
 import { uploadRouter } from "./routes/upload.js";
+import { pdfRouter } from "./routes/pdf.js";
+import { validateMistralConfig } from "./services/ocr/mistralOcr.js";
 import { paddleWebhookHandler } from "./routes/paddleWebhooks.js";
 import { jobsRouter } from "./routes/jobs.js";
 import { agentRouter } from "./routes/agent/index.js";
@@ -239,6 +241,7 @@ app.use("/api/quiz-limits", quizLimitsRouter);
 app.use("/api/sync-limits", sync_limitsRouter);
 app.use("/api/updates", updatesRouter);
 app.use("/api/upload", uploadRouter);
+app.use("/api/pdf", pdfRouter);
 
 app.use("/api/user", userRouter);
 app.use("/api/jobs", jobsRouter); // 🎯 Récupération résultats jobs BullMQ
@@ -537,7 +540,8 @@ const setupYjsWebSocket = (server: http.Server): WebSocketServer => {
         const messageType = decoding.readVarUint(decoder);
 
         switch (messageType) {
-          case 0: // sync message
+          case 0: {
+            // sync message
             const responseEncoder = encoding.createEncoder();
             encoding.writeVarUint(responseEncoder, 0);
             syncProtocol.readSyncMessage(decoder, responseEncoder, doc!, ws);
@@ -546,6 +550,7 @@ const setupYjsWebSocket = (server: http.Server): WebSocketServer => {
               ws.send(encoding.toUint8Array(responseEncoder));
             }
             break;
+          }
 
           case 1: // awareness message - just broadcast to other clients
             // Pour l'instant, on ignore les awareness messages
@@ -747,6 +752,9 @@ server.listen(PORT, async () => {
   logger.log(`🚀 Serveur Pen SaaS démarré sur le port ${PORT} en mode ${NODE_ENV}`);
   logger.log(`✨ VERSION: RATE-LIMITED-SECURE - ${new Date().toISOString()}`);
   logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+  // 🔑 Fail-fast si clé Mistral OCR manquante (requise pour import PDF)
+  validateMistralConfig();
 
   // 🧠 Afficher le statut Mem0
   logMem0Status();
