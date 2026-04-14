@@ -4,13 +4,11 @@ import crypto from "crypto";
 import type { RAGChunkInput } from "./index.js";
 import { logger } from "../../utils/logger.js";
 import { RAG_CONFIG } from "./config.js";
+import { extractPdfMarkdown } from "../ocr/mistralOcr.js";
 
 type RAGSourceWithChunkCount = Prisma.RAGSourceGetPayload<{
   include: { _count: { select: { chunks: true } } };
 }>;
-
-type PdfParseResult = { text?: string };
-type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>;
 
 type PreparedRAGChunkRow = {
   sourceId: string;
@@ -22,20 +20,6 @@ type PreparedRAGChunkRow = {
   sectionTitle: string | null;
   quality: number;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function resolvePdfParseFn(mod: unknown): PdfParseFn {
-  if (typeof mod === "function") {
-    return mod as PdfParseFn;
-  }
-  if (isRecord(mod) && typeof mod.default === "function") {
-    return mod.default as PdfParseFn;
-  }
-  throw new Error("pdf-parse import did not resolve to a function");
-}
 
 export interface UserFileContent {
   buffer: Buffer;
@@ -111,21 +95,16 @@ export class UserFilesRAGSystem {
    * @param mimeType - Type MIME
    * @returns Texte extrait
    */
-  private async extractFileContent(buffer: Buffer, mimeType: string): Promise<string> {
+  private async extractFileContent(
+    buffer: Buffer,
+    mimeType: string,
+    fileName: string,
+  ): Promise<string> {
     try {
       switch (mimeType) {
         case "application/pdf": {
-          // PDF via pdf-parse
-          let pdfParseFn: PdfParseFn;
-          try {
-            const mod: unknown = await import("pdf-parse/lib/pdf-parse.js");
-            pdfParseFn = resolvePdfParseFn(mod);
-          } catch {
-            const mod: unknown = await import("pdf-parse");
-            pdfParseFn = resolvePdfParseFn(mod);
-          }
-          const pdfData = await pdfParseFn(buffer);
-          return typeof pdfData.text === "string" ? pdfData.text : "";
+          // PDF via Mistral OCR (markdown structured output)
+          return await extractPdfMarkdown(buffer, fileName);
         }
 
         case "text/plain":
@@ -194,7 +173,6 @@ export class UserFilesRAGSystem {
    */
   private intelligentChunking(text: string, fileName: string): RAGChunkInput[] {
     const maxChunkSize = 1000; // tokens approximatifs
-    const overlap = 200;
     const chunks: RAGChunkInput[] = [];
 
     // Nettoyage basique
@@ -210,7 +188,6 @@ export class UserFilesRAGSystem {
     // Découpage par paragraphes si possible
     const paragraphs = cleaned.split(/\n\n+/);
     let currentChunk = "";
-    let chunkIndex = 0;
 
     for (const paragraph of paragraphs) {
       const paragraphTokens = this.estimateTokens(paragraph);
@@ -224,7 +201,6 @@ export class UserFilesRAGSystem {
             sectionTitle: fileName,
           });
           currentChunk = "";
-          chunkIndex++;
         }
 
         // Découper le gros paragraphe
@@ -237,7 +213,6 @@ export class UserFilesRAGSystem {
                 quality: this.assessContentQuality(currentChunk),
                 sectionTitle: fileName,
               });
-              chunkIndex++;
             }
             currentChunk = sentence;
           } else {
@@ -253,7 +228,6 @@ export class UserFilesRAGSystem {
               quality: this.assessContentQuality(currentChunk),
               sectionTitle: fileName,
             });
-            chunkIndex++;
           }
           currentChunk = paragraph;
         } else {
@@ -464,7 +438,11 @@ export class UserFilesRAGSystem {
 
       // 4. Extraction du texte
       logger.log(`📝 [USER-FILE] Extraction du contenu...`);
-      const extractedText = await this.extractFileContent(file.buffer, file.mimeType);
+      const extractedText = await this.extractFileContent(
+        file.buffer,
+        file.mimeType,
+        file.fileName,
+      );
 
       if (!extractedText || extractedText.trim().length < 10) {
         throw new Error("Contenu extrait vide ou trop court");

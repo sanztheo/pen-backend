@@ -71,33 +71,6 @@ function extractOpenAIEmbeddings(value: unknown): number[][] | null {
   return embeddings;
 }
 
-// Type pour les informations de source RAG (avec fileName optionnel pour compatibilité)
-interface RAGSourceInfo {
-  id: string;
-  title: string;
-  sourceType: RAGSourceType;
-  fileName?: string | null;
-}
-
-// Type pour les chunks Prisma avec source incluse (retour de findMany avec include)
-// Utilise uniquement les champs retournés par le select Prisma
-interface RAGChunkWithSource {
-  id: string;
-  sourceId: string;
-  chunkIndex: number;
-  content: string;
-  cleanContent: string;
-  tokenCount: number;
-  pageNumber: number | null;
-  sectionTitle: string | null;
-  startOffset: number | null;
-  endOffset: number | null;
-  quality: number;
-  language: string;
-  createdAt: Date;
-  source: RAGSourceInfo;
-}
-
 // Type pour les chunks retournés par Prisma findMany avec include partiel
 type PrismaChunkWithPartialSource = {
   id: string;
@@ -202,62 +175,6 @@ export class RAGSystem {
 
   constructor() {
     this.embeddingService = new EmbeddingService();
-  }
-
-  // 📄 Traitement PDFs avec chunking intelligent
-  async processPDF(
-    userId: string,
-    workspaceId: string | null,
-    file: Buffer,
-    fileName: string,
-    mimeType: string,
-  ): Promise<string> {
-    try {
-      // 1. Créer la source RAG
-      const source = await prismaEmbeddings.rAGSource.create({
-        data: {
-          userId,
-          workspaceId,
-          sourceType: "PDF",
-          title: fileName.replace(/\.[^/.]+$/, ""), // Nom sans extension
-          fileName,
-          fileSize: file.length,
-          mimeType,
-          status: "PROCESSING",
-        },
-      });
-
-      // 2. Extraction du contenu PDF
-      const pdfContent = await this.extractPDFContent(file);
-
-      // 3. Chunking intelligent
-      const chunks = await this.intelligentChunking(pdfContent, {
-        maxSize: 1000,
-        overlap: 200,
-        respectSentences: true,
-        respectParagraphs: true,
-      });
-
-      // 4. Génération des embeddings et sauvegarde
-      await this.processChunks(source.id, chunks);
-
-      // 5. Mettre à jour le statut
-      await prismaEmbeddings.rAGSource.update({
-        where: { id: source.id },
-        data: {
-          status: "COMPLETED",
-          totalChunks: chunks.length,
-          totalPages: pdfContent.totalPages,
-        },
-      });
-
-      return source.id;
-    } catch (error) {
-      logger.error("Erreur traitement PDF:", error);
-      throw new Error(
-        `Échec du traitement PDF: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
-      );
-    }
   }
 
   // 🧠 Intelligence de requête NotebookLM-style avec GPT-4.1-nano
@@ -929,22 +846,6 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
   }
 
   // 🔧 Méthodes privées
-  private async extractPDFContent(file: Buffer): Promise<{
-    text: string;
-    totalPages: number;
-    pages: { pageNumber: number; content: string }[];
-  }> {
-    // À implémenter avec pdf-parse ou similaire
-    const PDF = require("pdf-parse");
-    const pdfData = await PDF(file);
-
-    return {
-      text: pdfData.text,
-      totalPages: pdfData.numpages,
-      pages: [], // À enrichir avec l'extraction par page
-    };
-  }
-
   private async intelligentChunking(
     pdfContent: { text: string; totalPages: number; pages: PDFPageContent[] },
     options: {
@@ -960,7 +861,6 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
 
     // Chunking simple (à améliorer avec des règles plus sophistiquées)
     let start = 0;
-    let chunkIndex = 0;
 
     while (start < text.length) {
       let end = Math.min(start + maxSize, text.length);
@@ -987,7 +887,6 @@ Réponds avec ce JSON strict : {"type": "RESUME"} OU {"type": "EXPLICATION"} OU 
       }
 
       start = Math.max(start + maxSize - overlap, end);
-      chunkIndex++;
     }
 
     return chunks;
