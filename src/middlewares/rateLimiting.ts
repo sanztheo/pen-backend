@@ -610,6 +610,33 @@ export const trashLimiter = rateLimit({
 });
 
 /**
+ * 21. RATE LIMIT QUIZ GENERATION
+ * Protection against rapid quiz generation retries that trigger 4-7 LLM calls each.
+ * 5 req/min per user — prevents cost bombing while allowing normal usage.
+ */
+const QUIZ_GEN_WINDOW_MS = 60 * 1000; // 1 minute
+const QUIZ_GEN_MAX = 5;
+
+export const quizGenerationRateLimit = rateLimit({
+  ...createBaseConfig("rl:quiz-gen:"),
+  windowMs: QUIZ_GEN_WINDOW_MS,
+  max: QUIZ_GEN_MAX,
+  message: {
+    success: false,
+    error: "QUIZ_GENERATION_RATE_LIMIT_EXCEEDED",
+    message: "Trop de générations de quiz. Veuillez réessayer dans une minute.",
+    retryAfter: "1 minute",
+  },
+  keyGenerator: (req) => {
+    const userId = req.user?.id;
+    if (!userId) {
+      return `blocked_no_user_${getIpKey(req)}`;
+    }
+    return `quiz_gen_${userId}`;
+  },
+});
+
+/**
  * Helper pour vérifier si le rate limiting est activé
  */
 export const isRateLimitEnabled = (): boolean => {
