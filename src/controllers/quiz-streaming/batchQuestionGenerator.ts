@@ -32,6 +32,7 @@ export interface BatchGenerationRequest {
   previousQuestions: Question[];
   schoolLevel: string;
   difficulty?: string;
+  generationNote?: string;
   specificSubject?: string;
   coursesOnly?: boolean;
 }
@@ -77,6 +78,7 @@ export async function generateBatch(request: BatchGenerationRequest): Promise<Qu
     previousQuestions: request.previousQuestions,
     schoolLevel: request.schoolLevel,
     difficulty: request.difficulty,
+    generationNote: request.generationNote,
     specificSubject: request.specificSubject,
     coursesOnly: request.coursesOnly,
   });

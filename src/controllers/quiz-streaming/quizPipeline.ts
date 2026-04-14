@@ -31,10 +31,12 @@ import type { PlannedQuestion } from "../../services/quiz/intelligence/quizPlann
 // ---------------------------------------------------------------------------
 
 export interface QuizPipelineParams {
+  userId: string;
   pageIds: string[];
   questionCount: number;
   questionTypes: string[];
   difficulty?: string;
+  generationNote?: string;
   schoolLevel: string;
   specificSubject?: string;
   coursesOnly?: boolean;
@@ -57,6 +59,9 @@ export interface QuizPipelineParams {
  *  output token budget (~15K tokens/batch) and parallelism granularity. */
 const BATCH_SIZE = 10;
 
+/** Max LLM batches in flight at once — prevents provider rate-limit saturation */
+const MAX_CONCURRENT_BATCHES = 3;
+
 /** TTL for cached concept maps in Redis (24h). Concept maps are content-addressed
  *  by hash(courseText), so regenerations on the same course are instant. */
 const CONCEPT_MAP_TTL_SECONDS = 24 * 60 * 60;
@@ -67,10 +72,12 @@ const CONCEPT_MAP_TTL_SECONDS = 24 * 60 * 60;
 
 export async function executeQuizPipeline(params: QuizPipelineParams): Promise<Question[]> {
   const {
+    userId,
     pageIds,
     questionCount,
     questionTypes,
     difficulty,
+    generationNote,
     schoolLevel,
     specificSubject,
     coursesOnly = true,
@@ -93,7 +100,7 @@ export async function executeQuizPipeline(params: QuizPipelineParams): Promise<Q
 
   if (pageIds.length > 0) {
     const pages = await prisma.page.findMany({
-      where: { id: { in: pageIds } },
+      where: { id: { in: pageIds }, userId },
       select: { id: true, title: true, blockNoteContent: true },
     });
 
@@ -155,24 +162,26 @@ export async function executeQuizPipeline(params: QuizPipelineParams): Promise<Q
     `[QuizPipeline] Dispatching ${batches.length} batch(es) in parallel (${BATCH_SIZE} questions/batch)`,
   );
 
-  // Dispatch all batches in parallel. Blueprint slicing already ensures topic
-  // distinction across batches (different targetConcept / angle), so we don't
-  // need to share previousQuestions between them.
-  const batchPromises = batches.map((batch, batchIdx) =>
-    runBatch({
-      batch,
-      batchIdx,
-      totalBatches: batches.length,
-      courseText,
-      schoolLevel,
-      difficulty,
-      specificSubject,
-      coursesOnly,
-      sendSSE,
-    }),
+  // Dispatch batches with bounded concurrency to avoid provider rate-limit
+  // saturation. Blueprint slicing already ensures topic distinction across
+  // batches (different targetConcept / angle).
+  const batchFns = batches.map(
+    (batch, batchIdx) => () =>
+      runBatch({
+        batch,
+        batchIdx,
+        totalBatches: batches.length,
+        courseText,
+        schoolLevel,
+        difficulty,
+        generationNote,
+        specificSubject,
+        coursesOnly,
+        sendSSE,
+      }),
   );
 
-  const results = await Promise.allSettled(batchPromises);
+  const results = await runWithConcurrency(batchFns, MAX_CONCURRENT_BATCHES, isDisconnected);
 
   // Collect successful questions in blueprint order
   const generatedQuestions: Question[] = [];
@@ -286,6 +295,7 @@ interface RunBatchParams {
   courseText: string;
   schoolLevel: string;
   difficulty?: string;
+  generationNote?: string;
   specificSubject?: string;
   coursesOnly?: boolean;
   sendSSE: SSESender;
@@ -299,6 +309,7 @@ async function runBatch(params: RunBatchParams): Promise<Question[]> {
     previousQuestions: [], // Parallel batches — dedup is ensured by blueprint slicing
     schoolLevel: params.schoolLevel,
     difficulty: params.difficulty,
+    generationNote: params.generationNote,
     specificSubject: params.specificSubject,
     coursesOnly: params.coursesOnly,
   });
@@ -314,4 +325,30 @@ function splitIntoBatches<T>(items: T[], size: number): T[][] {
     batches.push(items.slice(i, i + size));
   }
   return batches;
+}
+
+async function runWithConcurrency<T>(
+  fns: Array<() => Promise<T>>,
+  concurrency: number,
+  isCancelled?: () => boolean,
+): Promise<PromiseSettledResult<T>[]> {
+  const results: PromiseSettledResult<T>[] = new Array(fns.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < fns.length) {
+      if (isCancelled?.()) break;
+      const idx = nextIndex++;
+      try {
+        results[idx] = { status: "fulfilled", value: await fns[idx]() };
+      } catch (reason) {
+        results[idx] = { status: "rejected", reason };
+      }
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, fns.length) }, () => worker());
+  await Promise.all(workers);
+  // Slots skipped by cancellation remain undefined — strip them
+  return results.filter((r): r is PromiseSettledResult<T> => r != null);
 }

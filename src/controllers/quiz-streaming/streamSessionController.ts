@@ -148,6 +148,7 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
       pageProjectIds,
       specificSubject,
       sequentialConfig,
+      generationNote,
       targetGrade,
       timeLimit,
       difficulty: bodyDifficulty,
@@ -301,10 +302,12 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
     );
 
     const generatedQuestions = await executeQuizPipeline({
+      userId,
       pageIds: pageProjectIds || [],
       questionCount,
       questionTypes,
       difficulty,
+      generationNote,
       schoolLevel,
       specificSubject: specificSubject || sessionSubject,
       coursesOnly,

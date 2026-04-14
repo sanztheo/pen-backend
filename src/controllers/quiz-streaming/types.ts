@@ -35,6 +35,7 @@ export interface StreamingSessionRequest {
   pageProjectIds?: string[];
   specificSubject?: string;
   sequentialConfig?: Record<string, unknown>;
+  generationNote?: string;
   targetGrade?: number;
   timeLimit?: number;
   difficulty?: string;
