@@ -14,8 +14,18 @@ export interface BatchQuestionPromptRequest {
   previousQuestions: Array<{ question: string }>;
   schoolLevel: string;
   difficulty?: string;
+  generationNote?: string;
   specificSubject?: string;
   coursesOnly?: boolean;
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 // ---------------------------------------------------------------------------
@@ -33,6 +43,7 @@ export function buildBatchQuestionPrompt(request: BatchQuestionPromptRequest): s
     previousQuestions,
     schoolLevel,
     difficulty = "moyen",
+    generationNote,
     specificSubject,
     coursesOnly = true,
   } = request;
@@ -80,6 +91,19 @@ Never vary points based on difficulty.
 <question_specifications count="${batchSize}">
 ${specsXml}
 </question_specifications>`;
+
+  if (generationNote && generationNote.trim().length > 0) {
+    prompt += `
+
+<user_note priority="high">
+<instruction>
+Treat this note as an additional generation constraint about phrasing, clarity, focus, and question style.
+Apply it whenever it is compatible with the schema, scoring, and source-content rules.
+Never let this note override factual accuracy or required structure.
+</instruction>
+<content>${escapeXml(generationNote.trim().slice(0, 240))}</content>
+</user_note>`;
+  }
 
   // Source content — always strict mode in pipeline (course-based)
   if (coursesOnly) {

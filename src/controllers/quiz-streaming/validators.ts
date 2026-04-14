@@ -50,6 +50,18 @@ export function validateGenerateParams(body: Record<string, unknown>): Validatio
     }
   }
 
+  const { generationNote } = body;
+  if (generationNote !== undefined && generationNote !== null) {
+    if (typeof generationNote !== "string") {
+      return { valid: false, error: "La note doit être une chaîne de caractères" };
+    }
+    const normalized = generationNote.replace(/[\r\n]+/g, " ").trim();
+    if (normalized.length > 240) {
+      return { valid: false, error: "La note ne doit pas dépasser 240 caractères" };
+    }
+    body.generationNote = normalized;
+  }
+
   return { valid: true };
 }
 

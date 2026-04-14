@@ -135,6 +135,23 @@ describe("validateGenerateParams", () => {
     const result = validateGenerateParams({ ...validBody, questionCount: 100 });
     expect(result.valid).toBe(true);
   });
+
+  it("accepts a short generation note", () => {
+    const result = validateGenerateParams({
+      ...validBody,
+      generationNote: "Je veux des questions plus courtes",
+    });
+    expect(result).toEqual({ valid: true });
+  });
+
+  it("rejects a generation note longer than 240 characters", () => {
+    const result = validateGenerateParams({
+      ...validBody,
+      generationNote: "a".repeat(241),
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe("La note ne doit pas dépasser 240 caractères");
+  });
 });
 
 // ---------------------------------------------------------------------------
