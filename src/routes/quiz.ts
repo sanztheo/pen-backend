@@ -10,6 +10,7 @@ import {
   preprocessorRateLimit,
   quizCorrectSingleRateLimit,
   quizCompleteRateLimit,
+  quizGenerationRateLimit,
 } from "../middlewares/rateLimiting.js";
 import { quizStatsRouter } from "./quizStats.js";
 
@@ -32,8 +33,10 @@ router.post("/preprocess", preprocessorRateLimit, QuizController.preprocessQuiz)
 
 // ===== NOUVELLES ROUTES POUR LE STREAMING =====
 // Approche EventSource avec session
+// SÉCURITÉ: Rate limit 5 req/min par user (chaque génération = 4-7 LLM calls)
 router.post(
   "/streaming-session",
+  quizGenerationRateLimit,
   requireCustomQuizLimits(),
   QuizStreamingController.createStreamingSession,
 );
@@ -42,6 +45,7 @@ router.get("/stream-status/:id", QuizStreamingController.getStreamStatus);
 // Routes de compatibilité (anciennes)
 router.post(
   "/generate-stream",
+  quizGenerationRateLimit,
   requireCustomQuizLimits(),
   QuizStreamingController.generateQuizStream,
 );
