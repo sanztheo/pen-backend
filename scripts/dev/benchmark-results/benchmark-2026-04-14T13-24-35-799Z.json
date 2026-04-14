@@ -1,0 +1,81 @@
+{
+  "timestamp": "2026-04-14T13:24:35.802Z",
+  "summary": {
+    "pageTitle": "🚀 Swift : Le Langage Moderne d'Apple",
+    "runs": 2,
+    "questionCount": 20,
+    "successRate": "0/2",
+    "avgTotalMs": 0,
+    "avgAnalyzeMs": 0,
+    "avgPlanMs": 0,
+    "avgGenerateMs": 0,
+    "avgTimeToFirstQMs": 0,
+    "avgSimMean": 0,
+    "avgSimMax": 0,
+    "totalPairsAbove080": 0
+  },
+  "runs": [
+    {
+      "runIdx": 1,
+      "success": false,
+      "error": "Unexpected end of JSON input",
+      "totalMs": 20645,
+      "analyzeMs": 0,
+      "planMs": 0,
+      "generateMs": 0,
+      "timeToFirstQuestionMs": 0,
+      "questionCount": 0,
+      "questionsRequested": 20,
+      "questions": [],
+      "similarity": null,
+      "events": [
+        {
+          "event": "analyzing",
+          "data": {
+            "message": "Analyzing course content..."
+          },
+          "timestamp": 73
+        },
+        {
+          "event": "planning",
+          "data": {
+            "message": "Planning 20 questions...",
+            "conceptCount": 20
+          },
+          "timestamp": 277
+        }
+      ]
+    },
+    {
+      "runIdx": 2,
+      "success": false,
+      "error": "Unterminated string in JSON at position 364 (line 21 column 13)",
+      "totalMs": 21190,
+      "analyzeMs": 0,
+      "planMs": 0,
+      "generateMs": 0,
+      "timeToFirstQuestionMs": 0,
+      "questionCount": 0,
+      "questionsRequested": 20,
+      "questions": [],
+      "similarity": null,
+      "events": [
+        {
+          "event": "analyzing",
+          "data": {
+            "message": "Analyzing course content..."
+          },
+          "timestamp": 34
+        },
+        {
+          "event": "planning",
+          "data": {
+            "message": "Planning 20 questions...",
+            "conceptCount": 20
+          },
+          "timestamp": 107
+        }
+      ]
+    }
+  ]
+}

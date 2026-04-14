@@ -1,0 +1,910 @@
+{
+  "timestamp": "2026-04-14T13:16:47.728Z",
+  "summary": {
+    "pageTitle": "🚀 Swift : Le Langage Moderne d'Apple",
+    "runs": 3,
+    "questionCount": 5,
+    "successRate": "3/3",
+    "avgTotalMs": 31215,
+    "avgAnalyzeMs": 15743,
+    "avgPlanMs": 7376,
+    "avgGenerateMs": 7989,
+    "avgTimeToFirstQMs": 31108,
+    "avgSimMean": 0.43029916408692376,
+    "avgSimMax": 0.58937243381954,
+    "totalPairsAbove080": 0
+  },
+  "runs": [
+    {
+      "runIdx": 1,
+      "success": true,
+      "totalMs": 32662,
+      "analyzeMs": 17372,
+      "planMs": 7786,
+      "generateMs": 7336,
+      "timeToFirstQuestionMs": 32494,
+      "questionCount": 5,
+      "questionsRequested": 5,
+      "questions": [
+        {
+          "id": "q_1715430001_001",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "De quelle manière l'implémentation des optionnels dans le langage Swift améliore-t-elle la stabilité des applications par rapport au modèle traditionnel ?"
+        },
+        {
+          "id": "q_1715430001_002",
+          "type": "OPEN_QUESTION",
+          "difficulty": "difficile",
+          "question": "Analysez l'avantage architectural de l'utilisation des protocoles en Swift par rapport à un modèle basé uniquement sur l'héritage de classe classique."
+        },
+        {
+          "id": "q_1715430001_003",
+          "type": "TRUE_FALSE",
+          "difficulty": "facile",
+          "question": "SwiftUI est défini comme un framework déclaratif permettant de construire des interfaces utilisateur de manière simple et rapide."
+        },
+        {
+          "id": "q_1715430001_004",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Comment le mécanisme de l'Automatic Reference Counting (ARC) gère-t-il la mémoire lorsqu'une instance de classe n'est plus utilisée dans le code ?"
+        },
+        {
+          "id": "q_1715430001_005",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "facile",
+          "question": "Quel mot-clé doit être utilisé en Swift pour déclarer une valeur constante qui ne changera jamais ?"
+        }
+      ],
+      "similarity": {
+        "mean": 0.38702789182957376,
+        "max": 0.6281833919150158,
+        "pairsAbove080": 0,
+        "pairsAbove085": 0
+      },
+      "events": [
+        {
+          "event": "analyzing",
+          "data": {
+            "message": "Analyzing course content..."
+          },
+          "timestamp": 154
+        },
+        {
+          "event": "planning",
+          "data": {
+            "message": "Planning 5 questions...",
+            "conceptCount": 28
+          },
+          "timestamp": 17372
+        },
+        {
+          "event": "generating",
+          "data": {
+            "message": "Generating questions..."
+          },
+          "timestamp": 25158
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 1,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715430001_001",
+              "question": "De quelle manière l'implémentation des optionnels dans le langage Swift améliore-t-elle la stabilité des applications par rapport au modèle traditionnel ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "En augmentant la vitesse d'exécution des boucles de rendu",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "En gérant l'absence de valeur pour éviter les erreurs de type Null Pointer Exception",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "En forçant la conversion automatique de tous les types en chaînes de caractères",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "En supprimant le besoin d'utiliser des variables et des constantes",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Informatique - Développement Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": true,
+            "message": "Question 1/5 generated"
+          },
+          "timestamp": 32494
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 2,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715430001_002",
+              "question": "Analysez l'avantage architectural de l'utilisation des protocoles en Swift par rapport à un modèle basé uniquement sur l'héritage de classe classique.",
+              "type": "OPEN_QUESTION",
+              "difficulty": "difficile",
+              "options": [],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "L'utilisation des protocoles permet de définir des contrats de comportement que différents types, tels que les classes, les structures ou les énumérations, peuvent adopter. Cette approche favorise une architecture logicielle plus modulaire et réutilisable que l'héritage de classe traditionnel, car elle permet de partager des fonctionnalités sans imposer une hiérarchie rigide.",
+              "points": 1,
+              "subject": "Informatique - Architecture Logicielle",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 2/5 generated"
+          },
+          "timestamp": 32494
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 3,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715430001_003",
+              "question": "SwiftUI est défini comme un framework déclaratif permettant de construire des interfaces utilisateur de manière simple et rapide.",
+              "type": "TRUE_FALSE",
+              "difficulty": "facile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Vrai",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Faux",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Informatique - Développement Mobile",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 3/5 generated"
+          },
+          "timestamp": 32494
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 4,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715430001_004",
+              "question": "Comment le mécanisme de l'Automatic Reference Counting (ARC) gère-t-il la mémoire lorsqu'une instance de classe n'est plus utilisée dans le code ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Il demande au développeur de libérer manuellement la mémoire",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Il compresse les données pour économiser de l'espace disque",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "Il suit et libère automatiquement les instances qui ne sont plus utilisées",
+                  "isCorrect": true
+                },
+                {
+                  "id": "D",
+                  "text": "Il empêche la création de nouvelles instances pour éviter la saturation",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Informatique - Gestion de la mémoire",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 4/5 generated"
+          },
+          "timestamp": 32494
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 5,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715430001_005",
+              "question": "Quel mot-clé doit être utilisé en Swift pour déclarer une valeur constante qui ne changera jamais ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "facile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "var",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "let",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "const",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "static",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Informatique - Syntaxe Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 5/5 generated"
+          },
+          "timestamp": 32494
+        }
+      ]
+    },
+    {
+      "runIdx": 2,
+      "success": true,
+      "totalMs": 30675,
+      "analyzeMs": 15083,
+      "planMs": 7422,
+      "generateMs": 8092,
+      "timeToFirstQuestionMs": 30597,
+      "questionCount": 5,
+      "questionsRequested": 5,
+      "questions": [
+        {
+          "id": "q_1715856001_1",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Comment la gestion des optionnels dans le langage Swift contribue-t-elle à la sécurité du code ?"
+        },
+        {
+          "id": "q_1715856001_2",
+          "type": "OPEN_QUESTION",
+          "difficulty": "difficile",
+          "question": "Analysez l'avantage architectural de l'utilisation des protocoles en Swift par rapport à l'héritage de classe traditionnel."
+        },
+        {
+          "id": "q_1715856001_3",
+          "type": "TRUE_FALSE",
+          "difficulty": "facile",
+          "question": "Le framework SwiftUI est un outil de développement basé sur une approche impérative pour la construction des interfaces utilisateur."
+        },
+        {
+          "id": "q_1715856001_4",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Quel est le rôle principal de l'Automatic Reference Counting (ARC) dans l'écosystème Swift ?"
+        },
+        {
+          "id": "q_1715856001_5",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Dans la syntaxe Swift, quel est l'intérêt principal d'utiliser le mot-clé 'let' plutôt que 'var' ?"
+        }
+      ],
+      "similarity": {
+        "mean": 0.46411609506023854,
+        "max": 0.559891769938878,
+        "pairsAbove080": 0,
+        "pairsAbove085": 0
+      },
+      "events": [
+        {
+          "event": "analyzing",
+          "data": {
+            "message": "Analyzing course content..."
+          },
+          "timestamp": 37
+        },
+        {
+          "event": "planning",
+          "data": {
+            "message": "Planning 5 questions...",
+            "conceptCount": 22
+          },
+          "timestamp": 15083
+        },
+        {
+          "event": "generating",
+          "data": {
+            "message": "Generating questions..."
+          },
+          "timestamp": 22505
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 1,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715856001_1",
+              "question": "Comment la gestion des optionnels dans le langage Swift contribue-t-elle à la sécurité du code ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "En permettant aux variables de changer de type dynamiquement durant l'exécution.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "En gérant explicitement l'absence de valeur pour éviter les erreurs de type Null Pointer Exception.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "En forçant toutes les variables à posséder une valeur initiale non nulle dès leur déclaration.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "En supprimant automatiquement les variables qui ne sont plus référencées en mémoire.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": true,
+            "message": "Question 1/5 generated"
+          },
+          "timestamp": 30597
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 2,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715856001_2",
+              "question": "Analysez l'avantage architectural de l'utilisation des protocoles en Swift par rapport à l'héritage de classe traditionnel.",
+              "type": "OPEN_QUESTION",
+              "difficulty": "difficile",
+              "options": [],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "L'accent mis par Swift sur les protocoles permet de définir des contrats de comportement que divers types, tels que les classes, les structures et les énumérations, peuvent adopter. Contrairement à l'héritage de classe traditionnel qui lie les objets à une hiérarchie rigide, l'approche par protocoles favorise un code plus modulaire, flexible et réutilisable en permettant une composition de fonctionnalités sans les contraintes de la hiérarchie de types unique.",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 2/5 generated"
+          },
+          "timestamp": 30597
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 3,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715856001_3",
+              "question": "Le framework SwiftUI est un outil de développement basé sur une approche impérative pour la construction des interfaces utilisateur.",
+              "type": "TRUE_FALSE",
+              "difficulty": "facile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Vrai",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Faux",
+                  "isCorrect": true
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 3/5 generated"
+          },
+          "timestamp": 30597
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 4,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715856001_4",
+              "question": "Quel est le rôle principal de l'Automatic Reference Counting (ARC) dans l'écosystème Swift ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Vérifier la validité syntaxique des protocoles durant la compilation.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Assurer l'isolation complète des données pour la sécurité des threads.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "Suivre et libérer automatiquement les instances de classes non utilisées pour gérer la mémoire.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "D",
+                  "text": "Convertir automatiquement les variables en constantes pour optimiser la performance.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 4/5 generated"
+          },
+          "timestamp": 30597
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 5,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715856001_5",
+              "question": "Dans la syntaxe Swift, quel est l'intérêt principal d'utiliser le mot-clé 'let' plutôt que 'var' ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Permettre à la variable d'être modifiée à n'importe quel moment du programme.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Définir des constantes dont la valeur ne change pas, garantissant une meilleure sécurité et performance.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "Indiquer au compilateur que le type de la variable doit être deviné par inférence.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Forcer le stockage de la valeur sur le disque plutôt qu'en mémoire vive.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 5/5 generated"
+          },
+          "timestamp": 30597
+        }
+      ]
+    },
+    {
+      "runIdx": 3,
+      "success": true,
+      "totalMs": 30307,
+      "analyzeMs": 14773,
+      "planMs": 6921,
+      "generateMs": 8540,
+      "timeToFirstQuestionMs": 30234,
+      "questionCount": 5,
+      "questionsRequested": 5,
+      "questions": [
+        {
+          "id": "q_1715846400_001",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "En quoi l'usage des optionnels dans le langage Swift permet-il de renforcer la sécurité du code lors de l'exécution ?"
+        },
+        {
+          "id": "q_1715846400_002",
+          "type": "OPEN_QUESTION",
+          "difficulty": "difficile",
+          "question": "Analysez les avantages architecturaux de l'approche par protocoles favorisée par Swift par rapport à un modèle d'héritage de classe traditionnel."
+        },
+        {
+          "id": "q_1715846400_003",
+          "type": "TRUE_FALSE",
+          "difficulty": "facile",
+          "question": "SwiftUI est défini comme un framework déclaratif permettant de construire des interfaces utilisateur de manière simple et rapide."
+        },
+        {
+          "id": "q_1715846400_004",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Comment le mécanisme Automatic Reference Counting (ARC) assure-t-il la gestion de la mémoire au sein d'une application Swift ?"
+        },
+        {
+          "id": "q_1715846400_005",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Quelle est la principale différence entre l'utilisation du mot-clé 'let' et du mot-clé 'var' lors de la déclaration d'une donnée en Swift ?"
+        }
+      ],
+      "similarity": {
+        "mean": 0.4397535053709589,
+        "max": 0.5800421396047263,
+        "pairsAbove080": 0,
+        "pairsAbove085": 0
+      },
+      "events": [
+        {
+          "event": "analyzing",
+          "data": {
+            "message": "Analyzing course content..."
+          },
+          "timestamp": 37
+        },
+        {
+          "event": "planning",
+          "data": {
+            "message": "Planning 5 questions...",
+            "conceptCount": 24
+          },
+          "timestamp": 14773
+        },
+        {
+          "event": "generating",
+          "data": {
+            "message": "Generating questions..."
+          },
+          "timestamp": 21694
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 1,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_001",
+              "question": "En quoi l'usage des optionnels dans le langage Swift permet-il de renforcer la sécurité du code lors de l'exécution ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Ils permettent d'allouer dynamiquement de la mémoire supplémentaire pour éviter les dépassements de pile.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Ils gèrent l'absence de valeur, ce qui permet d'éviter les erreurs fatales de type Null Pointer Exception.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "Ils forcent le compilateur à convertir automatiquement toutes les variables en chaînes de caractères.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Ils garantissent que chaque variable possède une valeur par défaut immuable dès sa déclaration.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": true,
+            "message": "Question 1/5 generated"
+          },
+          "timestamp": 30234
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 2,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_002",
+              "question": "Analysez les avantages architecturaux de l'approche par protocoles favorisée par Swift par rapport à un modèle d'héritage de classe traditionnel.",
+              "type": "OPEN_QUESTION",
+              "difficulty": "difficile",
+              "options": [],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "L'accent mis par Swift sur les protocoles permet de définir des contrats de comportement que divers types, tels que les classes, les structures et les énumérations, peuvent adopter. Contrairement à l'héritage de classe traditionnel qui impose une hiérarchie rigide, l'utilisation des protocoles favorise un code plus modulaire et réutilisable. Cette approche permet de découpler les fonctionnalités de la structure interne des types, offrant ainsi une plus grande flexibilité dans la conception logicielle.",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 2/5 generated"
+          },
+          "timestamp": 30234
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 3,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_003",
+              "question": "SwiftUI est défini comme un framework déclaratif permettant de construire des interfaces utilisateur de manière simple et rapide.",
+              "type": "TRUE_FALSE",
+              "difficulty": "facile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Vrai",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Faux",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 3/5 generated"
+          },
+          "timestamp": 30234
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 4,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_004",
+              "question": "Comment le mécanisme Automatic Reference Counting (ARC) assure-t-il la gestion de la mémoire au sein d'une application Swift ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "En obligeant le développeur à libérer manuellement chaque instance de classe après usage.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "En supprimant aléatoirement des objets en cache pour libérer de l'espace sur le disque dur.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "En suivant et en libérant automatiquement les instances de classes qui ne sont plus utilisées.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "D",
+                  "text": "En convertissant les instances de classes en constantes 'let' pour éviter toute modification.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 4/5 generated"
+          },
+          "timestamp": 30234
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 5,
+            "totalQuestions": 5,
+            "question": {
+              "id": "q_1715846400_005",
+              "question": "Quelle est la principale différence entre l'utilisation du mot-clé 'let' et du mot-clé 'var' lors de la déclaration d'une donnée en Swift ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "'let' est utilisé pour définir des variables dont la valeur peut changer, tandis que 'var' définit des constantes.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "'let' définit des constantes pour des valeurs immuables, alors que 'var' définit des variables pour des valeurs qui changent.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "'let' est réservé uniquement aux types optionnels, alors que 'var' est utilisé pour le typage fort.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "'let' permet à Swift de deviner le type, alors que 'var' impose une déclaration explicite du type.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": ""
+            },
+            "canStartAnswering": false,
+            "message": "Question 5/5 generated"
+          },
+          "timestamp": 30234
+        }
+      ]
+    }
+  ]
+}

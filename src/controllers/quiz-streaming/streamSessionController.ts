@@ -19,9 +19,10 @@ import {
   prepareIntelligentContextIfNeeded,
 } from "./quizSetup.js";
 import { buildTypeDistribution, buildSpecialtyDistribution, getSpecialtyLabel } from "./utils.js";
-import { generateQuestionsStandard } from "./standardGenerator.js";
-import { generateQuestionsIntelligent } from "./intelligentGenerator.js";
 import { executeQuizPipeline } from "./quizPipeline.js";
+// Legacy generators kept in codebase but no longer called from this controller:
+// import { generateQuestionsStandard } from "./standardGenerator.js";
+// import { generateQuestionsIntelligent } from "./intelligentGenerator.js";
 
 // ============================================================================
 // 1. Create streaming session
@@ -293,52 +294,25 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
       difficulty,
     };
 
-    let generatedQuestions;
+    // Pipeline v5: ALWAYS use blueprint-guided batch generation
+    // Replaces both standardGenerator and intelligentGenerator
+    logger.log(
+      `[STREAM-SESSION] Using pipeline v5 (${pageCount} pages, subject: ${specificSubject || sessionSubject || "none"})`,
+    );
 
-    // Pipeline v5: use blueprint-guided batch generation when pages are selected
-    const usePipeline = pageCount >= 1 && !intelligentContext;
-
-    if (usePipeline) {
-      logger.log(`[STREAM-SESSION] Using pipeline v5 (${pageCount} pages)`);
-      generatedQuestions = await executeQuizPipeline({
-        pageIds: pageProjectIds || [],
-        questionCount,
-        questionTypes,
-        difficulty,
-        schoolLevel,
-        specificSubject,
-        coursesOnly,
-        quizId: quiz.id,
-        sendSSE,
-        prisma,
-        isDisconnected,
-      });
-    } else if (intelligentContext && questionDistribution.length > 0) {
-      generatedQuestions = await generateQuestionsIntelligent({
-        questionCount,
-        questionDistribution,
-        typeDistribution,
-        specialtyDistribution,
-        baseRequest,
-        quizId: quiz.id,
-        sendSSE,
-        assistantService,
-        prisma,
-        isDisconnected,
-      });
-    } else {
-      generatedQuestions = await generateQuestionsStandard({
-        questionCount,
-        typeDistribution,
-        specialtyDistribution,
-        baseRequest,
-        quizId: quiz.id,
-        sendSSE,
-        assistantService,
-        prisma,
-        isDisconnected,
-      });
-    }
+    const generatedQuestions = await executeQuizPipeline({
+      pageIds: pageProjectIds || [],
+      questionCount,
+      questionTypes,
+      difficulty,
+      schoolLevel,
+      specificSubject: specificSubject || sessionSubject,
+      coursesOnly,
+      quizId: quiz.id,
+      sendSSE,
+      prisma,
+      isDisconnected,
+    });
 
     // --- 9. Finalize quiz ---
     const finalQuiz = await prisma.quiz.update({

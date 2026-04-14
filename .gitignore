@@ -10,3 +10,4 @@ debug-logs
 .env.*
 *.md
 CLAUDE.md
+.gstack/

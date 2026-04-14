@@ -54,6 +54,9 @@ export type QuizBlueprint = z.infer<typeof QuizBlueprintSchema>;
 // Prompt
 // ---------------------------------------------------------------------------
 
+/** Bloom levels used to bias each planning run toward a different emphasis */
+const BLOOM_EMPHASIS = ["recall", "comprehension", "application", "analysis"] as const;
+
 function buildPlannerPrompt(conceptMap: ConceptMap, config: QuizPlanConfig): string {
   const conceptList = conceptMap.concepts
     .map((c) => `- ${c.name} (importance: ${c.importance}, section: ${c.section})`)
@@ -66,6 +69,18 @@ function buildPlannerPrompt(conceptMap: ConceptMap, config: QuizPlanConfig): str
   const schoolLevelInstruction = config.schoolLevel
     ? `<school_level>Target school level: "${config.schoolLevel}". Adapt Bloom levels and question complexity accordingly.</school_level>`
     : "";
+
+  // Inject randomness so two calls on the same concept map produce
+  // substantially different blueprints. This is essential for the
+  // "regenerate quiz on the same course" use-case.
+  const attemptId = Math.floor(Math.random() * 1_000_000);
+  const emphasis = BLOOM_EMPHASIS[Math.floor(Math.random() * BLOOM_EMPHASIS.length)];
+  const variationInstruction = `<exploration_bias>
+This is quiz generation attempt #${attemptId}. Explore DIFFERENT angles than a standard quiz on this topic.
+This run should favor "${emphasis}" questions slightly more than the other Bloom levels.
+When multiple angles exist for the same concept, pick a LESS OBVIOUS one this time.
+Do NOT default to the most common interpretation — surprise the student with unexpected framings.
+</exploration_bias>`;
 
   return `<system>
 <role>Expert quiz architect specialized in educational assessment design</role>
@@ -86,6 +101,7 @@ ${conceptList}
 <allowed_types>${config.questionTypes.join(", ")}</allowed_types>
 ${difficultyInstruction}
 ${schoolLevelInstruction}
+${variationInstruction}
 </quiz_config>
 
 <planning_rules>
@@ -135,11 +151,13 @@ Return ONLY valid JSON matching this structure:
 // Constants
 // ---------------------------------------------------------------------------
 
-/** LLM response max tokens — blueprints are compact */
-const MAX_RESPONSE_TOKENS = 4000;
+/** LLM response max tokens — each planned question is ~150 tokens + boilerplate.
+ *  Sized to comfortably fit 50 questions without truncation. */
+const MAX_RESPONSE_TOKENS = 10_000;
 
-/** Request timeout in milliseconds */
-const REQUEST_TIMEOUT_MS = 30_000;
+/** Request timeout in milliseconds — planner can take 15-25s for 20+ questions
+ *  because the blueprint output is long and temperature is high for variance. */
+const REQUEST_TIMEOUT_MS = 60_000;
 
 // ---------------------------------------------------------------------------
 // Dependency injection for testability
@@ -196,7 +214,7 @@ export async function planQuiz(
     {
       model,
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.4,
+      temperature: 0.85,
       max_tokens: MAX_RESPONSE_TOKENS,
       response_format: { type: "json_object" },
     },

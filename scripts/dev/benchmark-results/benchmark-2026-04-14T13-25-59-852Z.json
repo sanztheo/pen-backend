@@ -1,0 +1,1320 @@
+{
+  "timestamp": "2026-04-14T13:25:59.854Z",
+  "summary": {
+    "pageTitle": "🚀 Swift : Le Langage Moderne d'Apple",
+    "runs": 2,
+    "questionCount": 20,
+    "successRate": "1/2",
+    "avgTotalMs": 30169,
+    "avgAnalyzeMs": 113,
+    "avgPlanMs": 13915,
+    "avgGenerateMs": 15910,
+    "avgTimeToFirstQMs": 29938,
+    "avgSimMean": 0.4105752858541182,
+    "avgSimMax": 0.7566943593315619,
+    "totalPairsAbove080": 0
+  },
+  "runs": [
+    {
+      "runIdx": 1,
+      "success": false,
+      "error": "Request was aborted.",
+      "totalMs": 30376,
+      "analyzeMs": 0,
+      "planMs": 0,
+      "generateMs": 0,
+      "timeToFirstQuestionMs": 0,
+      "questionCount": 0,
+      "questionsRequested": 20,
+      "questions": [],
+      "similarity": null,
+      "events": [
+        {
+          "event": "analyzing",
+          "data": {
+            "message": "Analyzing course content..."
+          },
+          "timestamp": 75
+        },
+        {
+          "event": "planning",
+          "data": {
+            "message": "Planning 20 questions...",
+            "conceptCount": 20
+          },
+          "timestamp": 248
+        }
+      ]
+    },
+    {
+      "runIdx": 2,
+      "success": true,
+      "totalMs": 30169,
+      "analyzeMs": 113,
+      "planMs": 13915,
+      "generateMs": 15910,
+      "timeToFirstQuestionMs": 29938,
+      "questionCount": 20,
+      "questionsRequested": 20,
+      "questions": [
+        {
+          "id": "q_1715872000_01",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "difficile",
+          "question": "En quoi le remplacement de l'Objective-C par Swift modifie-t-il l'approche de la sécurité lors de l'intégration avec des systèmes hérités ?",
+          "targetConcept": "Swift",
+          "bloomLevel": "analysis"
+        },
+        {
+          "id": "q_1715872000_02",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Quelle technique de Swift permet de naviguer dans une arborescence de données imbriquées contenant des valeurs potentielles nulles sans multiplier les structures de contrôle 'if-let' ?",
+          "targetConcept": "Optionnels",
+          "bloomLevel": "application"
+        },
+        {
+          "id": "q_1715872000_03",
+          "type": "OPEN_QUESTION",
+          "difficulty": "difficile",
+          "question": "Comment l'utilisation des protocoles permet-elle de concevoir un système d'injection de dépendances (mock) pour les tests unitaires ?",
+          "targetConcept": "Protocoles",
+          "bloomLevel": "application"
+        },
+        {
+          "id": "q_1715872000_04",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Dans le cadre de SwiftUI, comment assure-t-on le flux de données entre des vues qui n'ont pas de lien hiérarchique direct ?",
+          "targetConcept": "SwiftUI",
+          "bloomLevel": "application"
+        },
+        {
+          "id": "q_1715872000_05",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Quel avantage l'utilisation systématique de 'let' apporte-t-elle au compilateur Swift en termes d'optimisation de la performance ?",
+          "targetConcept": "let",
+          "bloomLevel": "analysis"
+        },
+        {
+          "id": "q_1715872000_06",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "difficile",
+          "question": "Quelles sont les implications de l'utilisation de variables mutables ('var') au sein de tâches asynchrones concurrentes avec Swift 6 ?",
+          "targetConcept": "var",
+          "bloomLevel": "analysis"
+        },
+        {
+          "id": "q_1715872000_07",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Dans le mécanisme ARC, comment peut-on rompre un cycle de référence forte créé par une fermeture (closure) capturant 'self' ?",
+          "targetConcept": "Automatic Reference Counting (ARC)",
+          "bloomLevel": "application"
+        },
+        {
+          "id": "q_1715872000_08",
+          "type": "TRUE_FALSE",
+          "difficulty": "moyen",
+          "question": "Le typage fort de Swift garantit la sécurité lors du décodage de données hétérogènes en empêchant la compilation de types incompatibles avec le modèle de domaine.",
+          "targetConcept": "Typage fort",
+          "bloomLevel": "comprehension"
+        },
+        {
+          "id": "q_1715872000_09",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "difficile",
+          "question": "Dans quel scénario l'inférence de type en Swift peut-elle générer une ambiguïté bloquante pour le compilateur ?",
+          "targetConcept": "Inférence de type",
+          "bloomLevel": "analysis"
+        },
+        {
+          "id": "q_1715872000_10",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Lors de la gestion de la mémoire, quel critère permet de choisir entre une référence 'weak' et 'unowned' ?",
+          "targetConcept": "Gestion de la mémoire",
+          "bloomLevel": "application"
+        },
+        {
+          "id": "q_1739961600_11",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Pourquoi privilégier les protocoles par rapport à l'héritage de classes pour ajouter des comportements partagés en Swift ?",
+          "targetConcept": "Programmation orientée objet",
+          "bloomLevel": "analysis"
+        },
+        {
+          "id": "q_1739961600_12",
+          "type": "OPEN_QUESTION",
+          "difficulty": "moyen",
+          "question": "En quoi l'approche du framework SwiftUI modifie-t-elle la gestion des interfaces utilisateur par rapport à une mise à jour manuelle des vues ?",
+          "targetConcept": "Framework déclaratif",
+          "bloomLevel": "comprehension"
+        },
+        {
+          "id": "q_1739961600_13",
+          "type": "TRUE_FALSE",
+          "difficulty": "moyen",
+          "question": "L'évolution majeure apportée par Swift 6 concerne-t-elle l'isolation complète des données pour renforcer la sécurité lors de l'exécution concurrente ?",
+          "targetConcept": "Swift 6",
+          "bloomLevel": "recall"
+        },
+        {
+          "id": "q_1739961600_14",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "difficile",
+          "question": "Quel mécanisme assure le transfert sécurisé de données à travers les frontières d'un acteur dans le contexte de l'isolation des données ?",
+          "targetConcept": "Isolation des données",
+          "bloomLevel": "application"
+        },
+        {
+          "id": "q_1739961600_15",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "facile",
+          "question": "Quelle technologie permet de partager efficacement la logique métier entre les cibles iOS et macOS ?",
+          "targetConcept": "iOS",
+          "bloomLevel": "comprehension"
+        },
+        {
+          "id": "q_1739961600_16",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Quelle est l'une des limitations lors du remplacement d'Objective-C par Swift concernant les fonctionnalités modernes ?",
+          "targetConcept": "Objective-C",
+          "bloomLevel": "analysis"
+        },
+        {
+          "id": "q_1739961600_17",
+          "type": "TRUE_FALSE",
+          "difficulty": "facile",
+          "question": "L'application Swift Playgrounds permet-elle de tester du code et de prototyper des interfaces en temps réel sur iPad et Mac ?",
+          "targetConcept": "Swift Playgrounds",
+          "bloomLevel": "recall"
+        },
+        {
+          "id": "q_1739961600_18",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "moyen",
+          "question": "Quelle est la méthode recommandée pour éviter les erreurs de type 'Null Pointer Exception' lors de la manipulation des optionnels ?",
+          "targetConcept": "Optionnels",
+          "bloomLevel": "application"
+        },
+        {
+          "id": "q_1739961600_19",
+          "type": "OPEN_QUESTION",
+          "difficulty": "moyen",
+          "question": "Comment les protocoles permettent-ils de structurer le code pour des types déjà existants dans la bibliothèque standard ?",
+          "targetConcept": "Protocoles",
+          "bloomLevel": "application"
+        },
+        {
+          "id": "q_1739961600_20",
+          "type": "MULTIPLE_CHOICE",
+          "difficulty": "facile",
+          "question": "Quel est l'avantage principal de SwiftUI pour le développement sur watchOS ?",
+          "targetConcept": "watchOS",
+          "bloomLevel": "comprehension"
+        }
+      ],
+      "similarity": {
+        "mean": 0.4105752858541182,
+        "max": 0.7566943593315619,
+        "pairsAbove080": 0,
+        "pairsAbove085": 0
+      },
+      "events": [
+        {
+          "event": "analyzing",
+          "data": {
+            "message": "Analyzing course content..."
+          },
+          "timestamp": 36
+        },
+        {
+          "event": "planning",
+          "data": {
+            "message": "Planning 20 questions...",
+            "conceptCount": 20
+          },
+          "timestamp": 113
+        },
+        {
+          "event": "generating",
+          "data": {
+            "message": "Generating questions..."
+          },
+          "timestamp": 14028
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 1,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1715872000_01",
+              "question": "En quoi le remplacement de l'Objective-C par Swift modifie-t-il l'approche de la sécurité lors de l'intégration avec des systèmes hérités ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "difficile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Il impose une isolation complète des données pour prévenir les accès concurrents non sécurisés.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Il permet la gestion manuelle des pointeurs pour maintenir la compatibilité binaire exacte.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "Il ignore les contraintes de typage lors des appels aux bibliothèques système anciennes.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Il utilise exclusivement des structures de données mutables pour simplifier le mapping mémoire.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Swift",
+                "bloomLevel": "analysis",
+                "plannedDifficulty": "difficile",
+                "plannedAngle": "Evaluating the architectural impact of Swift's 'modern' design choices on legacy system integration",
+                "plannedIndex": 1
+              }
+            },
+            "canStartAnswering": true,
+            "message": "Question 1/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 2,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1715872000_02",
+              "question": "Quelle technique de Swift permet de naviguer dans une arborescence de données imbriquées contenant des valeurs potentielles nulles sans multiplier les structures de contrôle 'if-let' ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Le transtypage forcé systématique",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Le chaînage d'optionnels",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "L'utilisation de variables mutables (var)",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "L'inférence de type dynamique",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Optionnels",
+                "bloomLevel": "application",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Deep chaining of optional properties to navigate nested data structures without nesting 'if-let' blocks",
+                "plannedIndex": 2
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 2/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 3,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1715872000_03",
+              "question": "Comment l'utilisation des protocoles permet-elle de concevoir un système d'injection de dépendances (mock) pour les tests unitaires ?",
+              "type": "OPEN_QUESTION",
+              "difficulty": "difficile",
+              "options": [],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "L'utilisation de protocoles permet de définir un 'contrat de comportement' indépendant de l'implémentation concrète. En programmation orientée protocole, on peut créer une abstraction que la classe testée consomme. Lors des tests unitaires, il suffit d'injecter une structure ou une classe 'mock' adoptant ce protocole au lieu de l'implémentation réelle. Cela permet de simuler des comportements spécifiques et d'isoler le code pour vérifier sa modularité et sa réutilisabilité.",
+              "points": 1,
+              "subject": "Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Protocoles",
+                "bloomLevel": "application",
+                "plannedDifficulty": "difficile",
+                "plannedAngle": "Designing a mock injection system for unit testing using protocol-oriented principles",
+                "plannedIndex": 3
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 3/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 4,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1715872000_04",
+              "question": "Dans le cadre de SwiftUI, comment assure-t-on le flux de données entre des vues qui n'ont pas de lien hiérarchique direct ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "En utilisant des constantes let déclarées localement",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "En s'appuyant sur le framework déclaratif pour propager l'état de manière centralisée",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "En forçant l'utilisation d'Objective-C pour le partage mémoire",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "En désactivant l'ARC pour ces vues spécifiques",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "SwiftUI",
+                "bloomLevel": "application",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Managing state propagation and data flow between non-hierarchical views in a complex app",
+                "plannedIndex": 4
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 4/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 5,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1715872000_05",
+              "question": "Quel avantage l'utilisation systématique de 'let' apporte-t-elle au compilateur Swift en termes d'optimisation de la performance ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Elle permet une analyse statique plus poussée garantissant l'immuabilité des valeurs.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Elle oblige le compilateur à deviner le type systématiquement.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "Elle réduit la taille binaire en supprimant le typage fort.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Elle permet de transformer automatiquement les classes en protocoles.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "let",
+                "bloomLevel": "analysis",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Performance optimization benefits of immutability for the compiler's static analysis",
+                "plannedIndex": 5
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 5/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 6,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1715872000_06",
+              "question": "Quelles sont les implications de l'utilisation de variables mutables ('var') au sein de tâches asynchrones concurrentes avec Swift 6 ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "difficile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "La mutabilité n'a aucun impact sur la sécurité des threads.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "L'ARC gère automatiquement les conflits d'accès en écriture sur les variables.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "L'isolation complète des données est requise pour garantir la sécurité et éviter les accès concurrents.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "D",
+                  "text": "Les variables mutables sont interdites au profit exclusif de Swift Playgrounds.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "var",
+                "bloomLevel": "analysis",
+                "plannedDifficulty": "difficile",
+                "plannedAngle": "Thread safety implications of mutable variables within concurrent asynchronous tasks in Swift 6",
+                "plannedIndex": 6
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 6/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 7,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1715872000_07",
+              "question": "Dans le mécanisme ARC, comment peut-on rompre un cycle de référence forte créé par une fermeture (closure) capturant 'self' ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "En utilisant une liste de capture avec une référence faible ou non possédée.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "En redéfinissant 'self' avec le mot-clé 'var'.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "En forçant la variable à devenir un protocole.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "En utilisant SwiftUI pour réinitialiser la vue manuellement.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Automatic Reference Counting (ARC)",
+                "bloomLevel": "application",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Identifying and breaking a strong reference cycle in a closure capturing 'self' within a class",
+                "plannedIndex": 7
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 7/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 8,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1715872000_08",
+              "question": "Le typage fort de Swift garantit la sécurité lors du décodage de données hétérogènes en empêchant la compilation de types incompatibles avec le modèle de domaine.",
+              "type": "TRUE_FALSE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Vrai",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Faux",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Typage fort",
+                "bloomLevel": "comprehension",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "How strong typing affects the safety of decoding heterogeneous JSON into domain models",
+                "plannedIndex": 8
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 8/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 9,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1715872000_09",
+              "question": "Dans quel scénario l'inférence de type en Swift peut-elle générer une ambiguïté bloquante pour le compilateur ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "difficile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Lors de la déclaration d'une constante 'let' avec une valeur entière simple.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Lors de l'utilisation d'expressions génériques complexes où plusieurs types peuvent satisfaire le contrat.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "Lors de l'utilisation de Swift Playgrounds sur iPad.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Lorsque l'ARC libère une instance de classe trop rapidement.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Inférence de type",
+                "bloomLevel": "analysis",
+                "plannedDifficulty": "difficile",
+                "plannedAngle": "Scenarios where type inference fails or leads to unexpected ambiguity in complex generic expressions",
+                "plannedIndex": 9
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 9/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 10,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1715872000_10",
+              "question": "Lors de la gestion de la mémoire, quel critère permet de choisir entre une référence 'weak' et 'unowned' ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "'weak' est utilisé quand l'objet peut devenir nul, 'unowned' quand l'objet a la même durée de vie ou plus longue.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "'weak' ne s'utilise qu'avec les constantes let, 'unowned' avec var.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "'unowned' est obligatoire pour tous les protocoles.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "'weak' désactive l'Automatic Reference Counting pour l'instance concernée.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "Swift",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Gestion de la mémoire",
+                "bloomLevel": "application",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Selecting between 'weak' and 'unowned' references based on object lifecycle dependencies",
+                "plannedIndex": 10
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 10/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 11,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1739961600_11",
+              "question": "Pourquoi privilégier les protocoles par rapport à l'héritage de classes pour ajouter des comportements partagés en Swift ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "L'héritage est limité aux classes alors que les protocoles peuvent être adoptés par les classes, structures et énumérations.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Les protocoles permettent d'augmenter automatiquement la vitesse d'exécution du code par rapport aux sous-classes.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "L'héritage de classes empêche l'utilisation de l'Automatic Reference Counting (ARC).",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Les protocoles sont les seuls à permettre l'utilisation de constantes définies avec 'let'.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Programmation orientée objet",
+                "bloomLevel": "analysis",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Comparing the flexibility of subclassing versus protocol extensions for adding shared behavior",
+                "plannedIndex": 11
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 11/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 12,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1739961600_12",
+              "question": "En quoi l'approche du framework SwiftUI modifie-t-elle la gestion des interfaces utilisateur par rapport à une mise à jour manuelle des vues ?",
+              "type": "OPEN_QUESTION",
+              "difficulty": "moyen",
+              "options": [],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "SwiftUI introduit un paradigme déclaratif où le développeur décrit l'état souhaité de l'interface. Au lieu de manipuler manuellement chaque vue pour la mettre à jour, SwiftUI reconstruit automatiquement l'interface en fonction des changements d'état, garantissant une synchronisation constante entre les données et le rendu visuel.",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Framework déclaratif",
+                "bloomLevel": "comprehension",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Explaining the shift from manual view updates to a state-driven rendering cycle",
+                "plannedIndex": 12
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 12/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 13,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1739961600_13",
+              "question": "L'évolution majeure apportée par Swift 6 concerne-t-elle l'isolation complète des données pour renforcer la sécurité lors de l'exécution concurrente ?",
+              "type": "TRUE_FALSE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Vrai",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Faux",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Swift 6",
+                "bloomLevel": "recall",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "The primary evolution regarding compile-time concurrency safety in the latest version",
+                "plannedIndex": 13
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 13/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 14,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1739961600_14",
+              "question": "Quel mécanisme assure le transfert sécurisé de données à travers les frontières d'un acteur dans le contexte de l'isolation des données ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "difficile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "L'utilisation exclusive de variables déclarées avec 'var'.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "L'adoption du protocole de conformité pour l'isolation des données.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "La désactivation de l'Automatic Reference Counting (ARC).",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Le recours systématique à l'héritage de classes.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Isolation des données",
+                "bloomLevel": "application",
+                "plannedDifficulty": "difficile",
+                "plannedAngle": "Utilizing the 'Sendable' protocol to ensure safe data transfer across actor boundaries",
+                "plannedIndex": 14
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 14/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 15,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1739961600_15",
+              "question": "Quelle technologie permet de partager efficacement la logique métier entre les cibles iOS et macOS ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "facile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "L'utilisation de SwiftUI comme framework commun de construction d'interfaces.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "La réécriture complète du code en Objective-C.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "L'usage de Swift Playgrounds uniquement pour la version iPad.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "L'abandon des protocoles au profit des structures simples.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "iOS",
+                "bloomLevel": "comprehension",
+                "plannedDifficulty": "facile",
+                "plannedAngle": "Strategies for sharing business logic between iOS and macOS targets using SwiftUI",
+                "plannedIndex": 15
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 15/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 16,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1739961600_16",
+              "question": "Quelle est l'une des limitations lors du remplacement d'Objective-C par Swift concernant les fonctionnalités modernes ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "L'impossibilité d'utiliser l'ARC en Objective-C.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Les fonctionnalités de sécurité comme la gestion des optionnels n'existent pas nativement en Objective-C.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "C",
+                  "text": "Swift ne peut pas utiliser de constantes 'let'.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Swift est moins rapide que l'Objective-C pour les applications watchOS.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Objective-C",
+                "bloomLevel": "analysis",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Interoperability limitations when exposing Swift-specific features like enums with associated values",
+                "plannedIndex": 16
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 16/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 17,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1739961600_17",
+              "question": "L'application Swift Playgrounds permet-elle de tester du code et de prototyper des interfaces en temps réel sur iPad et Mac ?",
+              "type": "TRUE_FALSE",
+              "difficulty": "facile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Vrai",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Faux",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Swift Playgrounds",
+                "bloomLevel": "recall",
+                "plannedDifficulty": "facile",
+                "plannedAngle": "Using Playgrounds for real-time iterative prototyping of complex UI components",
+                "plannedIndex": 17
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 17/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 18,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1739961600_18",
+              "question": "Quelle est la méthode recommandée pour éviter les erreurs de type 'Null Pointer Exception' lors de la manipulation des optionnels ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "moyen",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Utiliser le déballage forcé systématiquement.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "B",
+                  "text": "Ignorer le typage fort pour laisser le langage deviner la valeur.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "Utiliser les mécanismes de gestion sécurisée de l'absence de valeur prévus par Swift.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "D",
+                  "text": "Transformer toutes les variables en constantes 'let'.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Optionnels",
+                "bloomLevel": "application",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Mitigating the risks of force-unwrapping in production by implementing safe fallbacks",
+                "plannedIndex": 18
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 18/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 19,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1739961600_19",
+              "question": "Comment les protocoles permettent-ils de structurer le code pour des types déjà existants dans la bibliothèque standard ?",
+              "type": "OPEN_QUESTION",
+              "difficulty": "moyen",
+              "options": [],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "Les protocoles définissent des contrats de comportement. En Swift, il est possible d'étendre des types existants (classes, structures ou énumérations) pour qu'ils adoptent ces protocoles. Cela permet de rendre le code modulaire et réutilisable en garantissant que différents types respectent les mêmes interfaces de comportement.",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "Protocoles",
+                "bloomLevel": "application",
+                "plannedDifficulty": "moyen",
+                "plannedAngle": "Retroactive modeling: extending existing standard library types to conform to custom business protocols",
+                "plannedIndex": 19
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 19/20 generated"
+          },
+          "timestamp": 29938
+        },
+        {
+          "event": "question-generated",
+          "data": {
+            "questionNumber": 20,
+            "totalQuestions": 20,
+            "question": {
+              "id": "q_1739961600_20",
+              "question": "Quel est l'avantage principal de SwiftUI pour le développement sur watchOS ?",
+              "type": "MULTIPLE_CHOICE",
+              "difficulty": "facile",
+              "options": [
+                {
+                  "id": "A",
+                  "text": "Il permet de construire des interfaces de manière simple et déclarative adaptée aux petits écrans.",
+                  "isCorrect": true
+                },
+                {
+                  "id": "B",
+                  "text": "Il oblige l'utilisation de la gestion manuelle de la mémoire.",
+                  "isCorrect": false
+                },
+                {
+                  "id": "C",
+                  "text": "Il supprime le besoin d'utiliser l'Automatic Reference Counting (ARC).",
+                  "isCorrect": false
+                },
+                {
+                  "id": "D",
+                  "text": "Il limite le langage Swift au seul usage des constantes.",
+                  "isCorrect": false
+                }
+              ],
+              "leftColumn": [],
+              "rightColumn": [],
+              "correctMatches": [],
+              "expectedAnswer": "",
+              "points": 1,
+              "subject": "General",
+              "schoolLevel": "ETUDES_SUPERIEURES",
+              "hasGraphic": false,
+              "graphicId": "",
+              "graphicLibrary": "apexcharts",
+              "graphicType": "2d",
+              "basedOnDocument": false,
+              "documentReference": "",
+              "metadata": {
+                "targetConcept": "watchOS",
+                "bloomLevel": "comprehension",
+                "plannedDifficulty": "facile",
+                "plannedAngle": "Adapting SwiftUI view layouts to the specific screen constraints and interaction models of watchOS",
+                "plannedIndex": 20
+              }
+            },
+            "canStartAnswering": false,
+            "message": "Question 20/20 generated"
+          },
+          "timestamp": 29938
+        }
+      ]
+    }
+  ]
+}

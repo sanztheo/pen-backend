@@ -22,8 +22,9 @@ const TITLE_GENERATION_PROMPT = `<system>
 </system>
 
 <instructions>
-<output_format>Return ONLY the title text, no quotes, no explanation</output_format>
+<output_format>JSON object with a "title" field containing the title string</output_format>
 <constraints>
+  <min_length>5 characters</min_length>
   <max_length>50 characters</max_length>
   <language>French</language>
   <style>Concise, descriptive, engaging</style>
@@ -35,25 +36,21 @@ const TITLE_GENERATION_PROMPT = `<system>
 <rule>Do NOT include "Quiz" at the beginning - just the topic</rule>
 <rule>Make it descriptive of the content, not generic</rule>
 <rule>Use proper capitalization (first letter uppercase)</rule>
-<rule>Keep it under 50 characters</rule>
+<rule>Title must be between 5 and 50 characters — NEVER a single word or letter</rule>
 </rules>
 
 <examples>
 <example>
 <input>schoolLevel: LYCEE_TERMINALE, pages: ["La Seconde Guerre mondiale"], subject: Histoire</input>
-<output>La Seconde Guerre mondiale</output>
+<output>{"title": "La Seconde Guerre mondiale"}</output>
 </example>
 <example>
 <input>schoolLevel: COLLEGE, pages: ["Équations du premier degré", "Fonctions affines"], subject: Mathématiques</input>
-<output>Équations et fonctions affines</output>
+<output>{"title": "Équations et fonctions affines"}</output>
 </example>
 <example>
 <input>schoolLevel: SUPERIEUR, pages: ["Introduction au Machine Learning"], subject: Informatique</input>
-<output>Fondamentaux du Machine Learning</output>
-</example>
-<example>
-<input>schoolLevel: LYCEE_PREMIERE, pages: [], subject: Physique-Chimie</input>
-<output>Physique-Chimie niveau Première</output>
+<output>{"title": "Fondamentaux du Machine Learning"}</output>
 </example>
 </examples>`;
 
@@ -97,17 +94,42 @@ export async function generateQuizTitle(params: TitleGeneratorParams): Promise<s
           { role: "system", content: TITLE_GENERATION_PROMPT },
           { role: "user", content: userMessage },
         ],
-        max_tokens: 60,
+        max_tokens: 120,
         temperature: isFixedTempModel(modelId) ? 1 : 0.7,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "quiz_title",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              required: ["title"],
+              properties: {
+                title: {
+                  type: "string",
+                  description: "French quiz title, 5-50 characters, descriptive, no 'Quiz' prefix",
+                },
+              },
+            },
+          },
+        },
       });
 
-      const generatedTitle = response.choices[0]?.message?.content?.trim();
+      const rawContent = response.choices[0]?.message?.content?.trim();
+      if (!rawContent) {
+        return getFallbackTitle(params);
+      }
 
-      if (generatedTitle && generatedTitle.length > 0 && generatedTitle.length <= 100) {
+      const parsed = JSON.parse(rawContent) as { title?: string };
+      const generatedTitle = parsed.title?.trim();
+
+      if (generatedTitle && generatedTitle.length >= 5 && generatedTitle.length <= 100) {
         SecureLogger.log(`[TITLE-GEN] Generated: "${generatedTitle}" from ${userMessage}`);
         return generatedTitle;
       }
 
+      SecureLogger.log(`[TITLE-GEN] Rejected short title "${generatedTitle}", using fallback`);
       return getFallbackTitle(params);
     } catch (error: unknown) {
       const err = error as { status?: number; type?: string };

@@ -136,7 +136,27 @@ export async function generateBatch(request: BatchGenerationRequest): Promise<Qu
     throw new Error("[BatchGenerator] Invalid response structure — missing questions array");
   }
 
-  const questions = (parsed as { questions: Question[] }).questions;
+  const rawQuestions = (parsed as { questions: Question[] }).questions;
+
+  // Propagate blueprint metadata into generated questions so downstream
+  // analytics, correction, and debug tooling can trace each question back
+  // to its planned concept/bloom level/angle.
+  const questions: Question[] = rawQuestions.map((q, i) => {
+    const planned = request.plannedQuestions[i];
+    if (!planned) return q;
+    return {
+      ...q,
+      metadata: {
+        ...(q.metadata ?? {}),
+        targetConcept: planned.targetConcept,
+        bloomLevel: planned.bloomLevel,
+        plannedDifficulty: planned.difficulty,
+        plannedAngle: planned.angle,
+        plannedIndex: planned.index,
+      },
+    };
+  });
+
   const elapsed = Date.now() - startTime;
 
   logger.log(

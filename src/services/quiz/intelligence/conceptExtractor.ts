@@ -9,6 +9,7 @@ import { prisma } from "../../../lib/prisma.js";
 import { extractTextFromBlockNote } from "../../../controllers/assistant/helpers/blocknote.js";
 import { z } from "zod";
 import { MODELS } from "../../../config/models.js";
+import { AIService } from "../../ai/base.js";
 import {
   type ExtractedConcepts,
   type Difficulty,
@@ -20,7 +21,7 @@ import {
   EMBEDDING_DIMENSION,
 } from "./types.js";
 
-// Lazy initialization OpenAI
+// Lazy initialization OpenAI (for embeddings only — chat uses AIService)
 let openaiClient: OpenAI | null = null;
 
 const ExtractedConceptsSchema = z.object({
@@ -272,12 +273,12 @@ export class ConceptExtractorService {
   private static async extractWithAI(content: string): Promise<ExtractedConcepts> {
     logger.log(`🤖 [ConceptExtractor] Extraction AI (${EXTRACTION_MODEL})...`);
 
-    const openai = getOpenAI();
+    const client = AIService.getOpenAICompatibleClient(EXTRACTION_MODEL);
 
     // Limiter le contenu pour éviter les dépassements de tokens
     const truncatedContent = content.slice(0, 8000);
 
-    const response = await openai.chat.completions.create({
+    const response = await client.chat.completions.create({
       model: EXTRACTION_MODEL,
       messages: [
         { role: "system", content: EXTRACTION_PROMPT },
