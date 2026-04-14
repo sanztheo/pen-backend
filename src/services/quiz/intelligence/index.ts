@@ -46,3 +46,14 @@ export {
   type EnrichedQuestionResult,
   type EnrichmentConfig,
 } from "./correctionEnricher.js";
+
+// Course Analyzer — Pipeline v5 Step [1]: Analyze
+export {
+  analyzeCourse,
+  ConceptSchema,
+  ConceptMapSchema,
+  type Concept,
+  type ConceptMap,
+  type ChatClient,
+  type AnalyzeCourseOptions,
+} from "./courseAnalyzer.js";
