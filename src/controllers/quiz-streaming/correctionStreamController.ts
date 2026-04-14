@@ -158,6 +158,18 @@ export async function submitAndCorrectStream(req: Request, res: Response): Promi
         } else if (event.type === "completion") {
           logger.log(`🎉 [CORRECTION-STREAMING] Correction terminée`);
 
+          // ⚡ Émettre l'analyse IA IMMÉDIATEMENT — déjà calculée dans finalResult.
+          // Ne pas attendre l'enrichissement RAG ni le save DB pour libérer l'UX.
+          if (event.finalResult) {
+            sendSSE("ai-analysis", {
+              summary: event.finalResult.aiCorrection?.globalFeedback || "",
+              strengths: event.finalResult.aiCorrection?.strengths || [],
+              weaknesses: event.finalResult.aiCorrection?.weaknesses || [],
+              recommendations: event.finalResult.aiCorrection?.recommendations || [],
+              personalizedTips: event.finalResult.metadata?.personalizedTips || [],
+            });
+          }
+
           // 📚 PEN-22: Enrichir les corrections avec références aux sources
           let enrichedCorrections: CorrectionResultItem[] = allCorrections;
           try {
@@ -238,15 +250,6 @@ export async function submitAndCorrectStream(req: Request, res: Response): Promi
             invalidateQuizHistoryCache(userId).catch((err) =>
               logger.warn("⚠️ [CORRECTION-STREAMING] Échec invalidation cache:", err),
             );
-
-            // Envoyer l'analyse détaillée IA
-            sendSSE("ai-analysis", {
-              summary: event.finalResult.aiCorrection?.globalFeedback || "",
-              strengths: event.finalResult.aiCorrection?.strengths || [],
-              weaknesses: event.finalResult.aiCorrection?.weaknesses || [],
-              recommendations: event.finalResult.aiCorrection?.recommendations || [],
-              personalizedTips: event.finalResult.metadata?.personalizedTips || [],
-            });
           }
 
           sendSSE("correction-completed", {

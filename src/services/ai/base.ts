@@ -97,6 +97,10 @@ export interface AIGenerationOptions {
   onStream?: (chunk: string) => void;
   // 🧠 Nouveau : Support du reasoning/thinking (Grok, o1, etc.)
   onThinking?: (chunk: string) => void;
+  // Opt-in: force a specific reasoning budget via OpenAI-compat `reasoning_effort`.
+  // Only set this for callers that know what they're doing — behavior differs across
+  // model families (e.g. on Gemini 2.5, "low" = 1024 thinking tokens; on Gemini 3, "low" = minimal).
+  reasoningEffort?: "low" | "medium" | "high" | "none";
 }
 
 export interface AIGenerationResult {

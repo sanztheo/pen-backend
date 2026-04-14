@@ -1863,7 +1863,9 @@ Contenu: ${doc.content?.substring(0, 400) || doc.text?.substring(0, 400) || "Con
     );
 
     try {
-      const model = AIService.getQuizExplanationModel();
+      // Override: use gemini-2.5-flash-lite to avoid thinking-token budget eating the JSON output.
+      // gemini-3-flash-preview consumes max_tokens for thinking → JSON gets truncated mid-property.
+      const model = "gemini-2.5-flash-lite";
       const client = AIService.getOpenAICompatibleClient(model);
 
       const questionsXml = autoCorrections
@@ -1895,18 +1897,32 @@ Respond with a valid JSON array only. Each element:
 No markdown, no extra text.
 </output_format>`;
 
+      // gemini-2.5-flash-lite + reasoning_effort="low" = 1024 thinking tokens (minimal).
+      // Budget flat 4000: generous headroom (1024 thinking + ~2976 output). max_tokens is a
+      // hard cap, not a target — model stops naturally when done, we only pay for actual use.
+      const explanationPayload = {
+        model,
+        messages: [{ role: "user" as const, content: prompt }],
+        max_tokens: 4000,
+        temperature: 0.4,
+        reasoning_effort: "low" as const,
+      };
       const response = await client.chat.completions.create(
-        {
-          model,
-          messages: [{ role: "user", content: prompt }],
-          max_tokens: Math.min(autoCorrections.length * 250, 4000),
-          temperature: 0.4,
+        explanationPayload as unknown as Parameters<typeof client.chat.completions.create>[0] & {
+          stream?: false;
         },
         { signal: AbortSignal.timeout(GEMINI_TIMEOUT_MS) },
       );
 
       const raw = response.choices[0]?.message?.content ?? "";
-      const parsed: unknown = JsonUtils.extractJsonFromText(raw);
+      // Strip markdown code fences (```json ... ``` or ``` ... ```) that gemini-lite
+      // injects despite the "no markdown" instruction in the prompt.
+      const stripped = raw
+        .trim()
+        .replace(/^```(?:json)?\s*\n?/i, "")
+        .replace(/\n?```\s*$/i, "")
+        .trim();
+      const parsed: unknown = JsonUtils.extractJsonFromText(stripped);
       const durationMs = Date.now() - startTime;
 
       if (!Array.isArray(parsed)) {
@@ -2093,8 +2109,9 @@ Réponds UNIQUEMENT en JSON valide.`;
     recommendations: string[];
     personalizedTips: string[];
   }> {
+    const analysisStart = Date.now();
     try {
-      logger.log("🧠 [ANALYSIS] Génération analyse IA détaillée...");
+      logger.log("🧠 [ANALYSIS] ⏱️ Génération analyse IA détaillée...");
 
       const correctAnswers = corrections.filter((c) => c.score === c.maxScore).length;
       const partialAnswers = corrections.filter((c) => c.score > 0 && c.score < c.maxScore).length;
@@ -2120,14 +2137,7 @@ RÉSULTATS DU QUIZ:
 
 DÉTAIL DES RÉPONSES:
 ${corrections
-  .map(
-    (c, i) => `
-Q${i + 1} (${c.isCorrect ? "✓" : "✗"}, ${c.score}/${c.maxScore} pts):
-- Réponse élève: ${c.userAnswer}
-- Réponse correcte: ${c.correctAnswer}
-- Explication: ${c.explanation}
-`,
-  )
+  .map((c, i) => `Q${i + 1}: ${c.isCorrect ? "✓" : "✗"} ${c.score}/${c.maxScore}`)
   .join("\n")}
 
 Génère une analyse JSON avec:
@@ -2141,14 +2151,21 @@ IMPORTANT: Ne force PAS du contenu dans chaque section. Si l'élève a un score 
 
 Format JSON STRICT requis.`;
 
+      // Override: use gemini-2.5-flash-lite for this analysis — fast, cheap.
+      // reasoning_effort="low" on 2.5 family = 1024 thinking tokens → minimal reasoning
+      // while keeping quality. Budget 3000: generous headroom (~1976 tok for output after
+      // thinking) — model stops naturally when done, we only pay for what's used.
       const result = await AIService.generateContent({
         prompt: analysisPrompt,
-        maxTokens: 8000,
+        maxTokens: 3000,
         temperature: 0.7,
-        model: AIService.getQuizCorrectionModel(),
+        model: "gemini-2.5-flash-lite",
+        reasoningEffort: "low",
       });
 
-      logger.log("🧠 [ANALYSIS] Réponse IA reçue, parsing...");
+      logger.log(
+        `🧠 [ANALYSIS] ⏱️ Réponse IA reçue en ${Date.now() - analysisStart}ms, parsing...`,
+      );
       const analysisRaw: unknown = JsonUtils.extractJsonFromText(result.content);
       const analysisParsed = PerformanceAnalysisDataSchema.safeParse(analysisRaw);
       if (!analysisParsed.success) {

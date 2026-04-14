@@ -25,20 +25,23 @@ interface ExtendedChatCompletionDelta {
  */
 interface ChatCompletionStreamPayload extends Omit<
   ChatCompletionCreateParamsStreaming,
-  "max_tokens"
+  "max_tokens" | "reasoning_effort"
 > {
   max_tokens?: number;
   max_completion_tokens?: number;
-  reasoning_effort?: "low" | "medium" | "high";
+  reasoning_effort?: "low" | "medium" | "high" | "none";
 }
 
 /**
  * Payload for non-streaming chat completions (supports both standard and reasoning models)
  */
-interface ChatCompletionPayload extends Omit<ChatCompletionCreateParamsNonStreaming, "max_tokens"> {
+interface ChatCompletionPayload extends Omit<
+  ChatCompletionCreateParamsNonStreaming,
+  "max_tokens" | "reasoning_effort"
+> {
   max_tokens?: number;
   max_completion_tokens?: number;
-  reasoning_effort?: "low" | "medium" | "high";
+  reasoning_effort?: "low" | "medium" | "high" | "none";
 }
 
 function isAsyncIterable<T>(value: unknown): value is AsyncIterable<T> {
@@ -146,10 +149,17 @@ export class ContentGenerationService {
           payloadStream.max_tokens = targetTokens;
           payloadStream.temperature = options.temperature ?? 0.7;
         }
+        // Opt-in override: caller-specified reasoning_effort (applies to any model)
+        if (options.reasoningEffort) {
+          payloadStream.reasoning_effort = options.reasoningEffort;
+        }
 
-        const created = await client.chat.completions.create(payloadStream, {
-          signal: controller.signal, // 🚫 Passer le signal à OpenAI
-        });
+        const created = await client.chat.completions.create(
+          payloadStream as unknown as ChatCompletionCreateParamsStreaming,
+          {
+            signal: controller.signal, // 🚫 Passer le signal à OpenAI
+          },
+        );
         if (!isAsyncIterable<ChatCompletionChunk>(created)) {
           throw new Error("OpenAI streaming response attendu");
         }
@@ -264,7 +274,12 @@ export class ContentGenerationService {
               payloadFollow.max_tokens = maxFollowTokens;
               payloadFollow.temperature = options.temperature ?? 0.7;
             }
-            const created2 = await client.chat.completions.create(payloadFollow);
+            if (options.reasoningEffort) {
+              payloadFollow.reasoning_effort = options.reasoningEffort;
+            }
+            const created2 = await client.chat.completions.create(
+              payloadFollow as unknown as ChatCompletionCreateParamsStreaming,
+            );
             if (!isAsyncIterable<ChatCompletionChunk>(created2)) {
               throw new Error("OpenAI streaming response attendu");
             }
@@ -327,6 +342,10 @@ export class ContentGenerationService {
       } else {
         payload.max_tokens = targetTokens;
         payload.temperature = options.temperature ?? 0.7;
+      }
+      // Opt-in override: caller-specified reasoning_effort (applies to any model)
+      if (options.reasoningEffort) {
+        payload.reasoning_effort = options.reasoningEffort;
       }
 
       const data = await client.chat.completions.create(
