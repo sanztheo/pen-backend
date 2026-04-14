@@ -21,6 +21,7 @@ import {
 import { buildTypeDistribution, buildSpecialtyDistribution, getSpecialtyLabel } from "./utils.js";
 import { generateQuestionsStandard } from "./standardGenerator.js";
 import { generateQuestionsIntelligent } from "./intelligentGenerator.js";
+import { executeQuizPipeline } from "./quizPipeline.js";
 
 // ============================================================================
 // 1. Create streaming session
@@ -294,7 +295,25 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
 
     let generatedQuestions;
 
-    if (intelligentContext && questionDistribution.length > 0) {
+    // Pipeline v5: use blueprint-guided batch generation when pages are selected
+    const usePipeline = pageCount >= 1 && !intelligentContext;
+
+    if (usePipeline) {
+      logger.log(`[STREAM-SESSION] Using pipeline v5 (${pageCount} pages)`);
+      generatedQuestions = await executeQuizPipeline({
+        pageIds: pageProjectIds || [],
+        questionCount,
+        questionTypes,
+        difficulty,
+        schoolLevel,
+        specificSubject,
+        coursesOnly,
+        quizId: quiz.id,
+        sendSSE,
+        prisma,
+        isDisconnected,
+      });
+    } else if (intelligentContext && questionDistribution.length > 0) {
       generatedQuestions = await generateQuestionsIntelligent({
         questionCount,
         questionDistribution,

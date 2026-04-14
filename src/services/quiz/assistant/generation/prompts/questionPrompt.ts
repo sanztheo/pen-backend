@@ -4,6 +4,9 @@ import type { PersonalizationContext } from "../../../utils/personalizationUtils
 import { formatSpecialtyLabel } from "../../config/index.js";
 import { generateQuestionId } from "../../utils/index.js";
 import { logger } from "../../../../../utils/logger.js";
+// Re-export batch prompt builder from its own file (300-line limit)
+export { buildBatchQuestionPrompt } from "./batchQuestionPrompt.js";
+export type { BatchQuestionPromptRequest } from "./batchQuestionPrompt.js";
 
 /**
  * Interface for existing question in duplicate prevention
