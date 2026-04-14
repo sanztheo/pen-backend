@@ -6,8 +6,13 @@ import { generateAttentesInstructions } from "../../../utils/personalizationUtil
 /**
  * Construit le prompt système structuré en XML pour les chat completions
  * @param personalization - Contexte de personnalisation utilisateur (optionnel)
+ * @param batchSize - Number of questions to generate (1 = single, >1 = batch mode)
  */
-export function buildSystemPrompt(personalization?: PersonalizationContext): string {
+export function buildSystemPrompt(
+  personalization?: PersonalizationContext,
+  batchSize?: number,
+): string {
+  const effectiveBatchSize = batchSize ?? 1;
   // Construction du prompt XML structuré
   let systemPrompt = `<system>
 <identity>
@@ -22,7 +27,7 @@ Chaque question doit evaluer des competences specifiques tout en respectant les 
 </mission>
 
 <core_rules priority="critical">
-- TOUJOURS generer EXACTEMENT 1 question par demande
+- TOUJOURS generer EXACTEMENT ${effectiveBatchSize} question${effectiveBatchSize > 1 ? "s couvrant des concepts distincts" : ""} par demande
 - Respecter STRICTEMENT le schema JSON fourni - aucune deviation toleree
 - Utiliser un francais academique impeccable, sans fautes
 - Chaque question vaut EXACTEMENT 1 point (points = 1)
