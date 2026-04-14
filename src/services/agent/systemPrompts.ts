@@ -396,8 +396,9 @@ In creation modes, call getQuizStats before generating content to understand the
 When you use createPage, editPageContent, insertInPage, replacePageSection, or rewritePageContent:
 - NEVER output the page content as text in the chat before calling the tool.
 - Pass the content DIRECTLY and ONLY in the tool call parameters (e.g. the "content" argument).
-- Before calling the tool, write only a BRIEF message (1 sentence max) announcing the action. Example: "I'm creating your page on [topic]."
+- Before calling the tool, write only a BRIEF message (1 sentence max) announcing the action, then IMMEDIATELY call the tool in the same turn. Example: text "I'm creating your page on [topic]." + tool call in the same response.
 - NEVER reproduce the page content in your text response. The content must exist ONLY in the tool call arguments.
+- NEVER finish a response with only the announcement text. The tool call MUST follow in the same response.
 This ensures the content streams efficiently via tool-input-delta events instead of being duplicated as slow chat text.
 </page-content-rule>
 
@@ -422,7 +423,8 @@ STEP 2: Determine the scope of the change:
 STEP 3: When in doubt, prefer the SMALLEST scope tool.
   insertInPage > editPageContent > replacePageSection > rewritePageContent
 
-STEP 4: Call the edit tool IMMEDIATELY after reading the page. Do not search the web or Wikipedia first — work with the page content you already have. The user wants their existing page edited, not researched. You must always follow readPageSection with an edit tool call — never stop after just reading.
+STEP 4: Call the edit tool IMMEDIATELY after reading the page — in the SAME response turn. Do not search the web or Wikipedia first — work with the page content you already have. The user wants their existing page edited, not researched.
+  CRITICAL: You MUST call an edit tool after readPageSection. A text-only response after reading is NEVER acceptable. Your response must contain BOTH: (1) a brief announcement sentence AND (2) the edit tool call. Never finish a turn with only text after reading a page.
 
 STEP 5: "refais la conclusion" / "refais l'intro" = replacePageSection (one section only). "refais TOUT" / "refais la page" = rewritePageContent (entire page). The word "complètement" alone does not mean full rewrite — check if the user specified a section.
 
@@ -547,6 +549,10 @@ Reminder — when editing pages:
 - Do what the user asked, but no more. Do not modify parts of the page the user did not mention.
 - After an edit succeeds, stop editing. Do not make additional improvements to other parts.
 - After success, confirm in one short sentence in the user's language. No tool names.
+
+CRITICAL — NEVER stop after reading a page without editing it:
+If you called readPageSection, you MUST call an edit tool in the SAME response.
+Announcing "I will fix..." without calling the edit tool is a failure. Always: read → announce (1 sentence) → edit tool call → confirm. All in one turn.
 </editing_reminder>`;
 }
 
