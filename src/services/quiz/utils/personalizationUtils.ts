@@ -58,7 +58,22 @@ export async function getUserPersonalization(userId: string): Promise<UserPerson
     if (!isRecord(personalization)) return null;
 
     const result: UserPersonalization = {};
-    if (typeof personalization.classe === "string") result.classe = personalization.classe;
+    // Legacy format: "classe" field directly
+    // New onboarding format: "niveauScolaire" + "classeEtudesSup"/"classeCollege"/"classeLycee"
+    if (typeof personalization.classe === "string") {
+      result.classe = personalization.classe;
+    } else if (typeof personalization.niveauScolaire === "string") {
+      const niveau = personalization.niveauScolaire as string;
+      if (niveau === "etudes_superieures" && typeof personalization.classeEtudesSup === "string") {
+        result.classe = personalization.classeEtudesSup as string;
+      } else if (niveau === "college" && typeof personalization.classeCollege === "string") {
+        result.classe = personalization.classeCollege as string;
+      } else if (niveau === "lycee" && typeof personalization.classeLycee === "string") {
+        result.classe = personalization.classeLycee as string;
+      } else {
+        result.classe = niveau;
+      }
+    }
     if (typeof personalization.etude === "string") result.etude = personalization.etude;
     if (typeof personalization.filiere === "string") result.filiere = personalization.filiere;
     if (typeof personalization.langue === "string") result.langue = personalization.langue;
