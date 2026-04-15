@@ -28,6 +28,7 @@ type Personalization = {
 
 const sanitize = (v: unknown, max = 700) => {
   if (typeof v !== "string") return undefined;
+  // eslint-disable-next-line no-control-regex
   const s = v.replace(/[\u0000-\u001F\u007F]/g, "").trim();
   return s.length > max ? s.slice(0, max) : s;
 };
@@ -153,22 +154,21 @@ export const updatePersonalization = async (req: Request, res: Response) => {
           updateData.onboardingCompleted = Boolean(onboardingCompleted);
         }
 
-        await tx.user.update({
+        const updated = await tx.user.update({
           where: { id: userId },
           data: updateData,
+          select: { onboardingCompleted: true },
         });
 
-        return mergedPersona;
+        return { mergedPersona, onboardingCompletedDb: updated.onboardingCompleted };
       },
       { isolationLevel: "Serializable" },
     );
 
-    // Retourner les données avec onboardingCompleted si fourni
+    // Toujours inclure onboardingCompleted dans la réponse (lu depuis la DB)
     const responseData = {
-      ...merged,
-      ...(onboardingCompleted !== undefined && {
-        onboardingCompleted: Boolean(onboardingCompleted),
-      }),
+      ...merged.mergedPersona,
+      onboardingCompleted: merged.onboardingCompletedDb ?? false,
     };
 
     return res.json({

@@ -17,6 +17,10 @@ export interface BatchQuestionPromptRequest {
   generationNote?: string;
   specificSubject?: string;
   coursesOnly?: boolean;
+  /** Answer-First anchors: map of plannedQuestion.index → verbatim source quote.
+   *  When present, each question spec receives a <source_extract> that forces
+   *  the LLM to construct the correct answer from an existing text passage. */
+  sourceExtracts?: Map<number, string>;
 }
 
 function escapeXml(value: string): string {
@@ -46,22 +50,27 @@ export function buildBatchQuestionPrompt(request: BatchQuestionPromptRequest): s
     generationNote,
     specificSubject,
     coursesOnly = true,
+    sourceExtracts,
   } = request;
 
   const batchSize = plannedQuestions.length;
 
-  // Build per-question specifications from blueprint
+  // Build per-question specifications from blueprint, injecting source extracts
+  // when available (Answer-First: anchor the correct answer to a real text passage)
   const specsXml = plannedQuestions
-    .map(
-      (pq) =>
-        `  <question_spec index="${pq.index}">
+    .map((pq) => {
+      const extract = sourceExtracts?.get(pq.index);
+      const extractXml = extract
+        ? `\n    <source_extract priority="critical">Base the correct answer on this verbatim passage from the course: "${escapeXml(extract)}"</source_extract>`
+        : "";
+      return `  <question_spec index="${pq.index}">
     <target_concept>${pq.targetConcept}</target_concept>
     <question_type>${pq.questionType}</question_type>
     <difficulty>${pq.difficulty}</difficulty>
     <bloom_level>${pq.bloomLevel}</bloom_level>
-    <angle>${pq.angle}</angle>
-  </question_spec>`,
-    )
+    <angle>${pq.angle}</angle>${extractXml}
+  </question_spec>`;
+    })
     .join("\n");
 
   // Collect unique question types for type-specific instructions
@@ -115,6 +124,18 @@ You MUST base ALL questions ONLY on this content.
 Do NOT use general knowledge. Every question must reference specific elements from this content.
 Any information outside this content is FORBIDDEN.
 </instruction>
+<author_attribution_rule priority="critical">
+If your question mentions a named author, researcher, or theorist, their correct answer MUST be
+a direct quote or paraphrase of what the content above explicitly says about them.
+FORBIDDEN: attributing theoretical positions, arguments, or concepts to named authors using
+your training knowledge — even for "difficile" questions, even if you know those positions.
+</author_attribution_rule>
+<difficulty_grounding_rule priority="critical">
+For "difficile" questions: complexity must come from synthesizing multiple elements present
+in this content, not from external knowledge.
+If you cannot formulate a valid hard question from this content alone, downgrade to "moyen"
+instead of hallucinating content or enriching beyond the text.
+</difficulty_grounding_rule>
 <content>
 ${courseText}
 </content>
