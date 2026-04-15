@@ -124,8 +124,11 @@ export async function generateQuizTitle(params: TitleGeneratorParams): Promise<s
       // Some models prefix their response with text like "Here is the JSON..."
       // Extract the JSON object regardless of surrounding text
       const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-      const jsonStr = jsonMatch ? jsonMatch[0] : rawContent;
-      const parsed = JSON.parse(jsonStr) as { title?: string };
+      if (!jsonMatch) {
+        SecureLogger.log(`[TITLE-GEN] No JSON found in response, using fallback`);
+        return getFallbackTitle(params);
+      }
+      const parsed = JSON.parse(jsonMatch[0]) as { title?: string };
       const generatedTitle = parsed.title?.trim();
 
       if (generatedTitle && generatedTitle.length >= 5 && generatedTitle.length <= 100) {
