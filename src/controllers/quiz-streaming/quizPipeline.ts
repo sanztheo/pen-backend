@@ -100,7 +100,7 @@ export async function executeQuizPipeline(params: QuizPipelineParams): Promise<Q
 
   if (pageIds.length > 0) {
     const pages = await prisma.page.findMany({
-      where: { id: { in: pageIds }, userId },
+      where: { id: { in: pageIds }, createdBy: userId },
       select: { id: true, title: true, blockNoteContent: true },
     });
 
