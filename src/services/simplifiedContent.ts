@@ -330,7 +330,7 @@ export class SimplifiedContentService {
         where: {
           id: projectId,
           workspaceId: defaultWorkspaceId,
-          createdBy: userId,
+          OR: [{ createdBy: userId }, { workspace: { ownerId: userId } }],
         },
         select: { id: true, workspaceId: true, isArchived: true },
       });
