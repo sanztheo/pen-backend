@@ -312,6 +312,13 @@ router.delete("/projects/:id", authenticateToken, blockImpersonation, async (req
     });
   } catch (error: unknown) {
     logger.error("❌ [CONTENT-API] Erreur suppression projet:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg === "Projet non trouvé" || msg === "PROJECT_NOT_FOUND_OR_ALREADY_ARCHIVED") {
+      return res.status(404).json({ success: false, error: "Projet non trouvé" });
+    }
+    if (msg === "Projet déjà dans la corbeille") {
+      return res.status(409).json({ success: false, error: msg });
+    }
     res.status(500).json({
       success: false,
       error: "Erreur interne du serveur",
