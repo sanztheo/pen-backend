@@ -14,6 +14,18 @@ import { logger } from "../../utils/logger.js";
 import type { Question } from "../../services/quiz/types.js";
 
 const VALIDATION_TIMEOUT_MS = 45_000;
+
+/** Extract the correct answer text regardless of question type. */
+function getCorrectAnswer(q: Question): string {
+  if ("options" in q && Array.isArray(q.options)) {
+    const correct = q.options.find((o: { isCorrect: boolean; text: string }) => o.isCorrect);
+    return correct?.text ?? "";
+  }
+  if ("expectedAnswer" in q) {
+    return q.expectedAnswer ?? "";
+  }
+  return "";
+}
 const MAX_COURSE_CHARS = 10_000;
 
 interface QuestionValidationResult {
@@ -39,14 +51,11 @@ export async function validateQuestionGrounding(
   if (!courseText.trim() || questions.length === 0) return questions;
 
   const questionsJson = JSON.stringify(
-    questions.map((q, i) => {
-      const correctOption = Array.isArray(q.options) ? q.options.find((o) => o.isCorrect) : null;
-      return {
-        index: i,
-        question: q.question,
-        correctAnswer: correctOption?.text ?? q.expectedAnswer ?? "",
-      };
-    }),
+    questions.map((q, i) => ({
+      index: i,
+      question: q.question,
+      correctAnswer: getCorrectAnswer(q),
+    })),
   );
 
   const truncatedText = courseText.slice(0, MAX_COURSE_CHARS);
