@@ -14,13 +14,14 @@ import { logger } from "../../../utils/logger.js";
 // Zod Schema & Types
 // ---------------------------------------------------------------------------
 
-const ImportanceSchema = z.union([
-  z.literal(1),
-  z.literal(2),
-  z.literal(3),
-  z.literal(4),
-  z.literal(5),
-]);
+const ImportanceSchema = z
+  .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)])
+  .or(
+    z
+      .string()
+      .transform((v) => Number(v))
+      .pipe(z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)])),
+  );
 
 export const ConceptSchema = z.object({
   name: z.string().min(1),
@@ -75,7 +76,7 @@ function buildCourseAnalysisPrompt(courseText: string, courseTitle: string): str
     "concepts": [
       {
         "name": "string — concept name",
-        "importance": "1|2|3|4|5",
+        "importance": 3,
         "section": "string — section where it appears",
         "relatedConcepts": ["string — names of related concepts"],
         "description": "string — one-sentence description"
