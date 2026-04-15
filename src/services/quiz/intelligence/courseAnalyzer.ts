@@ -103,8 +103,8 @@ ${courseText}
 /** Max characters of course text to send to the LLM to stay within context limits */
 const MAX_COURSE_TEXT_LENGTH = 400_000;
 
-/** LLM response max tokens */
-const MAX_RESPONSE_TOKENS = 4000;
+/** LLM response max tokens — concept maps with 15-50 concepts can exceed 6000 tokens */
+const MAX_RESPONSE_TOKENS = 8192;
 
 /** Request timeout in milliseconds */
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -199,8 +199,16 @@ export async function analyzeCourse(
     throw new Error("[CourseAnalyzer] LLM returned empty response");
   }
 
+  // Extract JSON object in case the model prefixes with text like "Here is..."
+  const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error(
+      `[CourseAnalyzer] LLM response contains no JSON object (got: "${rawContent.slice(0, 80)}...")`,
+    );
+  }
+
   // Parse and validate with Zod
-  const parsed: unknown = JSON.parse(rawContent);
+  const parsed: unknown = JSON.parse(jsonMatch[0]);
   const result = ConceptMapSchema.safeParse(parsed);
 
   if (!result.success) {
