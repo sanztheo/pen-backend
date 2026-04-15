@@ -239,16 +239,17 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
 
     logger.log(`[STREAM-SESSION] Quiz ${quiz.id} created, generating questions...`);
 
-    const { intelligentContext, questionDistribution } = await prepareIntelligentContextIfNeeded({
-      useIntelligentGeneration,
-      pageProjectIds: pageProjectIds || [],
-      questionCount,
-      ragContext,
-      sendSSE,
-    });
+    const { intelligentContext, questionDistribution: _questionDistribution } =
+      await prepareIntelligentContextIfNeeded({
+        useIntelligentGeneration,
+        pageProjectIds: pageProjectIds || [],
+        questionCount,
+        ragContext,
+        sendSSE,
+      });
 
     // --- 7. Build distributions ---
-    const typeDistribution = buildTypeDistribution(
+    const _typeDistribution = buildTypeDistribution(
       questionTypes,
       questionCount,
       preprocessorTypeDistribution,
@@ -268,12 +269,12 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
     }
 
     // --- 8. Generate questions ---
-    const assistantService = new OpenAIAssistantService();
+    const _assistantService = new OpenAIAssistantService();
     const effectiveRagContext = intelligentContext
       ? intelligentContext.enrichedRagContext
       : ragContext;
 
-    const baseRequest: Record<string, unknown> = {
+    const _baseRequest: Record<string, unknown> = {
       userId,
       subject: sessionSubject,
       schoolLevel,
@@ -298,7 +299,7 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
     // Pipeline v5: ALWAYS use blueprint-guided batch generation
     // Replaces both standardGenerator and intelligentGenerator
     logger.log(
-      `[STREAM-SESSION] Using pipeline v5 (${pageCount} pages, subject: ${specificSubject || sessionSubject || "none"})`,
+      `[STREAM-SESSION] Using pipeline v5 (${pageCount} pages, subject: ${specificSubject || sessionSubject || higherEdField || "none"})`,
     );
 
     const generatedQuestions = await executeQuizPipeline({
@@ -309,7 +310,7 @@ export async function streamQuizGeneration(req: Request, res: Response): Promise
       difficulty,
       generationNote,
       schoolLevel,
-      specificSubject: specificSubject || sessionSubject,
+      specificSubject: specificSubject || sessionSubject || higherEdField,
       coursesOnly,
       quizId: quiz.id,
       sendSSE,

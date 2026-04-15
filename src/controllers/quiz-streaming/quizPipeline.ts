@@ -22,6 +22,9 @@ import { planQuiz } from "../../services/quiz/intelligence/quizPlanner.js";
 import type { QuizPlanConfig } from "../../services/quiz/intelligence/quizPlanner.js";
 import { generateBatch } from "./batchQuestionGenerator.js";
 import { extractPageText } from "./extractPageText.js";
+import { extractSourceFacts } from "./factExtractor.js";
+import type { SourceExtracts } from "./factExtractor.js";
+import { validateQuestionGrounding } from "./questionValidator.js";
 import type { Question } from "../../services/quiz/types.js";
 import type { SSESender } from "./types.js";
 import type { PlannedQuestion } from "../../services/quiz/intelligence/quizPlanner.js";
@@ -147,6 +150,18 @@ export async function executeQuizPipeline(params: QuizPipelineParams): Promise<Q
   logger.log(`[QuizPipeline] Stage 2 complete — ${blueprint.questions.length} questions planned`);
 
   // =========================================================================
+  // Stage 2.5 — Extract Source Facts (Answer-First anchoring)
+  // =========================================================================
+  // Each planned question gets anchored to a verbatim source passage.
+  // The passage is injected into the batch prompt as <source_extract>,
+  // forcing the LLM to build the correct answer from the actual text.
+  // Skipped for subject-only quizzes (no course text to anchor to).
+  const sourceExtracts: SourceExtracts =
+    coursesOnly && courseText
+      ? await extractSourceFacts(courseText, blueprint.questions)
+      : new Map();
+
+  // =========================================================================
   // Stage 3 — Generate (parallel batches)
   // =========================================================================
   sendSSE("generating", { message: "Generating questions..." });
@@ -177,6 +192,7 @@ export async function executeQuizPipeline(params: QuizPipelineParams): Promise<Q
         generationNote,
         specificSubject,
         coursesOnly,
+        sourceExtracts,
         sendSSE,
       }),
   );
@@ -298,12 +314,13 @@ interface RunBatchParams {
   generationNote?: string;
   specificSubject?: string;
   coursesOnly?: boolean;
+  sourceExtracts?: SourceExtracts;
   sendSSE: SSESender;
 }
 
 async function runBatch(params: RunBatchParams): Promise<Question[]> {
   const batchStart = Date.now();
-  const questions = await generateBatch({
+  const generated = await generateBatch({
     courseText: params.courseText,
     plannedQuestions: params.batch,
     previousQuestions: [], // Parallel batches — dedup is ensured by blueprint slicing
@@ -312,7 +329,16 @@ async function runBatch(params: RunBatchParams): Promise<Question[]> {
     generationNote: params.generationNote,
     specificSubject: params.specificSubject,
     coursesOnly: params.coursesOnly,
+    sourceExtracts: params.sourceExtracts,
   });
+
+  // Post-generation grounding check: verify each correct answer is derivable
+  // from the course text. Invalid questions are tagged in metadata.groundingValid=false.
+  const questions =
+    params.coursesOnly && generated.length > 0
+      ? await validateQuestionGrounding(generated, params.courseText)
+      : generated;
+
   logger.log(
     `[QuizPipeline] Batch ${params.batchIdx + 1}/${params.totalBatches} done in ${Date.now() - batchStart}ms (${questions.length}/${params.batch.length} questions)`,
   );
