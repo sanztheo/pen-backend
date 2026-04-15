@@ -15,6 +15,7 @@ import { buildSystemPrompt } from "../../services/quiz/assistant/generation/prom
 import { buildBatchQuestionPrompt } from "../../services/quiz/assistant/generation/prompts/questionPrompt.js";
 import type { Question } from "../../services/quiz/types.js";
 import type { PlannedQuestion } from "../../services/quiz/intelligence/quizPlanner.js";
+import type { SourceExtracts } from "./factExtractor.js";
 
 /** Extended API config for reasoning models */
 interface ExtendedChatConfig extends ChatCompletionCreateParamsNonStreaming {
@@ -35,6 +36,8 @@ export interface BatchGenerationRequest {
   generationNote?: string;
   specificSubject?: string;
   coursesOnly?: boolean;
+  /** Answer-First anchors from factExtractor — keyed by plannedQuestion.index */
+  sourceExtracts?: SourceExtracts;
 }
 
 export interface BatchGenerationResult {
@@ -81,6 +84,7 @@ export async function generateBatch(request: BatchGenerationRequest): Promise<Qu
     generationNote: request.generationNote,
     specificSubject: request.specificSubject,
     coursesOnly: request.coursesOnly,
+    sourceExtracts: request.sourceExtracts,
   });
 
   const generationModel = AIService.getQuizGenerationModel();

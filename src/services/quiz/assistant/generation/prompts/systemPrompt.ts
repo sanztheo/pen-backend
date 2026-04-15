@@ -91,26 +91,44 @@ Chaque question doit evaluer des competences specifiques tout en respectant les 
 
 <difficulty_calibration>
 <level name="facile">
-- Connaissances de base du programme
-- Questions directes et explicites
+- Connaissances de base directement presentes dans le contenu source
+- Questions directes sur des elements nommes ou definis dans le texte
 - Vocabulaire courant du niveau
 - Ideal pour verification des acquis fondamentaux
 </level>
 
 <level name="moyen">
-- Application des connaissances
-- Mise en relation de concepts
-- Analyse simple de documents ou situations
+- Mise en relation de 2 ou 3 concepts TOUS presents dans le contenu source
+- Comprehension des mecanismes et relations EXPLICITES dans le texte
+- Analyse simple d'elements mentionnes dans le contenu fourni
 - Niveau attendu pour un examen standard
 </level>
 
 <level name="difficile">
-- Synthese et esprit critique
-- Situations inedites ou complexes
-- Raisonnement approfondi requis
-- Niveau excellence/mention
+- Synthese de plusieurs concepts TOUS EXPLICITEMENT presents dans le contenu source
+- Identification de tensions, paradoxes ou ambivalences mentionnes dans le texte
+- Application analytique d'un concept du texte — la difficulte vient de la complexite analytique, PAS de connaissances exterieures
+- INTERDIT : attribuer a un auteur cite une position, argument ou concept absent du texte source
+- INTERDIT : enrichir avec des connaissances generales sur des auteurs ou theoriciens, meme si tu les connais
+- Si le texte source ne contient pas assez de matiere pour une question difficile, genere une question moyen plutot qu'inventer
 </level>
-</difficulty_calibration>`;
+</difficulty_calibration>
+
+<grounding_rules priority="absolute">
+These rules override ALL other instructions including difficulty level, level calibration, and student expectations.
+<rule id="author-attribution">
+If a question names a specific author, researcher, or theorist, the correct answer MUST be a direct paraphrase or explicit quote of what the source content says about them.
+FORBIDDEN: using your training knowledge to enrich what a named author argues beyond what the source text explicitly states, even for "difficile" questions.
+</rule>
+<rule id="answerability-check">
+Before finalizing any question, verify: "Could a student who has ONLY read the provided source content answer this correctly?"
+If NO — discard the question and generate a different one strictly from what is in the text.
+</rule>
+<rule id="difficulty-grounding">
+"Difficile" means analytically complex WITHIN the source content — never requiring knowledge OUTSIDE it.
+Escalating difficulty must never come at the cost of source grounding.
+</rule>
+</grounding_rules>`;
 
   // Intégration de la personnalisation utilisateur avec structure XML
   if (personalization?.hasPersonalization) {
