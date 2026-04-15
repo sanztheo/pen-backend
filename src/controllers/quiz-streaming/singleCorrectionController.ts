@@ -88,11 +88,12 @@ export async function correctSingleQuestion(req: Request, res: Response): Promis
       return;
     }
 
-    // Check for duplicate correction via Redis
+    // Check for duplicate correction via Redis — SADD is the atomic gate (1=new, 0=duplicate)
     const correctedKey = `quiz:${quizId}:corrected`;
     try {
-      const alreadyCorrected = await redis.sismember(correctedKey, questionId);
-      if (alreadyCorrected) {
+      const added = await redis.sadd(correctedKey, questionId);
+      await redis.expire(correctedKey, 14400); // 4h TTL
+      if (added === 0) {
         res.status(409).json({ error: "Question déjà corrigée" });
         return;
       }
@@ -106,6 +107,16 @@ export async function correctSingleQuestion(req: Request, res: Response): Promis
       answer,
       timeSpent: timeSpent || 0,
     };
+
+    // Persist user_answers BEFORE LLM call — fire-and-forget so answer is never lost on timeout
+    prisma.$executeRaw`
+        UPDATE quizzes
+        SET user_answers = COALESCE(user_answers, '[]'::jsonb) || ${JSON.stringify([userAnswer])}::jsonb,
+            updated_at = NOW()
+        WHERE id = ${quizId}::uuid AND "user_id" = ${userId}
+      `.catch((dbErr) =>
+      logger.warn("[PIPELINE-CORRECTION] DB user_answers persist failed (non-blocking):", dbErr),
+    );
 
     // Build QuizCorrectionRequest
     const quizExtras = quiz as unknown as QuizWithExtras;
@@ -135,26 +146,24 @@ export async function correctSingleQuestion(req: Request, res: Response): Promis
     const pipelineKey = `quiz:${quizId}:pipeline:${questionId}`;
 
     try {
-      const redisPipeline = redis.pipeline();
-      redisPipeline.sadd(correctedKey, questionId);
-      redisPipeline.expire(correctedKey, 14400); // 4h TTL
-      redisPipeline.set(pipelineKey, correctionJson, "EX", 14400); // 4h TTL
-      await redisPipeline.exec();
+      // sadd/expire already done at the gate — only persist the correction result here
+      await redis.set(pipelineKey, correctionJson, "EX", 14400); // 4h TTL
     } catch (redisErr) {
       logger.warn("[PIPELINE-CORRECTION] Redis persist failed (non-blocking):", redisErr);
     }
 
-    // Save to DB for crash recovery (non-blocking — don't fail the response)
-    // Atomic jsonb merge: pipeline_corrections (corrections) + user_answers (progress)
-    // user_answers append enables resume-from-position on reload
+    // Save pipeline_corrections to DB for crash recovery (non-blocking — don't fail the response)
+    // user_answers was already written before the LLM call above
     prisma.$executeRaw`
         UPDATE quizzes
         SET pipeline_corrections = COALESCE(pipeline_corrections, '{}'::jsonb) || ${JSON.stringify({ [questionId]: correction })}::jsonb,
-            user_answers = COALESCE(user_answers, '[]'::jsonb) || ${JSON.stringify([userAnswer])}::jsonb,
             updated_at = NOW()
-        WHERE id = ${quizId}::uuid
+        WHERE id = ${quizId}::uuid AND "user_id" = ${userId}
       `.catch((dbErr) =>
-      logger.warn("[PIPELINE-CORRECTION] DB persist failed (non-blocking):", dbErr),
+      logger.warn(
+        "[PIPELINE-CORRECTION] DB pipeline_corrections persist failed (non-blocking):",
+        dbErr,
+      ),
     );
 
     logger.info(
