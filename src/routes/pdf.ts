@@ -132,7 +132,12 @@ pdfRouter.post(
     );
 
     try {
-      const { markdown, totalPages, pages } = await extractPdf(req.file.buffer, fileName);
+      const { markdown, totalPages, pages } = await extractPdf(req.file.buffer, fileName, userId);
+      const imgCount = (markdown.match(/!\[.*?\]\(https?:\/\//g) ?? []).length;
+      logger.log(
+        `[PDF-EXTRACT] markdown images avec URL HTTP: ${imgCount}, has cloudinary: ${markdown.includes("res.cloudinary.com")}`,
+      );
+      logger.log(`[PDF-EXTRACT] markdown snippet: ${markdown.slice(0, 300)}`);
       const result: CachedExtraction = { markdown, totalPages, pages };
       await writeCache(userId, contentHash, result);
       return res.json({ ...result, fileName });
