@@ -208,6 +208,47 @@ export async function uploadToCloudinary(
   }
 }
 
+/**
+ * 📸 Upload interne pour les images extraites de PDFs (OCR pipeline).
+ * Bypasse la validation taille/type — les données viennent de Mistral OCR, pas d'un input utilisateur.
+ * Retourne directement l'URL Cloudinary.
+ */
+export async function uploadImageBuffer(
+  buffer: Buffer,
+  mimetype: string,
+  filename: string,
+  userId: string,
+): Promise<string> {
+  const compressedBuffer = await compressImage(buffer, mimetype);
+
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: UPLOAD_CONFIG.FOLDER,
+        public_id: `${userId}_ocr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        resource_type: "image",
+        overwrite: false,
+        unique_filename: true,
+        quality: "auto:good",
+        fetch_format: "auto",
+        flags: "progressive",
+        context: {
+          userId,
+          originalFilename: filename,
+          uploadedAt: new Date().toISOString(),
+          source: "pdf_ocr",
+        },
+      },
+      (error, result) => {
+        if (error) reject(new Error(`OCR image upload failed: ${error.message}`));
+        else if (!result) reject(new Error("OCR image upload failed: no result"));
+        else resolve(result.secure_url);
+      },
+    );
+    uploadStream.end(compressedBuffer);
+  });
+}
+
 // 🗑️ Suppression d'image (optionnel, pour nettoyage)
 export async function deleteFromCloudinary(publicId: string): Promise<void> {
   logger.log("🗑️ [Cloudinary Service] Début suppression:", {
