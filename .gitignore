@@ -11,3 +11,6 @@ debug-logs
 *.md
 CLAUDE.md
 .gstack/
+
+# Dev log file
+backend.log

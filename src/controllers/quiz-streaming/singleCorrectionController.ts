@@ -145,10 +145,12 @@ export async function correctSingleQuestion(req: Request, res: Response): Promis
     }
 
     // Save to DB for crash recovery (non-blocking — don't fail the response)
-    // Uses Postgres jsonb || operator for atomic merge — no lost updates under concurrency
+    // Atomic jsonb merge: pipeline_corrections (corrections) + user_answers (progress)
+    // user_answers append enables resume-from-position on reload
     prisma.$executeRaw`
         UPDATE quizzes
         SET pipeline_corrections = COALESCE(pipeline_corrections, '{}'::jsonb) || ${JSON.stringify({ [questionId]: correction })}::jsonb,
+            user_answers = COALESCE(user_answers, '[]'::jsonb) || ${JSON.stringify([userAnswer])}::jsonb,
             updated_at = NOW()
         WHERE id = ${quizId}::uuid
       `.catch((dbErr) =>
