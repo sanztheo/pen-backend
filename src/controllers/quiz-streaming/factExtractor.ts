@@ -79,7 +79,7 @@ Keys are question index numbers as strings. Values are verbatim passages from th
         model,
         messages: [{ role: "user", content: prompt }],
         temperature: 0,
-        max_tokens: 2_500,
+        max_tokens: 6_000,
         response_format: { type: "json_object" },
       },
       { signal: AbortSignal.timeout(EXTRACTION_TIMEOUT_MS) },
