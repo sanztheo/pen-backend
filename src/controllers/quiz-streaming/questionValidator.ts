@@ -97,7 +97,7 @@ All question indexes must be present in results.
         model,
         messages: [{ role: "user", content: prompt }],
         temperature: 0,
-        max_tokens: 1_500,
+        max_tokens: 4_000,
         response_format: { type: "json_object" },
       },
       { signal: AbortSignal.timeout(VALIDATION_TIMEOUT_MS) },
