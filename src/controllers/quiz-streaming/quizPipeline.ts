@@ -118,11 +118,14 @@ export async function executeQuizPipeline(params: QuizPipelineParams): Promise<Q
     throw new Error("[QuizPipeline] No course content and no subject provided");
   }
 
-  // If no pages but subject provided, use subject as the course content
-  if (!courseText && specificSubject) {
+  // If no pages but subject provided, use subject as the course content.
+  // hasRealCourseContent stays false — grounding validation will be skipped
+  // since there is no actual text to validate answers against.
+  const hasRealCourseContent = courseText.length > 0;
+  if (!hasRealCourseContent && specificSubject) {
     courseText = `Subject: ${specificSubject}`;
     logger.log(
-      `[QuizPipeline] No page content — using subject "${specificSubject}" for generation`,
+      `[QuizPipeline] No page content — using subject "${specificSubject}" for generation (validation skipped)`,
     );
   }
 
@@ -187,6 +190,7 @@ export async function executeQuizPipeline(params: QuizPipelineParams): Promise<Q
         batchIdx,
         totalBatches: batches.length,
         courseText,
+        hasRealCourseContent,
         schoolLevel,
         difficulty,
         generationNote,
@@ -309,6 +313,7 @@ interface RunBatchParams {
   batchIdx: number;
   totalBatches: number;
   courseText: string;
+  hasRealCourseContent: boolean;
   schoolLevel: string;
   difficulty?: string;
   generationNote?: string;
@@ -333,9 +338,11 @@ async function runBatch(params: RunBatchParams): Promise<Question[]> {
   });
 
   // Post-generation grounding check: verify each correct answer is derivable
-  // from the course text. Invalid questions are tagged in metadata.groundingValid=false.
+  // from the course text. Skipped when there is no real page content (subject-only
+  // quizzes) — sending a placeholder subject string to the validator produces
+  // malformed LLM responses and meaningless results.
   const questions =
-    params.coursesOnly && generated.length > 0
+    params.coursesOnly && params.hasRealCourseContent && generated.length > 0
       ? await validateQuestionGrounding(generated, params.courseText)
       : generated;
 

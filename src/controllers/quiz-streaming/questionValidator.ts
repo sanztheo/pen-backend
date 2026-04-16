@@ -87,6 +87,7 @@ Return ONLY valid JSON:
 All question indexes must be present in results.
 </output_format>`;
 
+  let raw: string | null | undefined;
   try {
     const model = AIService.getQuizGenerationModel();
     const client = AIService.getOpenAICompatibleClient(model);
@@ -102,7 +103,7 @@ All question indexes must be present in results.
       { signal: AbortSignal.timeout(VALIDATION_TIMEOUT_MS) },
     );
 
-    const raw = response.choices[0]?.message?.content;
+    raw = response.choices[0]?.message?.content;
     if (!raw) return tagAllValid(questions);
 
     const parsed = JSON.parse(raw) as ValidatorLLMResponse;
@@ -139,9 +140,18 @@ All question indexes must be present in results.
       },
     }));
   } catch (err) {
-    logger.warn(
-      `[QuestionValidator] Validation failed — treating all as valid: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    const isJsonError = err instanceof SyntaxError;
+    if (isJsonError && raw) {
+      logger.warn(
+        `[QuestionValidator] LLM returned malformed JSON — treating all as valid.\n` +
+          `  Error: ${err.message}\n` +
+          `  Raw response (first 300 chars): ${raw.slice(0, 300)}`,
+      );
+    } else {
+      logger.warn(
+        `[QuestionValidator] Validation failed — treating all as valid: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
     return tagAllValid(questions);
   }
 }
