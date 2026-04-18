@@ -17,6 +17,18 @@ const feedbackRateLimit = rateLimit({
   store: getRateLimitStoreWithFallback("feedback"),
 });
 
+// Second-tier anti-spam on the email address itself — catches multi-account abuse.
+const feedbackEmailRateLimit = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) =>
+    (req as Request & { user?: { email: string } }).user?.email ?? "unknown",
+  message: { error: "Limite quotidienne atteinte. Réessayez demain." },
+  store: getRateLimitStoreWithFallback("feedback-email"),
+});
+
 const feedbackSchema = z.object({
   type: z.enum(["bug", "suggestion", "other"]),
   message: z.string().min(1).max(1000),
@@ -43,6 +55,7 @@ feedbackRouter.post(
   "/",
   authenticateToken,
   feedbackRateLimit,
+  feedbackEmailRateLimit,
   async (req: Request, res: Response) => {
     const parsed = feedbackSchema.safeParse(req.body);
     if (!parsed.success) {
