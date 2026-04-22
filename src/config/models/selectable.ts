@@ -247,6 +247,12 @@ export const AGENT_SELECTABLE_MODELS: readonly SelectableModel[] = [
   m("o4-mini", "o4-mini", "openai", "openai", "high", "premium", "ultra"),
 
   m("kimi-k2-thinking", "Kimi K2 Thinking", "moonshot", "moonshot", "high", "premium", "ultra"),
+
+  // Kimi K2.6 — 4 thinking levels (high = premium, Ultra only, released 2026-04-21)
+  m("kimi-k2.6", "Kimi K2.6", "moonshot", "moonshot", "none", "standard", "ultra"),
+  m("kimi-k2.6", "Kimi K2.6", "moonshot", "moonshot", "low", "standard", "ultra"),
+  m("kimi-k2.6", "Kimi K2.6", "moonshot", "moonshot", "medium", "standard", "ultra"),
+  m("kimi-k2.6", "Kimi K2.6", "moonshot", "moonshot", "high", "premium", "ultra"),
   // Grok 3 Mini — 2 reasoning levels (high = premium)
   m("grok-3-mini", "Grok 3 Mini", "xai", "xai", "low", "standard", "ultra"),
   m("grok-3-mini", "Grok 3 Mini", "xai", "xai", "high", "premium", "ultra"),

@@ -495,6 +495,23 @@ export const MODEL_REGISTRY: Record<string, ModelDef> = {
   // Moonshot / Kimi
   // ═══════════════════════════════════════════════════════════════════════════
 
+  "kimi-k2.6": {
+    // $0.80 / $3.50 — released 2026-04-21. 1T MoE (32B active), thinking + non-thinking,
+    // 256K context, multimodal (text/image/video). OpenAI-compatible API, fixedTemp inherited from K2.x.
+    id: "kimi-k2.6",
+    provider: "moonshot",
+    pricing: { input: 0.8, output: 3.5 },
+    capabilities: {
+      reasoning: true,
+      fixedTemp: true,
+      streaming: true,
+      structuredOutput: true,
+      vision: true,
+      toolCalling: true,
+      maxContextTokens: 262_000,
+      maxOutputTokens: 16_384,
+    },
+  },
   "kimi-k2.5": {
     // $0.45 / $2.20 — API n'accepte que temperature=1
     id: "kimi-k2.5",
