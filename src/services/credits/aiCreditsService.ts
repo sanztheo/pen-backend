@@ -37,6 +37,10 @@ export class AICreditsService {
 
     try {
       const now = new Date();
+      // Atomic UPSERT: always increment, then check post-state. If the increment pushed
+      // the user past their limit, refund it. This avoids a CASE-WHEN that left the
+      // post-success check unable to distinguish "refused (over limit)" from
+      // "succeeded (still under limit)" — which silently granted free credits.
       const rows = await prisma.$queryRaw<{ ai_credits_used: number; ai_credits_limit: number }[]>`
         INSERT INTO "user_limits" (
           "user_id", "ai_credits_used", "ai_credits_limit",
@@ -52,12 +56,7 @@ export class AICreditsService {
         )
         ON CONFLICT ("user_id")
         DO UPDATE SET
-          "ai_credits_used" = CASE
-            WHEN "user_limits"."ai_credits_limit" = -1 THEN "user_limits"."ai_credits_used" + ${effectiveCost}
-            WHEN "user_limits"."ai_credits_used" + ${effectiveCost} <= "user_limits"."ai_credits_limit"
-            THEN "user_limits"."ai_credits_used" + ${effectiveCost}
-            ELSE "user_limits"."ai_credits_used"
-          END,
+          "ai_credits_used" = "user_limits"."ai_credits_used" + ${effectiveCost},
           "updated_at" = ${now}
         RETURNING "ai_credits_used", "ai_credits_limit"
       `;
@@ -78,13 +77,24 @@ export class AICreditsService {
       const deductionSucceeded = aiCreditsLimit === -1 || aiCreditsUsed <= aiCreditsLimit;
 
       if (!deductionSucceeded) {
-        const currentRemainingCredits =
-          aiCreditsLimit === -1 ? -1 : Math.max(0, aiCreditsLimit - aiCreditsUsed);
+        // Refund the increment we just applied so the user isn't left over-quota.
+        // Atomic decrement composes correctly under concurrent over-limit attempts:
+        // each refund subtracts exactly what its UPSERT added, regardless of order.
+        await prisma.$executeRaw`
+          UPDATE "user_limits"
+          SET "ai_credits_used" = GREATEST(0, "ai_credits_used" - ${effectiveCost}),
+              "updated_at" = ${now}
+          WHERE "user_id" = ${userId}
+        `;
 
-        SecureLogger.warn("[SERVER-CREDITS] Limit reached (deduction refused)", {
+        const refundedUsage = Math.max(0, aiCreditsUsed - effectiveCost);
+        const currentRemainingCredits =
+          aiCreditsLimit === -1 ? -1 : Math.max(0, aiCreditsLimit - refundedUsage);
+
+        SecureLogger.warn("[SERVER-CREDITS] Limit reached (deduction refused, refunded)", {
           userId,
           effectiveCost,
-          currentUsage: aiCreditsUsed,
+          currentUsage: refundedUsage,
           limit: aiCreditsLimit,
           remainingCredits: currentRemainingCredits,
         });
