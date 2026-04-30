@@ -93,7 +93,10 @@ router.post("/sequence/:sequenceId/quiz/:quizId/submit", QuizController.submitSe
 router.get("/sequence/:sequenceId/quiz/:quizId/correction", QuizController.getQuizCorrection);
 
 // 🔧 ROUTE DEBUG - Forcer la réinitialisation d'état de séquence
-router.post("/sequence/:sequenceId/debug/force-reset", QuizController.forceResetSequenceState);
+// Disabled in production: this bypasses sequence integrity checks and exists for local debugging only.
+if (process.env.NODE_ENV !== "production") {
+  router.post("/sequence/:sequenceId/debug/force-reset", QuizController.forceResetSequenceState);
+}
 
 // ===== NOUVELLES ROUTES POUR RECHERCHE DOCUMENTAIRE =====
 

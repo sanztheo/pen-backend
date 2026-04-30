@@ -94,39 +94,19 @@ function extractString(data: unknown, key: string, fallbackKey?: string): string
  */
 
 export const paddleWebhookHandler: express.RequestHandler = async (req, res) => {
-  // 🚨 LOG ULTRA PRIORITAIRE
-  logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  logger.log("🏓 PADDLE WEBHOOK HANDLER APPELÉ !");
-  logger.log("URL:", req.url);
-  logger.log("Method:", req.method);
-  logger.log("Paddle-Signature:", req.headers["paddle-signature"] ? "Présent" : "ABSENT");
-
-  // 🔍 DEBUG DÉTAILLÉ DU BODY
+  // Body previews leaked customer email/transaction data into logs — keep only
+  // shape metadata (length, signature presence) and rely on event-level logs below.
   const isBuffer = Buffer.isBuffer(req.body);
-  logger.log("Body is Buffer:", isBuffer);
-  logger.log("Body type:", typeof req.body);
-  logger.log("Body constructor:", req.body?.constructor?.name);
-  logger.log(
-    "Body length:",
-    isBuffer
+  const bodyLength = isBuffer
+    ? req.body.length
+    : typeof req.body === "string"
       ? req.body.length
-      : typeof req.body === "string"
-        ? req.body.length
-        : JSON.stringify(req.body).length,
-  );
-
-  // 🔍 Afficher les premiers caractères du body pour debug
-  if (isBuffer) {
-    logger.log(
-      "Body preview (Buffer→String):",
-      req.body.toString("utf8").substring(0, 100) + "...",
-    );
-  } else if (typeof req.body === "string") {
-    logger.log("Body preview (String):", req.body.substring(0, 100) + "...");
-  } else {
-    logger.log("Body preview (Object):", JSON.stringify(req.body).substring(0, 100) + "...");
-  }
-  logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      : JSON.stringify(req.body).length;
+  logger.log("🏓 [Paddle Webhook] received", {
+    signaturePresent: Boolean(req.headers["paddle-signature"]),
+    bodyLength,
+    bodyIsBuffer: isBuffer,
+  });
 
   try {
     const signature = req.headers["paddle-signature"] as string;
