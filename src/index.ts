@@ -3,6 +3,14 @@ import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
 import http from "http";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
+
+const pkg = JSON.parse(
+  readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../package.json"), "utf8"),
+) as { name: string; version: string };
+
 import { WebSocketServer } from "ws";
 import * as Y from "yjs";
 import * as encoding from "lib0/encoding";
@@ -750,7 +758,7 @@ const setupYjsWebSocket = (server: http.Server): WebSocketServer => {
 server.listen(PORT, async () => {
   logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   logger.log(`🚀 Serveur Pen SaaS démarré sur le port ${PORT} en mode ${NODE_ENV}`);
-  logger.log(`✨ VERSION: RATE-LIMITED-SECURE - ${new Date().toISOString()}`);
+  logger.log(`📦 ${pkg.name} v${pkg.version} — boot ${new Date().toISOString()}`);
   logger.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
   // 🔑 Fail-fast si clé Mistral OCR manquante (requise pour import PDF)
