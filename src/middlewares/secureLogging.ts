@@ -147,14 +147,21 @@ export class SecureLogger {
       return; // Skip en production
     }
 
-    const sanitizedData = this.sanitizeData(data, options);
-    logger.log(message, sanitizedData);
+    if (data === undefined) {
+      logger.log(message);
+      return;
+    }
+    logger.log(message, this.sanitizeData(data, options));
   }
 
   /**
    * Error log toujours affiché mais avec données sanitizées
    */
   static error(message: string, error?: unknown) {
+    if (error === undefined) {
+      logger.error(message);
+      return;
+    }
     if (this.isProduction) {
       // En production, logs minimaux
       const errorMessage = error instanceof Error ? error.message : "Erreur interne";
@@ -168,17 +175,23 @@ export class SecureLogger {
    * Warning log avec sanitisation
    */
   static warn(message: string, data?: unknown, options?: SecureLogOptions) {
-    const sanitizedData = this.sanitizeData(data, options);
-    logger.warn(message, sanitizedData);
+    if (data === undefined) {
+      logger.warn(message);
+      return;
+    }
+    logger.warn(message, this.sanitizeData(data, options));
   }
 
   /**
    * Debug log seulement en développement
    */
   static debug(message: string, data?: unknown) {
-    if (!this.isProduction) {
-      logger.debug(message, data);
+    if (this.isProduction) return;
+    if (data === undefined) {
+      logger.debug(message);
+      return;
     }
+    logger.debug(message, data);
   }
 
   /**
