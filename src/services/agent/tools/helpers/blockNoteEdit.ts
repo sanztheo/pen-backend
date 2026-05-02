@@ -276,7 +276,10 @@ export function replaceTextInBlock(
   // that don't appear in stored block content. Strip and retry.
   const strippedOld = stripMarkdownLineMarkers(oldText);
   const strippedNew = stripMarkdownLineMarkers(newText);
-  if (strippedOld !== oldText) {
+  // Skip when stripping fully erases oldText (e.g. markers-only like "## "):
+  // `String.prototype.replace("", strippedNew)` matches at index 0 and would
+  // silently prepend strippedNew to the block.
+  if (strippedOld !== oldText && strippedOld.length > 0) {
     const strippedReplaced = fullText.replace(strippedOld, strippedNew);
     if (strippedReplaced !== fullText) {
       const newContent = parseInlineContent(strippedReplaced);

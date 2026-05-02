@@ -72,8 +72,12 @@ interface MatchStrategy {
 
 export function buildNormalizedSearch(searchText: string): NormalizedSearch {
   const stripped = stripMarkdownLineMarkers(searchText);
+  // Skip cascade level 6 when stripping is a no-op OR when stripping fully
+  // erases the input (e.g. searchText is markers-only like "## ", "- ", "> ").
+  // Without the length guard, `whitespaceStripped` becomes "" and
+  // `block.whitespace.includes("")` matches every block in the page.
   const whitespaceStripped =
-    stripped === searchText
+    stripped === searchText || stripped.length === 0
       ? undefined
       : normalizeWhitespace(normalizeUnicode(stripped)).toLowerCase();
   return {

@@ -41,11 +41,13 @@ function buildMem0CacheKey(
   conversationId: string | undefined,
   query: string,
 ): string {
-  if (conversationId) {
-    return `mem0:search:${userId}:${conversationId}`;
-  }
-  // No conversation context yet (first turn before save): scope by query hash.
+  // Mem0 search is semantic — different queries yield different memories.
+  // Hash the query into the key in both branches so the cache cannot serve
+  // turn N's memories for turn N+1 of the same conversation.
   const hash = createHash("sha1").update(query).digest("hex").slice(0, 16);
+  if (conversationId) {
+    return `mem0:search:${userId}:${conversationId}:${hash}`;
+  }
   return `mem0:search:${userId}:q:${hash}`;
 }
 

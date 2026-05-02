@@ -109,7 +109,7 @@ async function fetchPageBlocks(
     }
   | { success: false; error: string }
 > {
-  const cached = getCachedPageBlocks(pageId);
+  const cached = getCachedPageBlocks(workspaceId, pageId);
   if (cached) {
     // Defensive deep-clone via JSON: tools mutate the blocks array in place
     // (e.g. blocks[matchIndex] = updatedBlock), so a shared reference would
@@ -150,7 +150,7 @@ async function fetchPageBlocks(
   }
 
   const pageMeta = { id: page.id, title: page.title };
-  setCachedPageBlocks(pageId, pageMeta, blocks);
+  setCachedPageBlocks(workspaceId, pageId, pageMeta, blocks);
 
   return {
     success: true,
@@ -246,7 +246,7 @@ export async function savePageBlocks(
   });
 
   if (result.count === 0) {
-    invalidateCachedPageBlocks(pageId);
+    invalidateCachedPageBlocks(workspaceId, pageId);
     return {
       success: false,
       error: "Page not found or you don't have access. Verify the pageId.",
@@ -256,9 +256,9 @@ export async function savePageBlocks(
   // Refresh in-memory cache so the next sequential tool call inside the
   // same mutex window sees the freshly-written blocks without a DB round-trip.
   // Pull the cached page meta if available; we only need {id,title} for cache shape.
-  const existing = getCachedPageBlocks(pageId);
+  const existing = getCachedPageBlocks(workspaceId, pageId);
   if (existing) {
-    setCachedPageBlocks(pageId, existing.page, blocks);
+    setCachedPageBlocks(workspaceId, pageId, existing.page, blocks);
   }
 
   try {
@@ -383,7 +383,7 @@ Copy oldText EXACTLY from readPageSection output — do not paraphrase or approx
                 "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
             };
           } catch (error) {
-            invalidateCachedPageBlocks(pageId);
+            invalidateCachedPageBlocks(ctx.workspaceId, pageId);
             logger.error("[TOOL:editPageContent] Error", { userId: ctx.userId, pageId, error });
             return {
               success: false,
@@ -470,7 +470,7 @@ Supports positions: 'start', 'end', or { afterHeading: 'Section Title' }. Use ge
                 "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
             };
           } catch (error) {
-            invalidateCachedPageBlocks(pageId);
+            invalidateCachedPageBlocks(ctx.workspaceId, pageId);
             logger.error("[TOOL:insertInPage] Error", { userId: ctx.userId, pageId, error });
             return {
               success: false,
@@ -555,7 +555,7 @@ When NOT to use:
                 "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
             };
           } catch (error) {
-            invalidateCachedPageBlocks(pageId);
+            invalidateCachedPageBlocks(ctx.workspaceId, pageId);
             logger.error("[TOOL:replacePageSection] Error", { userId: ctx.userId, pageId, error });
             return {
               success: false,
@@ -633,7 +633,7 @@ This is the most destructive editing tool. Prefer smaller-scope alternatives.`,
                 "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
             };
           } catch (error) {
-            invalidateCachedPageBlocks(pageId);
+            invalidateCachedPageBlocks(ctx.workspaceId, pageId);
             logger.error("[TOOL:rewritePageContent] Error", { userId: ctx.userId, pageId, error });
             return {
               success: false,

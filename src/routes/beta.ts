@@ -44,9 +44,14 @@ const BETA_STATUS_CLOSED_PAYLOAD = {
   },
 } as const;
 
-const BETA_STATUS_CACHE_KEY = "beta:status:global";
+const BETA_STATUS_CACHE_KEY_PREFIX = "beta:status:";
 const BETA_STATUS_CACHE_TTL_SECONDS = 30;
 const BETA_STATUS_CDN_MAX_AGE_SECONDS = 60;
+
+function buildBetaStatusCacheKey(userId: string | undefined): string {
+  // Per-user scoping required — controller payload includes userStatus + progress.
+  return `${BETA_STATUS_CACHE_KEY_PREFIX}${userId ?? "anon"}`;
+}
 
 // GET /api/beta/status — public, ALWAYS responds 200 (no kill switch).
 // Returns a benign payload when beta is closed so the frontend doesn't log
@@ -72,8 +77,10 @@ async function serveBetaStatusLive(
   res: Response,
   next: (err?: unknown) => void,
 ): Promise<void> {
+  const cacheKey = buildBetaStatusCacheKey(req.user?.id);
+
   try {
-    const cached = await redis.get(BETA_STATUS_CACHE_KEY);
+    const cached = await redis.get(cacheKey);
     if (cached) {
       res.status(200).json(JSON.parse(cached));
       return;
@@ -87,7 +94,7 @@ async function serveBetaStatusLive(
   res.json = ((body: unknown) => {
     if (res.statusCode >= 200 && res.statusCode < 300) {
       redis
-        .setex(BETA_STATUS_CACHE_KEY, BETA_STATUS_CACHE_TTL_SECONDS, JSON.stringify(body))
+        .setex(cacheKey, BETA_STATUS_CACHE_TTL_SECONDS, JSON.stringify(body))
         .catch((err: unknown) => {
           logger.warn("[BETA_STATUS] Redis cache write failed", err);
         });
