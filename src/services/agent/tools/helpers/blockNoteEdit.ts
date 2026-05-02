@@ -3,6 +3,12 @@ import type {
   InlineContent,
 } from "../../../../controllers/assistant/helpers/blocknote.js";
 import { parseInlineContent } from "../../../../controllers/assistant/helpers/blocknote.js";
+import {
+  buildNormalizedBlock,
+  buildNormalizedSearch,
+  MATCHING_STRATEGIES,
+  stripMarkdownLineMarkers,
+} from "./blockNoteMatch.js";
 
 // =====================================================
 // Types
@@ -20,7 +26,8 @@ export type MatchStrategyName =
   | "trimmedMatch"
   | "caseInsensitiveMatch"
   | "unicodeNormalizedMatch"
-  | "whitespaceNormalizedMatch";
+  | "whitespaceNormalizedMatch"
+  | "markdownStrippedMatch";
 
 export interface FindResult {
   found: boolean;
@@ -57,26 +64,6 @@ function concatBlockText(block: BlockNoteBlock): string {
       return "";
     })
     .join("");
-}
-
-/** Normalize whitespace: trim + collapse internal spaces */
-function normalizeWhitespace(text: string): string {
-  return text.trim().replace(/\s+/g, " ");
-}
-
-/**
- * Normalize Unicode confusables that LLMs commonly swap.
- * Covers curly quotes, apostrophes, dashes, special spaces, ellipsis, etc.
- */
-function normalizeUnicode(text: string): string {
-  return text
-    .replace(/[\u2018\u2019\u201A\u02BC\u02B9]/g, "'") // curly/modifier apostrophes → straight
-    .replace(/[\u201C\u201D\u201E\u201F]/g, '"') // curly double quotes → straight
-    .replace(/[\u2013\u2014\u2015]/g, "-") // en-dash, em-dash, horizontal bar → hyphen
-    .replace(/[\u2026]/g, "...") // ellipsis → three dots
-    .replace(/[\u00A0\u2007\u202F\u2060]/g, " ") // non-breaking/figure/narrow spaces → regular
-    .replace(/[\u00D7]/g, "x") // multiplication sign → x
-    .replace(/[\u2212]/g, "-"); // minus sign → hyphen
 }
 
 /**
@@ -153,54 +140,6 @@ function findSectionEnd(blocks: BlockNoteBlock[], headingIndex: number): number 
 }
 
 // =====================================================
-// Matching Strategies (continue.dev cascade pattern)
-// Each level adds exactly one relaxation over the previous.
-// =====================================================
-
-interface MatchStrategy {
-  name: MatchStrategyName;
-  match: (blockText: string, searchText: string) => boolean;
-}
-
-/** Level 1: Pure exact substring match */
-function exactMatch(blockText: string, searchText: string): boolean {
-  return blockText.includes(searchText);
-}
-
-/** Level 2: Trim leading/trailing whitespace before matching */
-function trimmedMatch(blockText: string, searchText: string): boolean {
-  return blockText.trim().includes(searchText.trim());
-}
-
-/** Level 3: Case-insensitive substring match */
-function caseInsensitiveMatch(blockText: string, searchText: string): boolean {
-  return blockText.toLowerCase().includes(searchText.toLowerCase());
-}
-
-/** Level 4: Normalize Unicode confusables + case-insensitive */
-function unicodeNormalizedMatch(blockText: string, searchText: string): boolean {
-  return normalizeUnicode(blockText)
-    .toLowerCase()
-    .includes(normalizeUnicode(searchText).toLowerCase());
-}
-
-/** Level 5: Collapse all whitespace + Unicode normalization + lowercase (most permissive) */
-function whitespaceNormalizedMatch(blockText: string, searchText: string): boolean {
-  const normalizedBlock = normalizeWhitespace(normalizeUnicode(blockText)).toLowerCase();
-  const normalizedSearch = normalizeWhitespace(normalizeUnicode(searchText)).toLowerCase();
-  return normalizedBlock.includes(normalizedSearch);
-}
-
-/** Cascade of increasingly permissive matching strategies */
-const MATCHING_STRATEGIES: readonly MatchStrategy[] = [
-  { name: "exactMatch", match: exactMatch },
-  { name: "trimmedMatch", match: trimmedMatch },
-  { name: "caseInsensitiveMatch", match: caseInsensitiveMatch },
-  { name: "unicodeNormalizedMatch", match: unicodeNormalizedMatch },
-  { name: "whitespaceNormalizedMatch", match: whitespaceNormalizedMatch },
-];
-
-// =====================================================
 // Public Functions
 // =====================================================
 
@@ -248,13 +187,17 @@ export function findTextInBlocks(blocks: BlockNoteBlock[], searchText: string): 
   }
 
   const entries = extractTextPerBlock(blocks);
+  // Pre-compute normalized variants once so cascade strategies become pure
+  // comparisons (no per-block re-normalization across 6 strategy levels).
+  const normalizedSearch = buildNormalizedSearch(searchText);
+  const normalizedBlocks = entries.map(buildNormalizedBlock);
 
   for (const strategy of MATCHING_STRATEGIES) {
-    const matches = entries.filter((e) => strategy.match(e.text, searchText));
+    const matches = normalizedBlocks.filter((b) => strategy.match(b, normalizedSearch));
     if (matches.length > 0) {
       return {
         found: true,
-        matches: matches.map((e) => ({ blockIndex: e.blockIndex, text: e.text })),
+        matches: matches.map((b) => ({ blockIndex: b.blockIndex, text: b.raw })),
         matchLevel: strategy.name,
       };
     }
@@ -283,38 +226,77 @@ function findClosestBlockText(entries: BlockTextEntry[], searchText: string): st
   return bestText.length > 200 ? bestText.slice(0, 200) + "..." : bestText;
 }
 
+export interface ReplaceTextResult {
+  block: BlockNoteBlock;
+  changed: boolean;
+}
+
 /**
  * Replace oldText with newText inside a single block's content.
  * Preserves existing styles by replacing within individual content items when possible.
  * Falls back to full re-parse only when the match spans multiple items.
+ *
+ * Returns `{ block, changed }` so callers can detect no-op without paying the
+ * cost of `JSON.stringify` equality on potentially large blocks.
  */
 export function replaceTextInBlock(
   block: BlockNoteBlock,
   oldText: string,
   newText: string,
-): BlockNoteBlock {
-  if (!block.content || block.content.length === 0) return block;
+): ReplaceTextResult {
+  if (!block.content || block.content.length === 0) {
+    return { block, changed: false };
+  }
 
   // Try to find the match within a single content item (preserves styles)
   const singleItemResult = replaceInSingleItem(block.content, oldText, newText);
   if (singleItemResult) {
-    return { ...block, content: singleItemResult };
+    return { block: { ...block, content: singleItemResult }, changed: true };
   }
 
   // Try recursive replacement in children if block has nested content
   const childResult = replaceInChildren(block, oldText, newText);
-  if (childResult) return childResult;
+  if (childResult) return { block: childResult, changed: true };
 
   // Fallback: match spans multiple items — flatten, replace first occurrence, re-parse (loses styles)
   const fullText = concatBlockText(block);
   const replaced = fullText.replace(oldText, newText);
-  if (replaced === fullText) return block;
+  if (replaced !== fullText) {
+    const newContent = parseInlineContent(replaced);
+    return {
+      block: {
+        ...block,
+        content: newContent.length > 0 ? newContent : [{ type: "text" as const, text: replaced }],
+      },
+      changed: true,
+    };
+  }
 
-  const newContent = parseInlineContent(replaced);
-  return {
-    ...block,
-    content: newContent.length > 0 ? newContent : [{ type: "text" as const, text: replaced }],
-  };
+  // Final fallback: AI may have included markdown markers (e.g. "### Title")
+  // that don't appear in stored block content. Strip and retry.
+  const strippedOld = stripMarkdownLineMarkers(oldText);
+  const strippedNew = stripMarkdownLineMarkers(newText);
+  // Skip when stripping fully erases oldText (e.g. markers-only like "## "):
+  // `String.prototype.replace("", strippedNew)` matches at index 0 and would
+  // silently prepend strippedNew to the block.
+  if (strippedOld !== oldText && strippedOld.length > 0) {
+    const strippedReplaced = fullText.replace(strippedOld, strippedNew);
+    if (strippedReplaced !== fullText) {
+      const newContent = parseInlineContent(strippedReplaced);
+      return {
+        block: {
+          ...block,
+          content:
+            newContent.length > 0
+              ? newContent
+              : [{ type: "text" as const, text: strippedReplaced }],
+        },
+        changed: true,
+      };
+    }
+  }
+
+  return { block, changed: false };
 }
 
 /** Try replacing oldText in nested children blocks recursively */
@@ -327,11 +309,11 @@ function replaceInChildren(
 
   for (let i = 0; i < block.children.length; i++) {
     const child = block.children[i];
-    const updatedChild = replaceTextInBlock(child, oldText, newText);
+    const childResult = replaceTextInBlock(child, oldText, newText);
 
-    if (updatedChild !== child) {
+    if (childResult.changed) {
       const newChildren = [...block.children];
-      newChildren[i] = updatedChild;
+      newChildren[i] = childResult.block;
       return { ...block, children: newChildren };
     }
   }

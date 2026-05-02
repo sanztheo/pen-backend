@@ -18,6 +18,12 @@ import {
   replaceSectionBlocks,
   insertBlocksAtPosition,
 } from "./helpers/blockNoteEdit.js";
+import { withPageEditLock } from "./helpers/pageEditMutex.js";
+import {
+  getCachedPageBlocks,
+  setCachedPageBlocks,
+  invalidateCachedPageBlocks,
+} from "./helpers/pageBlockCache.js";
 
 interface EditToolsContext {
   userId: string;
@@ -29,6 +35,9 @@ interface EditToolsContext {
 // =====================================================
 
 const MAX_CONTENT_LENGTH = 500_000;
+// Burst tool-call protection: skip snapshot if one was created very recently
+// (e.g. agent invokes editPageContent 4 times in a row — one snapshot is enough).
+const SNAPSHOT_DEDUP_WINDOW_MS = 30_000;
 
 // =====================================================
 // Schemas
@@ -100,6 +109,18 @@ async function fetchPageBlocks(
     }
   | { success: false; error: string }
 > {
+  const cached = getCachedPageBlocks(workspaceId, pageId);
+  if (cached) {
+    // Defensive deep-clone via JSON: tools mutate the blocks array in place
+    // (e.g. blocks[matchIndex] = updatedBlock), so a shared reference would
+    // corrupt the cached entry for the next caller in the same burst.
+    return {
+      success: true,
+      page: cached.page,
+      blocks: JSON.parse(JSON.stringify(cached.blocks)) as BlockNoteBlock[],
+    };
+  }
+
   const page = await prisma.page.findFirst({
     where: { id: pageId, workspaceId, isArchived: false },
     select: { id: true, title: true, blockNoteContent: true },
@@ -128,9 +149,12 @@ async function fetchPageBlocks(
     blocks = [];
   }
 
+  const pageMeta = { id: page.id, title: page.title };
+  setCachedPageBlocks(workspaceId, pageId, pageMeta, blocks);
+
   return {
     success: true,
-    page: { id: page.id, title: page.title },
+    page: pageMeta,
     blocks,
   };
 }
@@ -146,6 +170,16 @@ async function snapshotBeforeSave(
   workspaceId: string,
   toolName: string,
 ): Promise<void> {
+  // Burst tool-call dedup: if a snapshot for this page exists within the
+  // window, the existing one already represents the rollback target for the
+  // current edit burst — skip the redundant write.
+  const recent = await prisma.pageEditSnapshot.findFirst({
+    where: { pageId, createdAt: { gte: new Date(Date.now() - SNAPSHOT_DEDUP_WINDOW_MS) } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true },
+  });
+  if (recent) return;
+
   const page = await prisma.page.findFirst({
     where: { id: pageId, workspaceId },
     select: { blockNoteContent: true },
@@ -212,10 +246,19 @@ export async function savePageBlocks(
   });
 
   if (result.count === 0) {
+    invalidateCachedPageBlocks(workspaceId, pageId);
     return {
       success: false,
       error: "Page not found or you don't have access. Verify the pageId.",
     };
+  }
+
+  // Refresh in-memory cache so the next sequential tool call inside the
+  // same mutex window sees the freshly-written blocks without a DB round-trip.
+  // Pull the cached page meta if available; we only need {id,title} for cache shape.
+  const existing = getCachedPageBlocks(workspaceId, pageId);
+  if (existing) {
+    setCachedPageBlocks(workspaceId, pageId, existing.page, blocks);
   }
 
   try {
@@ -265,89 +308,91 @@ When NOT to use:
 Copy oldText EXACTLY from readPageSection output — do not paraphrase or approximate.`,
       inputSchema: editPageContentSchema,
       needsApproval: !skipApproval,
-      execute: async ({ pageId, oldText, newText }) => {
-        logger.log("[TOOL:editPageContent] Editing page", {
-          userId: ctx.userId,
-          pageId,
-          oldText: oldText.slice(0, 50),
-        });
-
-        try {
-          const result = await fetchPageBlocks(pageId, ctx.workspaceId);
-          if (!result.success) {
-            return { success: false, error: result.error };
-          }
-
-          const { page, blocks } = result;
-          const findResult = findTextInBlocks(blocks, oldText);
-
-          if (!findResult.found) {
-            return {
-              success: false,
-              error:
-                "Text not found in page. The page may have been modified since you last read it.",
-              suggestion:
-                "Call getPageOutline then readPageSection to see the current content, then copy the exact text you want to change.",
-              ...(findResult.closestMatch ? { closestMatch: findResult.closestMatch } : {}),
-            };
-          }
-
-          if (findResult.matches.length > 1) {
-            return {
-              success: false,
-              error: `Ambiguous match: found ${findResult.matches.length} blocks containing this text.`,
-              suggestion:
-                "Include more surrounding context in oldText so it matches exactly one location. Use readPageSection to find the unique text.",
-            };
-          }
-
-          const matchIndex = findResult.matches[0].blockIndex;
-          const updatedBlock = replaceTextInBlock(blocks[matchIndex], oldText, newText);
-
-          if (JSON.stringify(updatedBlock) === JSON.stringify(blocks[matchIndex])) {
-            return {
-              success: false,
-              error: `Found the text (via ${findResult.matchLevel}) but the exact replacement failed. The text may differ in casing or whitespace.`,
-              suggestion:
-                "Copy the exact text from readPageSection output, preserving case and spacing.",
-            };
-          }
-
-          blocks[matchIndex] = updatedBlock;
-
-          const saveResult = await savePageBlocks(
-            pageId,
-            ctx.workspaceId,
-            blocks,
-            "editPageContent",
-          );
-          if (!saveResult.success) return saveResult;
-
-          logger.log("[TOOL:editPageContent] Edited block", {
+      execute: async ({ pageId, oldText, newText }) =>
+        withPageEditLock(`${ctx.workspaceId}:${pageId}`, async () => {
+          logger.log("[TOOL:editPageContent] Editing page", {
             userId: ctx.userId,
             pageId,
-            title: page.title,
-            blockIndex: matchIndex,
-            matchLevel: findResult.matchLevel,
+            oldText: oldText.slice(0, 50),
           });
-          return {
-            success: true,
-            pageId,
-            title: page.title,
-            editedBlockIndex: matchIndex,
-            _instruction:
-              "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
-          };
-        } catch (error) {
-          logger.error("[TOOL:editPageContent] Error", { userId: ctx.userId, pageId, error });
-          return {
-            success: false,
-            error: "Edit failed due to an internal error while saving changes.",
-            suggestion:
-              "Call getPageOutline to verify the page still exists and is accessible, then retry the edit.",
-          };
-        }
-      },
+
+          try {
+            const result = await fetchPageBlocks(pageId, ctx.workspaceId);
+            if (!result.success) {
+              return { success: false, error: result.error };
+            }
+
+            const { page, blocks } = result;
+            const findResult = findTextInBlocks(blocks, oldText);
+
+            if (!findResult.found) {
+              return {
+                success: false,
+                error:
+                  "Text not found in page. The page may have been modified since you last read it.",
+                suggestion:
+                  "Call getPageOutline then readPageSection to see the current content, then copy the exact text you want to change.",
+                ...(findResult.closestMatch ? { closestMatch: findResult.closestMatch } : {}),
+              };
+            }
+
+            if (findResult.matches.length > 1) {
+              return {
+                success: false,
+                error: `Ambiguous match: found ${findResult.matches.length} blocks containing this text.`,
+                suggestion:
+                  "Include more surrounding context in oldText so it matches exactly one location. Use readPageSection to find the unique text.",
+              };
+            }
+
+            const matchIndex = findResult.matches[0].blockIndex;
+            const replaceResult = replaceTextInBlock(blocks[matchIndex], oldText, newText);
+
+            if (!replaceResult.changed) {
+              return {
+                success: false,
+                error: `Found the text (via ${findResult.matchLevel}) but the exact replacement failed. The text may differ in casing or whitespace.`,
+                suggestion:
+                  "Copy the exact text from readPageSection output, preserving case and spacing.",
+              };
+            }
+
+            blocks[matchIndex] = replaceResult.block;
+
+            const saveResult = await savePageBlocks(
+              pageId,
+              ctx.workspaceId,
+              blocks,
+              "editPageContent",
+            );
+            if (!saveResult.success) return saveResult;
+
+            logger.log("[TOOL:editPageContent] Edited block", {
+              userId: ctx.userId,
+              pageId,
+              title: page.title,
+              blockIndex: matchIndex,
+              matchLevel: findResult.matchLevel,
+            });
+            return {
+              success: true,
+              pageId,
+              title: page.title,
+              editedBlockIndex: matchIndex,
+              _instruction:
+                "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
+            };
+          } catch (error) {
+            invalidateCachedPageBlocks(ctx.workspaceId, pageId);
+            logger.error("[TOOL:editPageContent] Error", { userId: ctx.userId, pageId, error });
+            return {
+              success: false,
+              error: "Edit failed due to an internal error while saving changes.",
+              suggestion:
+                "Call getPageOutline to verify the page still exists and is accessible, then retry the edit.",
+            };
+          }
+        }),
     }),
 
     // --------------------------------------------------
@@ -373,65 +418,67 @@ When NOT to use:
 Supports positions: 'start', 'end', or { afterHeading: 'Section Title' }. Use getPageOutline to see existing headings when using afterHeading.`,
       inputSchema: insertInPageSchema,
       needsApproval: !skipApproval,
-      execute: async ({ pageId, content, position }) => {
-        logger.log("[TOOL:insertInPage] Inserting content", {
-          userId: ctx.userId,
-          pageId,
-          position,
-        });
-
-        try {
-          const result = await fetchPageBlocks(pageId, ctx.workspaceId);
-          if (!result.success) {
-            return { success: false, error: result.error };
-          }
-
-          const { page, blocks } = result;
-          const sanitized = sanitizeAIGeneratedContent(content);
-          const convertedBlocks = await toBlockNoteAuto(sanitized);
-
-          const insertResult = insertBlocksAtPosition(blocks, convertedBlocks, position);
-
-          if (typeof position === "object" && "afterHeading" in position && !insertResult.found) {
-            return {
-              success: false,
-              error: `Heading "${position.afterHeading}" not found in the page.`,
-              suggestion:
-                "Call getPageOutline to see the available headings, then copy the exact heading text. Or use position 'end' to append at the bottom.",
-            };
-          }
-
-          const saveResult = await savePageBlocks(
-            pageId,
-            ctx.workspaceId,
-            insertResult.blocks,
-            "insertInPage",
-          );
-          if (!saveResult.success) return saveResult;
-
-          logger.log("[TOOL:insertInPage] Inserted blocks", {
+      execute: async ({ pageId, content, position }) =>
+        withPageEditLock(`${ctx.workspaceId}:${pageId}`, async () => {
+          logger.log("[TOOL:insertInPage] Inserting content", {
             userId: ctx.userId,
             pageId,
-            title: page.title,
-            insertedBlocks: convertedBlocks.length,
+            position,
           });
-          return {
-            success: true,
-            pageId,
-            title: page.title,
-            insertedBlocks: convertedBlocks.length,
-            _instruction:
-              "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
-          };
-        } catch (error) {
-          logger.error("[TOOL:insertInPage] Error", { userId: ctx.userId, pageId, error });
-          return {
-            success: false,
-            error: "Insert failed due to an internal error while saving the new content.",
-            suggestion: "Verify the page exists with getPageOutline, then retry the insertion.",
-          };
-        }
-      },
+
+          try {
+            const result = await fetchPageBlocks(pageId, ctx.workspaceId);
+            if (!result.success) {
+              return { success: false, error: result.error };
+            }
+
+            const { page, blocks } = result;
+            const sanitized = sanitizeAIGeneratedContent(content);
+            const convertedBlocks = await toBlockNoteAuto(sanitized);
+
+            const insertResult = insertBlocksAtPosition(blocks, convertedBlocks, position);
+
+            if (typeof position === "object" && "afterHeading" in position && !insertResult.found) {
+              return {
+                success: false,
+                error: `Heading "${position.afterHeading}" not found in the page.`,
+                suggestion:
+                  "Call getPageOutline to see the available headings, then copy the exact heading text. Or use position 'end' to append at the bottom.",
+              };
+            }
+
+            const saveResult = await savePageBlocks(
+              pageId,
+              ctx.workspaceId,
+              insertResult.blocks,
+              "insertInPage",
+            );
+            if (!saveResult.success) return saveResult;
+
+            logger.log("[TOOL:insertInPage] Inserted blocks", {
+              userId: ctx.userId,
+              pageId,
+              title: page.title,
+              insertedBlocks: convertedBlocks.length,
+            });
+            return {
+              success: true,
+              pageId,
+              title: page.title,
+              insertedBlocks: convertedBlocks.length,
+              _instruction:
+                "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
+            };
+          } catch (error) {
+            invalidateCachedPageBlocks(ctx.workspaceId, pageId);
+            logger.error("[TOOL:insertInPage] Error", { userId: ctx.userId, pageId, error });
+            return {
+              success: false,
+              error: "Insert failed due to an internal error while saving the new content.",
+              suggestion: "Verify the page exists with getPageOutline, then retry the insertion.",
+            };
+          }
+        }),
     }),
 
     // --------------------------------------------------
@@ -454,67 +501,69 @@ When NOT to use:
 - "corrige les fautes" (targeted fixes → use editPageContent)`,
       inputSchema: replacePageSectionSchema,
       needsApproval: !skipApproval,
-      execute: async ({ pageId, sectionHeading, newContent }) => {
-        logger.log("[TOOL:replacePageSection] Replacing section", {
-          userId: ctx.userId,
-          pageId,
-          sectionHeading,
-        });
-
-        try {
-          const result = await fetchPageBlocks(pageId, ctx.workspaceId);
-          if (!result.success) {
-            return { success: false, error: result.error };
-          }
-
-          const { page, blocks } = result;
-          const sanitized = sanitizeAIGeneratedContent(newContent);
-          const convertedBlocks = await toBlockNoteAuto(sanitized);
-
-          const sectionResult = replaceSectionBlocks(blocks, sectionHeading, convertedBlocks);
-
-          if (!sectionResult.found) {
-            return {
-              success: false,
-              error: `Section heading "${sectionHeading}" not found in the page.`,
-              suggestion:
-                "Call getPageOutline to see the available headings, then copy the exact heading text.",
-            };
-          }
-
-          const saveResult = await savePageBlocks(
-            pageId,
-            ctx.workspaceId,
-            sectionResult.blocks,
-            "replacePageSection",
-          );
-          if (!saveResult.success) return saveResult;
-
-          logger.log("[TOOL:replacePageSection] Replaced section", {
+      execute: async ({ pageId, sectionHeading, newContent }) =>
+        withPageEditLock(`${ctx.workspaceId}:${pageId}`, async () => {
+          logger.log("[TOOL:replacePageSection] Replacing section", {
             userId: ctx.userId,
             pageId,
-            title: page.title,
             sectionHeading,
-            blocksReplaced: sectionResult.replacedCount,
           });
-          return {
-            success: true,
-            pageId,
-            title: page.title,
-            sectionFound: true,
-            blocksReplaced: sectionResult.replacedCount,
-            _instruction:
-              "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
-          };
-        } catch (error) {
-          logger.error("[TOOL:replacePageSection] Error", { userId: ctx.userId, pageId, error });
-          return {
-            success: false,
-            error: "Section replacement failed due to an internal error while saving.",
-            suggestion: "Verify the page and heading exist with getPageOutline, then retry.",
-          };
-        }
-      },
+
+          try {
+            const result = await fetchPageBlocks(pageId, ctx.workspaceId);
+            if (!result.success) {
+              return { success: false, error: result.error };
+            }
+
+            const { page, blocks } = result;
+            const sanitized = sanitizeAIGeneratedContent(newContent);
+            const convertedBlocks = await toBlockNoteAuto(sanitized);
+
+            const sectionResult = replaceSectionBlocks(blocks, sectionHeading, convertedBlocks);
+
+            if (!sectionResult.found) {
+              return {
+                success: false,
+                error: `Section heading "${sectionHeading}" not found in the page.`,
+                suggestion:
+                  "Call getPageOutline to see the available headings, then copy the exact heading text.",
+              };
+            }
+
+            const saveResult = await savePageBlocks(
+              pageId,
+              ctx.workspaceId,
+              sectionResult.blocks,
+              "replacePageSection",
+            );
+            if (!saveResult.success) return saveResult;
+
+            logger.log("[TOOL:replacePageSection] Replaced section", {
+              userId: ctx.userId,
+              pageId,
+              title: page.title,
+              sectionHeading,
+              blocksReplaced: sectionResult.replacedCount,
+            });
+            return {
+              success: true,
+              pageId,
+              title: page.title,
+              sectionFound: true,
+              blocksReplaced: sectionResult.replacedCount,
+              _instruction:
+                "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
+            };
+          } catch (error) {
+            invalidateCachedPageBlocks(ctx.workspaceId, pageId);
+            logger.error("[TOOL:replacePageSection] Error", { userId: ctx.userId, pageId, error });
+            return {
+              success: false,
+              error: "Section replacement failed due to an internal error while saving.",
+              suggestion: "Verify the page and heading exist with getPageOutline, then retry.",
+            };
+          }
+        }),
     }),
 
     // --------------------------------------------------
@@ -540,57 +589,60 @@ When NOT to use:
 This is the most destructive editing tool. Prefer smaller-scope alternatives.`,
       inputSchema: rewritePageContentSchema,
       needsApproval: !skipApproval,
-      execute: async ({ pageId, content }) => {
-        logger.log("[TOOL:rewritePageContent] Rewriting page", { userId: ctx.userId, pageId });
+      execute: async ({ pageId, content }) =>
+        withPageEditLock(`${ctx.workspaceId}:${pageId}`, async () => {
+          logger.log("[TOOL:rewritePageContent] Rewriting page", { userId: ctx.userId, pageId });
 
-        try {
-          const page = await prisma.page.findFirst({
-            where: { id: pageId, workspaceId: ctx.workspaceId, isArchived: false },
-            select: { id: true, title: true },
-          });
+          try {
+            const page = await prisma.page.findFirst({
+              where: { id: pageId, workspaceId: ctx.workspaceId, isArchived: false },
+              select: { id: true, title: true },
+            });
 
-          if (!page) {
+            if (!page) {
+              return {
+                success: false,
+                error:
+                  "Page not found in this workspace or it has been archived. Verify the pageId.",
+              };
+            }
+
+            const sanitized = sanitizeAIGeneratedContent(content);
+            const newBlocks = await toBlockNoteAuto(sanitized);
+
+            const saveResult = await savePageBlocks(
+              pageId,
+              ctx.workspaceId,
+              newBlocks,
+              "rewritePageContent",
+            );
+            if (!saveResult.success) return saveResult;
+
+            logger.log("[TOOL:rewritePageContent] Rewrote page", {
+              userId: ctx.userId,
+              pageId,
+              title: page.title,
+              blocksCount: newBlocks.length,
+            });
+            return {
+              success: true,
+              pageId,
+              title: page.title,
+              blocksCount: newBlocks.length,
+              _instruction:
+                "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
+            };
+          } catch (error) {
+            invalidateCachedPageBlocks(ctx.workspaceId, pageId);
+            logger.error("[TOOL:rewritePageContent] Error", { userId: ctx.userId, pageId, error });
             return {
               success: false,
-              error: "Page not found in this workspace or it has been archived. Verify the pageId.",
+              error: "Rewrite failed due to an internal error while saving the new content.",
+              suggestion:
+                "Verify the page exists with getPageOutline, then retry. If the content is very large, try splitting into smaller sections.",
             };
           }
-
-          const sanitized = sanitizeAIGeneratedContent(content);
-          const newBlocks = await toBlockNoteAuto(sanitized);
-
-          const saveResult = await savePageBlocks(
-            pageId,
-            ctx.workspaceId,
-            newBlocks,
-            "rewritePageContent",
-          );
-          if (!saveResult.success) return saveResult;
-
-          logger.log("[TOOL:rewritePageContent] Rewrote page", {
-            userId: ctx.userId,
-            pageId,
-            title: page.title,
-            blocksCount: newBlocks.length,
-          });
-          return {
-            success: true,
-            pageId,
-            title: page.title,
-            blocksCount: newBlocks.length,
-            _instruction:
-              "Success. Confirm briefly to the user in their language. Do not re-call this tool on the same page.",
-          };
-        } catch (error) {
-          logger.error("[TOOL:rewritePageContent] Error", { userId: ctx.userId, pageId, error });
-          return {
-            success: false,
-            error: "Rewrite failed due to an internal error while saving the new content.",
-            suggestion:
-              "Verify the page exists with getPageOutline, then retry. If the content is very large, try splitting into smaller sections.",
-          };
-        }
-      },
+        }),
     }),
   };
 }

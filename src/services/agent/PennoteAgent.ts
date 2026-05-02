@@ -222,15 +222,15 @@ function buildProviderOptions(
 
   // OpenAI: reasoning_effort for reasoning models
   // "none" = no reasoning requested → don't send reasoning param at all
+  // reasoningSummary is opt-in via env (requires OpenAI org verification)
   if (provider === "openai") {
     const effort = thinkingOverride || thinking;
     if (effort !== "none" && isOpenAIReasoningEffort(effort)) {
-      return {
-        openai: {
-          reasoningEffort: effort,
-          reasoningSummary: "auto",
-        },
-      };
+      const openaiOpts: Record<string, unknown> = { reasoningEffort: effort };
+      if (process.env.OPENAI_REASONING_SUMMARY === "auto") {
+        openaiOpts.reasoningSummary = "auto";
+      }
+      return { openai: openaiOpts };
     }
     return {};
   }
@@ -289,6 +289,7 @@ export function runPennoteAgent(
     modelOverride,
     thinkingOverride,
     autoAccept,
+    selection,
   } = request;
 
   const { maxSteps, maxTokens, thinking } = MODE_CONFIG[mode];
@@ -341,6 +342,7 @@ export function runPennoteAgent(
     conversationHistory,
     hasNativeWebSearch: isGoogleProvider,
     memoryContext,
+    selection,
   });
 
   // Agent marketplace — inject specialized agent instructions (pre-resolved by caller)

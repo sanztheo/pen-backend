@@ -172,6 +172,20 @@ export const aiRateLimit = rateLimit({
     message: "Trop de requêtes IA. Veuillez réessayer dans 15 minutes.",
     retryAfter: "15 minutes",
   },
+  skip: (req) => {
+    if (!RATE_LIMIT_CONFIG.enabled) return true;
+    // Polling endpoints (status, list) are not AI calls — exempt to avoid 429
+    // when the chat panel polls every 2s while a stream is in progress.
+    // `aiRateLimit` is mounted on /api/ai, /api/admin, and /api/agent: req.path
+    // is mount-relative, so anchor matches to exact agent-router shapes to
+    // avoid silently exempting unrelated /.../status routes (e.g. admin export).
+    if (req.method !== "GET") return false;
+    const p = req.path;
+    if (/^\/conversations\/[^/]+\/status$/.test(p)) return true;
+    if (p === "/conversations") return true;
+    if (p === "/models") return true;
+    return false;
+  },
   keyGenerator: (req) => {
     // Limite par user ID si authentifié, sinon par IP
     const userId = req.user?.id;

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import type { RequestHandler } from "express";
+import type { Request, Response, RequestHandler } from "express";
 import { authenticateToken, optionalAuth, blockImpersonation } from "../middlewares/auth.js";
 import {
   betaHeartbeatRateLimit,
@@ -16,10 +16,12 @@ import {
   ExportAccountController,
 } from "../controllers/beta/index.js";
 import { BETA_LIVE } from "../config/beta.js";
+import { redis } from "../lib/redis.js";
+import { logger } from "../utils/logger.js";
 
 const router = Router();
 
-// Kill switch — 503 when beta is not live
+// Kill switch — 503 when beta is not live (mutating routes only)
 const betaKillSwitch: RequestHandler = (_req, res, next) => {
   if (!BETA_LIVE) {
     res.status(503).json({
@@ -32,10 +34,83 @@ const betaKillSwitch: RequestHandler = (_req, res, next) => {
   next();
 };
 
-router.use(betaKillSwitch);
+const BETA_STATUS_CLOSED_PAYLOAD = {
+  success: true,
+  data: {
+    spotsRemaining: 0,
+    totalSpots: 0,
+    isFull: false,
+    userStatus: undefined,
+  },
+} as const;
 
-// GET /api/beta/status — public (optionalAuth for userStatus)
-router.get("/status", optionalAuth, StatusController.getStatus);
+const BETA_STATUS_CACHE_KEY_PREFIX = "beta:status:";
+const BETA_STATUS_CACHE_TTL_SECONDS = 30;
+const BETA_STATUS_CDN_MAX_AGE_SECONDS = 60;
+
+function buildBetaStatusCacheKey(userId: string | undefined): string {
+  // Per-user scoping required — controller payload includes userStatus + progress.
+  return `${BETA_STATUS_CACHE_KEY_PREFIX}${userId ?? "anon"}`;
+}
+
+// GET /api/beta/status — public, ALWAYS responds 200 (no kill switch).
+// Returns a benign payload when beta is closed so the frontend doesn't log
+// console errors on every poll. The frontend gates on userStatus, not HTTP code.
+//
+// When BETA_LIVE=false: payload is global, skip auth and let the CDN cache it.
+// When BETA_LIVE=true: cache the controller response in Redis (30s) so polling
+// from N clients doesn't hammer Postgres on every tick.
+router.get("/status", (req, res, next) => {
+  if (!BETA_LIVE) {
+    res.set("Cache-Control", `public, max-age=${BETA_STATUS_CDN_MAX_AGE_SECONDS}`);
+    res.status(200).json(BETA_STATUS_CLOSED_PAYLOAD);
+    return;
+  }
+  // Auth is only relevant when BETA_LIVE so we can attribute userStatus.
+  optionalAuth(req, res, () => {
+    void serveBetaStatusLive(req, res, next);
+  });
+});
+
+async function serveBetaStatusLive(
+  req: Request,
+  res: Response,
+  next: (err?: unknown) => void,
+): Promise<void> {
+  const cacheKey = buildBetaStatusCacheKey(req.user?.id);
+
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      res.status(200).json(JSON.parse(cached));
+      return;
+    }
+  } catch (err) {
+    logger.warn("[BETA_STATUS] Redis read failed, falling back to controller", err);
+  }
+
+  // Wrap res.json so we can persist the controller's payload into Redis once.
+  const originalJson = res.json.bind(res);
+  res.json = ((body: unknown) => {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      redis
+        .setex(cacheKey, BETA_STATUS_CACHE_TTL_SECONDS, JSON.stringify(body))
+        .catch((err: unknown) => {
+          logger.warn("[BETA_STATUS] Redis cache write failed", err);
+        });
+    }
+    return originalJson(body);
+  }) as Response["json"];
+
+  try {
+    await StatusController.getStatus(req, res);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// All routes below this line require BETA_LIVE
+router.use(betaKillSwitch);
 
 // POST /api/beta/heartbeat — auth required + per-user rate limit
 router.post(

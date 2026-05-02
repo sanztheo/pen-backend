@@ -23,10 +23,69 @@ import type { UIMessage } from "ai";
 import { verifyWorkspaceAccess } from "../../middlewares/workspaceAccess.js";
 import { MODELS, findSelectableModel, parseCompositeId } from "../../config/models.js";
 import { searchMemories } from "../../services/mem0/mem0Client.js";
+import type { Mem0Memory } from "../../services/mem0/mem0Client.js";
 import { getPresetAgent } from "../../services/agent/presetAgents.js";
 import { aiConcurrencyLimit } from "../../middlewares/aiConcurrencyLimit.js";
 import { dailyTokenQuota } from "../../middlewares/dailyTokenQuota.js";
 import { updateActiveStreamId } from "../../services/agent/conversationService.js";
+import { redis } from "../../lib/redis.js";
+import { createHash } from "crypto";
+import { z } from "zod";
+
+const MAX_SELECTION_TEXT_CHARS = 4000;
+const MAX_SELECTION_BLOCK_IDS = 50;
+const MEM0_CACHE_TTL_SECONDS = 600;
+
+function buildMem0CacheKey(
+  userId: string,
+  conversationId: string | undefined,
+  query: string,
+): string {
+  // Mem0 search is semantic — different queries yield different memories.
+  // Hash the query into the key in both branches so the cache cannot serve
+  // turn N's memories for turn N+1 of the same conversation.
+  const hash = createHash("sha1").update(query).digest("hex").slice(0, 16);
+  if (conversationId) {
+    return `mem0:search:${userId}:${conversationId}:${hash}`;
+  }
+  return `mem0:search:${userId}:q:${hash}`;
+}
+
+async function searchMemoriesCached(
+  userId: string,
+  conversationId: string | undefined,
+  query: string,
+): Promise<Mem0Memory[]> {
+  if (!query.trim()) return [];
+
+  const key = buildMem0CacheKey(userId, conversationId, query);
+
+  try {
+    const cached = await redis.get(key);
+    if (cached) {
+      return JSON.parse(cached) as Mem0Memory[];
+    }
+  } catch (err) {
+    logger.warn("[MEM0_CACHE] Redis read failed, falling back to API", err);
+  }
+
+  const memories = await searchMemories(userId, query);
+
+  // Fire-and-forget: never block the user-facing chat on a cache write.
+  redis
+    .setex(key, MEM0_CACHE_TTL_SECONDS, JSON.stringify(memories))
+    .catch((err: unknown) => logger.warn("[MEM0_CACHE] Redis write failed", err));
+
+  return memories;
+}
+
+const selectionSchema = z
+  .object({
+    text: z.string().min(1).max(MAX_SELECTION_TEXT_CHARS),
+    pageId: z.string().uuid().optional(),
+    blockIds: z.array(z.string().uuid()).max(MAX_SELECTION_BLOCK_IDS).optional(),
+  })
+  .strict();
 
 import {
   calculateDynamicCost,
@@ -67,9 +126,27 @@ chatRouter.post(
         agentType: rawAgentType,
         modelSelection: rawModelSelection,
         autoAccept: rawAutoAccept,
+        selection: rawSelection,
       } = req.body;
 
       const autoAccept = rawAutoAccept === true;
+
+      // Editor selection — captured when the user opens chat from a page with text selected.
+      // Zod validates pageId/blockIds are well-formed UUIDs so we do not waste a DB roundtrip
+      // on garbage and so blockIds cannot smuggle non-uuid payloads into prompts.
+      let selection: { pageId?: string; text: string; blockIds?: string[] } | undefined;
+      if (rawSelection && typeof rawSelection === "object") {
+        const parsed = selectionSchema.safeParse(rawSelection);
+        if (parsed.success && parsed.data.text.trim().length > 0) {
+          selection = {
+            text: parsed.data.text,
+            ...(parsed.data.pageId ? { pageId: parsed.data.pageId } : {}),
+            ...(parsed.data.blockIds && parsed.data.blockIds.length > 0
+              ? { blockIds: parsed.data.blockIds }
+              : {}),
+          };
+        }
+      }
 
       // Valider agentId/agentType — seuls "preset" et "custom" sont autorisés
       const validAgentTypes = ["preset", "custom"] as const;
@@ -148,6 +225,20 @@ chatRouter.post(
         });
       }
 
+      // IDOR guard — drop selection.pageId silently if it doesn't belong to this workspace.
+      // Silent drop (not 400) avoids info disclosure: an attacker probing for arbitrary
+      // page IDs gets the same response whether the page exists or not.
+      if (selection?.pageId) {
+        const ownedPage = await prisma.page.findFirst({
+          where: { id: selection.pageId, workspaceId, isArchived: false },
+          select: { id: true },
+        });
+        if (!ownedPage) {
+          const { pageId: _droppedPageId, ...rest } = selection;
+          selection = rest;
+        }
+      }
+
       const lastUserMessage = extractLastUserMessage(messages);
       const intent = detectIntent(lastUserMessage);
 
@@ -203,7 +294,7 @@ chatRouter.post(
 
       const [modelMessages, memories] = await Promise.all([
         convertToModelMessages(messages as UIMessage[]),
-        searchMemories(userId, lastUserMessage),
+        searchMemoriesCached(userId, conversationId, lastUserMessage),
       ]);
       const memoryContext = memories.map((m) => m.memory);
 
@@ -243,6 +334,7 @@ chatRouter.post(
           modelOverride,
           thinkingOverride,
           autoAccept,
+          selection,
         },
         {
           onStepFinish: ({ stepNumber, toolCalls, text }) => {

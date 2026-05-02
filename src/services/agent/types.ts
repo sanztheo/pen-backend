@@ -82,6 +82,13 @@ export interface AgentRequest {
   thinkingOverride?: string;
   /** Auto-accept: skip needsApproval on page/edit tools (frontend auto-accepts) */
   autoAccept?: boolean;
+  /** Editor selection captured when the user opens the chat — gives the agent
+   *  the exact passage to operate on without calling getPageOutline+readPageSection. */
+  selection?: {
+    pageId?: string;
+    text: string;
+    blockIds?: string[];
+  };
 }
 
 /**
