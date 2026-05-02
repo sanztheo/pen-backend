@@ -7,8 +7,9 @@ import { logger } from "../utils/logger.js";
 import type { Request, Response, NextFunction } from "express";
 import { redis } from "../lib/redis.js";
 
-const MAX_CONCURRENT = 2;
-const SAFETY_TTL = 300; // 5 min TTL de securite en cas de crash
+const MAX_CONCURRENT = 4;
+// TTL must exceed AGENT_STREAM_MAX_DURATION_MS to prevent ghost-decrement / phantom slot lockout
+const SAFETY_TTL = 330;
 
 export const aiConcurrencyLimit = async (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user?.id;

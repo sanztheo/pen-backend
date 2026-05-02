@@ -172,6 +172,16 @@ export const aiRateLimit = rateLimit({
     message: "Trop de requêtes IA. Veuillez réessayer dans 15 minutes.",
     retryAfter: "15 minutes",
   },
+  skip: (req) => {
+    if (!RATE_LIMIT_CONFIG.enabled) return true;
+    // Polling endpoints (status, list) are not AI calls — exempt to avoid 429
+    // when the chat panel polls every 2s while a stream is in progress.
+    const p = req.path;
+    if (p.endsWith("/status") && req.method === "GET") return true;
+    if (p === "/conversations" && req.method === "GET") return true;
+    if (p === "/models" && req.method === "GET") return true;
+    return false;
+  },
   keyGenerator: (req) => {
     // Limite par user ID si authentifié, sinon par IP
     const userId = req.user?.id;
