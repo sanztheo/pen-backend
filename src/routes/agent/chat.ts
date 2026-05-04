@@ -22,62 +22,17 @@ import { convertToModelMessages, generateId } from "ai";
 import type { UIMessage } from "ai";
 import { verifyWorkspaceAccess } from "../../middlewares/workspaceAccess.js";
 import { MODELS, findSelectableModel, parseCompositeId } from "../../config/models.js";
-import { searchMemories } from "../../services/mem0/mem0Client.js";
-import type { Mem0Memory } from "../../services/mem0/mem0Client.js";
 import { getPresetAgent } from "../../services/agent/presetAgents.js";
 import { aiConcurrencyLimit } from "../../middlewares/aiConcurrencyLimit.js";
 import { dailyTokenQuota } from "../../middlewares/dailyTokenQuota.js";
 import { updateActiveStreamId } from "../../services/agent/conversationService.js";
-import { redis } from "../../lib/redis.js";
-import { createHash } from "crypto";
 import { z } from "zod";
+import { streamAgentResponse } from "../../services/agent/streamAgentResponse.js";
+import { AICreditsService } from "../../services/credits/aiCreditsService.js";
+import { searchMemoriesCached } from "./mem0Cache.js";
 
 const MAX_SELECTION_TEXT_CHARS = 4000;
 const MAX_SELECTION_BLOCK_IDS = 50;
-const MEM0_CACHE_TTL_SECONDS = 600;
-
-function buildMem0CacheKey(
-  userId: string,
-  conversationId: string | undefined,
-  query: string,
-): string {
-  // Mem0 search is semantic — different queries yield different memories.
-  // Hash the query into the key in both branches so the cache cannot serve
-  // turn N's memories for turn N+1 of the same conversation.
-  const hash = createHash("sha1").update(query).digest("hex").slice(0, 16);
-  if (conversationId) {
-    return `mem0:search:${userId}:${conversationId}:${hash}`;
-  }
-  return `mem0:search:${userId}:q:${hash}`;
-}
-
-async function searchMemoriesCached(
-  userId: string,
-  conversationId: string | undefined,
-  query: string,
-): Promise<Mem0Memory[]> {
-  if (!query.trim()) return [];
-
-  const key = buildMem0CacheKey(userId, conversationId, query);
-
-  try {
-    const cached = await redis.get(key);
-    if (cached) {
-      return JSON.parse(cached) as Mem0Memory[];
-    }
-  } catch (err) {
-    logger.warn("[MEM0_CACHE] Redis read failed, falling back to API", err);
-  }
-
-  const memories = await searchMemories(userId, query);
-
-  // Fire-and-forget: never block the user-facing chat on a cache write.
-  redis
-    .setex(key, MEM0_CACHE_TTL_SECONDS, JSON.stringify(memories))
-    .catch((err: unknown) => logger.warn("[MEM0_CACHE] Redis write failed", err));
-
-  return memories;
-}
 
 const selectionSchema = z
   .object({
@@ -94,7 +49,10 @@ import {
   MAX_MESSAGE_LENGTH,
   MAX_MESSAGES_COUNT,
 } from "./helpers.js";
-import { buildOnFinish, handleChatError } from "./chatHelpers.js";
+import { buildOnFinish, handleChatError, resolveSelectionContext } from "./chatHelpers.js";
+
+/** Refund window: client disconnects before stream had a chance to produce output. */
+const CLIENT_DISCONNECT_REFUND_WINDOW_MS = 5_000;
 
 export const chatRouter = Router();
 
@@ -225,19 +183,10 @@ chatRouter.post(
         });
       }
 
-      // IDOR guard — drop selection.pageId silently if it doesn't belong to this workspace.
-      // Silent drop (not 400) avoids info disclosure: an attacker probing for arbitrary
-      // page IDs gets the same response whether the page exists or not.
-      if (selection?.pageId) {
-        const ownedPage = await prisma.page.findFirst({
-          where: { id: selection.pageId, workspaceId, isArchived: false },
-          select: { id: true },
-        });
-        if (!ownedPage) {
-          const { pageId: _droppedPageId, ...rest } = selection;
-          selection = rest;
-        }
-      }
+      // IDOR guard — drop selection.pageId silently if it doesn't belong to this
+      // workspace. Helper throws HttpError(403) if workspaceId is missing entirely
+      // (defensive against future refactors that bypass verifyWorkspaceAccess).
+      selection = await resolveSelectionContext(req, workspaceId, selection);
 
       const lastUserMessage = extractLastUserMessage(messages);
       const intent = detectIntent(lastUserMessage);
@@ -350,67 +299,101 @@ chatRouter.post(
       );
 
       const cost = req.aiCredits?.cost ?? calculateDynamicCost(req);
+      const aiAction = req.aiCredits?.action;
       logger.log(`✅ [AUDIT] Agent chat: userId=${userId}, mode=${mode}, cost=${cost}`);
 
-      result.pipeUIMessageStreamToResponse(res, {
-        originalMessages: messages as UIMessage[],
-        sendReasoning: true,
-        generateMessageId: generateId,
-        messageMetadata: ({ part }) => {
-          if (part.type === "start") {
-            const fb = req.modelFallback;
-            return {
-              model: modelDisplayName,
-              ...(fb && {
-                fallback: {
-                  originalModel: fb.original.name,
-                  fallbackModel: fb.fallback.name,
-                  reason:
-                    fb.reason === "insufficient_credits"
-                      ? "insufficient_credits"
-                      : "model_unavailable",
-                },
-              }),
-            };
-          }
-        },
-        async consumeSseStream({ stream }) {
-          if (!conversationId) return;
-          const streamId = generateId();
-          const ctx = getStreamContext();
-          await ctx.createNewResumableStream(streamId, () => stream);
-          await updateActiveStreamId(conversationId, streamId, userId);
-          logger.log(`🔄 [RESUME] Stream créé: ${streamId} pour ${conversationId}`);
-        },
-        onFinish: buildOnFinish({
-          conversationId,
+      // Track stream timing so `res.on('close')` can refund credits if the
+      // client disconnects before the stream had a chance to produce anything
+      // (PRE-MORTEM #13). The flag is flipped from inside the onFinish wrapper
+      // below — once onFinish runs we consider the user as having received the
+      // response, even partially.
+      const streamStartedAt = Date.now();
+      let streamFinishedSuccessfully = false;
+      let refundOnCloseFired = false;
+
+      const innerOnFinish = buildOnFinish({
+        conversationId,
+        userId,
+        workspaceId,
+        mode,
+        agentId,
+        agentType,
+        estimatedTokens,
+        lastUserMessage,
+        aiAction,
+        modelSelection,
+        modelId: modelOverride,
+        thinkingLevel: thinkingOverride,
+      });
+      const onFinish: typeof innerOnFinish = async (args) => {
+        streamFinishedSuccessfully = true;
+        await innerOnFinish(args);
+      };
+
+      res.on("close", () => {
+        if (refundOnCloseFired) return;
+        refundOnCloseFired = true;
+        if (streamFinishedSuccessfully) return;
+        if (!cost || cost <= 0) return;
+        if (Date.now() - streamStartedAt >= CLIENT_DISCONNECT_REFUND_WINDOW_MS) return;
+
+        logger.log(
+          `[AGENT] client_disconnect_refund userId=${userId} cost=${cost} action=${aiAction ?? "agent_chat"}`,
+        );
+        AICreditsService.refundCredits(
           userId,
-          workspaceId,
-          mode,
-          agentId,
-          agentType,
-          estimatedTokens,
-          lastUserMessage,
-          aiAction: req.aiCredits?.action,
-          modelSelection,
-          modelId: modelOverride,
-          thinkingLevel: thinkingOverride,
-        }),
+          cost,
+          aiAction ?? "client_disconnected_before_response",
+        ).catch((err: unknown) => {
+          logger.error("[AGENT] client_disconnect_refund failed:", err);
+        });
       });
 
-      // CRITICAL: consumeStream() garantit que le stream se termine
-      // même si le client se déconnecte (tab switch, refresh, etc.)
-      Promise.resolve(result.consumeStream()).catch((err: unknown) => {
-        // OpenAI Responses API: reasoning-delta can arrive before reasoning-start
-        // in multi-step agent flows. Non-fatal — response still completes.
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes("reasoning-delta") || msg.includes("reasoning-start")) {
-          logger.log(
-            `⚠️ [AGENT-CHAT] Non-fatal reasoning stream error (OpenAI multi-step): ${msg}`,
-          );
-        } else {
-          logger.error(`❌ [AGENT-CHAT] Stream consumption error:`, err);
-        }
+      streamAgentResponse(res, result, {
+        pipeOptions: {
+          originalMessages: messages as UIMessage[],
+          sendReasoning: true,
+          generateMessageId: generateId,
+          messageMetadata: ({ part }) => {
+            if (part.type === "start") {
+              const fb = req.modelFallback;
+              return {
+                model: modelDisplayName,
+                ...(fb && {
+                  fallback: {
+                    originalModel: fb.original.name,
+                    fallbackModel: fb.fallback.name,
+                    reason:
+                      fb.reason === "insufficient_credits"
+                        ? "insufficient_credits"
+                        : "model_unavailable",
+                  },
+                }),
+              };
+            }
+          },
+          async consumeSseStream({ stream }) {
+            if (!conversationId) return;
+            const streamId = generateId();
+            const ctx = getStreamContext();
+            await ctx.createNewResumableStream(streamId, () => stream);
+            await updateActiveStreamId(conversationId, streamId, userId);
+            logger.log(`🔄 [RESUME] Stream créé: ${streamId} pour ${conversationId}`);
+          },
+          onFinish,
+        },
+        onError: (err: unknown) => {
+          // OpenAI Responses API: reasoning-delta can arrive before reasoning-start
+          // in multi-step agent flows. Non-fatal — response still completes.
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.includes("reasoning-delta") || msg.includes("reasoning-start")) {
+            logger.log(
+              `⚠️ [AGENT-CHAT] Non-fatal reasoning stream error (OpenAI multi-step): ${msg}`,
+            );
+          } else {
+            logger.error(`❌ [AGENT-CHAT] Stream consumption error:`, err);
+          }
+        },
       });
     } catch (error: unknown) {
       handleChatError(error, req, res);

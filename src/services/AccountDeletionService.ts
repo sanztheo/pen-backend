@@ -6,6 +6,8 @@ import { Prisma } from "@prisma/client";
 
 import { DELETION_MAX_RETRIES, DELETION_BASE_DELAY_MS } from "./AccountDeletionService.types.js";
 import type { DeletionResult, DeletionAuditData } from "./AccountDeletionService.types.js";
+import { runExternalCascade } from "./accountDeletionExternals.js";
+import { isClerkApiError, scanRedisKeys, redactEmail } from "./accountDeletionUtils.js";
 
 // ─── Lazy Clerk singleton ─────────────────────────────────
 type ClerkClient = ReturnType<typeof createClerkClient>;
@@ -33,15 +35,8 @@ export function _setClerkForTest(client: ClerkClient | undefined): void {
 // ─── Constants ───────────────────────────────────────────
 const BETA_ACTIVE_COUNT_KEY = "beta:active_count";
 const ADMIN_METRICS_PATTERN = "admin:beta:metrics:*";
-const REDIS_SCAN_BATCH_SIZE = 100;
 const TRANSACTION_TIMEOUT_MS = 30_000;
 const TRANSACTION_MAX_WAIT_MS = 10_000;
-/** Redact email for logs — shows first 3 chars only */
-function redactEmail(email: string): string {
-  const atIndex = email.indexOf("@");
-  if (atIndex <= 3) return `***${email.slice(atIndex)}`;
-  return `${email.slice(0, 3)}***${email.slice(atIndex)}`;
-}
 
 export class AccountDeletionService {
   /**
@@ -82,16 +77,26 @@ export class AccountDeletionService {
       `[ACCOUNT_DELETION] Starting deletion for user ${userId} (email: ${masked}, beta: ${user.betaStatus}, plan: ${audit.plan ?? "none"})`,
     );
 
-    // 3. Prisma transaction first (atomic, rollbackable on failure)
+    // 3. External cascade (Cloudinary, embeddings, Paddle, Mem0) — best-effort.
+    //    Run BEFORE the Prisma transaction so we still have paddleCustomerId,
+    //    and a partial failure cannot leave us with the user wiped locally
+    //    while still owning external resources we can no longer trace.
+    const cascade = await runExternalCascade(userId);
+
+    // 4. Prisma transaction (atomic, rollbackable on failure)
     await AccountDeletionService.executeDeletionTransaction(userId);
 
-    // 4. Delete Clerk user (irreversible — only after DB succeeds)
+    // 5. Delete Clerk user (irreversible — only after DB succeeds)
     await AccountDeletionService.deleteClerkUser(userId);
 
-    // 5. Invalidate Redis caches
+    // 6. Invalidate Redis caches
     await AccountDeletionService.invalidateCaches();
 
-    // 6. Log result
+    // 7. Final structured log — single grep target for ops to spot
+    //    external systems that need a manual sweep.
+    logger.log(
+      `[AccountDeletion] cascade_complete userId=${userId} cloudinary=${cascade.cloudinary} embeddings=${cascade.embeddings} paddle=${cascade.paddle} mem0=${cascade.mem0}`,
+    );
     logger.log(
       `[ACCOUNT_DELETION] Successfully deleted user ${userId} (email: ${audit.maskedEmail})`,
     );
@@ -268,27 +273,4 @@ export class AccountDeletionService {
   }
 }
 
-// ─── Utilities ──────────────────────────────────────────────
-
-/** Type guard for Clerk API errors with a status property */
-function isClerkApiError(error: unknown): error is { status: number } {
-  return typeof error === "object" && error !== null && "status" in error;
-}
-
-/** SCAN-based key lookup (avoids KEYS in production) */
-async function scanRedisKeys(pattern: string): Promise<string[]> {
-  const keys: string[] = [];
-  let cursor = "0";
-  do {
-    const [nextCursor, batch] = await redis.scan(
-      cursor,
-      "MATCH",
-      pattern,
-      "COUNT",
-      REDIS_SCAN_BATCH_SIZE,
-    );
-    cursor = nextCursor;
-    keys.push(...batch);
-  } while (cursor !== "0");
-  return keys;
-}
+// Utilities moved to ./accountDeletionUtils.ts

@@ -93,6 +93,18 @@ import { authenticateToken } from "./middlewares/auth.js";
 dotenv.config();
 // Logger.init(); // ❌ DÉSACTIVÉ - maintenant logger.log s'affiche dans le terminal
 
+// 🛡️ BOOT GUARD — single-replica only (PRE-MORTEM #17).
+// pageEditMutex, Yjs LRU and several caches are in-memory. Multi-replica
+// deployment would silently corrupt page edits. Refuse to boot if Railway is
+// scaled past 1 instance until those primitives migrate to Redis.
+const REPLICA_COUNT = Number(process.env.REPLICA_COUNT ?? "1");
+if (Number.isFinite(REPLICA_COUNT) && REPLICA_COUNT > 1) {
+  throw new Error(
+    "BOOT_GUARD: REPLICA_COUNT > 1 detected but pageEditMutex/Yjs LRU/cache are in-memory. " +
+      "Migrate to Redis-based distributed lock before scaling. See PRE-MORTEM.md #17.",
+  );
+}
+
 /**
  * 🏓 Test automatique de la route webhook Paddle au démarrage
  */

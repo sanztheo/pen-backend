@@ -48,6 +48,8 @@ model User {
   ownedWorkspaces          Workspace[]          @relation("WorkspaceOwner")
   // 💬 AI Conversations
   aiConversations          AIConversation[]
+  // 💳 Credit transactions (audit trail)
+  creditTransactions       CreditTransaction[]
   // 🤖 Agent Marketplace
   customAgents             CustomAgent[]
   agentFavorites           AgentFavorite[]
@@ -460,6 +462,25 @@ model UsageRecord {
   @@index([userId, resourceType])
   @@index([createdAt])
   @@map("usage_records")
+}
+
+/// Append-only audit trail for every credit deduct/refund/reset.
+/// Lets us reconstruct any user's balance and detect refund failures.
+/// See PRE-MORTEM #6 (Theme E: credit usage without audit transactionnel).
+model CreditTransaction {
+  id            String   @id @default(cuid())
+  userId        String   @map("user_id") @db.VarChar(255)
+  type          String   @db.VarChar(20) // "deduct" | "refund" | "reset"
+  amount        Float
+  action        String   @db.VarChar(64) // ex: "ai_chat", "quiz_generation"
+  reason        String?  @db.VarChar(128)
+  correlationId String?  @map("correlation_id") @db.VarChar(64)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("credit_transactions")
 }
 
 model UserLimits {

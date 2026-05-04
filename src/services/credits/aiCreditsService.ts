@@ -37,99 +37,131 @@ export class AICreditsService {
 
     try {
       const now = new Date();
-      // Atomic UPSERT: always increment, then check post-state. If the increment pushed
-      // the user past their limit, refund it. This avoids a CASE-WHEN that left the
-      // post-success check unable to distinguish "refused (over limit)" from
-      // "succeeded (still under limit)" — which silently granted free credits.
-      const rows = await prisma.$queryRaw<{ ai_credits_used: number; ai_credits_limit: number }[]>`
-        INSERT INTO "user_limits" (
-          "user_id", "ai_credits_used", "ai_credits_limit",
-          "workspaces_used", "workspaces_limit", "projects_used", "projects_limit",
-          "custom_quizzes_used", "custom_quizzes_limit", "preset_sequences_used", "preset_sequences_limit",
-          "last_reset_at", "reset_type", "created_at", "updated_at", "pages_limit", "pages_used"
-        )
-        VALUES (
-          ${userId}, ${effectiveCost}, 50,
-          0, 2, 0, 4,
-          0, 5, 0, 1,
-          ${now}, 'monthly', ${now}, ${now}, -1, 0
-        )
-        ON CONFLICT ("user_id")
-        DO UPDATE SET
-          "ai_credits_used" = "user_limits"."ai_credits_used" + ${effectiveCost},
-          "updated_at" = ${now}
-        RETURNING "ai_credits_used", "ai_credits_limit"
-      `;
-
-      const finalLimits = rows[0];
-      if (!finalLimits) {
-        SecureLogger.error("[SERVER-CREDITS] No row returned from UPSERT RETURNING", { userId });
-        return {
-          success: false,
-          remainingCredits: 0,
-          limitReached: false,
-          message: "Erreur système lors de la déduction",
-        };
-      }
-
-      const aiCreditsUsed = Number(finalLimits.ai_credits_used);
-      const aiCreditsLimit = Number(finalLimits.ai_credits_limit);
-      const deductionSucceeded = aiCreditsLimit === -1 || aiCreditsUsed <= aiCreditsLimit;
-
-      if (!deductionSucceeded) {
-        // Refund the increment we just applied so the user isn't left over-quota.
-        // Atomic decrement composes correctly under concurrent over-limit attempts:
-        // each refund subtracts exactly what its UPSERT added, regardless of order.
-        await prisma.$executeRaw`
-          UPDATE "user_limits"
-          SET "ai_credits_used" = GREATEST(0, "ai_credits_used" - ${effectiveCost}),
-              "updated_at" = ${now}
-          WHERE "user_id" = ${userId}
+      // Wrap the UPSERT, the corrective refund (if any), and the audit insert
+      // in a single transaction. Either everything commits, or nothing does —
+      // no more "credits deducted but refund failed mid-flight" (PRE-MORTEM #6).
+      const result = await prisma.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<{ ai_credits_used: number; ai_credits_limit: number }[]>`
+          INSERT INTO "user_limits" (
+            "user_id", "ai_credits_used", "ai_credits_limit",
+            "workspaces_used", "workspaces_limit", "projects_used", "projects_limit",
+            "custom_quizzes_used", "custom_quizzes_limit", "preset_sequences_used", "preset_sequences_limit",
+            "last_reset_at", "reset_type", "created_at", "updated_at", "pages_limit", "pages_used"
+          )
+          VALUES (
+            ${userId}, ${effectiveCost}, 50,
+            0, 2, 0, 4,
+            0, 5, 0, 1,
+            ${now}, 'monthly', ${now}, ${now}, -1, 0
+          )
+          ON CONFLICT ("user_id")
+          DO UPDATE SET
+            "ai_credits_used" = "user_limits"."ai_credits_used" + ${effectiveCost},
+            "updated_at" = ${now}
+          RETURNING "ai_credits_used", "ai_credits_limit"
         `;
 
-        const refundedUsage = Math.max(0, aiCreditsUsed - effectiveCost);
-        const currentRemainingCredits =
-          aiCreditsLimit === -1 ? -1 : Math.max(0, aiCreditsLimit - refundedUsage);
+        const finalLimits = rows[0];
+        if (!finalLimits) {
+          throw new Error("UPSERT_NO_ROW_RETURNED");
+        }
 
-        SecureLogger.warn("[SERVER-CREDITS] Limit reached (deduction refused, refunded)", {
-          userId,
-          effectiveCost,
-          currentUsage: refundedUsage,
-          limit: aiCreditsLimit,
-          remainingCredits: currentRemainingCredits,
+        const aiCreditsUsed = Number(finalLimits.ai_credits_used);
+        const aiCreditsLimit = Number(finalLimits.ai_credits_limit);
+        const deductionSucceeded = aiCreditsLimit === -1 || aiCreditsUsed <= aiCreditsLimit;
+
+        if (!deductionSucceeded) {
+          // Same-transaction corrective refund: rolls back together with the audit
+          // log if anything below throws.
+          await tx.$executeRaw`
+            UPDATE "user_limits"
+            SET "ai_credits_used" = GREATEST(0, "ai_credits_used" - ${effectiveCost}),
+                "updated_at" = ${now}
+            WHERE "user_id" = ${userId}
+          `;
+
+          const refundedUsage = Math.max(0, aiCreditsUsed - effectiveCost);
+          const currentRemainingCredits =
+            aiCreditsLimit === -1 ? -1 : Math.max(0, aiCreditsLimit - refundedUsage);
+
+          // Audit: deduct attempt that was auto-refunded due to overflow.
+          await tx.creditTransaction.create({
+            data: {
+              userId,
+              type: "refund",
+              amount: effectiveCost,
+              action: action ?? "ai_action",
+              reason: "over_quota_auto_refund",
+            },
+          });
+
+          return {
+            success: false as const,
+            remainingCredits: currentRemainingCredits,
+            limitReached: true,
+            message: "Limite de crédits IA atteinte",
+            aiCreditsUsed: refundedUsage,
+            aiCreditsLimit,
+          };
+        }
+
+        const remainingCredits =
+          aiCreditsLimit === -1 ? -1 : Math.max(0, aiCreditsLimit - aiCreditsUsed);
+
+        // Audit: successful deduction.
+        await tx.creditTransaction.create({
+          data: {
+            userId,
+            type: "deduct",
+            amount: effectiveCost,
+            action: action ?? "ai_action",
+          },
         });
 
         return {
-          success: false,
-          remainingCredits: currentRemainingCredits,
-          limitReached: true,
-          message: "Limite de crédits IA atteinte",
+          success: true as const,
+          remainingCredits,
+          limitReached: false,
+          message: "Crédits déduits avec succès",
+          aiCreditsUsed,
+          aiCreditsLimit,
         };
+      });
+
+      if (!result.success) {
+        SecureLogger.warn("[SERVER-CREDITS] Limit reached (deduction refused, refunded)", {
+          userId,
+          effectiveCost,
+          currentUsage: result.aiCreditsUsed,
+          limit: result.aiCreditsLimit,
+          remainingCredits: result.remainingCredits,
+        });
+      } else {
+        SecureLogger.debug("[SERVER-CREDITS] Deduction succeeded", {
+          userId,
+          effectiveCost,
+          newUsage: result.aiCreditsUsed,
+          remainingCredits: result.remainingCredits,
+        });
+
+        // Enregistrement usage asynchrone (non-bloquant pour performance).
+        // The audit row in `credit_transactions` is now the source of truth;
+        // `usage_records` stays as a legacy aggregate signal.
+        setImmediate(() => {
+          this.recordUsage(userId, "ai_action", effectiveCost, {
+            action,
+            method: "upsert_atomic",
+          }).catch((err) =>
+            SecureLogger.warn("Erreur enregistrement usage IA (non-critique)", err),
+          );
+        });
       }
 
-      const remainingCredits =
-        aiCreditsLimit === -1 ? -1 : Math.max(0, aiCreditsLimit - aiCreditsUsed);
-
-      SecureLogger.debug("[SERVER-CREDITS] Deduction succeeded", {
-        userId,
-        effectiveCost,
-        newUsage: aiCreditsUsed,
-        remainingCredits,
-      });
-
-      // Enregistrement usage asynchrone (non-bloquant pour performance)
-      setImmediate(() => {
-        this.recordUsage(userId, "ai_action", effectiveCost, {
-          action,
-          method: "upsert_atomic",
-        }).catch((err) => SecureLogger.warn("Erreur enregistrement usage IA (non-critique)", err));
-      });
-
       return {
-        success: true,
-        remainingCredits,
-        limitReached: false,
-        message: "Crédits déduits avec succès",
+        success: result.success,
+        remainingCredits: result.remainingCredits,
+        limitReached: result.limitReached,
+        message: result.message,
       };
     } catch (error: unknown) {
       SecureLogger.error("❌ Erreur lors de la déduction atomique des crédits IA", error);
@@ -200,22 +232,63 @@ export class AICreditsService {
     });
 
     try {
-      // Atomic refund: single UPDATE avoids read-then-write race condition
       const now = new Date();
-      await prisma.$executeRaw`
-        UPDATE "user_limits"
-        SET "ai_credits_used" = GREATEST(0, "ai_credits_used" - ${amount}),
-            "updated_at" = ${now}
-        WHERE "user_id" = ${userId}
-      `;
+      // Single transaction: refund UPDATE + read + audit insert. If any step fails,
+      // nothing commits — eliminates the fire-and-forget audit pattern that left
+      // refunds untraceable when the legacy `usage_records` insert failed.
+      const result = await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`
+          UPDATE "user_limits"
+          SET "ai_credits_used" = GREATEST(0, "ai_credits_used" - ${amount}),
+              "updated_at" = ${now}
+          WHERE "user_id" = ${userId}
+        `;
 
-      // Read final state for response
-      const updatedLimits = await prisma.userLimits.findUnique({
-        where: { userId },
-        select: { aiCreditsUsed: true, aiCreditsLimit: true },
+        const updatedLimits = await tx.userLimits.findUnique({
+          where: { userId },
+          select: { aiCreditsUsed: true, aiCreditsLimit: true },
+        });
+
+        if (!updatedLimits) {
+          throw new Error("USER_LIMITS_NOT_FOUND");
+        }
+
+        await tx.creditTransaction.create({
+          data: {
+            userId,
+            type: "refund",
+            amount,
+            action: action ?? "ai_refund",
+            reason: "generation_failure",
+          },
+        });
+
+        return updatedLimits;
       });
 
-      if (!updatedLimits) {
+      // Best-effort legacy aggregate row, kept for backward compat with dashboards.
+      // Failure here does NOT undo the refund — that already committed above.
+      this.recordRefund(userId, "ai_refund", amount, {
+        action,
+        reason: "generation_failure",
+      }).catch((err) =>
+        SecureLogger.warn("Legacy usage_records refund insert failed (non-critique)", err),
+      );
+
+      const newBalance =
+        result.aiCreditsLimit === -1
+          ? -1
+          : Math.max(0, result.aiCreditsLimit - result.aiCreditsUsed);
+
+      SecureLogger.debug(`✅ [SERVER-CREDITS] Remboursement réussi`, {
+        userId,
+        newBalance,
+      });
+
+      return { success: true, newBalance };
+    } catch (error) {
+      const isMissingUser = error instanceof Error && error.message === "USER_LIMITS_NOT_FOUND";
+      if (isMissingUser) {
         SecureLogger.error(`❌ [SERVER-CREDITS] Utilisateur inexistant pour remboursement`, {
           userId,
         });
@@ -225,24 +298,6 @@ export class AICreditsService {
         };
       }
 
-      // Record the refund audit log
-      await this.recordRefund(userId, "ai_refund", amount, {
-        action,
-        reason: "generation_failure",
-      });
-
-      const newBalance =
-        updatedLimits.aiCreditsLimit === -1
-          ? -1
-          : Math.max(0, updatedLimits.aiCreditsLimit - updatedLimits.aiCreditsUsed);
-
-      SecureLogger.debug(`✅ [SERVER-CREDITS] Remboursement réussi`, {
-        userId,
-        newBalance,
-      });
-
-      return { success: true, newBalance };
-    } catch (error) {
       SecureLogger.error("❌ Erreur lors du remboursement des crédits IA", error);
       return {
         success: false,

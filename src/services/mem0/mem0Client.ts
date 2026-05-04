@@ -133,6 +133,45 @@ export async function searchMemories(
 }
 
 /**
+ * 🧹 GDPR cascade: delete every memory stored for `userId`.
+ *
+ * Mem0 exposes `DELETE /v1/memories/?user_id=…` which removes the entire
+ * profile. We namespace user IDs (see `namespacedUserId`) so we must pass
+ * the namespaced form. Returns `false` if Mem0 is disabled or fails —
+ * the caller should log and continue rather than block the user delete.
+ */
+export async function deleteAllUserMemories(userId: string): Promise<boolean> {
+  if (!isEnabled()) {
+    logger.warn("[MEM0] deleteAllUserMemories skipped — Mem0 disabled");
+    return false;
+  }
+
+  try {
+    const url = `${MEM0_BASE_URL}/memories/?user_id=${encodeURIComponent(namespacedUserId(userId))}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: getHeaders(),
+      signal: AbortSignal.timeout(MEM0_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => "");
+      logger.warn(
+        `[MEM0] deleteAllUserMemories failed: ${response.status} ${response.statusText} — ${errorBody}`,
+      );
+      return false;
+    }
+
+    logger.log(`[MEM0] All memories deleted for user ${userId}`);
+    return true;
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    logger.warn(`[MEM0] deleteAllUserMemories error: ${msg}`);
+    return false;
+  }
+}
+
+/**
  * Store conversation messages as user memories.
  * Fire-and-forget — never throws.
  */

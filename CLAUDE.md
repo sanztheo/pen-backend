@@ -72,6 +72,10 @@ export function createTools(ctx: { userId: string; workspaceId: string }) {
 }
 ```
 
+Tout cache de tool result doit utiliser `toolCacheKey()` depuis
+`services/agent/tools/helpers/cacheKey.ts` — voir PRE-MORTEM #11. Une cle
+qui n'inclut pas `userId` ET `workspaceId` ouvre une fuite cross-tenant.
+
 ### Webhook Raw Body
 ```typescript
 // AVANT express.json() pour signature HMAC
@@ -119,6 +123,10 @@ OPENAI_API_KEY, CLERK_SECRET_KEY, CLIENT_URL
 GEMINI_API_KEY, DEEPSEEK_API_KEY, TAVILY_API_KEY
 PADDLE_API_KEY, PADDLE_WEBHOOK_SECRET, PADDLE_ENVIRONMENT
 ```
+
+**Deploiement single-replica:** `REPLICA_COUNT` doit valoir `1` (defaut). Le boot
+throw si `REPLICA_COUNT > 1` car `pageEditMutex`/Yjs LRU/cache sont in-memory —
+migrer vers Redis distributed lock avant tout scaling horizontal (PRE-MORTEM #17).
 
 Voir [docs/guides/infisical.md](../docs/guides/infisical.md) pour installation et commandes.
 

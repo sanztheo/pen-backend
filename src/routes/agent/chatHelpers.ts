@@ -17,8 +17,56 @@ import type { UIMessage } from "ai";
 import { AICreditsService } from "../../services/credits/aiCreditsService.js";
 import { MODELS } from "../../config/models.js";
 import { addMemories } from "../../services/mem0/mem0Client.js";
+import { prisma } from "../../lib/prisma.js";
+import { HttpError } from "../../services/authzService.js";
 
-import { calculateDynamicCost } from "./helpers.js";
+interface ChatSelection {
+  text: string;
+  pageId?: string;
+  blockIds?: string[];
+}
+
+/**
+ * Resolve selection context against the user's workspace.
+ *
+ * REQUIRES: req.workspaceId set by verifyWorkspaceAccess middleware (callers
+ * pass it explicitly — see chat.ts which reads it from req.body after the
+ * middleware has validated workspace membership).
+ *
+ * If `pageId` does not belong to `workspaceId`, drops it silently (so probing
+ * for arbitrary page ids cannot distinguish "exists elsewhere" vs "missing").
+ * If `workspaceId` is missing/empty, throws 403 — explicit guard against
+ * future refactors that reuse this helper without the middleware in front.
+ */
+export async function resolveSelectionContext(
+  req: Request,
+  workspaceId: string | undefined,
+  selection: ChatSelection | undefined,
+): Promise<ChatSelection | undefined> {
+  if (!selection) return undefined;
+  if (!selection.pageId) return selection;
+
+  // Explicit guard: silent-drop pattern (findFirst → null) hides the case
+  // where the workspace context never made it onto `req`.
+  if (!workspaceId) {
+    throw new HttpError(403, "WORKSPACE_CONTEXT_MISSING");
+  }
+
+  const ownedPage = await prisma.page.findFirst({
+    where: { id: selection.pageId, workspaceId, isArchived: false },
+    select: { id: true },
+  });
+  if (!ownedPage) {
+    logger.warn("[AGENT-CHAT] selection.pageId dropped — not in workspace", {
+      pageId: selection.pageId,
+      workspaceId,
+      userId: req.user?.id,
+    });
+    const { pageId: _droppedPageId, ...rest } = selection;
+    return rest;
+  }
+  return selection;
+}
 
 interface OnFinishContext {
   conversationId: string | undefined;
@@ -119,6 +167,15 @@ export function handleChatError(error: unknown, req: Request, res: Response): vo
     AICreditsService.refundCredits(refundUserId, creditsCost, "agent_chat_error").catch(
       (err: unknown) => logger.error("[REFUND] Erreur refund agent/chat:", err),
     );
+  }
+
+  // Map structured HttpError (e.g. resolveSelectionContext 403) to its real
+  // status instead of swallowing it under a generic 500.
+  if (error instanceof HttpError) {
+    if (!res.headersSent) {
+      res.status(error.status).json({ error: error.message });
+    }
+    return;
   }
 
   if (!res.headersSent) {

@@ -406,6 +406,46 @@ export class PaddleBillingService {
   }
 
   /**
+   * 🧹 GDPR cascade: archive a Paddle customer.
+   *
+   * Paddle does NOT support hard-delete via API (compliance / accounting
+   * retention). The closest equivalent is `PATCH /customers/{id}` with
+   * `{ status: "archived" }` — this hides the customer from the dashboard
+   * and prevents new subscriptions while keeping the legal trail.
+   *
+   * Throws on transport failure; the caller is expected to wrap and log.
+   */
+  static async archiveCustomer(paddleCustomerId: string): Promise<void> {
+    if (!paddleCustomerId) {
+      throw new Error("[PADDLE] archiveCustomer: paddleCustomerId required");
+    }
+
+    const baseUrl =
+      process.env.PADDLE_ENVIRONMENT === "production"
+        ? "https://api.paddle.com"
+        : "https://sandbox-api.paddle.com";
+
+    const response = await fetch(`${baseUrl}/customers/${paddleCustomerId}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${PADDLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: "archived" }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `[PADDLE] archiveCustomer failed: ${response.status} ${response.statusText} — ${body}`,
+      );
+    }
+
+    logger.log(`🧹 [PADDLE] Customer archived: ${paddleCustomerId}`);
+  }
+
+  /**
    * Trouve un utilisateur par son ID customer Paddle
    */
   static async findUserByPaddleCustomerId(paddleCustomerId: string) {

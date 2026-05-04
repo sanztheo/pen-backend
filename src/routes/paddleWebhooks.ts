@@ -4,76 +4,13 @@ import { paddle, PaddleBillingService } from "../services/billing/paddleBilling.
 import { getPlanFromProductId } from "../config/paddle.js";
 import { withTimeout, PADDLE_TIMEOUT_MS } from "../utils/timeout.js";
 import { prisma } from "../lib/prisma.js";
+import { EventName } from "@paddle/paddle-node-sdk";
 import {
-  EventName,
-  type SubscriptionNotification,
-  type TransactionNotification,
-} from "@paddle/paddle-node-sdk";
-
-/**
- * Custom data passed through Paddle checkout for user identification
- */
-interface PaddleCustomData {
-  clerkUserId?: string;
-  clerk_user_id?: string;
-}
-
-/**
- * Type guard to check if event has subscription data
- */
-function isSubscriptionEvent(event: {
-  eventType: string;
-  data: unknown;
-}): event is { eventType: string; data: SubscriptionNotification } {
-  return (
-    typeof event.eventType === "string" &&
-    event.eventType.startsWith("subscription.") &&
-    event.data !== null &&
-    typeof event.data === "object"
-  );
-}
-
-/**
- * Type guard to check if event has transaction data
- */
-function isTransactionEvent(event: {
-  eventType: string;
-  data: unknown;
-}): event is { eventType: string; data: TransactionNotification } {
-  return (
-    typeof event.eventType === "string" &&
-    event.eventType.startsWith("transaction.") &&
-    event.data !== null &&
-    typeof event.data === "object"
-  );
-}
-
-/**
- * Safely extract custom data from subscription/transaction data
- */
-function extractCustomData(data: unknown): PaddleCustomData {
-  if (data === null || typeof data !== "object") {
-    return {};
-  }
-  const typedData = data as Record<string, unknown>;
-  const customData = typedData.customData ?? typedData.custom_data;
-  if (customData === null || typeof customData !== "object") {
-    return {};
-  }
-  return customData as PaddleCustomData;
-}
-
-/**
- * Safely extract string property from unknown data
- */
-function extractString(data: unknown, key: string, fallbackKey?: string): string | undefined {
-  if (data === null || typeof data !== "object") {
-    return undefined;
-  }
-  const typedData = data as Record<string, unknown>;
-  const value = typedData[key] ?? (fallbackKey ? typedData[fallbackKey] : undefined);
-  return typeof value === "string" ? value : undefined;
-}
+  extractCustomData,
+  extractString,
+  isSubscriptionEvent,
+  isTransactionEvent,
+} from "./paddleWebhookHelpers.js";
 
 /**
  * 🏓 WEBHOOK PADDLE - BILLING
@@ -145,25 +82,40 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
     // 🔍 DEBUG: Log le type d'événement reçu
     logger.log(`📨 [Paddle Webhook] Type: ${eventType}, EventID: ${eventId}`);
 
-    // 2️⃣ IDEMPOTENCE - Create-first with P2002 catch (avoids TOCTOU race)
+    // 2️⃣ IDEMPOTENCE — pre-check only.
+    // The marker (webhookEvent row) is inserted at the END of the handler, after
+    // all real work succeeded. If the work throws, the catch returns 500 without
+    // a marker, so Paddle retries hit a fresh handler. Pre-check below catches
+    // genuine retries of an already-processed event.
     if (eventId) {
+      const existing = await prisma.webhookEvent.findUnique({
+        where: { eventId },
+      });
+      if (existing) {
+        logger.log(`⏭️ [Paddle Webhook] Event déjà traité: ${eventType} - ${eventId}`);
+        return res.status(200).json({ skipped: true, reason: "already_processed" });
+      }
+    }
+
+    // Persist the idempotency marker — must be called from every success path,
+    // BEFORE returning 200, AFTER the side-effects (activatePlan, etc.) ran.
+    const recordProcessed = async (): Promise<void> => {
+      if (!eventId) return;
       try {
         await prisma.webhookEvent.create({
           data: { eventId, type: eventType, processedAt: new Date() },
         });
       } catch (err: unknown) {
+        // Concurrent retry won the race — already-processed marker exists. Safe to ignore.
         const isPrismaUniqueViolation =
           err !== null &&
           typeof err === "object" &&
           "code" in err &&
           (err as { code: string }).code === "P2002";
-        if (isPrismaUniqueViolation) {
-          logger.log(`⏭️ [Paddle Webhook] Event déjà traité: ${eventType} - ${eventId}`);
-          return res.status(200).json({ skipped: true, reason: "already_processed" });
-        }
-        throw err;
+        if (!isPrismaUniqueViolation) throw err;
       }
-    }
+      logger.log(`[PaddleWebhook] processed eventId=${eventId} type=${eventType}`);
+    };
 
     // 3️⃣ Extraire le userId depuis customData
     // Le frontend doit passer { clerkUserId: "user_xxx" } lors du checkout
@@ -190,28 +142,45 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
     // Extract product ID from subscription items to determine plan (premium vs ultra)
     // Only for subscription events — transaction events don't have items
     let activePlan: "premium" | "ultra" | undefined;
+    const isActivationEvent =
+      eventType === EventName.SubscriptionActivated || eventType === EventName.SubscriptionCreated;
     if (subData) {
+      const itemsCount = subData.items?.length ?? 0;
       const subProductId = subData.items?.[0]?.price?.productId ?? "";
+
+      // Activation events MUST carry items + a mapped product. Anything else is a payload
+      // contract violation — throw so Paddle retries instead of silently leaving the user
+      // on free_user (see PRE-MORTEM #2).
+      if (isActivationEvent && itemsCount === 0) {
+        throw new Error(`PADDLE_PAYLOAD_MISSING_ITEMS: eventId=${eventId} type=${eventType}`);
+      }
+
       const subscribedPlan = getPlanFromProductId(subProductId);
 
       logger.log(`[WEBHOOK] Product ID extraction:`, {
         eventType,
         subProductId: subProductId || "(empty)",
         subscribedPlan,
-        itemsCount: subData.items?.length ?? 0,
+        itemsCount,
       });
 
       if (subscribedPlan !== "free_user") {
         activePlan = subscribedPlan;
       } else if (subProductId) {
-        // Product ID present but unrecognized — log and continue without plan change
+        // Product ID present but unrecognized.
         logger.error("[WEBHOOK] Unrecognized product ID", {
           productId: subProductId,
           eventType,
+          eventId,
         });
+        if (isActivationEvent) {
+          throw new Error(
+            `PADDLE_UNKNOWN_PRODUCT_ID: eventId=${eventId} productId=${subProductId}`,
+          );
+        }
       }
-      // If subProductId is empty (items not populated), activePlan stays undefined
-      // Individual handlers decide what to do (e.g., subscription.updated can still update dates)
+      // For non-activation events (subscription.updated/canceled/paused/resumed),
+      // activePlan can stay undefined and individual handlers decide what to do.
     }
 
     // 📝 subscription.created - Subscription créée
@@ -257,41 +226,38 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
           { trialStart, trialEnd },
         );
 
+        await recordProcessed();
         return res.status(200).json({ success: true, message: "trial_activated" });
       }
 
       // Si pas de trial ou pas de userId, juste logger
+      await recordProcessed();
       return res.status(200).json({ success: true, message: "subscription_created_logged" });
     }
 
     // ✅ subscription.activated - Plan activé
     if (eventType === EventName.SubscriptionActivated) {
       if (!userId) {
-        logger.warn(`⚠️ [Paddle Webhook] subscription.activated sans userId:`, {
-          subscriptionId: subData?.id,
-          customerId: subData?.customerId,
-          customData,
-        });
-        return res.status(200).json({ skipped: true, reason: "no_user_id" });
+        // Cannot resolve user — fail loudly so Paddle retries (likely a race with
+        // user creation; transient).
+        throw new Error(
+          `PADDLE_ACTIVATED_NO_USER: eventId=${eventId} subscriptionId=${subData?.id ?? "?"}`,
+        );
       }
 
+      // activePlan is guaranteed defined here: missing items / unknown product
+      // already threw above. Defensive check kept for type narrowing only.
       if (!activePlan) {
-        logger.error(`❌ [Paddle Webhook] subscription.activated: could not determine plan`, {
-          userId,
-          itemsCount: subData?.items?.length ?? 0,
-        });
-        return res.status(200).json({ skipped: true, reason: "unknown_plan" });
+        throw new Error(`PADDLE_ACTIVATED_NO_PLAN: eventId=${eventId} userId=${userId}`);
       }
 
       const paddleCustomerId = subData?.customerId;
       const paddleSubscriptionId = subData?.id;
 
       if (!paddleCustomerId || !paddleSubscriptionId) {
-        logger.warn(`⚠️ [Paddle Webhook] subscription.activated missing required fields:`, {
-          paddleCustomerId,
-          paddleSubscriptionId,
-        });
-        return res.status(200).json({ skipped: true, reason: "missing_subscription_data" });
+        throw new Error(
+          `PADDLE_ACTIVATED_MISSING_IDS: eventId=${eventId} customerId=${paddleCustomerId ?? "?"} subscriptionId=${paddleSubscriptionId ?? "?"}`,
+        );
       }
 
       const currentPeriodEnd = subData?.currentBillingPeriod?.endsAt
@@ -315,6 +281,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         currentPeriodEnd,
       );
 
+      await recordProcessed();
       return res.status(200).json({ success: true });
     }
 
@@ -322,6 +289,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
     if (eventType === EventName.SubscriptionUpdated) {
       if (!userId) {
         logger.warn(`⚠️ [Paddle Webhook] subscription.updated sans userId`);
+        await recordProcessed();
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
@@ -393,6 +361,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         });
       }
 
+      await recordProcessed();
       return res.status(200).json({ success: true });
     }
 
@@ -400,6 +369,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
     if (eventType === EventName.SubscriptionCanceled) {
       if (!userId) {
         logger.warn(`⚠️ [Paddle Webhook] subscription.canceled sans userId`);
+        await recordProcessed();
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
@@ -423,6 +393,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         logger.log(`✅ [Paddle Webhook] Subscription marquée pour annulation: ${userId}`);
       }
 
+      await recordProcessed();
       return res.status(200).json({ success: true });
     }
 
@@ -430,6 +401,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
     if (eventType === EventName.SubscriptionPaused) {
       if (!userId) {
         logger.warn(`⚠️ [Paddle Webhook] subscription.paused sans userId`);
+        await recordProcessed();
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
@@ -438,6 +410,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
       // Mettre en pause = retour temporaire au free
       await PaddleBillingService.finalizeCancel(userId);
 
+      await recordProcessed();
       return res.status(200).json({ success: true });
     }
 
@@ -445,6 +418,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
     if (eventType === EventName.SubscriptionResumed) {
       if (!userId) {
         logger.warn(`⚠️ [Paddle Webhook] subscription.resumed sans userId`);
+        await recordProcessed();
         return res.status(200).json({ skipped: true, reason: "no_user_id" });
       }
 
@@ -456,6 +430,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
           paddleCustomerId,
           paddleSubscriptionId,
         });
+        await recordProcessed();
         return res.status(200).json({ skipped: true, reason: "missing_subscription_data" });
       }
 
@@ -474,6 +449,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         logger.error(`❌ [Paddle Webhook] subscription.resumed: could not determine plan`, {
           userId,
         });
+        await recordProcessed();
         return res.status(200).json({ skipped: true, reason: "unknown_plan" });
       }
 
@@ -485,6 +461,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
         currentPeriodEnd,
       );
 
+      await recordProcessed();
       return res.status(200).json({ success: true });
     }
 
@@ -497,6 +474,7 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
       });
 
       // Juste logger, la subscription.activated gère l'activation
+      await recordProcessed();
       return res.status(200).json({ success: true, message: "payment_completed_logged" });
     }
 
@@ -511,12 +489,14 @@ export const paddleWebhookHandler: express.RequestHandler = async (req, res) => 
 
       // TODO: Envoyer email "Problème de paiement"
 
+      await recordProcessed();
       return res.status(200).json({ success: true, message: "payment_failed_logged" });
     }
 
-    // Si on arrive ici, événement non géré mais valide (already recorded for idempotency)
+    // Si on arrive ici, événement non géré mais valide.
     logger.log(`⏭️ [Paddle Webhook] Event non géré: ${eventType}`);
 
+    await recordProcessed();
     return res.status(200).json({ received: true, unhandled: eventType });
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);

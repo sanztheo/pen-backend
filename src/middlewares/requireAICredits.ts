@@ -7,8 +7,10 @@ import { Request, Response, NextFunction } from "express";
 import { AICreditsService } from "../services/credits/aiCreditsService.js";
 import { AuthUser } from "../services/auth.js";
 import { secureLog } from "../lib/secureLogging.js";
-import { findSelectableModel } from "../config/models/selectable.js";
+import { findSelectableModel, PLAN_RANK } from "../config/models/selectable.js";
 import { DailyModelLimitService } from "../services/credits/dailyModelLimit.js";
+import { prisma } from "../lib/prisma.js";
+import type { SubscriptionPlan } from "@prisma/client";
 
 interface AuthRequest extends Request {
   user?: AuthUser;
@@ -45,7 +47,50 @@ export const requireAICredits = (config: AICreditsConfig = {}) => {
       const modelCompositeId = (req.body?.modelSelection ?? req.body?.modelId) as
         | string
         | undefined;
-      const selectedModel = modelCompositeId ? findSelectableModel(modelCompositeId) : undefined;
+
+      // STRICT validation (PRE-MORTEM #7): if the client sent a composite ID at all,
+      // it MUST resolve to a known selectable model AND be allowed for the user's
+      // current plan. Silent fallback to multiplier=1 let users invoke premium
+      // models while being charged eco rates.
+      let selectedModel = undefined as ReturnType<typeof findSelectableModel>;
+      if (modelCompositeId) {
+        selectedModel = findSelectableModel(modelCompositeId);
+        if (!selectedModel) {
+          secureLog("warn: [AI-CREDITS] Invalid model selection rejected", {
+            userId,
+            modelId: modelCompositeId,
+          });
+          return res.status(400).json({
+            success: false,
+            error: "INVALID_MODEL_SELECTION",
+            modelId: modelCompositeId,
+          });
+        }
+
+        const subscription = await prisma.userSubscription.findUnique({
+          where: { userId },
+          select: { plan: true },
+        });
+        const userPlan: SubscriptionPlan = subscription?.plan ?? "free_user";
+        const planRank = PLAN_RANK[userPlan];
+        const modelRequiredRank = PLAN_RANK[selectedModel.requiredPlan];
+
+        if (planRank < modelRequiredRank) {
+          secureLog("warn: [AI-CREDITS] Model not in plan", {
+            userId,
+            plan: userPlan,
+            modelId: selectedModel.id,
+            requiredPlan: selectedModel.requiredPlan,
+          });
+          return res.status(403).json({
+            success: false,
+            error: "MODEL_NOT_IN_PLAN",
+            plan: userPlan,
+            model: selectedModel.id,
+          });
+        }
+      }
+
       const multiplier = selectedModel?.creditMultiplier ?? 1;
       const cost = baseCost * multiplier;
 

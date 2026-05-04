@@ -287,4 +287,42 @@ export async function deleteFromCloudinary(publicId: string): Promise<void> {
   }
 }
 
+/**
+ * 🧹 GDPR cascade: delete every Cloudinary asset owned by `userId`.
+ *
+ * The publicId convention (see `routes/upload.ts`) is:
+ *   pennote/notes/${userId}_<timestamp>...
+ *   pennote/notes/${userId}/...
+ *
+ * Cloudinary's `delete_resources_by_prefix` walks both forms when given
+ * the prefix `pennote/notes/${userId}` (it does prefix matching, not
+ * exact). We loop with `next_cursor` to handle users with > 100 assets.
+ *
+ * Throws on Cloudinary failure — the caller is expected to wrap in a
+ * try/catch + audit log so the rest of the deletion proceeds.
+ */
+export async function deleteUserCloudinaryAssets(userId: string): Promise<{
+  deletedCount: number;
+}> {
+  if (!userId) throw new Error("[Cloudinary] deleteUserCloudinaryAssets: userId required");
+
+  const prefix = `${UPLOAD_CONFIG.FOLDER}/${userId}`;
+  let deletedCount = 0;
+  let nextCursor: string | undefined;
+
+  do {
+    const result: { deleted?: Record<string, string>; next_cursor?: string } =
+      await cloudinary.api.delete_resources_by_prefix(prefix, {
+        resource_type: "image",
+        ...(nextCursor ? { next_cursor: nextCursor } : {}),
+      });
+
+    deletedCount += Object.keys(result.deleted ?? {}).length;
+    nextCursor = result.next_cursor;
+  } while (nextCursor);
+
+  logger.log("🧹 [Cloudinary Service] User assets purged:", { userId, deletedCount });
+  return { deletedCount };
+}
+
 export { UPLOAD_CONFIG };
