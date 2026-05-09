@@ -1,146 +1,214 @@
-> **Translations:** [English](README.md) · [Français](README.fr.md) · [Español](README.es.md) · [Deutsch](README.de.md) · [Português](README.pt.md) · [中文](README.zh.md) · [日本語](README.ja.md) · [العربية](README.ar.md)
+# pen-backend
 
-# Distribuire il backend Pen su Railway in un repository separato
+> API di Pennote — Node.js + Prisma + Vercel AI SDK. Streaming AI multi-provider, collaborazione Yjs, fatturazione con Paddle, RAG con pgvector.
 
-Questa guida spiega come estrarre la cartella `backend/` dal monorepo `pen-saas` in un repository Git autonomo per collegarlo a Railway, mantenendo il frontend su Vercel.
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Node](https://img.shields.io/badge/node-22-339933?logo=node.js)]()
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)]()
+[![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma&logoColor=white)]()
+[![AI SDK](https://img.shields.io/badge/Vercel%20AI%20SDK-v6-black)]()
 
-## 1. Prerequisiti
+> **Traduzioni:** [English](README.md) · [Français](README.fr.md) · [Español](README.es.md) · [Deutsch](README.de.md) · [Português](README.pt.md) · [中文](README.zh.md) · [日本語](README.ja.md) · [العربية](README.ar.md)
 
-- Accesso in scrittura al repository monorepo `pen-saas`.
-- Git ≥ 2.30 (per `git subtree`) e Node.js 18+.
-- Un account Railway con i permessi per creare un progetto + servizi (PostgreSQL/Redis).
-- Un repository Git remoto vuoto (GitHub, GitLab, …) destinato esclusivamente al backend.
+> **🟡 Stato del progetto — open source da maggio 2026.** Pennote è stato costruito come SaaS ma non ha mai raggiunto il product-market fit (rilasciato a circa 50 utenti, senza trazione). Invece di lasciare marcire il codice in privato, l'abbiamo reso open source. Usalo, forkalo, impara da esso, ospita la tua istanza. Issue e PR sono benvenute — vedi [`CONTRIBUTING.md`](CONTRIBUTING.md). La manutenzione è best-effort.
 
-## 2. Estrarre il backend in un nuovo repository
+## Che cos'è
 
-> 🎯 Obiettivo: ottenere una cronologia Git pulita contenente solo la cartella `backend/` e la sua sotto-struttura (`prisma/`, `src/`, `scripts/`, ecc.).
+L'API HTTP / WebSocket dietro Pennote. Servizio Node basato su Express con Prisma su due schemi Postgres (principale + pgvector per gli embedding), streaming AI su SSE tramite il Vercel AI SDK, e collaborazione Yjs WebSocket con persistenza Postgres. Questo repository è anche un sottomodulo del monorepo [Pennote](https://github.com/sanztheo/Pennote).
 
-### Passi rapidi con `git subtree`
+## Punti salienti
 
-1. Dalla radice del monorepo, crea un branch temporaneo che contenga solo il backend:
-   ```bash
-   git subtree split --prefix=backend -b backend-only
-   ```
-2. Inizializza un nuovo repository locale a partire da questo branch:
-   ```bash
-   git clone . ../pen-backend --branch backend-only --single-branch
-   cd ../pen-backend
-   ```
-3. Pulisci i riferimenti non necessari, poi collega il repository remoto definitivo:
-   ```bash
-   git remote remove origin
-   git remote add origin git@github.com:LA-TUA-ORG/pen-backend.git
-   git push -u origin backend-only:main
-   ```
-4. Elimina il branch temporaneo nel monorepo se non serve più:
-   ```bash
-   cd ../pen-saas
-   git branch -D backend-only
-   ```
+- **Schemi Prisma duali** — dati principali dell'app più uno schema pgvector separato per gli embedding RAG, generati da `prisma/schema.prisma` e `prisma/schema-embeddings.prisma`
+- **Failover AI multi-provider** tramite Vercel AI SDK v6 — Anthropic, OpenAI, Google, DeepSeek, Moonshot, xAI; routing per provider in base alla modalità agent con propagazione di timeout + abort
+- **Streaming SSE riprendibile** — i client possono disconnettersi e riconnettersi a metà completamento via `resumable-stream`; i token della chat vengono persistiti man mano che arrivano
+- **Collaborazione CRDT Yjs** — server WebSocket (`ws` + `y-protocols`) con snapshot persistiti su Postgres; riconciliazione offline alla riconnessione
+- **Pipeline di intelligenza quiz** — estrazione dei concetti, sequenziamento adattivo, generazione in streaming, aggregazione delle statistiche; benchmark via `npm run benchmark:quiz`
+- **Worker BullMQ** su Redis per job in background (cleanup, embeddings, task pianificati)
+- **Guardia di boot single-replica** — il server lancia un'eccezione all'avvio se `REPLICA_COUNT > 1`; necessario perché la mappa dei documenti Yjs, il mutex page-edit e la cache dei risultati dei tool sono tutti in memoria
+- **Idempotenza dei webhook Paddle** — verifica della firma su raw-body con guardie anti doppio-processamento sugli eventi del ciclo di vita dell'abbonamento
+- **~200 endpoint distribuiti su 31 file di route**, strutturati attorno a livelli di middleware (auth → autorizzazione → validazione → handler)
 
-### Alternativa: copia manuale (senza cronologia)
+## Stack tecnologico
 
-1. Crea una cartella vuota e inizializza Git:
-   ```bash
-   mkdir ../pen-backend && cp -R backend/* ../pen-backend
-   cd ../pen-backend
-   git init
-   ```
-2. Aggiungi i file essenziali presenti nella radice della cartella backend:
-   - `package.json` / `package-lock.json`
-   - `tsconfig.json`
-   - `Dockerfile.dev`
-   - `prisma/`, `scripts/`, `src/`
-3. Crea un `.gitignore` minimale:
-   ```bash
-   cat <<'EOT' > .gitignore
-   node_modules
-   dist
-   .env
-   .env.*
-   EOT
-   ```
-4. Esegui il commit e fai il push verso il nuovo repository remoto:
-   ```bash
-   git add .
-   git commit -m "Initial backend export"
-   git remote add origin git@github.com:LA-TUA-ORG/pen-backend.git
-   git push -u origin main
-   ```
+| Livello | Scelta |
+|---------|--------|
+| Runtime | Node.js 22, ESM |
+| HTTP | Express 4, Helmet, CORS, compression |
+| Database | PostgreSQL via Prisma 6 (schema duale) |
+| Vector DB | pgvector (schema Postgres separato) |
+| Cache / queue | Redis (ioredis), BullMQ |
+| Auth | Clerk (`@clerk/backend`) |
+| Fatturazione | Paddle (`@paddle/paddle-node-sdk`) + verifica HMAC raw-body |
+| AI | Vercel AI SDK v6, 6 pacchetti provider, fallback OpenAI SDK |
+| Embedding | `@xenova/transformers` (locale) + OpenAI |
+| Tempo reale | `ws`, `y-protocols`, `socket.io` (legacy) |
+| Streaming | `resumable-stream` per riprendere SSE |
+| File handling | Multer, Sharp, Cloudinary, mammoth (DOCX), pdf-lib |
+| Email | Resend |
+| Validazione | Zod |
+| Rate limiting | express-rate-limit + rate-limit-redis |
 
-## 3. Preparare il repository backend per Railway
+## Avvio rapido
 
-1. Verifica che `package.json` esponga correttamente gli script di build e di avvio usati da Railway:
-   - `npm run build` → `tsc` (genera `dist/`).
-   - `npm run start` → `node dist/index.js`.
-2. Aggiungi un file `README` (questo documento) e una descrizione del progetto se necessario.
-3. Esegui in locale:
-   ```bash
-   npm install
-   npx prisma generate
-   npm run build
-   ```
-   Questo garantisce che le dipendenze e il transpiler TypeScript funzionino prima del primo deploy.
+```bash
+# Clonare (o lavorare nel monorepo Pennote)
+git clone https://github.com/sanztheo/pen-backend.git
+cd pen-backend
 
-## 4. Variabili d’ambiente indispensabili
+# Installare
+npm install
 
-Crea un file `.env` localmente (e popola le variabili su Railway). Le più importanti:
+# Configurare
+cp .env.example .env
+# Compilare DATABASE_URL, EMBEDDING_DATABASE_URL, REDIS_URL, CLERK_SECRET_KEY, ...
 
-| Variabile | Ruolo |
-| --- | --- |
-| `DATABASE_URL` | URL principale di PostgreSQL (Railway Postgres consigliato). |
-| `EMBEDDING_DATABASE_URL` | Connessione al database vettoriale / secondo Postgres (se utilizzato). |
-| `REDIS_URL` | Istanza Redis per cache, rate limiting e WebSocket. |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` | Accesso alle generazioni AI. |
-| `OPENAI_DASHBOARD_MODEL` | Modello preferito per la dashboard (opzionale ma supportato nel codice). |
-| `OPENAI_MAX_REQUESTS_PER_HOUR`, `OPENAI_MAX_TOKENS_PER_HOUR`, `OPENAI_MAX_COST_PER_HOUR` | Limiti di quota AI (valori predefiniti nel codice). |
-| `CLERK_SECRET_KEY`, `CLERK_WEBHOOK_SECRET` | Autenticazione Clerk. |
-| `CLIENT_URL` | URL pubblica del frontend (Vercel) per configurare CORS. |
-| `TAVILY_API_KEY` | Ricerca esterna per l’assistente AI (opzionale ma consigliato). |
-| `GEMINI_API_KEY` / `GEMINI_THINKING_MODEL` | Supporto Google Gemini (opzionale). |
-| `ASSISTANT_ID`, `ASSISTANT_ID_DOCUMENTS`, `ASSISTANT_ID_2` | Identificatori OpenAI Assistant se usi i tuoi ID. |
-| `RAG_EMBEDDING_CONCURRENCY`, `RAG_DB_BATCH_SIZE` | Parametri di ingestione RAG (valori predefiniti forniti). |
+# Generare i client Prisma (entrambi gli schemi)
+npx prisma generate
+npx prisma generate --schema=prisma/schema-embeddings.prisma
 
-> ℹ️ Railway maschera automaticamente le variabili sensibili. Ricordati di sincronizzare gli stessi valori in Vercel quando il frontend ne ha bisogno (es. `VITE_API_URL`).
+# Eseguire le migrazioni
+npm run db:migrate
 
-## 5. Deploy su Railway
+# Sviluppare (porta 3001)
+npm run dev          # usa Infisical per i secret — vedi sotto
+npm run dev:local    # tsx watch puro, legge .env direttamente
+```
 
-1. **Creare il progetto Railway**:
-   - Aggiungi un servizio PostgreSQL e, se necessario, un servizio Redis.
-   - Annota le URL di connessione esposte da Railway (pulsante «Variables»).
-2. **Aggiungere il servizio Node.js**:
-   - Scegli «Deploy from GitHub» e seleziona il repository del backend.
-   - Lascia che Railway rilevi la build:
-     - Install command: `npm install`
-     - Build command: `npm run build`
-     - Start command: `npm run start`
-   - Aggiungi le variabili d’ambiente elencate sopra.
-3. **Migrazioni Prisma**:
-   - Nel terminale Railway, esegui:
-     ```bash
-     railway run npx prisma migrate deploy
-     ```
-     oppure, per fare il push dello schema senza migrazione, `railway run npm run db:push`.
-4. **Test di salute**:
-   - Assicurati che il servizio risponda sulla porta assegnata (Railway fornisce `PORT`). Il codice del backend legge già `process.env.PORT || 3001`, non devi cambiare nulla.
-5. **Domini personalizzati** (facoltativo):
-   - Aggiungi un custom domain in Railway e aggiorna la variabile `CLIENT_URL` lato backend e `VITE_API_URL` lato frontend.
+## Variabili d'ambiente
 
-## 6. Collegare il frontend Vercel
+Il repository fornisce un `.env.example` con l'elenco completo. Variabili critiche:
 
-In Vercel, configura le seguenti variabili:
+| Variabile | Richiesta | Descrizione |
+|-----------|-----------|-------------|
+| `DATABASE_URL` | sì | Stringa di connessione Postgres principale |
+| `EMBEDDING_DATABASE_URL` | sì | Postgres **separato** con l'estensione `vector` installata |
+| `REDIS_URL` | sì | Redis per cache, rate limiting, BullMQ |
+| `CLIENT_URL` | sì | Origin del frontend (allow-list CORS) |
+| `CLERK_SECRET_KEY` | sì | Chiave backend Clerk |
+| `CLERK_WEBHOOK_SECRET` | sì | Per verificare i webhook Clerk |
+| `OPENAI_API_KEY` | una+ | Almeno una chiave provider AI è richiesta |
+| `ANTHROPIC_API_KEY` | una+ | |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | una+ | |
+| `DEEPSEEK_API_KEY` | una+ | |
+| `MOONSHOT_API_KEY` | una+ | |
+| `XAI_API_KEY` | una+ | |
+| `PADDLE_API_KEY` | per la fatturazione | Chiave API Paddle Billing |
+| `PADDLE_WEBHOOK_SECRET` | per la fatturazione | Secret di firma dei webhook Paddle |
+| `ENCRYPTION_KEY` | sì | Hex 32 byte usato per la crittografia at-rest dei campi sensibili |
+| `RESEND_API_KEY` | per l'email | Email transazionale |
+| `CLOUDINARY_*` | per gli upload | Hosting immagini |
+| `REPLICA_COUNT` | opzionale | Default `1`. Il boot rifiuterà di partire se > 1. |
 
-- `VITE_API_URL`: `https://<la-tua-app>.railway.app` (o il tuo dominio personalizzato).
-- `VITE_OPENAI_BASE_URL` (facoltativo): `https://<la-tua-app>.railway.app/api/ai/proxy`.
+Convenzione: le env var lanciano un'eccezione quando mancano — niente fallback silenziosi. `if (!process.env.X) throw new Error(...)`.
 
-Quindi rifai il deploy del frontend per propagare la nuova URL del backend.
+I secret in produzione sono gestiti tramite [Infisical](https://infisical.com/). Gli script `dev` racchiudono automaticamente i comandi con `infisical run --env=dev --path=/Backend --`.
 
-## 7. Mantenere il backend sincronizzato
+> **Insidia di pgvector:** `EMBEDDING_DATABASE_URL` deve puntare a un'istanza Postgres dove `CREATE EXTENSION vector;` è già stato eseguito. Il client Prisma per quello schema viene generato separatamente e vive in `src/lib/prismaEmbeddings.ts`. Importa sempre `Prisma` dallo stesso pacchetto del client che stai usando, altrimenti `Prisma.raw()` viene silenziosamente forzato in JSON.
 
-- Continua a sviluppare il backend nel nuovo repository. Se vuoi riportare modifiche nel monorepo, puoi usare `git subtree pull` o ricopiare le modifiche.
-- Documenta chiaramente in ciascun repository dove si trova la fonte di verità.
-- Considera di mettere in piedi un workflow CI (GitHub Actions) per lanciare `npm run build` e `npm run test` su ogni PR prima del deploy.
+## Struttura del progetto
 
----
+```
+src/
+├── index.ts            # Bootstrap, app Express, router montati
+├── routes/             # 31 file di route — uno per dominio
+├── controllers/        # Sottile livello di orchestrazione
+├── services/           # Logica di business, routing dei provider AI, pipeline quiz
+├── middlewares/        # auth, autorizzazione, validazione, rate-limit
+├── workers/            # Worker BullMQ
+├── jobs/               # Definizioni di job in coda su BullMQ
+├── cron/               # Pianificazioni node-cron
+├── lib/                # Client Prisma (principale + embeddings), Redis, client AI
+├── validators/         # Schemi Zod
+├── utils/              # logger, helper di errore, crittografia, ecc.
+└── types/              # Tipi TS condivisi
+prisma/
+├── schema.prisma                # DB principale
+└── schema-embeddings.prisma     # DB pgvector
+```
 
-Seguendo questi passi, il tuo backend Node.js/Express (TypeScript) è isolato in un repository autonomo, pronto a essere distribuito su Railway, mentre il frontend può continuare a vivere su Vercel con un `VITE_API_URL` che punta all’API Railway.
+## Architettura
+
+**Streaming SSE.** Gli endpoint di completamento chat scrivono i delta tramite un wrapper `resumable-stream`. L'id dello stream viene restituito in anticipo, così un client disconnesso può riprendere dall'ultimo token persistito. Il failover di provider avviene prima del primo byte; una volta avviato lo streaming, un `AbortSignal.timeout()` impone un limite massimo e `consumeStream()` viene sempre chiamato dopo `pipeUIMessageStreamToResponse(res)` per scaricare i token in transito.
+
+**Client Prisma duale.** Il client principale vive in `lib/prisma.ts`. Il client di embeddings vive in `lib/prismaEmbeddings.ts` e usa un client generato in output su `node_modules/.prisma/client-embeddings`. Non condividono mai una transazione — le scritture di embedding avvengono al successo del flusso principale.
+
+**Persistenza Yjs su Postgres.** Un server WebSocket fa upgrade delle connessioni `/yjs/:docId`, istanzia un `Y.Doc` per ciascun documento e persiste snapshot/aggiornamenti su Postgres. La guardia di boot single-replica garantisce che un solo processo mantenga la mappa dei documenti; una seconda istanza che tenta di partire termina rumorosamente.
+
+**Idempotenza dei webhook.** I webhook Paddle passano per la verifica della firma su raw-body (montata con `express.raw()` *prima* di `express.json()`), poi per un check di chiave di idempotenza basato su database prima di qualsiasi effetto collaterale. Vedi `src/routes/paddleWebhooks.ts` e `src/routes/paddleWebhookHelpers.ts`.
+
+**Intelligenza quiz.** Il contenuto sorgente viene segmentato in chunk, ne vengono estratti i concetti (LLM), poi le domande vengono streamate e classificate da un sequenziatore adattivo che usa le risposte recenti dell'utente. L'aggregazione delle statistiche gira su worker in background.
+
+**Sicurezza della cache dei tool.** Qualsiasi cache di risultati di tool deve includere sia `userId` sia `workspaceId` nella sua chiave (`services/agent/tools/helpers/cacheKey.ts` — `toolCacheKey()`). Una chiave a cui manca uno dei due apre una fuga di dati cross-tenant.
+
+## Comandi
+
+```bash
+npm run dev                    # Infisical + tsx watch (porta 3001)
+npm run dev:local              # tsx watch puro con .env locale
+npm run build                  # prisma generate (x2) + tsc
+npm run start                  # Server di produzione
+npm run db:migrate             # prisma migrate dev (migrazioni sicure)
+npm run db:push                # prisma db push (SOLO DEV — mai in prod, mai --force-reset)
+npm run db:studio              # Prisma Studio
+npm test                       # Jest
+npm run test:coverage          # Report di copertura
+npm run test:load              # Runner di test di carico
+npm run test:load:light        # 5 utenti / 3 richieste
+npm run test:load:medium       # 20 utenti / 10 richieste
+npm run test:load:heavy        # 50 utenti / 20 richieste
+npm run benchmark:quiz         # Benchmark completo della pipeline quiz
+npm run benchmark:quiz:small   # ...:medium ...:large ...:xlarge
+npm run lint                   # ESLint
+npm run format                 # Prettier
+```
+
+## Test
+
+- **Unitari / di integrazione:** Jest con `--experimental-vm-modules` (ESM). I test vivono in `src/__tests__` e `src/tests`.
+- **Carico:** `tsx test-load.ts` — conteggi configurabili di utenti/richieste, flag per feature (`--test=quiz`, `--test=credits`).
+- **Scala WebSocket:** `npm run test:artillery` contro `artillery-websocket.yml`.
+- **Benchmark quiz:** `npm run benchmark:quiz` misura la latenza su 4 dimensioni di contenuto.
+
+## Deploy
+
+Il backend si distribuisce su **Railway** come **single replica**. Più replica corromperebbero la mappa dei documenti Yjs in memoria e il mutex page-edit; la guardia di boot rifiuta di partire se `REPLICA_COUNT > 1`. La build esegue `prisma generate` per entrambi gli schemi prima di `tsc`. La produzione parte tramite `node dist/index.js` con `NODE_OPTIONS=--max-old-space-size=7168`. Migrare a un lock distribuito Redis prima di qualsiasi scaling orizzontale. Vedi `docs/guides/deployment-runbook.md` nel [monorepo](https://github.com/sanztheo/Pennote).
+
+## Roadmap & stato
+
+Questo è uno snapshot mantenuto dalla community. Il SaaS originale non è più attivo. Accetteremo PR che:
+
+- Correggono bug
+- Migliorano la documentazione
+- Aggiungono test mancanti
+- Implementano funzionalità con un caso d'uso chiaro per i self-hoster
+
+Probabilmente **rifiuteremo** PR che:
+
+- Ristrutturano l'architettura senza discussione preventiva
+- Aggiungono nuovi provider SaaS senza valore reale
+- Modificano la licenza o l'attribuzione
+
+## Contribuire
+
+Vedi [`CONTRIBUTING.md`](CONTRIBUTING.md) e [`BRANCH_PROTECTION.md`](BRANCH_PROTECTION.md). Tutti i contributor devono accettare il [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
+## Sicurezza
+
+Se scopri una vulnerabilità, **non aprire una issue pubblica**. Vedi [`SECURITY.md`](SECURITY.md) — segnala a <sanztheopro@gmail.com>.
+
+## Licenza
+
+[GNU AGPLv3](LICENSE). Copyright (C) 2026 Théo Sanz.
+
+Se ospiti in self-hosting una versione modificata di Pennote e la servi a degli utenti, l'AGPLv3 ti obbliga a pubblicare le tue modifiche. Questo protegge il progetto dai fork SaaS closed-source. Se hai bisogno di una licenza diversa per un riutilizzo commerciale legittimo, contatta <sanztheopro@gmail.com>.
+
+## Ringraziamenti
+
+Costruito su [Express](https://expressjs.com/), [Prisma](https://www.prisma.io/), il [Vercel AI SDK](https://sdk.vercel.ai/), [Yjs](https://yjs.dev/), [BullMQ](https://docs.bullmq.io/), [Clerk](https://clerk.com/) e [Paddle](https://www.paddle.com/). Grazie a tutti i mantainer upstream.
+
+## Contatti
+
+- Maintainer: Théo Sanz
+- Email: <sanztheopro@gmail.com>
+- Issue: [GitHub Issues](https://github.com/sanztheo/pen-backend/issues)
+- Discussioni: [GitHub Discussions](https://github.com/sanztheo/pen-backend/discussions)
