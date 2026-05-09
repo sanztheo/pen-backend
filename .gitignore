@@ -1,16 +1,42 @@
-node_modules
-dist
+# Dependencies
+node_modules/
+
+# Environment files
 .env
-logs
-.DS_Store
-
-debug-logs
-.env.example
-.tsbuildinfo
 .env.*
-*.md
-CLAUDE.md
-.gstack/
+!.env.example
 
-# Dev log file
-backend.log
+# Build artifacts
+dist/
+build/
+
+# Logs
+*.log
+logs/
+debug-logs/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Prisma generated
+prisma/generated/
+.prisma/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Internal AI workflow (never push to OSS)
+claudedocs/
+docs/claude/
+tasks/
+
+# Local scripts (debug-only, not for OSS)
+scripts/debug/
