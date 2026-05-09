@@ -6,7 +6,7 @@
  *   infisical run --env=prod --path=/Backend -- npx tsx scripts/send-product-update.ts --dry-run
  *
  *   # Send to yourself first:
- *   infisical run --env=prod --path=/Backend -- npx tsx scripts/send-product-update.ts --test redacted@example.com
+ *   infisical run --env=prod --path=/Backend -- npx tsx scripts/send-product-update.ts --test your-admin-email@example.com
  *
  *   # Send to all active users:
  *   infisical run --env=prod --path=/Backend -- npx tsx scripts/send-product-update.ts --send

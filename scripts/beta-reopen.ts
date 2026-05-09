@@ -14,7 +14,7 @@
  *   infisical run --env=prod --path=/Backend -- npx tsx scripts/beta-reopen.ts --dry-run
  *
  *   # 2. Single test to one email (real token + email, NO subscription change):
- *   infisical run --env=prod --path=/Backend -- npx tsx scripts/beta-reopen.ts --test redacted@example.com
+ *   infisical run --env=prod --path=/Backend -- npx tsx scripts/beta-reopen.ts --test your-admin-email@example.com
  *
  *   # 3. Full run — tokens, subscription downgrades, emails to the 31:
  *   infisical run --env=prod --path=/Backend -- npx tsx scripts/beta-reopen.ts --send
@@ -37,7 +37,7 @@ const APP_BASE_URL = "https://app.pennote.fr";
 const BATCH_SIZE = 10;
 const DELAY_BETWEEN_BATCHES_MS = 5_000;
 const SIGN_IN_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
-const EXCLUDED_EMAILS = new Set(["sanztheopro@gmail.com", "redacted@example.com"]);
+const EXCLUDED_EMAILS = new Set(["sanztheopro@gmail.com", "your-admin-email@example.com"]);
 
 const HTML_PATH = resolve(__dirname, "../../docs/templates/beta-reopen.html");
 const LOG_DIR = resolve(__dirname, "../../tasks");
